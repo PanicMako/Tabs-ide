@@ -1,0 +1,156 @@
+---
+/** Changelog · Journal: an editorial release log. One release per row, a capture, three lines. */
+import PortalNav from "./portal/PortalNav.astro";
+import PortalEnd from "./portal/PortalEnd.astro";
+import releases from "../../data/releases.json";
+import { mergeReleases } from "../../lib/lab/changelog-curated";
+import { links } from "../../data/lab";
+import "../../styles/lab-portal.css";
+const list = mergeReleases(releases);
+---
+<div class="v1 cj">
+  <PortalNav current="changelog" />
+
+  <header class="v1-wrap cj-head" data-sec="Header">
+    <p class="cj-kick"><i data-live></i>Changelog</p>
+    <h1 class="cj-title"><span class="cj-ln"><span>New in <em>Tabs.</em></span></span></h1>
+    <div class="cj-head__row">
+      <p class="cj-sub">Every release, the moment it ships. <span data-count>{list.length}</span> so far.</p>
+      <div class="cj-links">
+        <a class="v1-link" href="https://github.com/PanicMako/Tabs-ide/releases.atom">RSS</a>
+        <a class="v1-link" href="https://github.com/PanicMako/Tabs-ide/releases">GitHub releases ↗</a>
+        <a class="v1-btn v1-btn--sm" href={links.download}><span>Download <span data-version>{list[0]!.tag}</span></span></a>
+      </div>
+    </div>
+  </header>
+
+  <main class="v1-wrap cj-feed" data-feed data-sec="Releases"></main>
+  <div class="cj-more"><button type="button" class="v1-btn v1-btn--ghost" data-more><span>Older releases</span></button></div>
+  <script type="application/json" id="cl-data" set:html={JSON.stringify(list).replace(/</g, "\\u003c")}></script>
+  <noscript><style>.cj-feed:empty::after { content: "Turn on JavaScript to read the changelog, or visit GitHub releases."; }</style></noscript>
+
+  <PortalEnd title="Stay on the latest." />
+</div>
+
+<style is:global>
+  .cj-head { padding: 150px 0 70px; border-bottom: 1px solid var(--line); }
+  .cj-kick { display: flex; align-items: center; gap: 10px; margin: 0 0 22px; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
+  .cj-kick i { width: 7px; height: 7px; border-radius: 50%; background: #c6c9d6; transition: background .4s; }
+  .cj-kick i.ok { background: var(--mint); box-shadow: 0 0 0 4px rgba(24,180,123,.16); }
+  .cj-title { margin: 0; font-size: clamp(64px, 10vw, 168px); line-height: .9; letter-spacing: -.055em; font-weight: 500; }
+  .cj-title em { color: var(--cobalt); }
+  .cj-ln { display: block; overflow: hidden; padding: .02em .1em .26em; margin: 0 -.1em -.26em; }
+  .cj-ln > span { display: block; }
+  .cj-head__row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; margin-top: 34px; }
+  .cj-sub { margin: 0; font-size: 19px; color: var(--mute); }
+  .cj-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+
+  .cj-entry { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding: 64px 0; border-bottom: 1px solid var(--line); }
+  .cj-date { position: sticky; top: 110px; align-self: start; display: grid; gap: 10px; }
+  .cj-date time { font: 500 14px var(--mono); color: var(--mute); }
+  .cj-ver { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px 6px 8px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line); font: 600 13px var(--mono); color: var(--ink); text-decoration: none; }
+  .cj-ver i { width: 8px; height: 8px; border-radius: 50%; background: #b9bccb; }
+  .cj-ver[data-k="feature"] i { background: var(--cobalt); } .cj-ver[data-k="major"] i { background: var(--coral); }
+  .cj-latest { justify-self: start; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--mint); }
+  .cj-body { min-width: 0; }
+  .cj-body h2 { margin: 0 !important; max-width: 820px; font-size: clamp(30px, 3.2vw, 48px) !important; line-height: 1.02 !important; letter-spacing: -.045em !important; padding-bottom: .06em; }
+  .cj-sum { max-width: 640px; margin: 16px 0 0; font-size: 18px; line-height: 1.55; color: var(--mute); }
+  .cj-hl { display: grid; gap: 10px; margin: 26px 0 0; padding: 0; list-style: none; max-width: 720px; }
+  .cj-hl li { display: grid; grid-template-columns: 22px 1fr; gap: 12px; font-size: 16px; line-height: 1.5; }
+  .cj-hl li::before { content: ""; width: 6px; height: 6px; margin: 9px 0 0 6px; border-radius: 50%; background: var(--cobalt); }
+  .cj-toggle { margin-top: 22px; padding: 0; border: 0; background: none; font: 500 14px var(--sans); color: var(--cobalt); cursor: pointer; }
+  .cj-rest { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; margin-top: 22px; overflow: hidden; }
+  .cj-rest[hidden] { display: none; }
+  .cj-rest h4 { margin: 0 0 8px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+  .cj-rest ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14.5px; line-height: 1.5; color: #33364a; }
+  .cj-more { display: flex; justify-content: center; padding: 60px 0 140px; }
+  .cj-more [hidden] { display: none; }
+  @media (max-width: 860px) { .cj-entry { grid-template-columns: 1fr; gap: 18px; padding: 56px 0; } .cj-date { position: relative; top: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; } .cj-rest { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced } from "../../lib/lab/common";
+  import { portalPage } from "../../lib/lab/portal";
+  import { liveReleases, type LabRelease } from "../../lib/lab/changelog";
+  portalPage();
+
+  const PAGE = 10;
+  const feed = document.querySelector<HTMLElement>("[data-feed]")!;
+  const more = document.querySelector<HTMLButtonElement>("[data-more]")!;
+  let all: LabRelease[] = JSON.parse(document.getElementById("cl-data")!.textContent!);
+  let shown = 0;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  const brief = (s: string) => { const m = s.match(/^(.{20,}?[.!?])(\s|$)/); return m ? m[1]! : s; };
+
+  const entry = (r: LabRelease, i: number) => {
+    const rest = r.highlights.slice(3);
+    const restBlocks = [...(rest.length ? [{ title: "Also", items: rest }] : []), ...r.sections];
+    const restCount = restBlocks.reduce((n, s) => n + s.items.length, 0);
+    return `<article class="cj-entry" id="${esc(r.tag)}">
+      <div class="cj-date">
+        <a class="cj-ver" href="#${esc(r.tag)}" data-k="${r.kind}"><i></i>${esc(r.tag)}</a>
+        <time datetime="${esc(r.iso)}">${esc(r.date)}</time>
+        ${i === 0 ? '<span class="cj-latest">Latest</span>' : ""}
+      </div>
+      <div class="cj-body">
+        <h2>${esc(r.title)}</h2>
+        <p class="cj-sum">${esc(r.summary)}</p>
+        ${r.highlights.length ? `<ul class="cj-hl">${r.highlights.slice(0, 3).map((h) => `<li>${esc(brief(h))}</li>`).join("")}</ul>` : ""}
+        ${restCount ? `<button type="button" class="cj-toggle" data-toggle data-label="${restCount} more change${restCount > 1 ? "s" : ""} ↓">${restCount} more change${restCount > 1 ? "s" : ""} ↓</button><div class="cj-rest" hidden>${restBlocks.map((s) => `<div><h4>${esc(s.title)}</h4><ul>${s.items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>` : ""}
+        <p style="margin:22px 0 0"><a class="v1-link" style="font:500 13px var(--mono);color:var(--mute)" href="${esc(r.url)}">Release on GitHub ↗</a></p>
+      </div>
+    </article>`;
+  };
+
+  const animate = (els: Element[]) => {
+    if (reduced) return;
+    els.forEach((el) => {
+      const body = el.querySelectorAll(".cj-body > *");
+      gsap.from(body, { y: 30, autoAlpha: 0, stagger: 0.06, duration: 1, ease: "expo.out", scrollTrigger: { trigger: el, start: "top 80%", once: true } });
+      gsap.from(el.querySelector(".cj-date"), { x: -20, autoAlpha: 0, duration: 1, ease: "expo.out", scrollTrigger: { trigger: el, start: "top 80%", once: true } });
+    });
+  };
+  const render = (count: number) => {
+    const start = shown;
+    feed.insertAdjacentHTML("beforeend", all.slice(start, count).map((r, k) => entry(r, start + k)).join(""));
+    shown = Math.min(count, all.length);
+    more.hidden = shown >= all.length;
+    animate([...feed.children].slice(start));
+    ScrollTrigger.refresh();
+  };
+  const reset = () => { feed.innerHTML = ""; const n = shown || PAGE; shown = 0; render(n); };
+
+  feed.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-toggle]");
+    if (!b) return;
+    const rest = b.nextElementSibling as HTMLElement;
+    const open = rest.hidden;
+    rest.hidden = !open;
+    b.textContent = open ? "Show less ↑" : b.dataset.label!;
+    if (open && !reduced) gsap.from(rest.children, { y: 16, autoAlpha: 0, stagger: 0.06, duration: 0.5, ease: "expo.out" });
+    ScrollTrigger.refresh();
+  });
+  more.addEventListener("click", () => render(shown + PAGE));
+
+  // Deep link to an older release loads enough of the feed to reach it.
+  const tag = decodeURIComponent(location.hash.slice(1));
+  const at = all.findIndex((r) => r.tag === tag);
+  render(at >= 0 ? Math.ceil((at + 1) / PAGE) * PAGE : PAGE);
+  if (at >= 0) requestAnimationFrame(() => document.getElementById(tag)?.scrollIntoView());
+
+  if (!reduced) {
+    gsap.from(".cj-ln > span", { yPercent: 110, duration: 1.2, ease: "expo.out" });
+    gsap.from(".cj-kick, .cj-head__row", { y: 20, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: 0.08, delay: 0.2 });
+  }
+
+  liveReleases(all).then((next) => {
+    if (!next) return;
+    document.querySelector("[data-live]")?.classList.add("ok");
+    if (next[0]!.tag !== all[0]!.tag || next.length !== all.length) {
+      all = next;
+      document.querySelector("[data-count]")!.textContent = String(all.length);
+      document.querySelectorAll("[data-version]").forEach((e) => (e.textContent = all[0]!.tag));
+      reset();
+    }
+  });
+</script>

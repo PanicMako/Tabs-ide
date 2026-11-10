@@ -1,0 +1,28 @@
+---
+import Mark from "../Mark.astro";
+import { links, platforms } from "../../../data/lab";
+import releases from "../../../data/releases.json";
+interface Props { title?: string; }
+const { title = "Make room for what's next." } = Astro.props;
+const version = releases.find((r) => !r.prerelease)?.tag_name ?? "";
+---
+<section class="v1-end" data-sec="Finale">
+  <div class="v1-end__inner">
+    <p class="v1-kicker v1-kicker--light">Free · {platforms.join(" · ")}</p>
+    <h2 class="v1-end__title" data-split="chars">{title}</h2>
+    <div class="v1-end__ctas">
+      <a class="v1-btn v1-btn--light" href={links.download} data-magnetic><span>Download <span data-version>{version}</span></span></a>
+      <a class="v1-btn v1-btn--line" href={links.changelog} data-magnetic><span>What's new</span></a>
+    </div>
+  </div>
+  <div class="v1-end__word" aria-hidden="true">
+    <Mark size="100%" color="#F3EFE9" eyes="#0E2AF3" class="v1-end__mark" data-alive />
+    <span>Tabs</span>
+  </div>
+  <footer class="v1-foot">
+    <span>© 2026 Tabs IDE</span>
+    <nav aria-label="Footer">
+      <a href={links.download}>Download</a><a href={links.changelog}>Changelog</a><a href={links.community}>Community</a><a href={links.exchange}>Exchange</a><a href={links.github}>GitHub</a>
+    </nav>
+  </footer>
+</section>

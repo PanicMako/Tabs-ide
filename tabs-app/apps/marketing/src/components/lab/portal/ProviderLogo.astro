@@ -1,0 +1,31 @@
+---
+/**
+ * Provider mark colored exactly like the app (apps/web/src/components/provider-brand.css):
+ * brand accents where the app has them, otherwise the surrounding text color.
+ * Light/dark accents switch with a `.on-ink` ancestor.
+ */
+interface Props { id: string; size?: number; class?: string; }
+const { id, size = 32, class: className = "" } = Astro.props;
+const files = import.meta.glob("/public/providers/*.svg", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const raw = files[`/public/providers/${id}.svg`] ?? "";
+const svg = raw
+  .replace(/#18181b|#211e1e/gi, "currentColor")
+  .replace(/<svg([^>]*?)\swidth="\d+"\s+height="\d+"/, `<svg$1 width="${size}" height="${size}"`)
+  .replace("<svg", `<svg aria-hidden="true" focusable="false"`);
+---
+<span class:list={["pv", className]} data-pv={id} set:html={svg} />
+
+<style is:global>
+  .pv { display: inline-grid; place-items: center; line-height: 0; color: var(--pv-fg, currentColor); }
+  .pv svg { display: block; }
+  .pv[data-pv="claude"] { --pv-fg: #d97757; }
+  .pv[data-pv="copilot"] { --pv-fg: #8534f3; }
+  .pv[data-pv="factory-droid"] { --pv-fg: #d15010; }
+  .pv[data-pv="openrouter"] { --pv-fg: #7624f4; }
+  .pv[data-pv="kilo"] svg { color: #000; background: oklch(95% 0.15 108); border-radius: 3px; }
+  .on-ink .pv { --pv-fg: #fbfcfe; }
+  .on-ink .pv[data-pv="claude"] { --pv-fg: #d97757; }
+  .on-ink .pv[data-pv="copilot"] { --pv-fg: #b870ff; }
+  .on-ink .pv[data-pv="factory-droid"] { --pv-fg: #d15010; }
+  .on-ink .pv[data-pv="openrouter"] { --pv-fg: #c8ff00; }
+</style>

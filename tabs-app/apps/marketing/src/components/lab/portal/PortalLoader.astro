@@ -1,0 +1,103 @@
+---
+/**
+ * Page loader: cobalt bands, the Tabs mark, the tools rolling by, then "Tabs.".
+ * Plays in full on the first visit of a session, and as a short cover/reveal
+ * when moving between pages (see `lib/lab/transition.ts`).
+ */
+import Mark from "../Mark.astro";
+const words = ["Code", "Agents", "Dock", "Git", "Browser"];
+---
+<script is:inline>
+  (() => {
+    const root = document.documentElement;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let seen = false, via = false;
+    try { seen = sessionStorage.getItem("tabs-loaded") === "1"; via = sessionStorage.getItem("tabs-transition") === "1"; sessionStorage.removeItem("tabs-transition"); } catch {}
+    if (via) { root.dataset.loading = "1"; root.dataset.loader = "reveal"; }
+    else if (!seen) { root.dataset.loading = "1"; root.dataset.loader = "full"; }
+  })();
+</script>
+
+<div class="pl" aria-hidden="true">
+  <div class="pl-bands">{Array.from({ length: 6 }, () => <i></i>)}</div>
+  <div class="pl-center">
+    <div class="pl-mark"><Mark size="100%" color="#FBFCFE" eyes="#0E2AF3" /></div>
+    <div class="pl-word"><span class="pl-roll">{[...words, "Tabs."].map((w, i) => <span class:list={[i === words.length && "pl-last"]}>{w}</span>)}</span></div>
+  </div>
+  <p class="pl-sub">One window for every project</p>
+</div>
+
+<style is:global>
+  .pl { position: fixed; inset: 0; z-index: 1200; display: none; pointer-events: none; color: #fbfcfe; }
+  html[data-loading="1"] .pl, .pl.is-on { display: grid; place-items: center; }
+  html[data-loading="1"] body { overflow: hidden; }
+  .pl-bands { position: absolute; inset: 0; display: grid; grid-template-rows: repeat(6, 1fr); }
+  .pl-bands i { background: #0e2af3; will-change: transform; margin: -1px 0; }
+  .pl-center { position: relative; display: grid; justify-items: center; gap: clamp(14px, 2vw, 26px); }
+  .pl-mark { width: clamp(64px, 7vw, 104px); }
+  .pl-mark svg { width: 100%; height: auto; overflow: visible; }
+  .pl-mark .lab-mark__body, .pl-mark .lab-mark__foot { transform-box: fill-box; }
+  .pl-word { position: relative; height: 1.1em; overflow: hidden; font: 400 clamp(76px, 12vw, 210px)/1.1 "Instrument Serif", Georgia, serif; font-style: italic; letter-spacing: -.03em; }
+  .pl-roll { display: flex; flex-direction: column; align-items: center; }
+  .pl-roll span { display: block; height: 1.1em; padding: 0 .1em; white-space: nowrap; }
+  .pl-last { font-style: normal; font-family: "Inter Tight", system-ui, sans-serif; font-weight: 600; letter-spacing: -.06em; }
+  .pl-sub { position: absolute; left: 0; right: 0; bottom: 40px; margin: 0; text-align: center; font: 500 12px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .12em; opacity: .75; }
+</style>
+
+<script>
+  import { gsap } from "../../../lib/lab/common";
+  import { setCover } from "../../../lib/lab/transition";
+  const root = document.documentElement;
+  const el = document.querySelector<HTMLElement>(".pl")!;
+  const bands = gsap.utils.toArray<HTMLElement>(".pl-bands i");
+  const roll = document.querySelector<HTMLElement>(".pl-roll")!;
+  const n = roll.children.length;
+  const mark = ".pl-mark", eyes = ".pl-mark .lab-mark__eyes";
+
+  const finish = () => {
+    const first = root.dataset.loading === "1";
+    delete root.dataset.loading;
+    delete root.dataset.loader;
+    try { sessionStorage.setItem("tabs-loaded", "1"); } catch {}
+    el.classList.remove("is-on");
+    if (first) window.dispatchEvent(new Event("lab:ready"));
+  };
+  const out = () =>
+    gsap.timeline()
+      .to(".pl-center, .pl-sub", { autoAlpha: 0, y: -16, scale: 0.97, duration: 0.3, ease: "power2.in" })
+      .to(bands, { xPercent: (i) => (i % 2 ? 101 : -101), duration: 0.85, ease: "expo.inOut", stagger: 0.05 }, "<0.08")
+      .add(finish);
+
+  if (root.dataset.loader === "full") {
+    const tl = gsap.timeline()
+      .from(`${mark} .lab-mark__body`, { y: -60, scaleY: 1.25, autoAlpha: 0, duration: 0.5, ease: "power3.in" })
+      .to(mark, { scaleY: 0.8, scaleX: 1.15, transformOrigin: "50% 100%", duration: 0.09 })
+      .to(mark, { scaleY: 1, scaleX: 1, duration: 0.6, ease: "elastic.out(1.1,0.4)" })
+      .from(`${mark} .lab-mark__foot`, { x: -50, rotate: -30, autoAlpha: 0, transformOrigin: "50% 50%", duration: 0.55, ease: "back.out(1.8)" }, 0.35)
+      .from(".pl-word", { yPercent: 40, autoAlpha: 0, duration: 0.6, ease: "expo.out" }, 0.3)
+      .from(".pl-sub", { autoAlpha: 0, duration: 0.6 }, 0.4);
+    for (let i = 1; i < n; i++)
+      tl.to(roll, { yPercent: (-100 / n) * i, duration: i === n - 1 ? 0.7 : 0.3, ease: i === n - 1 ? "expo.out" : "power3.inOut" }, i === 1 ? "+=0.15" : "+=0.1");
+    tl.to(eyes, { scaleY: 0.1, transformOrigin: "50% 50%", duration: 0.07, yoyo: true, repeat: 1, ease: "none" }, "-=0.3")
+      .add(out(), "+=0.3");
+  } else if (root.dataset.loader === "reveal") {
+    // Arriving from another page: the bands are already closed, land on "Tabs." and open.
+    gsap.set(roll, { yPercent: (-100 / n) * (n - 1) });
+    gsap.timeline().from(".pl-center", { scale: 0.96, duration: 0.35, ease: "power2.out" }).add(out(), "+=0.15");
+  }
+
+  // After a download flourish, open the bands again.
+  window.addEventListener("tabs:reveal", () => { gsap.delayedCall(0.25, () => { out(); }); });
+
+  // Cover the screen before leaving for another page.
+  setCover(() =>
+    new Promise<void>((resolve) => {
+      el.classList.add("is-on");
+      gsap.set(roll, { yPercent: (-100 / n) * (n - 1) });
+      gsap.set(".pl-center, .pl-sub", { autoAlpha: 0, y: 16, scale: 1 });
+      gsap.timeline({ onComplete: resolve })
+        .fromTo(bands, { xPercent: (i) => (i % 2 ? 101 : -101) }, { xPercent: 0, duration: 0.6, ease: "expo.inOut", stagger: 0.04 })
+        .to(".pl-center, .pl-sub", { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" }, "-=0.2");
+    }),
+  );
+</script>

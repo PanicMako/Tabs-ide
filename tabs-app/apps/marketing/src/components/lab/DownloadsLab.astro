@@ -1,0 +1,288 @@
+---
+import PortalNav from "./portal/PortalNav.astro";
+import PortalEnd from "./portal/PortalEnd.astro";
+import releases from "../../data/releases.json";
+import { platforms, pickAsset, selectDownloadRelease, RELEASES_URL, type Platform, type Release } from "../../lib/releases";
+import { links } from "../../data/lab";
+import "../../styles/lab-portal.css";
+
+const latest = (selectDownloadRelease(releases as Release[]) ?? releases[0]) as Release;
+const version = latest.tag_name;
+const date = new Date(latest.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const ICON = "https://cdn.jsdelivr.net/gh/devicons/devicon@2.16.0/icons";
+const file = (id: Platform) => `Tabs-${version.replace(/^v/, "")}${platforms.find((p) => p.id === id)!.suffix}`;
+const url = (id: Platform) => pickAsset(latest, id) ?? latest.html_url;
+const families = [
+  {
+    id: "mac", name: "macOS", icon: `${ICON}/apple/apple-original.svg`, tint: "#eef1ff", chrome: "mac", shot: "/product/agents-new-light.webp",
+    line: "Native builds for both kinds of Mac.", reqs: ["Apple Silicon or Intel", ".dmg"],
+    builds: [
+      { id: "mac-arm64" as Platform, label: "Apple Silicon", sub: "M1 and newer" },
+      { id: "mac-x64" as Platform, label: "Intel", sub: "Intel-based Macs" },
+    ],
+    steps: ["Open the .dmg and drag Tabs into Applications.", "The beta isn't notarized yet. If macOS blocks it, open System Settings → Privacy & Security and choose Open Anyway.", "Not sure which Mac you have? Apple menu → About This Mac. \"Chip: Apple M…\" means Apple Silicon."],
+  },
+  {
+    id: "win", name: "Windows", icon: `${ICON}/windows11/windows11-original.svg`, tint: "#eaf4ff", chrome: "win", shot: "code-light",
+    line: "One installer, with updates built in.", reqs: ["x64", ".exe installer"],
+    builds: [{ id: "windows-x64" as Platform, label: "Windows x64", sub: "Installer" }],
+    steps: ["Run the .exe installer.", "If SmartScreen shows a warning, choose More info → Run anyway if you trust the download.", "Installed copies check for updates and ask before restarting."],
+  },
+  {
+    id: "linux", name: "Linux", icon: `${ICON}/linux/linux-original.svg`, tint: "#fff6e6", chrome: "linux", shot: "git-dark",
+    line: "A single AppImage. Nothing to install.", reqs: ["x64", ".AppImage"],
+    builds: [{ id: "linux-x64" as Platform, label: "Linux x64", sub: "AppImage" }],
+    steps: ["Save the .AppImage to a folder you can write to.", "Allow it to run as a program, or run chmod +x Tabs-*.AppImage.", "Start it. The AppImage checks for updates on its own."],
+  },
+];
+---
+<div class="v1 dl">
+  <PortalNav current="downloads" />
+
+  <section class="dl-hero" data-sec="Download hero">
+    <div class="v1-wrap dl-hero__grid">
+      <div class="dl-hero__copy">
+        <p class="dl-chip">Public beta · <b data-version>{version}</b> · <span data-date>{date}</span></p>
+        <h1 class="dl-title"><span class="dl-ln"><span>Download</span></span><span class="dl-ln"><span><em>Tabs.</em></span></span></h1>
+      </div>
+      <div class="dl-hero__side">
+        <p class="dl-sub">Free for macOS, Windows and Linux. The installer includes the editor and everything it needs. No account required.</p>
+        <div class="dl-cta" data-cta>
+          <a class="v1-btn dl-cta__main" href="#mac" data-cta-main><img src={`${ICON}/apple/apple-original.svg`} alt="" width="20" height="20" data-cta-icon /><span data-cta-label>Choose your download</span></a>
+          <a class="v1-link" href="#platforms">Other platforms ↓</a>
+        </div>
+        <p class="dl-fine" data-cta-fine>Downloads come straight from the latest stable GitHub release.</p>
+      </div>
+    </div>
+  </section>
+
+  <nav class="dl-switch" id="platforms" aria-label="Platforms">
+    <div class="dl-switch__in">
+      {families.map((f, i) => <a href={`#${f.id}`} data-switch={f.id} class:list={[i === 0 && "on"]}><img src={f.icon} alt="" width="18" height="18" />{f.name}</a>)}
+      <i class="dl-switch__pill" aria-hidden="true"></i>
+    </div>
+  </nav>
+
+  <div class="v1-wrap dl-fams">
+    {families.map((f, i) => (
+      <section class="dl-fam" id={f.id} data-fam={f.id} style={`--tint:${f.tint}`} data-sec={`${f.name} downloads`}>
+        <div class="dl-fam__copy">
+          <div class="dl-fam__head">
+            <span class="dl-fam__icon"><img src={f.icon} alt="" width="34" height="34" loading="lazy" /></span>
+            <span class="dl-fam__n">0{i + 1}</span>
+          </div>
+          <h2>{f.name}</h2>
+          <p class="dl-fam__line">{f.line}</p>
+          <ul class="dl-reqs">{f.reqs.map((r) => <li>{r}</li>)}</ul>
+          <div class="dl-builds">
+            {f.builds.map((b) => (
+              <a class="dl-build" href={url(b.id)} data-build={b.id}>
+                <span class="dl-build__l"><b>{b.label}</b><small>{b.sub}</small></span>
+                <code data-file>{file(b.id)}</code>
+                <span class="dl-build__go">↓</span>
+              </a>
+            ))}
+          </div>
+          <ol class="dl-steps">{f.steps.map((s, k) => <li><b>{k + 1}</b><span>{s}</span></li>)}</ol>
+        </div>
+        <div class="dl-fam__art">
+          <div class:list={["dl-win", `dl-win--${f.chrome}`]}>
+            <div class="dl-win__bar">
+              {f.chrome === "mac" && <span class="dl-dots"><i></i><i></i><i></i></span>}
+              <span class="dl-win__title">Tabs</span>
+              {f.chrome === "win" && <span class="dl-wctl"><i>—</i><i>▢</i><i>✕</i></span>}
+              {f.chrome === "linux" && <span class="dl-lctl"><i></i><i></i><i>✕</i></span>}
+            </div>
+            <img src={f.shot.endsWith(".webp") ? f.shot : `/product/${f.shot}.png`} alt={`Tabs on ${f.name}`} width="1920" height="1204" loading="lazy" />
+          </div>
+        </div>
+      </section>
+    ))}
+    <p class="dl-live" data-live aria-live="polite">Links from the saved release {version}. <a href={RELEASES_URL} data-release-link>All releases on GitHub ↗</a></p>
+  </div>
+
+  <section class="dl-next" data-sec="After installing">
+    <div class="v1-wrap">
+      <p class="v1-kicker">After installing</p>
+      <h2>Your first <em>five minutes.</em></h2>
+      <ol class="dl-next__grid">
+        <li><span class="dl-next__ic">📁</span><span class="dl-next__n">01</span><h3>Open a folder</h3><p>Pick a project you already work on, create one, or paste a Git URL to clone it into a new tab.</p></li>
+        <li><span class="dl-next__ic"><img src="/providers/claude.svg" alt="" width="22" height="22" /></span><span class="dl-next__n">02</span><h3>Connect an agent</h3><p>Open Settings → Providers and follow the setup for Claude, Codex, Cursor or another supported agent.</p></li>
+        <li><span class="dl-next__ic">✳</span><span class="dl-next__n">03</span><h3>Ask something small</h3><p>Open Agents and ask "What's in this project, and where should I start?" Follow along in Code.</p></li>
+      </ol>
+      <div class="dl-trust">
+        <div><b>Updates</b><span>Windows and Linux installs check for updates in the app. The macOS preview channel verifies each signed update before installing it.</span></div>
+        <div><b>Open source</b><span>Read the code, file issues and follow releases on <a class="v1-link" href={links.github}>GitHub</a>.</span></div>
+        <div><b>Your agents</b><span>Tabs uses your provider's own sign-in or key. No Tabs subscription, no usage markup.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <PortalEnd title="Make room for what's next." />
+</div>
+
+<style is:global>
+  .dl-hero { padding: 140px 0 90px; overflow: hidden; }
+  .dl-hero__grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 56px; align-items: end; }
+  .dl-hero__side { display: grid; justify-items: start; padding-bottom: 14px; }
+  .dl-hero__side .dl-sub { margin-top: 0; }
+  .dl-chip { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 28px; padding: 7px 14px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line); font: 500 12px var(--mono); color: var(--mute); }
+  .dl-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 4px rgba(24,180,123,.18); }
+  .dl-chip b { font-weight: 500; color: var(--ink); }
+  .dl-title { margin: 0; font-size: clamp(72px, 11vw, 180px); line-height: .9; letter-spacing: -.055em; font-weight: 500; }
+  .dl-title em { color: var(--cobalt); }
+  .dl-ln { display: block; overflow: hidden; padding: .02em .1em .26em; margin: 0 -.1em -.26em; }
+  .dl-ln > span { display: block; }
+  .dl-sub { max-width: 440px; margin: 26px 0 0; font-size: 18px; line-height: 1.55; color: var(--mute); }
+  .dl-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; margin-top: 34px; }
+  .dl-cta__main { height: 62px; padding: 0 28px 0 22px; font-size: 17px; }
+  .dl-cta__main img { filter: brightness(0) invert(1); }
+  .dl-fine { margin: 16px 0 0; font: 500 12px var(--mono); color: var(--mute); }
+
+  .dl-win { position: relative; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(11,13,31,.1), 0 60px 100px -50px rgba(11,13,31,.55); }
+  .dl-win img { display: block; width: 100%; height: auto; }
+  .dl-win__bar { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; background: #eceef3; font: 500 12px var(--sans); color: var(--mute); }
+  .dl-win__title { flex: 1; text-align: center; }
+  .dl-dots { display: flex; gap: 7px; } .dl-dots i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; } .dl-dots i:nth-child(2) { background: #febc2e; } .dl-dots i:nth-child(3) { background: #28c840; }
+  .dl-dots + .dl-win__title { margin-right: 47px; }
+  .dl-win--win { border-radius: 8px; }
+  .dl-win--win .dl-win__bar { background: #f3f3f3; padding-right: 0; }
+  .dl-win--win .dl-win__title { text-align: left; }
+  .dl-wctl { display: flex; height: 100%; } .dl-wctl i { display: grid; place-items: center; width: 46px; font-style: normal; font-size: 11px; color: #333; }
+  .dl-win--linux { border-radius: 12px; }
+  .dl-win--linux .dl-win__bar { background: #2b2d3a; color: #e8e8ef; height: 38px; }
+  .dl-win--linux .dl-win__title { margin-left: 60px; }
+  .dl-lctl { display: flex; gap: 8px; } .dl-lctl i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.1); font-style: normal; font-size: 10px; }
+  @media (max-width: 980px) { .dl-hero__grid { grid-template-columns: 1fr; } .dl-hero { padding-top: 110px; } }
+
+  .dl-switch { position: sticky; top: 84px; z-index: 40; display: flex; justify-content: center; margin: 10px 0 30px; pointer-events: none; }
+  .dl-switch__in { position: relative; display: flex; gap: 2px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 0 0 1px var(--line), 0 20px 40px -26px rgba(11,13,31,.5); pointer-events: auto; }
+  .dl-switch a { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; color: var(--mute); text-decoration: none; font-weight: 500; font-size: 15px; transition: color .3s; }
+  .dl-switch a.on { color: #fff; }
+  .dl-switch a.on img { filter: brightness(0) invert(1); }
+  .dl-switch__pill { position: absolute; z-index: 0; top: 5px; height: calc(100% - 10px); border-radius: 999px; background: var(--ink); }
+
+  .dl-fams { display: grid; gap: 22px; padding-bottom: 40px; }
+  .dl-fam { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: center; padding: 44px; border-radius: 36px; background: var(--tint); box-shadow: 0 0 0 1px var(--line); scroll-margin-top: 150px; overflow: hidden; }
+  .dl-fam.me { box-shadow: 0 0 0 2px var(--cobalt); }
+  .dl-fam__head { display: flex; justify-content: space-between; align-items: center; }
+  .dl-fam__icon { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 22px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 16px 30px -18px rgba(11,13,31,.45); }
+  .dl-fam__n { font: 500 12px var(--mono); color: var(--mute); }
+  .dl-fam h2 { margin-top: 26px !important; font-size: clamp(48px, 5vw, 84px) !important; }
+  .dl-fam__line { margin: 12px 0 0; font-size: 18px; color: var(--mute); }
+  .dl-reqs { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 0; padding: 0; list-style: none; }
+  .dl-reqs li { padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.75); box-shadow: 0 0 0 1px var(--line); font: 500 12px var(--mono); color: var(--mute); }
+  .dl-builds { display: grid; gap: 10px; margin-top: 26px; }
+  .dl-build { position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 4px 16px; padding: 16px 18px; border-radius: 18px; background: #fff; color: var(--ink); text-decoration: none; box-shadow: 0 0 0 1px var(--line); overflow: hidden; isolation: isolate; transition: box-shadow .3s, color .3s; }
+  .dl-build::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--cobalt); clip-path: circle(0% at 92% 50%); transition: clip-path .6s cubic-bezier(.2,1,.3,1); }
+  .dl-build:hover { color: #fff; } .dl-build:hover::before { clip-path: circle(150% at 92% 50%); }
+  .dl-build:hover code, .dl-build:hover small { color: rgba(255,255,255,.75); }
+  .dl-build__l b { display: block; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+  .dl-build__l small { font-size: 13px; color: var(--mute); }
+  .dl-build code { grid-column: 1; font: 400 12px var(--mono); color: var(--mute); }
+  .dl-build__go { grid-column: 2; grid-row: 1 / 3; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--cobalt); color: #fff; font-weight: 700; transition: background .3s, color .3s, translate .4s cubic-bezier(.2,1.6,.4,1); }
+  .dl-build:hover .dl-build__go { background: #fff; color: var(--cobalt); translate: 0 3px; }
+  .dl-steps { display: grid; gap: 8px; margin: 26px 0 0; padding: 0; list-style: none; }
+  .dl-steps li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; line-height: 1.5; color: #33364a; }
+  .dl-steps b { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--line); font: 600 11px var(--mono); color: var(--cobalt); }
+  .dl-fam__art { position: relative; }
+  .dl-fam__art .dl-win { will-change: transform; }
+  .dl-live { margin: 6px 0 0; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+  .dl-live.ok::before { content: "● "; color: var(--mint); }
+  .dl-live a { color: inherit; }
+  @media (max-width: 980px) { .dl-fam { grid-template-columns: 1fr; padding: 24px; border-radius: 26px; } }
+
+  .dl-next { padding: 120px 0 160px; }
+  .dl-next h2 { font-size: clamp(40px, 5vw, 80px) !important; }
+  .dl-next__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 48px 0 0; padding: 0; list-style: none; }
+  .dl-next__grid li { position: relative; padding: 28px; border-radius: 24px; background: #fff; box-shadow: 0 0 0 1px var(--line); }
+  .dl-next__ic { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: #eef1ff; font-size: 20px; color: var(--cobalt); }
+  .dl-next__n { position: absolute; right: 28px; top: 30px; font: 500 12px var(--mono); color: var(--mute); }
+  .dl-next__grid h3 { margin: 20px 0 8px; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+  .dl-next__grid p { margin: 0; color: var(--mute); font-size: 15.5px; line-height: 1.5; }
+  .dl-trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 40px; border-radius: 22px; overflow: hidden; background: var(--line); box-shadow: 0 0 0 1px var(--line); }
+  .dl-trust div { display: grid; gap: 6px; padding: 22px; background: var(--ivory); }
+  .dl-trust b { font-weight: 600; } .dl-trust span { color: var(--mute); font-size: 14.5px; line-height: 1.5; }
+  @media (max-width: 900px) { .dl-next__grid, .dl-trust { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced } from "../../lib/lab/common";
+  import { portalPage } from "../../lib/lab/portal";
+  import { pickAsset, selectDownloadRelease, platforms, detectPlatform, type Release, type Platform } from "../../lib/releases";
+  portalPage();
+
+  const ICON = "https://cdn.jsdelivr.net/gh/devicons/devicon@2.16.0/icons";
+  const ua = navigator.userAgent;
+  const isMac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua);
+  const isMobile = /Android|iPhone|iPad|Mobile/i.test(ua);
+  const detected: Platform | null = isMac ? null : detectPlatform(ua);
+  const fam = isMac ? "mac" : detected === "windows-x64" ? "win" : detected === "linux-x64" ? "linux" : null;
+  const buildHref = (id: Platform) => document.querySelector<HTMLAnchorElement>(`[data-build="${id}"]`)!.href;
+
+  const paintCta = () => {
+    const main = document.querySelector<HTMLAnchorElement>("[data-cta-main]")!;
+    const label = document.querySelector<HTMLElement>("[data-cta-label]")!;
+    const icon = document.querySelector<HTMLImageElement>("[data-cta-icon]")!;
+    const fine = document.querySelector<HTMLElement>("[data-cta-fine]")!;
+    if (isMobile) { label.textContent = "See desktop downloads"; main.href = "#platforms"; icon.remove(); fine.textContent = "Tabs is a desktop app. Open this page on your computer to install it."; return; }
+    if (fam === "mac") { label.textContent = "Download for Mac"; main.href = "#mac"; fine.textContent = "Pick Apple Silicon or Intel below. Browsers can't tell them apart."; }
+    else if (fam === "win") { label.textContent = "Download for Windows"; main.href = buildHref("windows-x64"); icon.src = `${ICON}/windows11/windows11-original.svg`; }
+    else if (fam === "linux") { label.textContent = "Download for Linux"; main.href = buildHref("linux-x64"); icon.src = `${ICON}/linux/linux-original.svg`; }
+    if (fam) document.querySelector(`[data-fam="${fam}"]`)?.classList.add("me");
+  };
+  paintCta();
+
+  /* Sticky OS switch */
+  const pill = document.querySelector<HTMLElement>(".dl-switch__pill")!;
+  const sw = [...document.querySelectorAll<HTMLAnchorElement>("[data-switch]")];
+  const setSw = (id: string, instant = false) => {
+    const a = sw.find((x) => x.dataset.switch === id)!;
+    sw.forEach((x) => x.classList.toggle("on", x === a));
+    gsap.to(pill, { x: a.offsetLeft - 5, width: a.offsetWidth, duration: instant || reduced ? 0 : 0.5, ease: "expo.out" });
+  };
+  requestAnimationFrame(() => setSw(fam ?? "mac", true));
+  document.querySelectorAll<HTMLElement>("[data-fam]").forEach((sec) =>
+    ScrollTrigger.create({ trigger: sec, start: "top 55%", end: "bottom 55%", onToggle: (s) => s.isActive && setSw(sec.dataset.fam!) }),
+  );
+
+  if (!reduced) {
+    gsap.from(".dl-ln > span", { yPercent: 110, duration: 1.2, ease: "expo.out", stagger: 0.1 });
+    gsap.from(".dl-chip, .dl-hero__side > *", { y: 20, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: 0.07, delay: 0.25 });
+    gsap.utils.toArray<HTMLElement>(".dl-fam").forEach((f) => {
+      gsap.from(f, { y: 80, autoAlpha: 0, duration: 1.1, ease: "expo.out", scrollTrigger: { trigger: f, start: "top 85%", once: true } });
+      gsap.fromTo(f.querySelector(".dl-win"), { y: 60, rotate: 2 }, { y: -30, rotate: 0, ease: "none", scrollTrigger: { trigger: f, start: "top bottom", end: "bottom top", scrub: true } });
+    });
+  }
+
+  /* Live release */
+  (async () => {
+    const live = document.querySelector<HTMLElement>("[data-live]")!;
+    const sources = [
+      () => fetch("/api/releases?per_page=5", { signal: AbortSignal.timeout(4000) }),
+      () => fetch("https://api.github.com/repos/PanicMako/Tabs-ide/releases?per_page=5", { signal: AbortSignal.timeout(5000), headers: { Accept: "application/vnd.github+json" } }),
+    ];
+    for (const s of sources) {
+      try {
+        const r = await s();
+        if (!r.ok) continue;
+        const rel = selectDownloadRelease((await r.json()) as Release[]);
+        if (!rel) continue;
+        const v = rel.tag_name.replace(/^v/, "");
+        document.querySelectorAll<HTMLAnchorElement>("[data-build]").forEach((a) => {
+          const id = a.dataset.build as Platform;
+          const href = pickAsset(rel, id);
+          if (href) a.href = href;
+          a.querySelector("[data-file]")!.textContent = `Tabs-${v}${platforms.find((p) => p.id === id)!.suffix}`;
+        });
+        document.querySelectorAll("[data-version]").forEach((e) => (e.textContent = rel.tag_name));
+        document.querySelector("[data-date]")!.textContent = new Date(rel.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+        document.querySelector<HTMLAnchorElement>("[data-release-link]")!.href = rel.html_url;
+        paintCta();
+        live.firstChild!.textContent = `Live from GitHub · ${rel.tag_name}. `;
+        live.classList.add("ok");
+        return;
+      } catch { /* next */ }
+    }
+  })();
+</script>

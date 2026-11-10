@@ -1,0 +1,158 @@
+---
+/** Try-it option B · Color worlds: big tabs over a panel that floods with each project's color. */
+import ProviderLogo from "./ProviderLogo.astro";
+import { PROJECTS, type ProjectId } from "../../../lib/lab/switcher";
+const ids = Object.keys(PROJECTS) as ProjectId[];
+const world: Record<ProjectId, { bg: string; ink: string; soft: string }> = {
+  studio: { bg: "#0e2af3", ink: "#fbfcfe", soft: "rgba(255,255,255,.14)" },
+  product: { bg: "#ff5b2e", ink: "#0b0d1f", soft: "rgba(255,255,255,.22)" },
+  weekend: { bg: "#12945f", ink: "#fbfcfe", soft: "rgba(255,255,255,.14)" },
+};
+---
+<section class="sx" id="try" data-sec="Every tab is a world" data-worlds={JSON.stringify(world)}>
+  <div class="v1-wrap">
+    <div class="sx-head">
+      <p class="v1-kicker">Try it</p>
+      <h2 data-split>Every tab is <em>its own world.</em></h2>
+    </div>
+    <div class="sx-tabs" role="tablist" aria-label="Sample projects">
+      {ids.map((id, i) => (
+        <button type="button" role="tab" aria-selected={i === 0 ? "true" : "false"} data-project={id} style={`--c:${world[id].bg}`}>
+          <span class="sx-tab__n">0{i + 1}</span><span class="sx-tab__name">{PROJECTS[id].name}</span><i class="sx-tab__bar"><i></i></i>
+        </button>
+      ))}
+    </div>
+    <div class="sx-panel" style={`--bg:${world.studio.bg};--ink:${world.studio.ink};--soft:${world.studio.soft}`}>
+      <div class="sx-flood" aria-hidden="true"></div>
+      {ids.map((id, i) => {
+        const p = PROJECTS[id];
+        return (
+          <div class="sx-scene" data-scene={id} hidden={i !== 0}>
+            <div class="sx-scene__name"><span class="sx-mask"><span>{p.name.split("-")[0]}</span></span><span class="sx-mask"><em>{p.name.split("-").slice(1).join("-")}</em></span></div>
+            <p class="sx-scene__note">Exactly where you left it: the thread, the servers, the branch and the page.</p>
+            <div class="sx-cards">
+              <div class="sx-card sx-card--agent"><span class="sx-card__k">Agent</span><p><ProviderLogo id={p.agent.id} size={20} />{p.agent.thread}</p><span class="sx-chip"><i></i>{p.agent.status}</span></div>
+              <div class="sx-card sx-card--dock"><span class="sx-card__k">Dock</span>{p.dock.map((d) => <p class="sx-svc"><i></i><b>{d.name}</b><code>{d.detail}</code></p>)}</div>
+              <div class="sx-card sx-card--git"><span class="sx-card__k">Git</span><p><code>{p.branch}</code></p><p class="sx-diff"><b>+{p.git.add}</b><b>−{p.git.del}</b></p></div>
+              <div class="sx-card sx-card--web"><span class="sx-card__k">Browser</span><p><i class="sx-live"></i><code>{p.url}</code></p></div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .sx { padding: 160px 0 170px; }
+  .sx-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 48px; }
+  .sx-head .v1-kicker { width: 100%; margin: 0; }
+  .sx-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .sx-tabs button { position: relative; display: flex; align-items: baseline; gap: 14px; padding: 20px 24px 22px; border: 0; border-radius: 22px 22px 0 0; background: #eef0f5; color: var(--mute); text-align: left; cursor: pointer; overflow: hidden; transition: background .5s, color .5s; }
+  .sx-tabs button:hover { color: var(--ink); background: #e6e9f1; }
+  .sx-tabs button[aria-selected="true"] { background: var(--c); color: #fff; }
+  .sx-tabs button[aria-selected="true"][data-project="product"] { color: #0b0d1f; }
+  .sx-tab__n { font: 500 12px var(--mono); opacity: .7; }
+  .sx-tab__name { font: 500 clamp(16px, 1.6vw, 22px) var(--mono); letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sx-tab__bar { position: absolute; left: 24px; right: 24px; bottom: 10px; height: 2px; border-radius: 2px; background: rgba(255,255,255,.2); opacity: 0; transition: opacity .3s; }
+  .sx-tabs button[aria-selected="true"] .sx-tab__bar { opacity: 1; }
+  .sx-tab__bar i { display: block; height: 100%; background: currentColor; transform-origin: left; transform: scaleX(0); }
+  .sx-panel { position: relative; min-height: 600px; border-radius: 0 0 36px 36px; background: var(--bg); color: var(--ink); overflow: hidden; isolation: isolate; }
+  .sx-flood { position: absolute; inset: 0; z-index: 0; background: var(--next, transparent); clip-path: circle(0% at 50% 0%); }
+  .sx-scene { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr; gap: 24px 48px; min-height: 600px; padding: clamp(32px, 5vw, 72px); }
+  .sx-scene[hidden] { display: none; }
+  .sx-scene__name { grid-column: 1; align-self: start; font: 400 clamp(64px, 8.4vw, 150px)/.88 var(--serif); letter-spacing: -.035em; }
+  .sx-scene__name em { font-style: italic; }
+  .sx-mask { display: block; overflow: hidden; padding: 0 .08em .2em 0; margin-bottom: -.12em; }
+  .sx-mask > * { display: block; }
+  .sx-scene__note { grid-column: 1; align-self: end; max-width: 320px; margin: 0; font-size: 17px; line-height: 1.5; opacity: .82; }
+  .sx-cards { grid-column: 2; grid-row: 1 / 3; position: relative; min-height: 460px; }
+  .sx-card { position: absolute; display: grid; gap: 10px; padding: 18px 20px; border-radius: 20px; background: #fff; color: #0b0d1f; box-shadow: 0 30px 60px -30px rgba(0,0,0,.45); font-size: 15px; will-change: transform; }
+  .sx-card p { display: flex; align-items: center; gap: 10px; margin: 0; }
+  .sx-card code { font: 400 13px var(--mono); }
+  .sx-card__k { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: #8a8ea3; }
+  .sx-card--agent { left: 0; top: 4%; width: min(440px, 86%); rotate: -2deg; }
+  .sx-card--agent p { font-weight: 500; font-size: 17px; line-height: 1.35; }
+  .sx-card--dock { right: 0; top: 34%; width: min(320px, 70%); rotate: 2.5deg; }
+  .sx-card--git { left: 6%; bottom: 8%; width: 230px; rotate: 1.5deg; }
+  .sx-card--web { right: 6%; bottom: 0; rotate: -3deg; }
+  .sx-chip { justify-self: start; display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border-radius: 999px; background: #eef1ff; color: #0e2af3; font-size: 13px; font-weight: 500; }
+  .sx-chip i, .sx-svc i, .sx-live { width: 7px; height: 7px; border-radius: 50%; background: #18b47b; animation: sxpulse 1.6s ease-in-out infinite; }
+  .sx-chip i { background: currentColor; }
+  @keyframes sxpulse { 50% { opacity: .35; } }
+  .sx-svc b { font-weight: 500; } .sx-svc code { color: #6b6f85; }
+  .sx-diff b { font: 600 15px var(--mono); } .sx-diff b:first-child { color: #10845a; } .sx-diff b:last-child { color: #c2441c; }
+  @media (max-width: 960px) {
+    .sx-scene { grid-template-columns: 1fr; }
+    .sx-cards { grid-column: 1; grid-row: auto; min-height: 520px; }
+    .sx-tab__n { display: none; } .sx-tabs button { padding: 16px; }
+  }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced, finePointer } from "../../../lib/lab/common";
+  const sec = document.querySelector<HTMLElement>(".sx")!;
+  const panel = sec.querySelector<HTMLElement>(".sx-panel")!;
+  const flood = sec.querySelector<HTMLElement>(".sx-flood")!;
+  const worlds: Record<string, { bg: string; ink: string; soft: string }> = JSON.parse(sec.dataset.worlds!);
+  const tabs = [...sec.querySelectorAll<HTMLButtonElement>("[data-project]")];
+  const scenes = [...sec.querySelectorAll<HTMLElement>("[data-scene]")];
+  let cur = tabs[0]!.dataset.project!, busy = false;
+
+  const enter = (scene: HTMLElement) => {
+    if (reduced) return;
+    gsap.from(scene.querySelectorAll(".sx-mask > *"), { yPercent: 110, duration: 1, ease: "expo.out", stagger: 0.08 });
+    gsap.from(scene.querySelector(".sx-scene__note"), { y: 20, autoAlpha: 0, duration: 0.8, ease: "expo.out", delay: 0.15 });
+    gsap.from(scene.querySelectorAll(".sx-card"), { y: 70, scale: 0.9, autoAlpha: 0, duration: 0.9, ease: "back.out(1.4)", stagger: 0.07, delay: 0.1 });
+  };
+  const show = (id: string) => {
+    if (id === cur || busy) return;
+    const w = worlds[id]!, tab = tabs.find((t) => t.dataset.project === id)!;
+    tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    const outgoing = scenes.find((s) => s.dataset.scene === cur)!, incoming = scenes.find((s) => s.dataset.scene === id)!;
+    cur = id;
+    const swap = () => {
+      panel.style.setProperty("--bg", w.bg); panel.style.setProperty("--ink", w.ink); panel.style.setProperty("--soft", w.soft);
+      outgoing.hidden = true; incoming.hidden = false;
+      gsap.set(flood, { clipPath: "circle(0% at 50% 0%)" });
+      enter(incoming);
+    };
+    if (reduced) return swap();
+    busy = true;
+    // Flood the panel from the tab that was picked.
+    const t = tab.getBoundingClientRect(), p = panel.getBoundingClientRect();
+    const x = ((t.left + t.width / 2 - p.left) / p.width) * 100;
+    flood.style.setProperty("--next", w.bg);
+    flood.style.background = w.bg;
+    gsap.to(outgoing.querySelectorAll(".sx-card"), { y: -40, autoAlpha: 0, duration: 0.35, ease: "power2.in", stagger: 0.03 });
+    gsap.to(outgoing.querySelectorAll(".sx-mask > *, .sx-scene__note"), { yPercent: -40, autoAlpha: 0, duration: 0.35, ease: "power2.in" });
+    gsap.fromTo(flood, { clipPath: `circle(0% at ${x}% 0%)` }, { clipPath: `circle(150% at ${x}% 0%)`, duration: 0.85, ease: "power3.inOut", onComplete: () => {
+      gsap.set(outgoing.querySelectorAll(".sx-card, .sx-mask > *, .sx-scene__note"), { clearProps: "all" });
+      swap(); busy = false;
+    } });
+  };
+
+  // Idle tour with a progress line inside the active tab.
+  let touched = false, tour: gsap.core.Tween | null = null;
+  const bars = tabs.map((t) => t.querySelector<HTMLElement>(".sx-tab__bar i")!);
+  const next = () => {
+    if (touched || reduced) return;
+    const i = tabs.findIndex((t) => t.dataset.project === cur);
+    bars.forEach((b) => gsap.set(b, { scaleX: 0 }));
+    tour = gsap.to(bars[i]!, { scaleX: 1, duration: 4, ease: "none", onComplete: () => { show(tabs[(i + 1) % tabs.length]!.dataset.project!); next(); } });
+  };
+  ScrollTrigger.create({ trigger: panel, start: "top 70%", end: "bottom 30%", onToggle: (s) => { tour?.kill(); if (s.isActive) next(); } });
+  tabs.forEach((t) => t.addEventListener("click", () => { touched = true; tour?.kill(); bars.forEach((b) => gsap.set(b, { scaleX: 0 })); show(t.dataset.project!); }));
+
+  // Cards lean toward the cursor a little.
+  if (finePointer && !reduced) {
+    panel.addEventListener("pointermove", (e) => {
+      const r = panel.getBoundingClientRect(), dx = (e.clientX - r.left) / r.width - 0.5, dy = (e.clientY - r.top) / r.height - 0.5;
+      panel.querySelectorAll<HTMLElement>(".sx-scene:not([hidden]) .sx-card").forEach((c, i) => gsap.to(c, { x: dx * (14 + i * 8), y: dy * (10 + i * 6), duration: 0.9, ease: "power3.out", overwrite: "auto" }));
+    });
+  }
+  if (!reduced) {
+    gsap.from(panel, { y: 80, autoAlpha: 0, duration: 1.2, ease: "expo.out", scrollTrigger: { trigger: panel, start: "top 85%", once: true, onEnter: () => enter(scenes[0]!) } });
+    gsap.from(tabs, { y: 30, autoAlpha: 0, stagger: 0.06, duration: 0.9, ease: "expo.out", scrollTrigger: { trigger: ".sx-tabs", start: "top 88%", once: true } });
+  }
+</script>

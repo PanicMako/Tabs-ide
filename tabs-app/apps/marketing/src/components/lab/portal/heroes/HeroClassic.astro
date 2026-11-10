@@ -1,0 +1,66 @@
+---
+/* Hero 1 · Hello (original): the mascot greets you and names what's inside a tab. */
+import Mark from "../../Mark.astro";
+import { links } from "../../../../data/lab";
+import releases from "../../../../data/releases.json";
+const version = releases.find((r) => !r.prerelease)?.tag_name ?? "";
+---
+<section class="hx h6x" data-sec="Hero · Hello classic">
+  <div class="hx-in">
+    <div class="h6x-buddy">
+      <span class="h6x-say" aria-hidden="true">Hi! I hold <b data-say>your editor</b>.</span>
+      <button type="button" class="h6x-mark" aria-label="Boop the Tabs mascot"><Mark size="100%" color="#0E2AF3" eyes="#FBFCFE" data-alive /></button>
+      <span class="h6x-shadow" aria-hidden="true"></span>
+    </div>
+    <h1 class="hx-title h6x-title"><span class="hx-ln"><span>One window.</span></span><span class="hx-ln"><span>Every <em>project.</em></span></span></h1>
+    <p class="hx-sub">Tabs keeps each project in its own tab, with a code editor, AI agents, Dock, Git and a browser inside.</p>
+    <div class="hx-ctas">
+      <a class="v1-btn" href={links.download} data-magnetic><span>Download Tabs</span></a>
+      <a class="v1-link" href={links.github}>Star on GitHub ↗</a>
+    </div>
+    <p class="hx-meta">Free · <span data-version>{version}</span> · macOS, Windows, Linux</p>
+  </div>
+</section>
+
+<style is:global>
+  .h6x-buddy { position: relative; display: grid; justify-items: center; margin-bottom: 26px; }
+  .h6x-mark { width: clamp(110px, 11vw, 160px); padding: 0; border: 0; background: none; cursor: pointer; transform-origin: 50% 100%; }
+  .h6x-mark svg { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 24px 30px rgba(14,42,243,.25)); }
+  .h6x-shadow { width: 70%; height: 14px; margin-top: 6px; border-radius: 50%; background: rgba(11,13,31,.1); filter: blur(3px); }
+  .h6x-say { position: absolute; left: calc(50% + clamp(60px, 6.5vw, 96px)); top: -8px; padding: 10px 16px; border-radius: 18px 18px 18px 4px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 16px 30px -18px rgba(11,13,31,.45); font-size: 15px; white-space: nowrap; color: var(--mute); }
+  .h6x-say b { display: inline-block; font-weight: 600; color: var(--cobalt); }
+  .h6x-title { font-size: clamp(50px, 7.4vw, 128px); }
+  @media (max-width: 640px) { .h6x-say { left: 50%; top: -52px; translate: -50% 0; border-radius: 18px; } .h6x-buddy { margin-top: 50px; } }
+</style>
+
+<script>
+  import { gsap, reduced, onReady } from "../../../../lib/lab/common";
+  const words = ["your editor", "your agents", "your Dock", "your Git", "your browser", "every project"];
+  const say = document.querySelector<HTMLElement>(".h6x [data-say]")!;
+  const mark = document.querySelector<HTMLElement>(".h6x-mark")!;
+  const hop = () => gsap.timeline()
+    .to(mark, { scaleY: 0.8, scaleX: 1.15, duration: 0.1 })
+    .to(mark, { scaleY: 1.08, scaleX: 0.94, y: -34, duration: 0.24, ease: "power2.out" })
+    .to(mark, { scaleY: 1, scaleX: 1, y: 0, duration: 0.7, ease: "elastic.out(1.1,0.4)" });
+  mark.addEventListener("click", () => { if (!reduced) hop(); });
+  if (!reduced) onReady(() => {
+    gsap.timeline()
+      .from(mark, { y: -260, scaleY: 1.25, scaleX: 0.85, duration: 0.6, ease: "power3.in" })
+      .to(mark, { scaleY: 0.74, scaleX: 1.2, duration: 0.1 })
+      .to(mark, { scaleY: 1, scaleX: 1, duration: 0.8, ease: "elastic.out(1.2,0.35)" })
+      .from(".h6x-shadow", { scaleX: 0.2, autoAlpha: 0, duration: 0.6 }, 0.3)
+      .from(".h6x-say", { scale: 0, transformOrigin: "0% 100%", duration: 0.6, ease: "back.out(2.5)" }, 0.9)
+      .from(".h6x .hx-ln > span", { yPercent: 110, duration: 1.2, ease: "expo.out", stagger: 0.1 }, 0.4)
+      .from(".h6x .hx-sub, .h6x .hx-ctas, .h6x .hx-meta", { y: 20, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: 0.07 }, 0.7);
+    let i = 0;
+    gsap.delayedCall(2.4, function next() {
+      i = (i + 1) % words.length;
+      gsap.timeline()
+        .to(say, { yPercent: -60, autoAlpha: 0, duration: 0.2, ease: "power2.in" })
+        .call(() => { say.textContent = words[i]!; })
+        .fromTo(say, { yPercent: 60, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: 0.35, ease: "back.out(2)" });
+      if (i % 2 === 0) hop();
+      gsap.delayedCall(2, next);
+    });
+  });
+</script>

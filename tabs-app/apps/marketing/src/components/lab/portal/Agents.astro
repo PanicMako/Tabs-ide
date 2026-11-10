@@ -1,0 +1,96 @@
+---
+import ProviderLogo from "./ProviderLogo.astro";
+import { agents } from "../../../data/lab";
+---
+<section class="ag" id="agents" data-sec="Agents">
+  <div class="v1-wrap">
+    <div class="ag-band" aria-label="Supported agents">
+      {[0, 1].map((row) => (
+        <div class="ag-track" data-dir={row ? "1" : "-1"}>
+          {[0, 1].map((copy) => (
+            <ul class="ag-row" aria-hidden={copy === 1 || row === 1 ? "true" : undefined}>
+              {(row ? [...agents].reverse() : agents).map((a) => <li class="ag-chip" data-pv={a.id}><span class="ag-chip__ic"><ProviderLogo id={a.id} size={24} /></span><span>{a.name}</span></li>)}
+            </ul>
+          ))}
+        </div>
+      ))}
+    </div>
+    <div class="ag-head">
+      <p class="v1-kicker">Your agents, your call</p>
+      <h2 data-split>Ten agents. <em>Bring the one you already pay for.</em></h2>
+    </div>
+    <ul class="ag-grid">
+      {agents.map((a, i) => (
+        <li data-pv={a.id}>
+          <span class="ag-n">{String(i + 1).padStart(2, "0")}</span>
+          <ProviderLogo id={a.id} size={40} class="ag-logo" />
+          <span class="ag-name">{a.name}</span>
+        </li>
+      ))}
+    </ul>
+    <p class="ag-fine">Tabs connects through each provider's own CLI, sign-in or API key. Their plans apply; Tabs adds no fee or markup.</p>
+  </div>
+</section>
+
+<style is:global>
+  .ag { padding: 120px 0 180px; overflow: hidden; }
+  .ag-band { position: relative; display: grid; gap: 14px; padding: 8px 0; -webkit-mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+  .ag-track { display: flex; width: max-content; will-change: transform; }
+  .ag-row { display: flex; gap: 12px; margin: 0; padding: 0 12px 0 0; list-style: none; }
+  .ag-chip { --b: #0b0d1f; --t: #f1f2f7; display: flex; align-items: center; gap: 12px; padding: 8px 20px 8px 8px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 14px 28px -22px color-mix(in srgb, var(--b) 60%, transparent); font: 500 16px var(--sans); letter-spacing: -.01em; color: var(--ink); white-space: nowrap; transition: box-shadow .3s, translate .4s cubic-bezier(.2,1.6,.4,1); }
+  .ag-chip:hover { translate: 0 -3px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--b) 35%, transparent), 0 18px 30px -18px color-mix(in srgb, var(--b) 60%, transparent); }
+  .ag-chip__ic { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--t); }
+  .ag-chip[data-pv="claude"] { --b: #d97757; --t: #fbeee8; }
+  .ag-chip[data-pv="copilot"] { --b: #8534f3; --t: #f1e8ff; }
+  .ag-chip[data-pv="factory-droid"] { --b: #d15010; --t: #fcece3; }
+  .ag-chip[data-pv="openrouter"] { --b: #7624f4; --t: #efe6ff; }
+  .ag-chip[data-pv="kilo"] { --b: #b5ae00; --t: oklch(95% 0.15 108); }
+  .ag-chip[data-pv="codex"] { --t: #eef0f4; } .ag-chip[data-pv="cursor"] { --t: #eef0f4; } .ag-chip[data-pv="grok"] { --t: #eef0f4; } .ag-chip[data-pv="opencode"] { --t: #eef0f4; } .ag-chip[data-pv="antigravity"] { --b: #3186ff; --t: #eaf2ff; }
+  .ag-head { margin-top: 96px; }
+  .ag h2 { max-width: 1000px; }
+  .ag-grid { display: grid; grid-template-columns: repeat(5, 1fr); margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(11,13,31,.12); border-left: 1px solid rgba(11,13,31,.12); }
+  .ag-grid li { position: relative; display: flex; flex-direction: column; gap: 22px; padding: 22px; border-right: 1px solid rgba(11,13,31,.12); border-bottom: 1px solid rgba(11,13,31,.12); overflow: hidden; isolation: isolate; color: var(--ink); transition: color .4s; }
+  .ag-grid li { --b: #0b0d1f; --t: #f1f2f7; }
+  .ag-grid li[data-pv="claude"] { --b: #d97757; --t: #fbeee8; } .ag-grid li[data-pv="copilot"] { --b: #8534f3; --t: #f1e8ff; } .ag-grid li[data-pv="factory-droid"] { --b: #d15010; --t: #fcece3; } .ag-grid li[data-pv="openrouter"] { --b: #7624f4; --t: #efe6ff; } .ag-grid li[data-pv="kilo"] { --b: #b5ae00; --t: #fbfad6; } .ag-grid li[data-pv="antigravity"] { --b: #3186ff; --t: #eaf2ff; }
+  .ag-grid li::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--t); clip-path: circle(0 at var(--mx, 50%) var(--my, 50%)); transition: clip-path .6s cubic-bezier(.2,1,.3,1); }
+  .ag-grid li::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--b); transform: scaleX(0); transform-origin: left; transition: transform .5s cubic-bezier(.2,1,.3,1); }
+  .ag-grid li:hover::before { clip-path: circle(150% at var(--mx, 50%) var(--my, 50%)); }
+  .ag-grid li:hover::after { transform: scaleX(1); }
+  .ag-logo { transition: scale .5s cubic-bezier(.2,1.6,.4,1); }
+  .ag-grid li:hover .ag-logo { scale: 1.1; }
+  .ag-n { font: 500 11px var(--mono); opacity: .5; }
+  .ag-name { font-size: 20px; font-weight: 500; letter-spacing: -.02em; margin-top: auto; }
+  .ag-fine { margin: 28px 0 0; color: var(--mute); font-size: 14px; }
+  @media (max-width: 900px) { .ag-grid { grid-template-columns: repeat(2, 1fr); } .ag-chip { font-size: 14px; } }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced } from "../../../lib/lab/common";
+  const band = document.querySelector<HTMLElement>(".ag-band")!;
+  if (!reduced) {
+    // Two rows drift in opposite directions at an even pace; scroll nudges them, hover pauses.
+    const loops = [...band.querySelectorAll<HTMLElement>(".ag-track")].map((t) =>
+      t.dataset.dir === "1"
+        ? gsap.fromTo(t, { xPercent: -50 }, { xPercent: 0, duration: 46, ease: "none", repeat: -1 })
+        : gsap.to(t, { xPercent: -50, duration: 40, ease: "none", repeat: -1 }));
+    let hover = false;
+    const speed = (v: number, d = 0.8) => loops.forEach((l) => gsap.to(l, { timeScale: v, duration: d, ease: "power2.out", overwrite: true }));
+    band.addEventListener("pointerenter", () => { hover = true; speed(0); });
+    band.addEventListener("pointerleave", () => { hover = false; speed(1); });
+    let settle: gsap.core.Tween | undefined;
+    ScrollTrigger.create({ trigger: ".ag", onUpdate: (s) => {
+      if (hover) return;
+      speed(1 + Math.min(2.5, Math.abs(s.getVelocity()) / 900), 0.25);
+      settle?.kill(); settle = gsap.delayedCall(0.3, () => { if (!hover) speed(1, 1.2); });
+    } });
+    gsap.from(".ag-track", { x: (i) => (i ? -80 : 80), autoAlpha: 0, duration: 1.3, ease: "expo.out", stagger: 0.1, scrollTrigger: { trigger: ".ag-band", start: "top 88%", once: true } });
+    gsap.from(".ag-grid li", { y: 40, autoAlpha: 0, stagger: 0.05, duration: 1, ease: "expo.out", scrollTrigger: { trigger: ".ag-grid", start: "top 85%", once: true } });
+  }
+  document.querySelectorAll<HTMLElement>(".ag-grid li").forEach((li) =>
+    li.addEventListener("pointerenter", (e) => {
+      const r = li.getBoundingClientRect();
+      li.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      li.style.setProperty("--my", `${e.clientY - r.top}px`);
+    }),
+  );
+</script>

@@ -1,0 +1,49 @@
+---
+/** Document shell for the redesigned pages: fonts, SEO, theme and the page loader. */
+import SiteThemeHead from "../SiteThemeHead.astro";
+import SeoHead from "../SeoHead.astro";
+import PortalLoader from "./portal/PortalLoader.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  type?: "website" | "article";
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
+}
+const { title, description, path, type, structuredData } = Astro.props;
+const fonts = "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#fbfcfe" />
+    <title>{title}</title>
+    <SeoHead title={title} description={description} path={path} type={type} structuredData={structuredData} />
+    <SiteThemeHead />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href={fonts} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <PortalLoader />
+    <slot />
+    <style is:global>
+      html, body { margin: 0; background: #fbfcfe; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+      *, *::before, *::after { box-sizing: border-box; }
+      img, svg { display: block; }
+      html.lenis, html.lenis body { height: auto; }
+      .lenis.lenis-smooth { scroll-behavior: auto !important; }
+      .skip-link { position: fixed; left: 12px; top: -60px; z-index: 2000; padding: 10px 14px; border-radius: 10px; background: #0b0d1f; color: #fff; text-decoration: none; }
+      .skip-link:focus { top: 12px; }
+      /* Reveal masks: leave room for descenders (g, y, p) and italic overhangs. */
+      .lab-mask-line-mask, .lab-mask-word-mask, .lab-mask-char-mask, .lab-mask {
+        padding: 0.06em 0.08em 0.26em !important; margin: -0.06em -0.08em -0.26em !important;
+      }
+    </style>
+  </body>
+</html>

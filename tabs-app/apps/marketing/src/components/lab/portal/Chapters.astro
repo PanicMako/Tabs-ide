@@ -1,0 +1,138 @@
+---
+import { tools } from "../../../data/lab";
+// Soft tints keep the white theme; the accent marks each chapter.
+const look = [
+  { tint: "#f3efe9", fg: "#0b0d1f", ac: "#0e2af3", shot: "light" },
+  { tint: "#0e2af3", fg: "#fbfcfe", ac: "#ffd84d", shot: "dark" },
+  { tint: "#ff5b2e", fg: "#0b0d1f", ac: "#fbfcfe", shot: "light" },
+  { tint: "#0b0d1f", fg: "#fbfcfe", ac: "#7be0b4", shot: "dark" },
+  { tint: "#c9d3ff", fg: "#0b0d1f", ac: "#0e2af3", shot: "light" },
+];
+const chapters = tools.map((t, i) => ({ ...t, ...look[i % look.length]! }));
+---
+<section class="ch" id="tools" data-sec="Tool chapters" style={`--tint:${chapters[0]!.tint};--fg:${chapters[0]!.fg};--ac:${chapters[0]!.ac}`} data-tints={JSON.stringify(chapters.map((c) => [c.tint, c.ac, c.fg]))}>
+  <div class="ch-stage">
+    <ol class="ch-rail" aria-label="Tools">
+      <li class="ch-rail__line" aria-hidden="true"><i></i></li>
+      {chapters.map((c, i) => (
+        <li><button type="button" data-go={i} class:list={[i === 0 && "on"]}><i class="ch-rail__dot"></i><span class="ch-rail__name">{c.name}</span></button></li>
+      ))}
+    </ol>
+    <div class="ch-copy">
+      <p class="ch-kick"><span class="ch-kick__in">{chapters.map((c, i) => <span data-i={i}>{c.kicker}</span>)}</span></p>
+      <h3 class="ch-word" aria-live="polite">{chapters.map((c, i) => <span class="ch-word__in" data-i={i}>{c.name}</span>)}</h3>
+      <div class="ch-lines">{chapters.map((c, i) => <p class="ch-line" data-i={i}>{c.line}</p>)}</div>
+    </div>
+    <div class="ch-stack">
+      {chapters.map((c, i) => (
+        <figure class="ch-card" data-i={i} style={`z-index:${i + 1}`}>
+          <img src={`/product/${tools[i]!.shot}-${c.shot}.png`} alt={`The ${c.name} tool in Tabs`} width="1920" height="1204" decoding="async" />
+          <span class="ch-card__shade"></span>
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .ch { position: relative; background: var(--tint); color: var(--fg); }
+  .ch-stage { position: relative; height: 100svh; display: grid; grid-template-columns: 170px minmax(0, 4fr) minmax(0, 7fr); align-items: center; gap: 3vw; padding: 96px max(28px, 3vw) 110px; overflow: hidden; }
+  .ch-rail { position: relative; display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; align-self: center; }
+  .ch-rail__line { position: absolute; left: 4px; top: 8px; bottom: 8px; width: 1px; background: color-mix(in srgb, var(--fg) 22%, transparent); }
+  .ch-rail__line i { position: absolute; inset: 0; background: var(--fg); transform-origin: top; transform: scaleY(0); }
+  .ch-rail button { display: flex; align-items: center; gap: 16px; padding: 0; border: 0; background: none; color: var(--fg); font: 500 15px var(--sans); cursor: pointer; opacity: .5; transition: opacity .35s; }
+  .ch-rail button:hover, .ch-rail button.on { opacity: 1; }
+  .ch-rail__dot { position: relative; z-index: 1; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--tint); box-shadow: inset 0 0 0 1.5px var(--fg); transition: scale .4s cubic-bezier(.2,1.6,.4,1), background .3s; }
+  .ch-rail button.on .ch-rail__dot { background: var(--fg); scale: 1.35; }
+  .ch-copy { position: relative; min-width: 0; }
+  .ch-kick { position: relative; height: 1.4em; margin: 0 0 18px; overflow: hidden; padding-top: .1em; font: 500 12px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: color-mix(in srgb, var(--fg) 70%, transparent); }
+  .ch-kick__in span, .ch-word__in, .ch-line { position: absolute; left: 0; top: 0; }
+  .ch-kick__in span { white-space: nowrap; }
+  .ch-word { position: relative; height: 1em; margin: 0; overflow: hidden; padding: .04em .1em .3em 0; box-sizing: content-box; font: 400 clamp(72px, 8.6vw, 176px)/1 var(--serif); font-style: italic; letter-spacing: -.03em; color: var(--fg); }
+  .ch-word__in { padding-right: .08em; white-space: nowrap; will-change: transform; }
+  .ch-lines { position: relative; min-height: 4.5em; margin-top: 18px; }
+  .ch-line { max-width: 420px; margin: 0; font-size: clamp(18px, 1.5vw, 22px); line-height: 1.45; font-weight: 500; color: color-mix(in srgb, var(--fg) 82%, transparent); }
+  .ch-line::before { content: ""; display: block; width: 44px; height: 3px; margin-bottom: 18px; border-radius: 3px; background: var(--ac); transition: background .3s; }
+  .ch-stack { position: relative; width: 100%; aspect-ratio: 1920 / 1204; max-height: calc(100svh - 220px); justify-self: end; }
+  .ch-card { position: absolute; inset: 0; margin: 0; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(11,13,31,.08), 0 50px 90px -40px rgba(11,13,31,.45); will-change: transform; transform-origin: 50% 0%; }
+  .ch-card img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+  .ch-card__shade { position: absolute; inset: 0; background: #0b0d1f; opacity: 0; pointer-events: none; }
+  .ch [data-i]:not([data-i="0"]).ch-word__in, .ch [data-i]:not([data-i="0"]).ch-line, .ch .ch-kick__in [data-i]:not([data-i="0"]) { visibility: hidden; }
+  @media (max-width: 1000px) {
+    .ch-stage { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; align-content: center; gap: 22px; padding: 84px 18px 100px; }
+    .ch-rail { display: flex; overflow-x: auto; scrollbar-width: none; }
+    .ch-rail { display: flex; gap: 18px; } .ch-rail__line { display: none; } .ch-rail button { white-space: nowrap; }
+    .ch-word { font-size: 18vw; }
+    .ch-lines { min-height: 5em; }
+    .ch-stack { max-height: 36svh; justify-self: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ch [data-i] { visibility: visible !important; position: relative !important; }
+    .ch-stage { height: auto; }
+  }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced, smoothScroll } from "../../../lib/lab/common";
+  const sec = document.querySelector<HTMLElement>(".ch")!;
+  const stage = sec.querySelector<HTMLElement>(".ch-stage")!;
+  const tints: [string, string, string][] = JSON.parse(sec.dataset.tints!);
+  const n = tints.length;
+  const pick = (sel: string) => [...sec.querySelectorAll<HTMLElement>(sel)];
+  const cards = pick(".ch-card"), words = pick(".ch-word__in"), lines = pick(".ch-line"), kicks = pick(".ch-kick__in span");
+  const rail = pick(".ch-rail button"), line = sec.querySelector<HTMLElement>(".ch-rail__line i")!;
+
+  if (!reduced) {
+    gsap.set([...words, ...lines, ...kicks], { visibility: "visible" });
+    gsap.set(words.slice(1), { yPercent: 150 });
+    gsap.set(kicks.slice(1), { yPercent: 160 });
+    gsap.set(lines.slice(1), { autoAlpha: 0, y: 24 });
+    gsap.set(cards.slice(1), { yPercent: 150, rotate: 3, autoAlpha: 0 });
+
+    const tl = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+    // Panel colors follow the timeline: each change runs alongside that chapter's card move.
+    const mixers = tints.slice(1).map((t, k) => [0, 1, 2].map((j) => gsap.utils.interpolate(tints[k]![j]!, t[j]!)));
+    const paint = (time: number) => {
+      let k = 0, f = 0;
+      for (let i = 1; i < n; i++) {
+        const a = i - 1 + 0.25 + 0.11, b = a + 0.52;
+        if (time >= b) { k = i; f = 0; } else if (time > a) { k = i - 1; f = gsap.parseEase("power1.inOut")((time - a) / (b - a)); break; } else break;
+      }
+      const c = k < n - 1 && f > 0 ? mixers[k]!.map((m) => m(f)) : tints[k]!;
+      sec.style.setProperty("--tint", c[0]!); sec.style.setProperty("--ac", c[1]!); sec.style.setProperty("--fg", c[2]!);
+    };
+    for (let i = 1; i < n; i++) {
+      const at = i - 1 + 0.25; // a beat of rest at each chapter
+      const d = 0.75;
+      tl.to(cards[i]!, { autoAlpha: 1, duration: 0.05, ease: "none" }, at)
+        .to(cards[i]!, { yPercent: 0, rotate: 0, duration: d }, at)
+        .to(cards[i - 1]!, { scale: 0.92, yPercent: -5, duration: d }, at)
+        .to(cards[i - 1]!.querySelector(".ch-card__shade"), { opacity: 0.18, duration: d }, at)
+        .to(words[i - 1]!, { yPercent: -150, duration: d * 0.6, ease: "power3.in" }, at)
+        .to(words[i]!, { yPercent: 0, duration: d * 0.7, ease: "power3.out" }, at + d * 0.35)
+        .to(kicks[i - 1]!, { yPercent: -160, duration: d * 0.5 }, at)
+        .to(kicks[i]!, { yPercent: 0, duration: d * 0.6 }, at + d * 0.3)
+        .to(lines[i - 1]!, { autoAlpha: 0, y: -16, duration: d * 0.4 }, at)
+        .to(lines[i]!, { autoAlpha: 1, y: 0, duration: d * 0.6, ease: "power3.out" }, at + d * 0.45)
+
+      if (i >= 2) tl.to(cards[i - 2]!, { scale: 0.84, yPercent: -10, autoAlpha: 0, duration: d }, at);
+    }
+    tl.to({}, { duration: 0.25 });
+    const st = ScrollTrigger.create({
+      trigger: sec, pin: stage, start: "top top", end: () => `+=${innerHeight * (n - 0.5)}`,
+      scrub: 1, animation: tl, invalidateOnRefresh: true, anticipatePin: 1,
+      onUpdate: (s) => {
+        const p = s.progress * (n - 1);
+        paint(s.progress * tl.duration());
+        const k = Math.min(n - 1, Math.round(p));
+        rail.forEach((b, i) => b.classList.toggle("on", i === k));
+        gsap.set(line, { scaleY: p / (n - 1) });
+      },
+    });
+    rail.forEach((b, i) => b.addEventListener("click", () => {
+      const y = st.start + (st.end - st.start) * (i / (n - 1));
+      const l = smoothScroll();
+      if (l) l.scrollTo(y, { duration: 1.2 }); else scrollTo({ top: y });
+    }));
+  }
+</script>

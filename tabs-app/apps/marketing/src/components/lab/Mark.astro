@@ -1,0 +1,37 @@
+---
+/**
+ * The Tabs mark, split so the eyes can blink and look around.
+ * `eyes` colors the eye pills (defaults to the page background token).
+ */
+interface Props {
+  size?: number | string;
+  class?: string;
+  color?: string;
+  eyes?: string;
+  id?: string;
+  [key: `data-${string}`]: unknown;
+}
+const { size = 120, class: className = "", color = "currentColor", eyes = "var(--eye, #F3EFE9)", id, ...rest } = Astro.props;
+const BODY =
+  "M 61 8 C 39 8 21 26 21 48 L 21 168 C 21 205 48 230 83 230 L 180 230 C 195 230 205 242 205 257 L 205 331 C 205 358 225 378 253 378 L 360 378 C 375 378 385 366 385 351 L 385 330 C 385 317 375 312 365 310 C 353 308 347 300 347 285 L 347 224 C 347 193 325 171 297 171 L 216 171 C 201 171 191 161 191 146 L 191 48 C 191 25 172 8 149 8 Z";
+const FOOT =
+  "M 60 251 L 185 251 L 185 318 C 185 353 165 379 132 379 L 26 379 C 12 379 2 367 2 354 L 2 306 C 2 275 26 251 60 251 Z";
+---
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 390 390"
+  width={size}
+  height={size}
+  class:list={["lab-mark", className]}
+  id={id}
+  aria-hidden="true"
+  overflow="visible"
+  {...rest}
+>
+  <g class="lab-mark__body" fill={color}><path d={BODY} /></g>
+  <g class="lab-mark__foot" fill={color}><path d={FOOT} /></g>
+  <g class="lab-mark__eyes" fill={eyes}>
+    <rect class="lab-mark__eye" x="65" y="108" width="23" height="56" rx="11.5" />
+    <rect class="lab-mark__eye" x="126" y="108" width="23" height="56" rx="11.5" />
+  </g>
+</svg>

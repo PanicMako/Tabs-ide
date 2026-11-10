@@ -1,0 +1,30 @@
+---
+/**
+ * The Portal landing page.
+ */
+import PortalNav from "./portal/PortalNav.astro";
+import PortalWindow from "./portal/PortalWindow.astro";
+import Chapters from "./portal/Chapters.astro";
+import SwitcherWorlds from "./portal/SwitcherWorlds.astro";
+import Agents from "./portal/Agents.astro";
+import PortalEnd from "./portal/PortalEnd.astro";
+import HeroClassic from "./portal/heroes/HeroClassic.astro";
+import "../../styles/lab-portal.css";
+
+---
+<div class="v1">
+  <PortalNav home="/" />
+  <main>
+    <HeroClassic />
+    <PortalWindow />
+    <Chapters />
+    <SwitcherWorlds />
+    <Agents />
+  </main>
+  <PortalEnd />
+</div>
+
+<script>
+  import { portalPage } from "../../lib/lab/portal";
+  portalPage([[".v1-portal", "25% top"]]);
+</script>

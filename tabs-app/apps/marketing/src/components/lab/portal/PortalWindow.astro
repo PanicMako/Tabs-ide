@@ -1,0 +1,86 @@
+---
+---
+<section class="v1-portal" id="portal" data-sec="Portal">
+  <div class="v1-portal__pin">
+    <p class="v1-portal__kicker">Scroll to open the window</p>
+    <h2 class="v1-portal__title" aria-label="Step inside one window">
+      <span class="v1-portal__w v1-portal__w--l">Step</span>
+      <span class="v1-portal__gap" aria-hidden="true"></span>
+      <span class="v1-portal__w v1-portal__w--r"><em>inside.</em></span>
+    </h2>
+    <div class="v1-portal__hole">
+      <p class="v1-portal__quote" aria-label="Bigger than an IDE. All your work. One window.">
+        <span class="v1-portal__q1" aria-hidden="true">Bigger than an IDE.</span>
+        <span class="v1-portal__q2" aria-hidden="true"><em>All your work. One window.</em></span>
+      </p>
+      <div class="v1-portal__reel">
+        <img src="/product/agents-new-light.webp" alt="Tabs in a new thread: project tabs on top, the toolbar, and the agent picker listing every provider." width="2000" height="1255" />
+      </div>
+      <div class="v1-portal__glare"></div>
+      <ul class="v1-portal__pins">
+        <li style="--x:31.4%;--y:4.9%;--lead:30px"><i></i><span><b>01</b> Each project is a tab</span></li>
+        <li style="--x:12.8%;--y:9.4%;--lead:50px"><i></i><span><b>02</b> Its tools, in the toolbar</span></li>
+        <li class="to-left" style="--x:37.2%;--y:46.8%;--lead:30px"><i></i><span><b>03</b> Your choice of agent</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .v1-portal { --pw: clamp(250px, 31vw, 520px); --ph: calc(var(--pw) * .42); position: relative; height: 320vh; }
+  .v1-portal__pin { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; place-items: center; }
+  .v1-portal__kicker { position: absolute; top: calc(50% + var(--ph) / 2 + 56px); left: 0; right: 0; margin: 0; text-align: center; font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  .v1-portal__title { position: absolute; z-index: 2; inset: 0; display: flex; align-items: center; justify-content: center; gap: clamp(22px, 3vw, 52px); margin: 0; font-size: clamp(48px, 9vw, 156px) !important; line-height: 1 !important; pointer-events: none; }
+  .v1-portal__gap { flex: none; width: var(--pw); height: var(--ph); }
+  .v1-portal__w { display: block; padding-bottom: .12em; white-space: nowrap; }
+  .v1-portal__hole { position: absolute; inset: 0; overflow: hidden; background: var(--cobalt); display: grid; place-items: center; clip-path: inset(calc(50% - var(--ph) / 2) calc(50% - var(--pw) / 2) round 999px); will-change: clip-path; }
+  .v1-portal__quote { position: absolute; z-index: 2; left: 50%; top: 50%; margin: 0; display: grid; justify-items: center; gap: .1em; translate: -50% -50%; color: #fbfcfe; text-align: center; white-space: nowrap; pointer-events: none; will-change: transform, opacity; }
+  .v1-portal__q1 { font: 400 calc(var(--pw) * .071) / 1 "Hebdomadal", var(--serif); letter-spacing: -.01em; }
+  .v1 .v1-portal__q2 em { display: block; padding: 0 .08em .14em; font: 400 calc(var(--pw) * .055) / 1.15 "Hebdomadal", var(--serif) !important; font-style: normal !important; letter-spacing: 0;
+    background: linear-gradient(100deg, #c9d3ff 0%, #c9d3ff 38%, #ffffff 50%, #c9d3ff 62%, #c9d3ff 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: quoteShine 5.5s ease-in-out infinite; }
+  @keyframes quoteShine { 0%, 25% { background-position: 100% 0; } 75%, 100% { background-position: 0% 0; } }
+  .v1-portal__reel { position: relative; width: min(1400px, 92vw); aspect-ratio: 1920 / 1204; will-change: transform, opacity; }
+  .v1-portal__reel img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 16px; box-shadow: 0 60px 120px -40px rgba(0,0,0,.6); }
+  .v1-portal__glare { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(60% 40% at 50% 0%, rgba(255,255,255,.22), transparent 70%); }
+  .v1-portal__pins { position: absolute; margin: 0; padding: 0; list-style: none; width: min(1400px, 92vw); height: calc(min(1400px, 92vw) * .627); left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .v1-portal__pins li { position: absolute; left: var(--x); top: var(--y); width: 0; height: 0; opacity: 0; }
+  .v1-portal__pins i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px #fff; }
+  .v1-portal__pins i::after { content: ""; position: absolute; left: 3.5px; top: 8px; width: 1px; height: var(--lead, 34px); background: var(--ink); transform-origin: top; }
+  .v1-portal__pins span { position: absolute; left: -10px; top: calc(var(--lead, 34px) + 8px); display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 13px; white-space: nowrap; box-shadow: 0 10px 24px -12px rgba(0,0,0,.5); }
+  .v1-portal__pins .to-left span { left: auto; right: -10px; }
+  .v1-portal__pins b { font: 600 11px var(--mono); color: var(--coral); }
+  @media (max-width: 700px) { .v1-portal__pins span { font-size: 11px; padding: 6px 9px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .v1-portal { height: auto; }
+    .v1-portal__pin { position: relative; height: auto; padding: 80px 0; }
+    .v1-portal__hole { position: relative; clip-path: none; padding: 40px 0; }
+    .v1-portal__pins li { opacity: 1; }
+    .v1-portal__title { position: relative; }
+  }
+</style>
+
+<script>
+  import { gsap, reduced } from "../../../lib/lab/common";
+  if (!reduced) {
+    const portal = document.querySelector<HTMLElement>(".v1-portal")!;
+    const hole = portal.querySelector<HTMLElement>(".v1-portal__hole")!;
+    const pill = () => {
+      const pw = Math.min(520, Math.max(250, window.innerWidth * 0.31));
+      const ph = pw * 0.42;
+      const t = (window.innerHeight - ph) / 2, s = (window.innerWidth - pw) / 2;
+      return `inset(${t}px ${s}px ${t}px ${s}px round ${ph / 2}px)`;
+    };
+    // The pill holds the line; opening it hands over to the real app.
+    const tl = gsap.timeline({ scrollTrigger: { trigger: portal, start: "top top", end: "bottom bottom", scrub: 0.9, invalidateOnRefresh: true } });
+    gsap.from(".v1-portal__quote > *", { yPercent: 60, autoAlpha: 0, duration: 1.1, ease: "expo.out", stagger: 0.1, scrollTrigger: { trigger: portal, start: "top 75%", once: true } });
+    tl.fromTo(hole, { clipPath: pill }, { clipPath: "inset(0px 0px 0px 0px round 0px)", ease: "power3.inOut", duration: 1 })
+      .to(".v1-portal__quote", { scale: 1.9, autoAlpha: 0, filter: "blur(6px)", ease: "power2.in", duration: 0.42 }, 0.06)
+      .fromTo(".v1-portal__reel", { scale: 0.7, yPercent: 12, autoAlpha: 0 }, { scale: 1, yPercent: 0, autoAlpha: 1, ease: "power3.out", duration: 0.7 }, 0.32)
+      .to(".v1-portal__w--l", { xPercent: -160, x: () => -window.innerWidth * 0.2, ease: "power3.inOut", duration: 0.8 }, 0)
+      .to(".v1-portal__w--r", { xPercent: 160, x: () => window.innerWidth * 0.2, ease: "power3.inOut", duration: 0.8 }, 0)
+      .to(".v1-portal__kicker", { autoAlpha: 0, y: 30, duration: 0.2 }, 0)
+      .fromTo(".v1-portal__pins li", { autoAlpha: 0 }, { autoAlpha: 1, stagger: 0.12, duration: 0.2 }, 0.9)
+      .fromTo(".v1-portal__pins span", { y: 10, autoAlpha: 0 }, { y: 0, autoAlpha: 1, stagger: 0.12, duration: 0.25, ease: "power3.out" }, 0.95)
+      .to({}, { duration: 0.3 });
+  }
+</script>

@@ -1,0 +1,24 @@
+---
+import Mark from "../Mark.astro";
+import { links } from "../../../data/lab";
+interface Props {
+  current?: "home" | "changelog" | "downloads";
+  home?: string;
+}
+const { current = "home", home = "/" } = Astro.props;
+---
+<div class="v1-cursor" aria-hidden="true"></div>
+<header class="v1-nav">
+  <div class="v1-nav__brand">
+    <a href={home} class="v1-nav__logo" aria-label="Tabs IDE home"><Mark size={26} color="#0E2AF3" eyes="#FBFCFE" data-alive /><span class="v1-nav__word">Tabs</span></a>
+    <span class="v1-nav__sep" aria-hidden="true"></span>
+    <a class="v1-nav__beta" href="/changelog"><span>Public beta</span></a>
+  </div>
+  <nav aria-label="Primary">
+    <a href={current === "home" ? "#portal" : `${home}#portal`}>Workspace</a>
+    <a href={current === "home" ? "#agents" : `${home}#agents`}>Agents</a>
+    <a href={links.changelog} aria-current={current === "changelog" ? "page" : undefined}>Changelog</a>
+    <a href={links.github}>GitHub</a>
+  </nav>
+  <a class="v1-btn v1-btn--sm" href={links.download} data-magnetic="0.3" aria-current={current === "downloads" ? "page" : undefined}><span>Download</span></a>
+</header>
