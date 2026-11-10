@@ -31,6 +31,24 @@
   .tile p { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; margin-top: 12px; opacity: 0.78; }
   .tile .crop { position: absolute; left: 40px; top: 200px; width: 700px; height: 446px; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 50px rgba(10, 11, 16, 0.35); }
   .tile .crop img { position: absolute; left: -339px; top: -82px; width: 1085px; }
+
+  #note { background: #ffd84a; color: var(--ink); height: 300px; padding: 0 64px; display: flex; align-items: center; gap: 56px; }
+  #note svg { width: 150px; flex: none; }
+  #note h2 { font: 400 76px/1 "Hebdomadal"; margin-left: -3px; white-space: nowrap; }
+  #note p { font-size: 27px; line-height: 1.38; font-weight: 500; letter-spacing: -0.01em; margin-top: 18px; max-width: 1180px; }
+  #note p b { font-weight: 700; }
+  .banner { height: 170px; padding: 0 60px; display: flex; align-items: center; }
+  .banner::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(currentColor 1.2px, transparent 1.6px); background-size: 40px 40px; opacity: 0.12; }
+  .banner h2 { position: relative; font: 400 84px/1 "Hebdomadal"; white-space: nowrap; }
+  .banner span { position: relative; margin-left: auto; font: 500 22px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; border: 1.5px solid currentColor; padding: 12px 22px; border-radius: 40px; }
+  #steps { background: transparent; border-radius: 0; overflow: visible; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; color: var(--ink); }
+  .stp { border-radius: 36px; padding: 34px 40px 40px; height: 300px; position: relative; }
+  .stp i { font: 400 110px/1 "Hebdomadal"; font-style: normal; display: block; }
+  .stp b { display: block; font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-top: 18px; }
+  .stp em { display: block; font-style: normal; font-size: 24px; font-weight: 500; opacity: 0.75; margin-top: 6px; }
+  #agents { background: var(--blue); height: 400px; text-align: center; }
+  #agents .logos { top: 84px; gap: 22px; } #agents .lg { width: 112px; height: 112px; }
+  #agents .psub { top: 262px; font-size: 40px; }
 </style>
 <div class="card" id="cover">
   <div class="lockup"><svg width="62" viewBox="0 0 390 390" id="m"></svg><svg width="150" viewBox="0 0 386 81" id="w"></svg></div>
@@ -45,10 +63,25 @@
   <div class="step s2"><small>STEP 2 · THE APP</small><code>tabs-app/</code><h2>Run.</h2><p>Tabs itself. This is the folder you start the app from, every time.</p><kbd>bun run dev:desktop</kbd></div>
 </div>
 <div class="card" id="tools"><div class="tile" style="background:#f3efe9"><h3>Code.</h3><p>A full editor, built in.</p><div class="crop"><img src="out/still-13.40.jpg" /></div></div><div class="tile" style="background:#8fe0c8"><h3>Agents.</h3><p>Claude, Codex, Cursor and more.</p><div class="crop"><img src="out/still-16.20.jpg" /></div></div><div class="tile" style="background:#ffd84a"><h3>Terminal.</h3><p>Dev servers, side by side.</p><div class="crop"><img src="out/still-18.30.jpg" /></div></div><div class="tile" style="background:#b9a6ff"><h3>Browser.</h3><p>Preview your local site.</p><div class="crop"><img src="out/still-19.20.jpg" /></div></div><div class="tile" style="background:#ff8a66"><h3>Git.</h3><p>Review, commit, ship.</p><div class="crop"><img src="out/still-21.10.jpg" /></div></div><div class="tile" style="background:#ff9fd0"><h3>Anything.</h3><p>Pin any site or CLI.</p><div class="crop"><img src="out/still-22.20.jpg" /></div></div></div>
+<div class="card" id="note"><svg viewBox="0 0 390 390" id="m2"></svg><div><h2>Made by one student.</h2><p>Tabs is a small public beta, so expect rough edges. I don’t have an Apple Developer account yet, so <b>the Mac app is unsigned</b> and macOS warns you the first time you open it.</p></div></div>
+<div class="card banner" id="h-get" style="background:var(--blue);color:var(--ivory)"><h2>Get Tabs.</h2><span>3 steps</span></div>
+<div class="card banner" id="h-build" style="background:var(--ink);color:var(--ivory)"><h2>Build it yourself.</h2><span>from source</span></div>
+<div class="card banner" id="h-agents" style="background:#8fe0c8;color:var(--ink)"><h2>Bring your agents.</h2><span>your accounts</span></div>
+<div class="card banner" id="h-fine" style="background:#b9a6ff;color:var(--ink)"><h2>The fine print.</h2><span>good to know</span></div>
+<div class="card" id="steps">
+  <div class="stp" style="background:#f3efe9"><i>1</i><b>Download</b><em>macOS, Windows or Linux.</em></div>
+  <div class="stp" style="background:#8fe0c8"><i>2</i><b>Open a folder</b><em>A short tour shows you around.</em></div>
+  <div class="stp" style="background:#ff9fd0"><i>3</i><b>Connect an agent</b><em>Whenever you’re ready.</em></div>
+</div>
+<div class="card" id="agents"><div class="logos" id="lg"></div><div class="psub"><span>Your accounts.</span><span>No subscription.</span><span>No markup.</span></div></div>
+<script src="assets/logos.js"></script>
 <script>
   const body = "M 61 8 C 39 8 21 26 21 48 L 21 168 C 21 205 48 230 83 230 L 180 230 C 195 230 205 242 205 257 L 205 331 C 205 358 225 378 253 378 L 360 378 C 375 378 385 366 385 351 L 385 330 C 385 317 375 312 365 310 C 353 308 347 300 347 285 L 347 224 C 347 193 325 171 297 171 L 216 171 C 201 171 191 161 191 146 L 191 48 C 191 25 172 8 149 8 Z M 76.5 108 C 70.15 108 65 113.15 65 119.5 L 65 152.5 C 65 158.85 70.15 164 76.5 164 C 82.85 164 88 158.85 88 152.5 L 88 119.5 C 88 113.15 82.85 108 76.5 108 Z M 137.5 108 C 131.15 108 126 113.15 126 119.5 L 126 152.5 C 126 158.85 131.15 164 137.5 164 C 143.85 164 149 158.85 149 152.5 L 149 119.5 C 149 113.15 143.85 108 137.5 108 Z";
   const foot = "M 60 251 L 185 251 L 185 318 C 185 353 165 379 132 379 L 26 379 C 12 379 2 367 2 354 L 2 306 C 2 275 26 251 60 251 Z";
   const word = "M 0 1 H 94 V 17 H 60 V 80 H 38 V 17 H 0 Z M 82 80 L 118.5 1 H 150 L 185 80 H 160 L 152 62 H 112 L 103 80 Z M 120 48 H 144 L 132.5 19 Z M 192 1 H 248 C 274 1 284 11 284 24 C 284 35 279 41 269 44 C 283 46 289 55 289 65 C 289 78 279 80 252 80 H 192 Z M 212 17 V 34 H 249 C 258 34 261 31 261 26 C 261 20 256 17 249 17 Z M 212 47 V 65 H 251 C 261 65 265 62 265 56 C 265 50 261 47 251 47 Z M 384 26 H 362 V 22 C 362 17 356 15 346 15 H 328 C 314 15 310 18 310 23 C 310 29 317 31 330 33 L 355 37 C 379 40 386 48 386 62 C 386 76 373 81 349 81 H 324 C 300 81 290 75 290 57 H 313 C 313 64 318 66 330 66 H 348 C 362 66 365 63 365 58 C 365 52 358 50 345 48 L 320 44 C 298 41 291 34 291 23 C 291 7 304 0 330 0 H 350 C 372 0 384 6 384 21 Z";
   document.getElementById("m").innerHTML = `<path fill="#f3efe9" fill-rule="evenodd" d="${body}"/><path fill="#f3efe9" d="${foot}"/>`;
   document.getElementById("w").innerHTML = `<path fill="#f3efe9" d="${word}"/>`;
+
+  document.getElementById("m2").innerHTML = `<path fill="#0a0b10" fill-rule="evenodd" d="${body}"/><path fill="#0a0b10" d="${foot}"/>`;
+  document.getElementById("lg").innerHTML = ["claude", "codex", "cursor", "copilot", "grok", "opencode", "antigravity", "factory-droid", "kilo", "openrouter"].map((k) => `<div class="lg">${window.LOGOS[k]}</div>`).join("");
 </script>

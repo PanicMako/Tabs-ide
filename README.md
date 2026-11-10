@@ -8,9 +8,13 @@
 
 </div>
 
-> [!IMPORTANT]
-> **Made by one student.** Tabs is a small public beta, so expect rough edges.
-> I don’t have an Apple Developer account yet, so **the Mac app is unsigned** and macOS warns you on first launch. [Allow it in two clicks](#if-macos-blocks-the-app) or [build it yourself](#build-it-yourself).
+<img src="docs/readme/note.png" alt="Made by one student. Tabs is a small public beta, so expect rough edges. I don’t have an Apple Developer account yet, so the Mac app is unsigned and macOS warns you the first time you open it." width="100%" />
+
+<div align="center">
+
+On a Mac? &nbsp;[Allow the app in two clicks](#if-macos-blocks-the-app) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself)
+
+</div>
 
 ## Nine windows. One job.
 
@@ -46,11 +50,21 @@ Press **⌘ ⌥ K** (or **Ctrl Alt K**) for Quick Actions: jump to a tool, or op
 
 </details>
 
-## Get Tabs
+<br />
 
-1. **[Download it](https://buildwithtabs.com/downloads)** for macOS, Windows or Linux.
-2. **Open a folder.** A short tour shows you around.
-3. **Connect an agent** in **Settings → Providers** whenever you’re ready.
+<a name="get-tabs"></a>
+
+<img src="docs/readme/h-get.png" alt="Get Tabs" width="100%" />
+
+<a href="https://buildwithtabs.com/downloads"><img src="docs/readme/steps.png" alt="1. Download for macOS, Windows or Linux. 2. Open a folder. A short tour shows you around. 3. Connect an agent whenever you’re ready." width="100%" /></a>
+
+<div align="center">
+
+**[Download Tabs →](https://buildwithtabs.com/downloads)**
+
+</div>
+
+Connect an agent later in **Settings → Providers**.
 
 <a name="if-macos-blocks-the-app"></a>
 
@@ -80,7 +94,11 @@ Press **⌘ ⌥ K** (or **Ctrl Alt K**) for Quick Actions: jump to a tool, or op
 <a name="build-from-source"></a>
 <a name="quick-start"></a>
 
-## Build it yourself
+<br />
+
+<a name="build-it-yourself"></a>
+
+<img src="docs/readme/h-build.png" alt="Build it yourself" width="100%" />
 
 Two folders matter. You compile one, and you run the other.
 
@@ -126,9 +144,13 @@ Stuck, or want to work on the code? See the [developer guide](tabs-app/README.md
 
 <a name="supported-providers"></a>
 
-## Bring your own agents
+<br />
 
-Tabs uses your accounts. No subscription, no markup.
+<a name="bring-your-own-agents"></a>
+
+<img src="docs/readme/h-agents.png" alt="Bring your agents" width="100%" />
+
+<img src="docs/readme/agents.png" alt="Claude, Codex, Cursor, GitHub Copilot, Grok, OpenCode, Antigravity, Droid, Kilo and OpenRouter. Your accounts. No subscription. No markup." width="100%" />
 
 <details>
 <summary>Supported agents and how to connect each</summary>
@@ -153,7 +175,11 @@ Your provider’s own plan and usage charges apply.
 
 </details>
 
-## Good to know
+<br />
+
+<a name="good-to-know"></a>
+
+<img src="docs/readme/h-fine.png" alt="The fine print" width="100%" />
 
 <details>
 <summary>Privacy</summary>
