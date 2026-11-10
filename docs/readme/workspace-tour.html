@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f3efe9" />
+    <title>Tabs IDE | Workspace tour</title>
+    <link rel="stylesheet" href="workspace-tour.css" />
+    <script src="workspace-tour.js" defer></script>
+  </head>
+  <body>
+    <main class="tour">
+      <header class="masthead">
+        <div class="brand">
+          <img
+            src="../../tabs-app/apps/marketing/public/brand/blue-white-symbol.svg"
+            alt=""
+            width="27"
+            height="27"
+          />
+          <span>Tabs IDE</span>
+        </div>
+        <a class="replay-link" href="replay.mp4"
+          >Watch the replay <span aria-hidden="true">↗</span></a
+        >
+      </header>
+      <div class="intro">
+        <h1>Work in <em>tabs.</em></h1>
+        <p>
+          Switch projects. Make the toolbar yours. Try it with two sample projects in one window.
+        </p>
+      </div>
+
+      <section class="workspace" data-ui aria-label="Interactive Tabs workspace">
+        <header class="workspace-header">
+          <div class="project-tabs" aria-label="Projects">
+            <button type="button" data-project="field" aria-pressed="true">
+              <span class="project-mark" aria-hidden="true">F</span>Field Notes
+            </button>
+            <button type="button" data-project="morrow" aria-pressed="false">
+              <span class="project-mark" aria-hidden="true">M</span>Morrow
+            </button>
+          </div>
+          <button type="button" class="expand" data-expand aria-pressed="false">
+            <svg
+              aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" />
+            </svg>
+            <span data-expand-label>Expand workspace</span>
+          </button>
+        </header>
+        <div class="tools">
+          <div class="tool-tabs" aria-label="Project tools"></div>
+          <div class="tool-actions">
+            <button type="button" data-add aria-haspopup="dialog">
+              <span aria-hidden="true">+</span> Add tool
+            </button>
+            <button
+              type="button"
+              data-quick
+              aria-haspopup="dialog"
+              aria-keyshortcuts="Meta+Alt+K Control+Alt+K"
+            >
+              <span aria-hidden="true">⌘</span> Quick Actions
+            </button>
+          </div>
+        </div>
+        <div class="work-area" id="work-area"></div>
+        <p class="workspace-foot">
+          <span data-project-status>Field Notes · Browser</span><span>Interactive demo</span>
+        </p>
+      </section>
+
+      <section class="guide" aria-labelledby="guide-title">
+        <div>
+          <h2 id="guide-title">Try the workspace</h2>
+          <p>Sample sites, commands, and conversations run as a simulation.</p>
+        </div>
+        <ol>
+          <li data-check="switch">Switch projects</li>
+          <li data-check="browser">Save a browser tab</li>
+          <li data-check="terminal">Save a terminal tab</li>
+          <li data-check="quick">Open Quick Actions</li>
+        </ol>
+        <span class="shortcut-hint"
+          >Quick Actions <kbd>⌘</kbd><kbd>⌥</kbd><kbd>K</kbd
+          ><span class="other-shortcut"> / Ctrl + Alt + K</span></span
+        >
+      </section>
+      <p class="announcement" role="status" aria-live="polite"></p>
+      <noscript
+        ><p>Enable JavaScript to use the sample workspace, or watch the replay above.</p></noscript
+      >
+    </main>
+
+    <dialog class="tool-dialog" aria-labelledby="tool-title">
+      <form class="tool-form">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="tool-title">Add to your toolbar</h2>
+            <p>Save a tool to <strong data-tool-project></strong>.</p>
+          </div>
+          <button type="button" class="close" data-close aria-label="Close add tool">×</button>
+        </div>
+        <fieldset class="kind-picker">
+          <legend>Tool type</legend>
+          <label><input type="radio" name="kind" value="browser" checked /> Browser tab</label>
+          <label><input type="radio" name="kind" value="terminal" /> Terminal tab</label>
+        </fieldset>
+        <label class="field"
+          >Tab name<input name="name" required maxlength="24" autocomplete="off"
+        /></label>
+        <label class="field"
+          ><span data-input-label>Website URL</span
+          ><input name="value" required maxlength="150" autocomplete="off"
+        /></label>
+        <p class="form-note" data-tool-note></p>
+        <div class="dialog-actions">
+          <button type="button" data-example>Use sample</button>
+          <button type="submit" class="primary" data-save>Save browser tab</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="quick-dialog" aria-labelledby="quick-title">
+      <div class="dialog-heading">
+        <div>
+          <h2 id="quick-title">Quick Actions</h2>
+          <p>Jump to a tool without leaving the project.</p>
+        </div>
+        <button type="button" class="close" data-close aria-label="Close Quick Actions">×</button>
+      </div>
+      <div class="wheel">
+        <div class="wheel-center" aria-hidden="true"><kbd>⌘</kbd><kbd>⌥</kbd><kbd>K</kbd></div>
+        <button type="button" data-quick-tool="code">
+          <span aria-hidden="true">&lt;/&gt;</span>Return to code
+        </button>
+        <button type="button" data-quick-tool="agents">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 1l2.5 6.5L19 10l-6.5 2.5L10 19l-2.5-6.5L1 10l6.5-2.5z" /></svg
+          >New conversation
+        </button>
+        <button type="button" data-quick-tool="scratch-browser">
+          <span aria-hidden="true">↗</span>Temporary browser
+        </button>
+        <button type="button" data-quick-tool="git">
+          <span aria-hidden="true">⑂</span>Source control
+        </button>
+        <button type="button" data-quick-tool="scratch-terminal">
+          <span aria-hidden="true">&gt;_</span>Temporary terminal
+        </button>
+      </div>
+      <p class="wheel-note">Press <kbd>Esc</kbd> to close</p>
+    </dialog>
+
+    <template id="field-preview">
+      <div class="sample-site field-site">
+        <div class="sample-brand">FIELD NOTES <span> / </span> JOURNAL</div>
+        <div class="sample-copy">
+          <h2>Go a little<br />further.</h2>
+          <p>Stories from the way out.</p>
+        </div>
+        <svg viewBox="0 0 600 420" class="site-art" aria-hidden="true">
+          <defs>
+            <pattern id="map-grid" width="25" height="25" patternUnits="userSpaceOnUse">
+              <path d="M25 0H0V25" fill="none" stroke="#f8d6a3" stroke-opacity=".18" />
+            </pattern>
+          </defs>
+          <rect width="600" height="420" fill="url(#map-grid)" />
+          <g fill="none" stroke="#e6a868" stroke-width="1.7">
+            <path d="M100 430C57 336 131 258 213 247S248 97 378 73 468 5 554-17" />
+            <path d="M139 425C96 348 157 287 234 271S275 124 394 97 492 26 582 11" />
+            <path d="M180 429C133 363 176 313 256 296S297 150 411 120 515 51 615 36" />
+            <path d="M222 435C176 381 211 339 280 321S323 178 429 145 548 76 628 68" />
+            <path d="M268 440C220 392 248 365 305 344S348 208 450 173 559 106 641 97" />
+            <path d="M314 450C265 402 282 383 329 368S368 238 471 200 566 136 653 128" />
+            <path d="M358 448C329 423 324 410 352 394S389 269 492 225 593 171 645 161" />
+            <path d="M405 446C377 420 397 317 505 261S610 199 656 195" />
+            <path d="M447 445C433 399 449 338 521 298S611 243 655 231" />
+            <path d="M485 439C475 391 498 348 549 325S626 281 657 274" />
+          </g>
+          <path
+            d="M210 361l85-49 38-76 76-52 79-29"
+            stroke="#f9e5bd"
+            stroke-width="3"
+            stroke-dasharray="6 6"
+            fill="none"
+          />
+          <g fill="#f9e5bd">
+            <circle cx="210" cy="361" r="5" />
+            <circle cx="488" cy="155" r="7" />
+          </g>
+        </svg>
+      </div>
+    </template>
+
+    <template id="morrow-preview">
+      <div class="sample-site morrow-site">
+        <div class="sample-brand">MORROW <span> / </span> STUDIO</div>
+        <div class="sample-copy">
+          <h2>Good things<br />take light.</h2>
+          <p>Objects for the hours in between.</p>
+        </div>
+        <svg viewBox="0 0 600 420" class="site-art" aria-hidden="true">
+          <circle cx="399" cy="205" r="156" fill="#f3bc74" />
+          <path d="M348 420V209a92 92 0 0 1 184 0v211" fill="#8b471f" />
+          <path d="M402 420V209a38 38 0 0 1 76 0v211" fill="#efddbb" />
+          <path d="M295 420v-69a54 54 0 0 1 108 0v69" fill="#402b24" />
+        </svg>
+      </div>
+    </template>
+  </body>
+</html>
