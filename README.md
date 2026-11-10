@@ -4,7 +4,7 @@
 
 Tabs brings your projects, coding agents, and everyday tools into one desktop window. When you switch project tabs, that project’s files, conversations, and toolbar are right there.
 
-**[Download Tabs](https://buildwithtabs.com/downloads)** · [Watch the 44-second tour](#workspace-tour) · [What’s new](CHANGELOG.md) · [Build from source](#build-from-source)
+**[Download Tabs](https://buildwithtabs.com/downloads)** · [Watch the 51-second tour](#workspace-tour) · [What’s new](CHANGELOG.md) · [Build from source](#build-from-source)
 
 Tabs is in public beta for macOS, Windows, and Linux. The installers include the editor.
 
@@ -13,11 +13,11 @@ Tabs is in public beta for macOS, Windows, and Linux. The installers include the
 
 ## Workspace tour
 
-See how to switch projects, open Code, pin Figma to the toolbar, and run a saved terminal command in the same window.
+Switch projects, add browser and terminal tools to the toolbar, compare your site at different screen sizes, and launch common tasks with Quick Actions.
 
-https://github.com/user-attachments/assets/64973868-02fc-4ae7-9edb-01301f0a973a
+https://github.com/user-attachments/assets/5ab47177-eba3-439b-8b5d-d098fb46cc26
 
-[Download the tour (MP4)](https://raw.githubusercontent.com/PanicMako/Tabs-ide/0ee96deef6b6d88431b8a6ff788ffd9e0c1d4b26/docs/readme/replay.mp4)
+[Download the tour (MP4)](https://raw.githubusercontent.com/PanicMako/Tabs-ide/377e48dc97796d438c47994e227b027a54dda482/docs/readme/replay.mp4)
 
 ## Start with a project
 
