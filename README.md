@@ -4,7 +4,7 @@
 
 <br />
 
-**[Download](https://buildwithtabs.com/downloads)** &nbsp;·&nbsp; [Watch the film](docs/readme/tabs-launch.mp4) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself) &nbsp;·&nbsp; [What’s new](CHANGELOG.md)
+**[Download](https://buildwithtabs.com/downloads)** &nbsp;·&nbsp; [Watch the film](docs/readme/tabs-launch.mp4) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself) &nbsp;·&nbsp; [What’s new](CHANGELOG.md) &nbsp;·&nbsp; [Shoutouts](#acknowledgments--shoutouts)
 
 </div>
 
@@ -15,6 +15,9 @@
 On a Mac? &nbsp;[Allow the app in two clicks](#if-macos-blocks-the-app) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself)
 
 </div>
+
+> [!NOTE]
+> **Built on open source, not from scratch.** Tabs started as a fork of [T3 Code](https://github.com/pingdotgg/t3code) by T3 Tools, and its editor is Microsoft's [Code OSS](https://github.com/microsoft/vscode). The project tabs, the one-window workspace and the desktop app are built on top of that. [Shoutouts below](#acknowledgments--shoutouts).
 
 ## Nine windows. One job.
 
@@ -202,16 +205,19 @@ Tabs does not collect your code, chats, or provider keys. Requests go to the pro
 
 </details>
 
-<details>
-<summary>Built on open source</summary>
+<a name="acknowledgments--shoutouts"></a>
 
-<br />
+## Acknowledgments & shoutouts
 
-[T3 Code](https://github.com/pingdotgg/t3code) provided the foundation for the agent workspace, [Code OSS](https://github.com/microsoft/vscode) powers the embedded editor, and [Synara](https://trysynara.com) inspired multi-agent workflows. See the [MIT license](LICENSE) and [component notices](LICENSING.md). [View verified build activity on Not a Cent](https://notacent.app/en/app/tabs-ide).
+Tabs would not exist without these projects. Huge thanks to their authors and contributors:
+
+- **[T3 Code](https://github.com/pingdotgg/t3code)** by T3 Tools: the MIT-licensed agent workspace Tabs was forked from. Its agent harness, provider sessions and much of the web UI are the base Tabs is built on.
+- **[Code OSS](https://github.com/microsoft/vscode)** by Microsoft: the open source core of Visual Studio Code, which powers the embedded editor.
+- **[Synara](https://trysynara.com)**: inspiration for multi-agent workflows and provider integration patterns.
+
+Tabs keeps the original copyright notices. See the [MIT license](LICENSE) and [component notices](LICENSING.md). [View verified build activity on Not a Cent](https://notacent.app/en/app/tabs-ide).
 
 The film and artwork on this page are generated from code in [`docs/launch-film`](docs/launch-film).
-
-</details>
 
 <div align="center">
 <br />

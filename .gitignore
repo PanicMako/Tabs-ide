@@ -23,3 +23,6 @@ synara-main/
 /tabs-app/apps/web/.git-redesign/
 # Exported online signer keys belong in the hosting secret store.
 **/exchange-online-signing.json
+
+# Local recovery backups (kept on disk, not published)
+/_maintenance/

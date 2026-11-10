@@ -37,3 +37,28 @@ scratch/
 # Isolated desktop smoke profiles, validation logs, and design exploration artifacts.
 .maintenance-validation/
 .taste-skill/
+
+# Local scratch, debug and one-off scripts kept out of the public repo
+/all_chunks.txt
+/catch-splash.sh
+/check-splash-dom.cjs
+/debug-run.sh
+/debug_*.py
+/debug_*.ts
+/fix_*.py
+/update_*.py
+/rewrite_settings.py
+/scratch_check.ts
+/scratchpad_ux.js
+/log-server.mjs
+/test-*.js
+/test-*.ts
+/test-*.cjs
+/test_*.ts
+/test_*.js
+/*.log
+/*-log.txt
+/git_stage3_screenshots.zip
+/git_stage3_all_screenshots/
+/stage3_screenshots/
+/playwright-report/
