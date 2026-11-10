@@ -33,13 +33,15 @@ const words = ["Code", "Agents", "Dock", "Git", "Browser"];
   html[data-loading="1"] body { overflow: hidden; }
   .pl-bands { position: absolute; inset: 0; display: grid; grid-template-rows: repeat(6, 1fr); }
   .pl-bands i { background: #0e2af3; will-change: transform; margin: -1px 0; }
-  .pl-center { position: relative; display: grid; justify-items: center; gap: clamp(14px, 2vw, 26px); }
-  .pl-mark { width: clamp(64px, 7vw, 104px); }
+  .pl-center { position: relative; display: flex; align-items: center; gap: clamp(16px, 2.2vw, 36px); font-size: clamp(64px, 9vw, 160px); }
+  .pl-mark { flex: none; width: .82em; margin-top: -.06em; }
   .pl-mark svg { width: 100%; height: auto; overflow: visible; }
   .pl-mark .lab-mark__body, .pl-mark .lab-mark__foot { transform-box: fill-box; }
-  .pl-word { position: relative; height: 1.1em; overflow: hidden; font: 400 clamp(76px, 12vw, 210px)/1.1 "Instrument Serif", Georgia, serif; font-style: italic; letter-spacing: -.03em; }
-  .pl-roll { display: flex; flex-direction: column; align-items: center; }
-  .pl-roll span { display: block; height: 1.1em; padding: 0 .1em; white-space: nowrap; }
+  .pl-word { position: relative; height: 1.1em; overflow: hidden; font: 400 1em/1.1 "Instrument Serif", Georgia, serif; font-style: italic; letter-spacing: -.03em; }
+  .pl-roll { display: flex; flex-direction: column; align-items: flex-start; }
+  /* Arriving from another page: rest on "Tabs." before any script runs, so nothing flashes. */
+  html[data-loader="reveal"] .pl-roll, .pl.is-on .pl-roll { transform: translateY(calc(-100% * 5 / 6)); }
+  .pl-roll span { display: block; height: 1.1em; padding: 0 .1em 0 0; white-space: nowrap; }
   .pl-last { font-style: normal; font-family: "Inter Tight", system-ui, sans-serif; font-weight: 600; letter-spacing: -.06em; }
   .pl-sub { position: absolute; left: 0; right: 0; bottom: 40px; margin: 0; text-align: center; font: 500 12px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .12em; opacity: .75; }
 </style>
@@ -54,17 +56,18 @@ const words = ["Code", "Agents", "Dock", "Git", "Browser"];
   const n = roll.children.length;
   const mark = ".pl-mark", eyes = ".pl-mark .lab-mark__eyes";
 
-  const finish = () => {
-    const first = root.dataset.loading === "1";
+  // Let the page start its own intro the moment the bands begin to open, so it plays once, underneath.
+  const ready = () => {
+    if (root.dataset.loading !== "1") return;
     delete root.dataset.loading;
-    delete root.dataset.loader;
     try { sessionStorage.setItem("tabs-loaded", "1"); } catch {}
-    el.classList.remove("is-on");
-    if (first) window.dispatchEvent(new Event("lab:ready"));
+    window.dispatchEvent(new Event("lab:ready"));
   };
+  const finish = () => { delete root.dataset.loader; el.classList.remove("is-on"); el.style.display = "none"; };
   const out = () =>
-    gsap.timeline()
+    gsap.timeline({ onStart: () => { el.style.display = "grid"; } })
       .to(".pl-center, .pl-sub", { autoAlpha: 0, y: -16, scale: 0.97, duration: 0.3, ease: "power2.in" })
+      .call(ready, [], 0.18)
       .to(bands, { xPercent: (i) => (i % 2 ? 101 : -101), duration: 0.85, ease: "expo.inOut", stagger: 0.05 }, "<0.08")
       .add(finish);
 
@@ -82,8 +85,8 @@ const words = ["Code", "Agents", "Dock", "Git", "Browser"];
       .add(out(), "+=0.3");
   } else if (root.dataset.loader === "reveal") {
     // Arriving from another page: the bands are already closed, land on "Tabs." and open.
-    gsap.set(roll, { yPercent: (-100 / n) * (n - 1) });
-    gsap.timeline().from(".pl-center", { scale: 0.96, duration: 0.35, ease: "power2.out" }).add(out(), "+=0.15");
+    gsap.set(roll, { y: 0, yPercent: (-100 / n) * (n - 1) });
+    gsap.timeline().add(out(), 0.2);
   }
 
   // After a download flourish, open the bands again.
@@ -92,8 +95,9 @@ const words = ["Code", "Agents", "Dock", "Git", "Browser"];
   // Cover the screen before leaving for another page.
   setCover(() =>
     new Promise<void>((resolve) => {
+      el.style.display = "grid";
       el.classList.add("is-on");
-      gsap.set(roll, { yPercent: (-100 / n) * (n - 1) });
+      gsap.set(roll, { y: 0, yPercent: (-100 / n) * (n - 1) });
       gsap.set(".pl-center, .pl-sub", { autoAlpha: 0, y: 16, scale: 1 });
       gsap.timeline({ onComplete: resolve })
         .fromTo(bands, { xPercent: (i) => (i % 2 ? 101 : -101) }, { xPercent: 0, duration: 0.6, ease: "expo.inOut", stagger: 0.04 })
