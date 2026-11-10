@@ -4,14 +4,21 @@ The `tabs-app` monorepo contains the desktop product and its supporting services
 
 ## Run the desktop app
 
-Use [Bun](https://bun.sh/) 1.3.9 or newer in the 1.3 line, the Node.js version in [the editor’s `.nvmrc`](../tabs-code-oss/.nvmrc), npm, and your OS’s native build tools. From the repository root:
+Use [Bun](https://bun.sh/) 1.3.9 or newer in the 1.3 line, the Node.js version in [the editor’s `.nvmrc`](../tabs-code-oss/.nvmrc), npm, and your OS’s native build tools. Open two terminals in the repository root.
+
+**Terminal 1 · Build Code OSS.** This compiles the embedded editor and generates the localization data the desktop app expects.
 
 ```sh
 cd tabs-code-oss
 npm install
 npm run compile
+node build/next/index.ts bundle --nls
+```
 
-cd ../tabs-app
+**Terminal 2 · Run Tabs.** Wait for the editor build to finish, then start the desktop app.
+
+```sh
+cd tabs-app
 bun install
 bun run dev:desktop
 ```
