@@ -2,20 +2,6 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
-## [v2.3.2] - 2026-11-10
-
-### A clearer Tabs workspace tour
-
-The Tabs IDE README now walks you through opening a project and trying your first agent task. Watch a real workspace walkthrough or try an interactive prototype.
-
-### What changed
-
-- See how project tabs and per-project toolbars fit together, then watch Code, Figma, the local terminal, and Quick Actions in use.
-- Follow the setup guide for your operating system and expand provider setup when you need it.
-- Open the interactive prototype from a local checkout to try switching projects and adding sample tools.
-
-[Open the Tabs IDE README](https://github.com/PanicMako/Tabs-ide#readme)
-
 ## [v2.3.1] - 2026-11-09
 
 ### A more personal workspace
