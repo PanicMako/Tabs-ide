@@ -17,7 +17,7 @@ See how to switch projects, open Code, pin Figma to the toolbar, and run a saved
 
 https://github.com/user-attachments/assets/64973868-02fc-4ae7-9edb-01301f0a973a
 
-[Download the tour (MP4)](docs/readme/replay.mp4?raw=true)
+[Download the tour (MP4)](https://raw.githubusercontent.com/PanicMako/Tabs-ide/0ee96deef6b6d88431b8a6ff788ffd9e0c1d4b26/docs/readme/replay.mp4)
 
 ## Start with a project
 
