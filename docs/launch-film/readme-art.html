@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="film.css" />
+<style>
+  html, body { background: transparent; overflow: visible; height: auto; }
+  body { padding: 20px; }
+  .card { position: relative; width: 1600px; border-radius: 44px; overflow: hidden; margin-bottom: 40px; color: var(--ivory); }
+  #cover { height: 800px; background: var(--blue); }
+  #cover .lockup { position: absolute; left: 84px; top: 76px; display: flex; align-items: center; gap: 18px; }
+  #cover h1 { position: absolute; left: 80px; top: 232px; font: 400 100px/1.08 "Hebdomadal"; white-space: nowrap; }
+  #cover p { position: absolute; left: 84px; top: 486px; width: 600px; font-size: 30px; line-height: 1.35; font-weight: 500; letter-spacing: -0.01em; opacity: 0.9; }
+  #cover .cta { position: absolute; left: 84px; top: 636px; display: flex; align-items: center; gap: 22px; margin: 0; background: none; height: auto; padding: 0; font-size: 22px; font-weight: 500; }
+  #cover .cta b { height: 64px; padding: 0 30px; border-radius: 32px; background: var(--ivory); color: var(--blue); display: flex; align-items: center; font-size: 26px; font-weight: 700; }
+  #cover .shot { position: absolute; left: 800px; top: 120px; width: 900px; height: 760px; border-radius: 32px; background: var(--ivory); overflow: hidden; box-shadow: 0 40px 90px rgba(3, 10, 100, 0.55); }
+  #cover .shot img { position: absolute; left: -372px; top: -16px; width: 1267px; }
+  #folders { height: 520px; background: var(--ink); display: flex; align-items: stretch; gap: 0; padding: 44px; }
+  #folders::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(243, 239, 233, 0.1) 1.2px, transparent 1.6px); background-size: 40px 40px; }
+  .step { position: relative; flex: 1; border-radius: 30px; padding: 40px 44px; }
+  .step small { font: 500 19px var(--mono); letter-spacing: 0.06em; opacity: 0.7; }
+  .step code { font: 600 24px var(--mono); display: block; margin-top: 10px; }
+  .step h2 { font: 400 108px/1 "Hebdomadal"; margin: 26px 0 20px -4px; }
+  .step p { font-size: 25px; line-height: 1.36; font-weight: 500; letter-spacing: -0.01em; max-width: 560px; }
+  .step kbd { position: absolute; left: 44px; bottom: 38px; font: 500 20px var(--mono); padding: 10px 18px; border-radius: 12px; }
+  .s1 { background: var(--ivory); color: var(--ink); } .s1 kbd { background: rgba(10, 11, 16, 0.08); }
+  .s2 { background: var(--blue); } .s2 kbd { background: rgba(255, 255, 255, 0.16); }
+  .arrow { position: relative; width: 110px; display: grid; place-items: center; font-size: 54px; color: var(--ivory); }
+</style>
+<div class="card" id="cover">
+  <div class="lockup"><svg width="62" viewBox="0 0 390 390" id="m"></svg><svg width="150" viewBox="0 0 386 81" id="w"></svg></div>
+  <h1>Every project.<br />One window.</h1>
+  <p>Agents, editor, terminals, browser and Git. One tab per project.</p>
+  <div class="cta"><b>buildwithtabs.com</b>Public beta · macOS · Windows · Linux</div>
+  <div class="shot"><img src="out/still-28.60.jpg" /></div>
+</div>
+<div class="card" id="folders">
+  <div class="step s1"><small>STEP 1 · THE EDITOR</small><code>tabs-code-oss/</code><h2>Compile.</h2><p>The editor’s source code, a fork of Code OSS. You build it once so Tabs has an editor to open.</p><kbd>npm run compile</kbd></div>
+  <div class="arrow">→</div>
+  <div class="step s2"><small>STEP 2 · THE APP</small><code>tabs-app/</code><h2>Run.</h2><p>Tabs itself. This is the folder you start the app from, every time.</p><kbd>bun run dev:desktop</kbd></div>
+</div>
+<script>
+  const body = "M 61 8 C 39 8 21 26 21 48 L 21 168 C 21 205 48 230 83 230 L 180 230 C 195 230 205 242 205 257 L 205 331 C 205 358 225 378 253 378 L 360 378 C 375 378 385 366 385 351 L 385 330 C 385 317 375 312 365 310 C 353 308 347 300 347 285 L 347 224 C 347 193 325 171 297 171 L 216 171 C 201 171 191 161 191 146 L 191 48 C 191 25 172 8 149 8 Z M 76.5 108 C 70.15 108 65 113.15 65 119.5 L 65 152.5 C 65 158.85 70.15 164 76.5 164 C 82.85 164 88 158.85 88 152.5 L 88 119.5 C 88 113.15 82.85 108 76.5 108 Z M 137.5 108 C 131.15 108 126 113.15 126 119.5 L 126 152.5 C 126 158.85 131.15 164 137.5 164 C 143.85 164 149 158.85 149 152.5 L 149 119.5 C 149 113.15 143.85 108 137.5 108 Z";
+  const foot = "M 60 251 L 185 251 L 185 318 C 185 353 165 379 132 379 L 26 379 C 12 379 2 367 2 354 L 2 306 C 2 275 26 251 60 251 Z";
+  const word = "M 0 1 H 94 V 17 H 60 V 80 H 38 V 17 H 0 Z M 82 80 L 118.5 1 H 150 L 185 80 H 160 L 152 62 H 112 L 103 80 Z M 120 48 H 144 L 132.5 19 Z M 192 1 H 248 C 274 1 284 11 284 24 C 284 35 279 41 269 44 C 283 46 289 55 289 65 C 289 78 279 80 252 80 H 192 Z M 212 17 V 34 H 249 C 258 34 261 31 261 26 C 261 20 256 17 249 17 Z M 212 47 V 65 H 251 C 261 65 265 62 265 56 C 265 50 261 47 251 47 Z M 384 26 H 362 V 22 C 362 17 356 15 346 15 H 328 C 314 15 310 18 310 23 C 310 29 317 31 330 33 L 355 37 C 379 40 386 48 386 62 C 386 76 373 81 349 81 H 324 C 300 81 290 75 290 57 H 313 C 313 64 318 66 330 66 H 348 C 362 66 365 63 365 58 C 365 52 358 50 345 48 L 320 44 C 298 41 291 34 291 23 C 291 7 304 0 330 0 H 350 C 372 0 384 6 384 21 Z";
+  document.getElementById("m").innerHTML = `<path fill="#f3efe9" fill-rule="evenodd" d="${body}"/><path fill="#f3efe9" d="${foot}"/>`;
+  document.getElementById("w").innerHTML = `<path fill="#f3efe9" d="${word}"/>`;
+</script>
