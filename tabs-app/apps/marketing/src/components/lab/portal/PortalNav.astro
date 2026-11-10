@@ -24,7 +24,7 @@ const items = [
   </div>
   <nav aria-label="Primary" class="v1-nav__links">
     {items.map((it) => (
-      <a href={it.href} aria-current={it.current ? "page" : undefined} {...(it.external ? { rel: "noopener" } : {})}>
+      <a href={it.href} aria-current={it.current ? "page" : undefined} {...(it.external ? { rel: "noopener" } : {})} {...(it.href === links.exchange ? { "data-exchange-departure": "" } : {})}>
         {it.label}{it.external && <span class="v1-nav__ext" aria-hidden="true">↗</span>}
       </a>
     ))}
@@ -35,31 +35,100 @@ const items = [
   </div>
 </header>
 <div class="v1-sheet" id="v1-menu" hidden>
-  <nav aria-label="Menu">
-    {items.map((it) => <a href={it.href}>{it.label}{it.external && <span aria-hidden="true"> ↗</span>}</a>)}
-    <a class="v1-btn" href={links.download}><span>Download Tabs</span></a>
+  <nav aria-label="Menu" class="v1-sheet__links">
+    {items.map((it, i) => (
+      <a href={it.href} aria-current={it.current ? "page" : undefined} {...(it.external ? { rel: "noopener" } : {})} {...(it.href === links.exchange ? { "data-exchange-departure": "" } : {})}>
+        <span class="v1-sheet__num" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+        <span class="v1-sheet__mask"><span class="v1-sheet__label">{it.label}{it.external && <span class="v1-sheet__ext" aria-hidden="true">↗</span>}</span></span>
+      </a>
+    ))}
   </nav>
+  <div class="v1-sheet__foot">
+    <a class="v1-btn v1-sheet__cta" href={links.download}><span>Download Tabs</span></a>
+    <p class="v1-sheet__meta">Public beta · macOS · Windows · Linux</p>
+  </div>
 </div>
 
 <script>
-  import { gsap } from "../../../lib/lab/common";
+  import "../../../lib/exchange-departure";
+  import { gsap, reduced, smoothScroll } from "../../../lib/lab/common";
   const btn = document.querySelector<HTMLButtonElement>(".v1-nav__menu");
   const sheet = document.querySelector<HTMLElement>(".v1-sheet");
-  if (btn && sheet) {
-    const toggle = (open: boolean) => {
-      btn.setAttribute("aria-expanded", String(open));
-      document.documentElement.classList.toggle("v1-menu-open", open);
-      if (open) {
-        sheet.hidden = false;
-        gsap.fromTo(sheet, { clipPath: "inset(0 0 100% 0 round 0 0 24px 24px)" }, { clipPath: "inset(0 0 0% 0 round 0 0 24px 24px)", duration: 0.6, ease: "expo.out" });
-        gsap.from(sheet.querySelectorAll("a"), { y: 18, autoAlpha: 0, stagger: 0.04, duration: 0.5, ease: "expo.out", delay: 0.1 });
+  const nav = document.querySelector<HTMLElement>(".v1-nav");
+  if (btn && sheet && nav) {
+    const root = document.documentElement;
+    const labels = sheet.querySelectorAll<HTMLElement>(".v1-sheet__label");
+    const extras = sheet.querySelectorAll<HTMLElement>(".v1-sheet__num, .v1-sheet__links a, .v1-sheet__foot > *");
+    const inerted: HTMLElement[] = [];
+    let isOpen = false;
+
+    // The sheet grows out of the hamburger button, like the Exchange reveal.
+    const circle = (r: string) => {
+      const b = btn.getBoundingClientRect();
+      return `circle(${r} at ${b.left + b.width / 2}px ${b.top + b.height / 2}px)`;
+    };
+    const fullRadius = () => `${Math.hypot(innerWidth, innerHeight)}px`;
+
+    const setBackgroundInert = (on: boolean) => {
+      if (on) {
+        // Everything except the nav and the sheet, at every level up to <body>.
+        let branch: HTMLElement = nav;
+        while (branch.parentElement) {
+          const parent = branch.parentElement;
+          for (const el of parent.children) {
+            if (!(el instanceof HTMLElement) || el === branch || el === sheet || ["SCRIPT", "STYLE", "LINK"].includes(el.tagName) || el.inert) continue;
+            el.inert = true;
+            inerted.push(el);
+          }
+          if (parent === document.body) break;
+          branch = parent;
+        }
       } else {
-        gsap.to(sheet, { clipPath: "inset(0 0 100% 0 round 0 0 24px 24px)", duration: 0.4, ease: "expo.in", onComplete: () => { sheet.hidden = true; } });
+        inerted.splice(0).forEach((el) => (el.inert = false));
       }
     };
-    btn.addEventListener("click", () => toggle(btn.getAttribute("aria-expanded") !== "true"));
-    sheet.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest("a")) toggle(false); });
-    addEventListener("keydown", (e) => { if (e.key === "Escape" && btn.getAttribute("aria-expanded") === "true") toggle(false); });
+
+    const toggle = (open: boolean, returnFocus = true) => {
+      if (open === isOpen) return;
+      isOpen = open;
+      btn.setAttribute("aria-expanded", String(open));
+      btn.setAttribute("aria-label", open ? "Close menu" : "Menu");
+      root.classList.toggle("v1-menu-open", open);
+      nav.classList.remove("hide");
+      setBackgroundInert(open);
+      const lenis = smoothScroll();
+      gsap.killTweensOf([sheet, labels, extras]);
+      if (open) {
+        lenis?.stop();
+        sheet.hidden = false;
+        if (reduced) {
+          gsap.set(sheet, { clipPath: "none" });
+        } else {
+          gsap.fromTo(sheet, { clipPath: circle("0px") }, { clipPath: circle(fullRadius()), duration: 0.75, ease: "expo.inOut" });
+          gsap.fromTo(labels, { yPercent: 110, rotate: 4 }, { yPercent: 0, rotate: 0, duration: 0.9, ease: "expo.out", stagger: 0.06, delay: 0.3 });
+          gsap.fromTo(extras, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: "power2.out", stagger: 0.03, delay: 0.42 });
+        }
+        sheet.querySelector<HTMLElement>("a")?.focus({ preventScroll: true });
+      } else {
+        lenis?.start();
+        const done = () => { sheet.hidden = true; gsap.set([sheet, labels, extras], { clearProps: "all" }); };
+        if (reduced) done();
+        else {
+          gsap.to(labels, { yPercent: -110, duration: 0.35, ease: "power3.in", stagger: 0.02 });
+          gsap.to(sheet, { clipPath: circle("0px"), duration: 0.6, ease: "expo.inOut", delay: 0.12, onComplete: done });
+        }
+        if (returnFocus) btn.focus({ preventScroll: true });
+      }
+    };
+
+    btn.addEventListener("click", () => toggle(!isOpen));
+    sheet.addEventListener("click", (e) => {
+      const link = (e.target as HTMLElement).closest("a");
+      // Exchange keeps the sheet up until its own departure reveal covers the page.
+      if (link && !link.hasAttribute("data-exchange-departure")) toggle(false, false);
+    });
+    addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen) toggle(false); });
+    matchMedia("(min-width: 961px)").addEventListener("change", (m) => { if (m.matches) toggle(false, false); });
+    window.addEventListener("pageshow", () => toggle(false, false));
   }
 </script>
-

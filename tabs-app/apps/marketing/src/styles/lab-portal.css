@@ -63,11 +63,39 @@
 .v1-nav__menu i:first-child { top: 17px; } .v1-nav__menu i:last-child { top: 23px; }
 .v1-nav__menu[aria-expanded="true"] i:first-child { transform: translateY(3px) rotate(45deg); }
 .v1-nav__menu[aria-expanded="true"] i:last-child { transform: translateY(-3px) rotate(-45deg); }
-.v1-sheet { position: fixed; z-index: 490; top: 0; left: 0; right: 0; padding: 84px 20px 28px; background: #fbfcfe; box-shadow: 0 30px 60px -30px rgba(11, 13, 31, .35); }
+/* Mobile and tablet menu: a full-screen cobalt sheet with the nav inverted on top. */
+.v1-sheet { position: fixed; z-index: 490; inset: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 32px; height: 100vh; height: 100dvh; padding: calc(96px + env(safe-area-inset-top)) clamp(20px, 6vw, 56px) calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; background: var(--cobalt, #0e2af3); color: var(--ivory, #fbfcfe); }
 .v1-sheet[hidden] { display: none; }
-.v1-sheet nav { display: grid; gap: 4px; }
-.v1-sheet nav a:not(.v1-btn) { padding: 14px 4px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
-.v1-sheet .v1-btn { justify-content: center; margin-top: 18px; }
+.v1-sheet__links { display: grid; gap: 0; }
+.v1-sheet__links a { display: flex; align-items: baseline; gap: 16px; padding: clamp(10px, 1.8vh, 18px) 0; border-bottom: 1px solid rgba(251, 252, 254, .18); color: inherit; text-decoration: none; }
+.v1-sheet__links a:first-child { border-top: 1px solid rgba(251, 252, 254, .18); }
+.v1-sheet__num { flex: none; width: 3.4em; white-space: nowrap; font: 500 12px/1 var(--mono, monospace); letter-spacing: .08em; color: rgba(251, 252, 254, .55); }
+.v1-sheet__mask { display: block; overflow: hidden; padding-bottom: .08em; }
+.v1-sheet__label { display: inline-flex; align-items: baseline; gap: .25em; font: 400 clamp(40px, 9.5vw, 76px)/1 var(--serif, Georgia, serif); letter-spacing: -.02em; transform-origin: 0 100%; }
+.v1-sheet__ext { font: 400 .42em/1 var(--sans, sans-serif); opacity: .6; transform: translateY(-.6em); }
+.v1-sheet__links a[aria-current="page"] .v1-sheet__label { font-style: italic; }
+.v1-sheet__links a[aria-current="page"] .v1-sheet__num::after { content: " ●"; color: var(--ivory, #fbfcfe); }
+@media (hover: hover) { .v1-sheet__links a:hover .v1-sheet__label { font-style: italic; } }
+.v1-sheet__links a:focus-visible { outline: 2px solid var(--ivory, #fbfcfe); outline-offset: 4px; border-radius: 6px; }
+.v1-sheet__foot { display: grid; gap: 14px; }
+.v1-sheet .v1-sheet__cta { justify-content: center; width: 100%; background: var(--ivory, #fbfcfe); color: var(--ink, #0b0d1f); }
+.v1-sheet .v1-sheet__cta::before { background: var(--ink, #0b0d1f); }
+.v1-sheet .v1-sheet__cta:hover, .v1-sheet .v1-sheet__cta:focus-visible { color: var(--ivory, #fbfcfe); }
+.v1-sheet__meta { margin: 0; text-align: center; font: 500 11px/1.4 var(--mono, monospace); letter-spacing: .1em; text-transform: uppercase; color: rgba(251, 252, 254, .6); }
+@media (min-width: 600px) { .v1-sheet__foot { grid-template-columns: auto 1fr; align-items: center; } .v1-sheet .v1-sheet__cta { width: auto; } .v1-sheet__meta { text-align: right; } }
+/* Nav sits on the cobalt sheet while the menu is open. */
+html.v1-menu-open { overflow: hidden; }
+html.v1-menu-open .v1-nav { translate: none; }
+html.v1-menu-open .v1-nav__logo { color: var(--ivory, #fbfcfe); }
+html.v1-menu-open .v1-nav__logo .lab-mark__body, html.v1-menu-open .v1-nav__logo .lab-mark__foot { fill: var(--ivory, #fbfcfe); }
+html.v1-menu-open .v1-nav__logo .lab-mark__eyes { fill: var(--cobalt, #0e2af3); }
+html.v1-menu-open .v1-nav__beta { color: var(--periwinkle, #c9d3ff); }
+html.v1-menu-open .v1-nav__sep { background: rgba(255, 255, 255, .28); }
+html.v1-menu-open .v1-nav__end .v1-btn--sm { visibility: hidden; }
+html.v1-menu-open .v1-nav__menu { background: rgba(251, 252, 254, .14); box-shadow: 0 0 0 1px rgba(251, 252, 254, .3); }
+html.v1-menu-open .v1-nav__menu i { background: var(--ivory, #fbfcfe); }
+.v1-nav__menu i { transition: transform .4s cubic-bezier(.2, 1, .3, 1), background .3s; }
+.v1-nav__menu { transition: background .3s, box-shadow .3s; }
 @media (max-width: 960px) { .v1-nav nav.v1-nav__links { display: none; } .v1-nav__menu { display: block; } .v1-nav { padding: 14px 16px; } }
 @media (max-width: 420px) { .v1-nav__end .v1-btn--sm { display: none; } }
 
