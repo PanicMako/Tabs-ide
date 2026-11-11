@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { WebContentsView } from "electron";
 
 const electronMocks = vi.hoisted(() => ({
   fromPartition: vi.fn(),
@@ -683,13 +684,13 @@ describe("BrowserHostManager artifacts", () => {
     const manager = new BrowserHostManager(() => null);
     const capturePage = vi.fn().mockResolvedValue({
       isEmpty: () => false,
-      toDataURL: () => "data:image/png;base64,dGVzdA==",
+      toJPEG: () => Buffer.from("test"),
     });
     (manager as unknown as { sessions: Map<string, unknown> }).sessions.set("p::tab", {
       view: { webContents: { isDestroyed: () => false, capturePage } },
     });
     await expect(manager.captureSession({ projectId: "p", sessionId: "tab" })).resolves.toBe(
-      "data:image/png;base64,dGVzdA==",
+      "data:image/jpeg;base64,dGVzdA==",
     );
     await expect(manager.captureSession({ projectId: "missing" })).resolves.toBeNull();
     capturePage.mockRejectedValueOnce(new Error("page closed"));
@@ -1035,6 +1036,127 @@ describe("reliable browser tabs and agent control", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("counts page console errors, publishes them throttled and clears them on navigation", () => {
+    vi.useFakeTimers();
+    try {
+      const manager = new BrowserHostManager(() => null);
+      const { session, webContents } = createMockSession();
+      Object.assign(webContents, {
+        setWindowOpenHandler: vi.fn(),
+        canGoBack: () => false,
+        canGoForward: () => false,
+      });
+      (manager as any).sessions.set(session.key, session);
+      const emit = vi.spyOn(manager as any, "emitState").mockImplementation(() => undefined);
+      (manager as any).registerSessionEvents(session);
+      const handler = (name: string) =>
+        session.view.webContents.on.mock.calls.find(([event]) => event === name)?.[1];
+      const consoleMessage = handler("console-message");
+      for (let index = 0; index < 50; index++) {
+        consoleMessage({
+          level: "error",
+          message: `boom ${index}`,
+          sourceId: "http://localhost:5173/src/App.tsx",
+          lineNumber: 42,
+        });
+      }
+      consoleMessage({ level: "info", message: "fine", sourceId: "", lineNumber: 1 });
+      expect((session as any).pageErrors).toMatchObject({ count: 50, latest: { text: "boom 49" } });
+      // A page logging in a loop publishes once, not fifty times.
+      expect(emit).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(300);
+      expect(emit).toHaveBeenCalledTimes(1);
+      handler("did-navigate")(undefined, "http://localhost:5173/next");
+      expect((session as any).pageErrors).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rests an out-of-sight page and brings back the same history entry when shown", async () => {
+    const window = { isDestroyed: () => false, webContents: { send: vi.fn() } };
+    const manager = new BrowserHostManager(() => window as never);
+    const { session, webContents } = createMockSession({
+      currentUrl: "http://localhost:5173/cart",
+      pageTitle: "Cart",
+      lastActiveAt: 0,
+    });
+    let active = 2;
+    const history = {
+      getActiveIndex: vi.fn(() => active),
+      canGoToOffset: vi.fn(() => true),
+      goToIndex: vi.fn((index: number) => {
+        active = index;
+      }),
+      removeEntryAtIndex: vi.fn(() => true),
+    };
+    Object.assign(webContents, {
+      navigationHistory: history,
+      loadURL: vi.fn(async () => {
+        active = 3;
+      }),
+    });
+    (manager as any).sessions.set(session.key, session);
+    manager.setRestAfterMinutes(10);
+    await manager.restIdleSessions(20 * 60_000);
+    expect((webContents as any).loadURL).toHaveBeenCalledWith("about:blank");
+    expect((session as any).resting?.historyIndex).toBe(2);
+    // The UI keeps showing the real page, never the placeholder.
+    window.webContents.send.mockClear();
+    (manager as any).emitState(session);
+    expect(window.webContents.send).not.toHaveBeenCalled();
+    expect((manager as any).snapshotSession(session)).toMatchObject({
+      currentUrl: "http://localhost:5173/cart",
+      resting: true,
+    });
+    await manager.activateSession({ projectId: "project-1", sessionId: "tab-1" });
+    expect(history.goToIndex).toHaveBeenCalledWith(2);
+    expect(history.removeEntryAtIndex).toHaveBeenCalledWith(3);
+    expect((session as any).resting).toBeUndefined();
+    expect((session as any).currentUrl).toBe("http://localhost:5173/cart");
+    manager.setRestAfterMinutes(0);
+  });
+
+  it("rests after anything from five minutes up to a week", () => {
+    const manager = new BrowserHostManager(() => null);
+    const restMs = () => (manager as any).restAfterMs as number;
+    manager.setRestAfterMinutes(7 * 24 * 60);
+    expect(restMs()).toBe(7 * 24 * 60 * 60_000);
+    manager.setRestAfterMinutes(30 * 24 * 60);
+    expect(restMs()).toBe(7 * 24 * 60 * 60_000);
+    manager.setRestAfterMinutes(1);
+    expect(restMs()).toBe(5 * 60_000);
+    manager.setRestAfterMinutes(0);
+    expect(restMs()).toBe(0);
+  });
+
+  it("never rests pages an agent, a recording or a pop-out depends on", async () => {
+    const manager = new BrowserHostManager(() => null);
+    manager.setRestAfterMinutes(10);
+    for (const overrides of [
+      { assignedTaskId: "task-1" },
+      { controller: "agent" },
+      { devToolsOpen: true },
+      { loading: true },
+      { lastActiveAt: undefined },
+    ]) {
+      const { session, webContents } = createMockSession({
+        currentUrl: "http://localhost:5173/",
+        lastActiveAt: 0,
+        ...overrides,
+      });
+      Object.assign(webContents, {
+        loadURL: vi.fn(),
+        navigationHistory: { getActiveIndex: () => 0 },
+      });
+      (manager as any).sessions.clear();
+      (manager as any).sessions.set(session.key, session);
+      await manager.restIdleSessions(60 * 60_000);
+      expect((webContents as any).loadURL).not.toHaveBeenCalled();
+    }
+    manager.setRestAfterMinutes(0);
   });
 
   it("invalidates queued work when tab ownership changes", () => {
@@ -1483,5 +1605,83 @@ describe("browser partition shutdown flushing", () => {
     expect(flushStorageData).toHaveBeenCalledTimes(1);
     expect(flushStore).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("opening a browser that is shown on screen", () => {
+  function managerWithView() {
+    const webContents = {
+      id: 7,
+      isDestroyed: () => false,
+      isDevToolsOpened: () => false,
+      getURL: () => "",
+      getTitle: () => "",
+      canGoBack: () => false,
+      canGoForward: () => false,
+      setWindowOpenHandler: vi.fn(),
+      loadURL: vi.fn(async () => undefined),
+      debugger: { on: vi.fn(), isAttached: () => false },
+      setZoomFactor: vi.fn(),
+      setAudioMuted: vi.fn(),
+      getZoomFactor: () => 1,
+      on: vi.fn(),
+      session: {
+        cookies: { on: vi.fn(), flushStore: vi.fn(async () => undefined) },
+        setPermissionRequestHandler: vi.fn(),
+        setPermissionCheckHandler: vi.fn(),
+        setUserAgent: vi.fn(),
+        getUserAgent: () => "Mozilla/5.0",
+        on: vi.fn(),
+        webRequest: { onBeforeSendHeaders: vi.fn(), onHeadersReceived: vi.fn() },
+      },
+    };
+    vi.mocked(WebContentsView).mockImplementation(function MockView() {
+      return { webContents, setBackgroundColor: vi.fn(), setBounds: vi.fn() } as never;
+    });
+    const manager = new BrowserHostManager(() => null);
+    for (const method of [
+      "registerSessionEvents",
+      "observeAutomationNetwork",
+      "observeProfileSession",
+      "recordPartition",
+      "applyColorScheme",
+    ])
+      vi.spyOn(manager as any, method).mockImplementation(() => Promise.resolve());
+    let finishLoad!: () => void;
+    const loadUrl = vi
+      .spyOn(manager as any, "loadUrl")
+      .mockImplementation(() => new Promise<void>((resolve) => (finishLoad = resolve)));
+    return { manager, loadUrl, finish: () => finishLoad?.() };
+  }
+
+  it("is ready to attach before a slow first page finishes loading", async () => {
+    const { manager, loadUrl, finish } = managerWithView();
+    let settled = false;
+    const ensured = manager
+      .ensureSession({
+        projectId: "p",
+        sessionId: "browser",
+        initialUrl: "https://slow.example/",
+        waitForLoad: false,
+      })
+      .then(() => (settled = true));
+    await ensured;
+    // Resolved while the page is still loading, so the view can be shown now.
+    expect(settled).toBe(true);
+    expect(loadUrl).toHaveBeenCalledTimes(1);
+    finish();
+  });
+
+  it("still waits for a loaded page by default, for automation", async () => {
+    const { manager, finish } = managerWithView();
+    let settled = false;
+    const ensured = manager
+      .ensureSession({ projectId: "p", sessionId: "auto", initialUrl: "https://slow.example/" })
+      .then(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+    finish();
+    await ensured;
+    expect(settled).toBe(true);
   });
 });

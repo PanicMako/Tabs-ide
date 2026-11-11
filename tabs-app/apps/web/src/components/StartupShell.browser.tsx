@@ -6,7 +6,7 @@ import { StartupShell } from "../StartupShell";
 import { activateStartupSplash, updateStartupSplash } from "../lib/startupSplashLifecycle";
 import type { ReactNode } from "react";
 
-it("paints the original airport loader before imports finish and preserves it through the handoff", async () => {
+it("paints the airport loader before imports finish, then raises the workspace once every card lands", async () => {
   const release = activateStartupSplash();
   let resolve!: (app: ReactNode) => void;
   const pending = new Promise<ReactNode>((done) => {
@@ -26,9 +26,16 @@ it("paints the original airport loader before imports finish and preserves it th
     // A fast backend must not cut off the airport tiles halfway through.
     expect(curtain.hasAttribute("data-leaving")).toBe(false);
     await expect.poll(() => curtain.hasAttribute("data-leaving"), { timeout: 5_000 }).toBe(true);
-    // The lift is a real animation on the compositor, not a CSS class swap.
-    await expect.poll(() => curtain.getAnimations().length, { timeout: 2_000 }).toBeGreaterThan(0);
+    // Every card has landed before anything moves: the board reads in full.
     expect(tiles?.textContent?.replace(/\u00a0/g, " ")).toBe("TABS IDE");
+    // Then, after a short beat, the workspace rises from the bottom as a real
+    // compositor animation; the board itself stays put underneath.
+    await expect
+      .poll(() => document.querySelector<HTMLElement>("[data-rising]"), { timeout: 2_000 })
+      .not.toBeNull();
+    const riser = document.querySelector<HTMLElement>("[data-rising]")!;
+    expect(riser.getAnimations().length).toBeGreaterThan(0);
+    expect(curtain.getAnimations().length).toBe(0);
     await expect.poll(() => curtain.isConnected, { timeout: 5_000 }).toBe(false);
   } finally {
     await view.unmount();

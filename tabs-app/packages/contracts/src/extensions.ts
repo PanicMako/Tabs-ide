@@ -18,6 +18,59 @@ export const TabsExtensionCommand = Schema.Struct({
 });
 export type TabsExtensionCommand = typeof TabsExtensionCommand.Type;
 
+export const TABS_EXTENSION_QUICK_ACTION_ICONS = [
+  "star",
+  "link",
+  "zap",
+  "book",
+  "rocket",
+  "bug",
+  "database",
+  "cloud",
+  "play",
+  "flask",
+  "terminal",
+  "browser",
+  "code",
+  "search",
+] as const;
+export type TabsExtensionQuickActionIcon = (typeof TABS_EXTENSION_QUICK_ACTION_ICONS)[number];
+
+/** A Quick Actions launcher entry that opens one of the extension's own tools. */
+export const TabsExtensionQuickAction = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  detail: Schema.optionalKey(Schema.String),
+  icon: Schema.optionalKey(Schema.Literals(TABS_EXTENSION_QUICK_ACTION_ICONS)),
+  tool: Schema.String,
+});
+export type TabsExtensionQuickAction = typeof TabsExtensionQuickAction.Type;
+
+/** Five base colors; Tabs derives the full palette from them. */
+export const TabsExtensionTheme = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  appearance: Schema.Literals(["dark", "light"]),
+  colors: Schema.Struct({
+    background: Schema.String,
+    foreground: Schema.String,
+    card: Schema.String,
+    border: Schema.String,
+    primary: Schema.String,
+  }),
+});
+export type TabsExtensionTheme = typeof TabsExtensionTheme.Type;
+
+/** A Command Palette entry that opens one of the extension's own tools. */
+export const TabsExtensionPaletteCommand = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  description: Schema.optionalKey(Schema.String),
+  keywords: Schema.optionalKey(Schema.Array(Schema.String)),
+  tool: Schema.String,
+});
+export type TabsExtensionPaletteCommand = typeof TabsExtensionPaletteCommand.Type;
+
 export const TabsExtensionStorageMigration = Schema.Struct({
   from: Schema.Number,
   to: Schema.Number,
@@ -76,6 +129,9 @@ export const TabsExtensionManifest = Schema.Struct({
   contributes: Schema.Struct({
     tools: Schema.Array(TabsExtensionTool),
     commands: Schema.optionalKey(Schema.Array(TabsExtensionCommand)),
+    quickActions: Schema.optionalKey(Schema.Array(TabsExtensionQuickAction)),
+    themes: Schema.optionalKey(Schema.Array(TabsExtensionTheme)),
+    paletteCommands: Schema.optionalKey(Schema.Array(TabsExtensionPaletteCommand)),
   }),
 });
 export type TabsExtensionManifest = typeof TabsExtensionManifest.Type;

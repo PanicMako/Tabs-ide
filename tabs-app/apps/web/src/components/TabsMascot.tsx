@@ -233,8 +233,9 @@ function CountReel({
 /**
  * The startup gag. The mascot walks in from the right in a hard hat, carrying
  * a hammer and the TABS flag, and hammers a broken app back together while the
- * count climbs. It plants the flag over the fixed app, flings the hat and
- * hammer off-screen and walks over to stand by the pole. The count waits at 99
+ * count climbs. It plants the flag over the fixed app, which then clears away,
+ * flings the hat and hammer off-screen and walks over to stand right under the
+ * flag's TABS lettering, with the pole on its left. The count waits at 99
  * until the workspace is ready, then hits 100 and the workspace rises.
  *
  * Everything moves with `transform` and `opacity` on HTML layers, so the

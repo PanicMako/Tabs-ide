@@ -641,6 +641,9 @@ export const ClientSettingsSchema = Schema.Struct({
   // Legacy context window meter. The composer hides it by default; users who
   // still want the old usage indicator can restore it from Settings.
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Labs: rest out-of-sight project browsers after this many minutes to give
+  // back their memory (0 = off). A resting page returns when shown again.
+  browserRestAfterMinutes: Schema.Number.pipe(Schema.withDecodingDefault(Effect.succeed(0))),
   // Desktop resting composer: scrolling an existing thread's conversation
   // settles the composer into its single-line layout. Losing focus never does.
   composerCollapseOnScroll: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),

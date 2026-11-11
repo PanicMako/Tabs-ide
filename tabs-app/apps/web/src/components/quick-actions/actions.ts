@@ -84,6 +84,27 @@ export const QUICK_ACTIONS = [
     icon: "usage",
   },
   {
+    id: "inbox",
+    label: "Waiting for you",
+    detail: "Questions and approvals from agents in every project",
+    group: "Inspect",
+    icon: "inbox",
+  },
+  {
+    id: "away",
+    label: "While you were away",
+    detail: "What finished, failed or is still running in each project",
+    group: "Inspect",
+    icon: "away",
+  },
+  {
+    id: "toggles",
+    label: "Quick toggles",
+    detail: "Appearance, notifications, plan mode and more, in one place",
+    group: "Inspect",
+    icon: "toggles",
+  },
+  {
     id: "customize",
     label: "Customize quick actions",
     detail: "Choose a design, reorder actions and set gestures",
@@ -92,7 +113,25 @@ export const QUICK_ACTIONS = [
   },
 ] as const;
 export type BuiltInQuickAction = (typeof QUICK_ACTIONS)[number];
-export type QuickActionId = BuiltInQuickAction["id"];
+/**
+ * Not shown on their own: "extension-tool" is what an installed extension's
+ * launcher entry runs (input: the toolbar tool id), and "open-thread" is what
+ * a glance runs to jump to a conversation (input: "environmentId:threadId").
+ */
+export type QuickActionId = BuiltInQuickAction["id"] | "extension-tool" | "open-thread";
+
+/**
+ * Actions that open a panel inside the launcher instead of taking you
+ * somewhere else, so a quick look never costs your place.
+ */
+export const GLANCE_ACTION_IDS = ["usage", "inbox", "away", "toggles"] as const;
+export type GlanceId = (typeof GLANCE_ACTION_IDS)[number];
+export function isGlanceAction(id: QuickActionId): id is GlanceId {
+  return (GLANCE_ACTION_IDS as readonly string[]).includes(id);
+}
+
+/** What `execute` returns when the launcher should stay open (a glance opened). */
+export const KEEP_LAUNCHER_OPEN = "keep-open" as const;
 
 export const CUSTOM_ACTION_ICONS = [
   "star",
@@ -129,7 +168,21 @@ export interface CustomLauncherAction {
   icon: CustomActionIcon;
   custom: { actionId: QuickActionId; query: string };
 }
-export type QuickAction = BuiltInQuickAction | CustomLauncherAction;
+/** A launcher entry contributed by an installed extension; it opens one of its tools. */
+export interface ExtensionLauncherAction {
+  id: string;
+  label: string;
+  detail: string;
+  group: "Extensions";
+  icon: CustomActionIcon;
+  custom: { actionId: "extension-tool"; query: string };
+  extension: { id: string; displayName: string; toolLabel: string };
+}
+export type QuickAction = BuiltInQuickAction | CustomLauncherAction | ExtensionLauncherAction;
+
+export function isExtensionLauncherAction(action: QuickAction): action is ExtensionLauncherAction {
+  return "extension" in action;
+}
 
 /** The built-in that actually runs when this action is chosen. */
 export function actionRunId(action: QuickAction): QuickActionId {
@@ -233,11 +286,13 @@ export function orderedActions(
   order: readonly string[],
   hidden: readonly string[],
   custom: readonly CustomQuickAction[] = [],
+  extensions: readonly ExtensionLauncherAction[] = [],
 ): QuickAction[] {
   const rank = new Map(order.map((id, index) => [id, index]));
   const all: QuickAction[] = [
     ...QUICK_ACTIONS,
     ...custom.flatMap((entry) => toLauncherAction(entry) ?? []),
+    ...extensions,
   ];
   return all
     .filter((a) => !hidden.includes(a.id) || a.id === "customize")
@@ -275,12 +330,13 @@ export function actionZones(
   order: readonly string[],
   hidden: readonly string[],
   custom: readonly CustomQuickAction[] = [],
+  extensions: readonly ExtensionLauncherAction[] = [],
 ) {
-  const visible = orderedActions(order, hidden, custom);
+  const visible = orderedActions(order, hidden, custom, extensions);
   return {
     ring: visible.slice(0, RING_SLOTS),
     more: visible.slice(RING_SLOTS),
-    hidden: orderedActions(order, [], custom).filter(
+    hidden: orderedActions(order, [], custom, extensions).filter(
       (action) => hidden.includes(action.id) && action.id !== "customize",
     ),
   };
@@ -298,8 +354,9 @@ export function placeAction(
   zone: ActionZone,
   index: number,
   custom: readonly CustomQuickAction[] = [],
+  extensions: readonly ExtensionLauncherAction[] = [],
 ): { actionOrder: string[]; hiddenActions: string[] } {
-  const zones = actionZones(order, hidden, custom);
+  const zones = actionZones(order, hidden, custom, extensions);
   const ids = (list: readonly QuickAction[]): string[] =>
     list.map((action) => action.id).filter((entry) => entry !== id);
   const ring = ids(zones.ring),
@@ -329,6 +386,9 @@ export function actionAccentIdentity(action: BuiltInQuickAction): string {
     usage: "usage",
     settings: "settings",
     clipboard: "clipboard",
+    inbox: "agents",
+    away: "agents",
+    toggles: "settings",
   }[action.icon];
 }
 

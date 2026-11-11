@@ -135,7 +135,8 @@ function FullAppRootView() {
   const [startupDeadlineElapsed, setStartupDeadlineElapsed] = useState(false);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const bootstrapReady = isNativeApiReady && threadsHydrated;
-  const transition = useStartupAnimation(bootstrapReady, settings.splashLoaderStyle);
+  const [introDone, setIntroDone] = useState(false);
+  const transition = useStartupAnimation(bootstrapReady, settings.splashLoaderStyle, introDone);
   const ready = transition.ready;
   const [earlySplash] = useState(hasEarlyStartupSplash);
   useEffect(() => {
@@ -186,6 +187,13 @@ function FullAppRootView() {
     if (bootstrapReady) markStartupStage("workspace-interactive");
   }, [bootstrapReady]);
 
+  // Labs: tell the desktop when to rest out-of-sight project browsers.
+  useEffect(() => {
+    void window.desktopBridge
+      ?.setBrowserRestAfterMinutes?.(settings.browserRestAfterMinutes)
+      .catch(() => undefined);
+  }, [settings.browserRestAfterMinutes]);
+
   useEffect(() => {
     if (!ready) setMounted(true);
   }, [ready]);
@@ -204,6 +212,7 @@ function FullAppRootView() {
             loader={settings.splashLoaderStyle}
             palette={settings.splashLoaderPalette}
             theme={settings.splashLoaderTheme}
+            onIntroComplete={() => setIntroDone(true)}
           />
           {backendStartupError && !bootstrapReady ? (
             <div

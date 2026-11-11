@@ -22,6 +22,9 @@ import {
   Clipboard,
   X,
   Zap,
+  Inbox,
+  Coffee,
+  ToggleRight,
 } from "lucide-react";
 import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { BrowserPlanetIcon } from "../BrowserPlanetIcon";
@@ -30,6 +33,7 @@ import {
   DEFAULT_SUB_ACTIONS,
   QUICK_ACTIONS,
   RING_SLOTS,
+  KEEP_LAUNCHER_OPEN,
   actionRunId,
   type QuickSubAction,
   type QuickAction,
@@ -59,6 +63,9 @@ export const QUICK_ACTION_ICONS: Record<QuickAction["icon"], RadialIconComponent
   usage: CircleGauge,
   settings: Settings2,
   clipboard: Clipboard,
+  inbox: Inbox,
+  away: Coffee,
+  toggles: ToggleRight,
   star: Star,
   link: Link,
   zap: Zap,
@@ -85,6 +92,11 @@ const SHORT_LABELS: Record<QuickActionId, string> = {
   usage: "Usage",
   customize: "Customize",
   clipboard: "Clipboard",
+  "extension-tool": "Extension",
+  "open-thread": "Open",
+  inbox: "Inbox",
+  away: "Away",
+  toggles: "Toggles",
 };
 const SEARCH_ACTION = QUICK_ACTIONS.find((action) => action.id === "search")!;
 function shortLabel(action: QuickAction): string {
@@ -135,7 +147,7 @@ export function RadialLauncher({
 }: {
   design: LauncherDesign;
   actions: readonly QuickAction[];
-  execute: (id: QuickActionId, query: string) => Promise<void>;
+  execute: (id: QuickActionId, query: string) => Promise<void | typeof KEEP_LAUNCHER_OPEN>;
   disabled: (id: QuickActionId) => string | undefined;
   onClose?: () => void;
   preview?: boolean;
@@ -212,13 +224,14 @@ export function RadialLauncher({
     setBusy(true);
     setError(null);
     try {
-      await execute(
+      const outcome = await execute(
         runId,
         target.includes("{query}")
           ? target.replaceAll("{query}", encodeURIComponent(query))
           : target,
       );
-      onClose?.();
+      // A glance opens inside the launcher, so it stays open.
+      if (outcome !== KEEP_LAUNCHER_OPEN) onClose?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {

@@ -8,6 +8,17 @@ import { Switch } from "../ui/switch";
 import { SegmentedControl } from "../ui/segmented-control";
 import { SettingsSection, SettingsRow, SettingsSectionHeader } from "./SettingsLayout";
 import { SettingsLoadingState } from "./SettingsLoadingState";
+import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
+import { Select, SelectItem, SelectPopup, SelectTrigger } from "../ui/select";
+
+const REST_OPTIONS = [
+  { value: "0", label: "Off" },
+  { value: "30", label: "30 min" },
+  { value: "120", label: "2 hr" },
+  { value: "480", label: "8 hr" },
+  { value: "1440", label: "1 day" },
+  { value: "10080", label: "1 week" },
+] as const;
 import {
   getInitialAgentWallpaper,
   getIsAgentWallpaperEnabled,
@@ -24,6 +35,18 @@ export default function LabsSettings() {
   const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
   const setAppearance = useSettingsLabsStore((state) => state.setEditorialAppearance);
   const { resolvedTheme } = useTheme();
+  const restAfterMinutes = useSettings((settings) => settings.browserRestAfterMinutes);
+  // Show the closest choice if a value was saved by an earlier build.
+  const restValue =
+    restAfterMinutes > 0
+      ? REST_OPTIONS.filter((option) => option.value !== "0").reduce((best, option) =>
+          Math.abs(Number(option.value) - restAfterMinutes) <
+          Math.abs(Number(best.value) - restAfterMinutes)
+            ? option
+            : best,
+        ).value
+      : "0";
+  const { updateSettings } = useUpdateSettings();
   const [experiment, setExperiment] = useState<"wallpapers" | "extensions" | null>(null);
 
   useEffect(() => {
@@ -163,6 +186,33 @@ export default function LabsSettings() {
                 <span>Explore wallpapers</span>
               </Button>
             </div>
+          }
+        />
+        <SettingsRow
+          title="Rest idle project browsers"
+          description="Projects you have not looked at for a while give back their browser's memory, from half an hour up to a week. The page returns to where it was when you switch back. Popped-out, recording and agent-controlled pages are never rested."
+          control={
+            <Select
+              value={restValue}
+              onValueChange={(value) => {
+                if (value !== null) void updateSettings({ browserRestAfterMinutes: Number(value) });
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                aria-label="Rest idle project browsers after"
+                className="min-w-28"
+              >
+                {REST_OPTIONS.find((option) => option.value === restValue)?.label ?? "Off"}
+              </SelectTrigger>
+              <SelectPopup align="end">
+                {REST_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.value === "0" ? "Off" : `After ${option.label}`}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

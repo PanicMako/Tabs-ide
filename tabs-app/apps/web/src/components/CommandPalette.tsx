@@ -16,9 +16,14 @@ import {
   GitBranchIcon,
   LoaderCircleIcon,
   LinkIcon,
+  PuzzleIcon,
   XIcon,
 } from "lucide-react";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
+import { useInstalledExtensions } from "~/state/extensions";
+import { extensionPaletteCommands } from "~/extensionPaletteCommands";
+import { requestOpenExtensionTool } from "~/extensionToolRequests";
+import { toastManager } from "./ui/toast";
 import {
   useCallback,
   useEffect,
@@ -785,6 +790,7 @@ function OpenCommandPaletteDialog(props: {
     }
   }, [clearOpenIntent, openAddProjectSourcesView, openIntent]);
 
+  const installedExtensions = useInstalledExtensions();
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
@@ -866,6 +872,27 @@ function OpenCommandPaletteDialog(props: {
       icon: <CameraIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
         await captureDesktopToComposer(currentThreadId);
+      },
+    });
+  }
+
+  // Entries contributed by installed extensions; each opens one of its tools.
+  for (const command of extensionPaletteCommands(installedExtensions)) {
+    actionItems.push({
+      kind: "action",
+      value: command.value,
+      searchTerms: command.searchTerms,
+      title: command.title,
+      description: command.description,
+      icon: <PuzzleIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await requestOpenExtensionTool(command.toolbarToolId).catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: `Could not open ${command.title}`,
+            description: error instanceof Error ? error.message : String(error),
+          });
+        });
       },
     });
   }

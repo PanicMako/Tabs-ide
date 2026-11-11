@@ -84,6 +84,8 @@ const DEFAULT_BROWSER_HOST_STATE: DesktopBrowserHostState = {
 const DOCKED_DEVTOOLS_MODE = "bottom";
 
 const DEFAULT_SESSION_ID = "browser";
+/** The longest a page may sit out of sight before it rests: one week. */
+const MAX_REST_MINUTES = 7 * 24 * 60;
 const configuredSessions = new WeakSet<Session>();
 
 export function normalizeBrowserProfileId(profileId: string): string {
@@ -304,6 +306,18 @@ type BrowserSession = {
   transientError: string | null;
   certificateError: string | null;
   consoleEntries: BrowserConsoleEntry[];
+  pageErrorEmitTimer?: ReturnType<typeof setTimeout> | undefined;
+  /** When the user last had this session in front of them. */
+  lastActiveAt?: number | undefined;
+  /**
+   * Set while the session rests: the page was swapped for a blank one to free
+   * its memory. Holds the state to show meanwhile and where to return.
+   */
+  resting?:
+    | { readonly snapshot: DesktopBrowserSessionState; readonly historyIndex: number }
+    | undefined;
+  /** Console errors since the current page loaded (reset on navigation). */
+  pageErrors?: { count: number; latest: { text: string; source?: string; at: string } } | null;
   networkEntries: BrowserNetworkEntry[];
   actionTimeline: BrowserActionEvent[];
   controller: "human" | "agent" | "none";
@@ -418,6 +432,9 @@ export class BrowserHostManager {
       this.knownPartitions.add(partition);
     }
   }
+
+  private restAfterMs = 0;
+  private restTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private readonly getWindow: () => BrowserWindow | null,
@@ -623,12 +640,21 @@ export class BrowserHostManager {
     this.sessions.set(key, session);
     this.registerSessionEvents(session);
     this.observeAutomationNetwork(view.webContents.session);
-    if (input.initialUrl) {
-      await this.loadUrl(session, input.initialUrl);
-    } else {
-      await view.webContents.loadURL("about:blank");
+    const firstLoad = (async () => {
+      if (input.initialUrl) {
+        await this.loadUrl(session, input.initialUrl);
+      } else {
+        await view.webContents.loadURL("about:blank");
+      }
+      await this.applyColorScheme(session);
+    })();
+    // An on-screen browser must be attachable while its first page loads;
+    // waiting here left the view detached (a blank frame) for the whole load.
+    if (input.waitForLoad === false) {
+      firstLoad.catch(() => undefined);
+      return;
     }
-    await this.applyColorScheme(session);
+    await firstLoad;
   }
 
   async activateSession(input: DesktopBrowserHostActivateSessionInput): Promise<void> {
@@ -641,10 +667,13 @@ export class BrowserHostManager {
 
     const current = this.activeKey ? this.sessions.get(this.activeKey) : null;
     if (current && current.key !== session.key) {
+      current.lastActiveAt = Date.now();
       this.detachSession(current);
     }
 
     this.activeKey = key;
+    session.lastActiveAt = Date.now();
+    if (session.resting) await this.wakeSession(session);
     if (session.bounds) {
       this.attachSession(session);
       session.view.setBounds(session.bounds);
@@ -982,10 +1011,112 @@ export class BrowserHostManager {
     });
   }
 
+  /**
+   * Rest browser pages that have been out of sight for `idleMinutes` (0 turns
+   * resting off). Like a discarded Chrome tab, a resting page gives back its
+   * memory and returns to the same history entry when shown again.
+   */
+  setRestAfterMinutes(idleMinutes: number): void {
+    const minutes = Number.isFinite(idleMinutes) ? Math.round(idleMinutes) : 0;
+    // Five minutes to a week: long enough not to fight active work, short
+    // enough to matter for projects left open in the background for days.
+    this.restAfterMs = minutes > 0 ? Math.min(Math.max(minutes, 5), MAX_REST_MINUTES) * 60_000 : 0;
+    if (this.restTimer) clearInterval(this.restTimer);
+    this.restTimer = undefined;
+    if (this.restAfterMs > 0) {
+      this.restTimer = setInterval(() => void this.restIdleSessions(), 60_000);
+      this.restTimer.unref?.();
+    }
+  }
+
+  /** Visible for tests: one pass of the idle sweep. */
+  async restIdleSessions(now = Date.now()): Promise<void> {
+    if (this.restAfterMs <= 0) return;
+    for (const session of this.sessions.values()) {
+      if (!this.canRest(session, now)) continue;
+      await this.restSession(session).catch(() => undefined);
+    }
+  }
+
+  private canRest(session: BrowserSession, now: number): boolean {
+    const contents = session.view.webContents;
+    return (
+      !session.resting &&
+      session.key !== this.activeKey &&
+      !session.sessionId.startsWith("comparison-") &&
+      session.lastActiveAt !== undefined &&
+      now - session.lastActiveAt >= this.restAfterMs &&
+      !session.loading &&
+      !session.devToolsOpen &&
+      !session.assignedTaskId &&
+      session.controller !== "agent" &&
+      !session.temporaryAgentTab &&
+      !session.pendingPermission &&
+      !(session.pictureInPictureWindow && !session.pictureInPictureWindow.isDestroyed()) &&
+      !session.journeyRecorder?.status().recording &&
+      Boolean(session.currentUrl) &&
+      session.currentUrl !== "about:blank" &&
+      !contents.isDestroyed()
+    );
+  }
+
+  private async restSession(session: BrowserSession): Promise<void> {
+    const contents = session.view.webContents;
+    const history = contents.navigationHistory;
+    const historyIndex = history.getActiveIndex();
+    if (historyIndex < 0) return;
+    session.resting = {
+      snapshot: { ...this.snapshotSession(session), resting: true },
+      historyIndex,
+    };
+    this.emitRestingState(session);
+    try {
+      await contents.loadURL("about:blank");
+    } catch {
+      // A failed placeholder load still leaves the page unloaded or intact;
+      // either way waking returns to the saved entry.
+    }
+  }
+
+  /** Bring a resting page back to the entry it rested on. Safe to call anytime. */
+  private async wakeSession(session: BrowserSession): Promise<void> {
+    const resting = session.resting;
+    if (!resting) return;
+    const contents = session.view.webContents;
+    session.resting = undefined;
+    // Restore what the UI was showing before the placeholder overwrote it.
+    session.currentUrl = resting.snapshot.currentUrl;
+    session.pageTitle = resting.snapshot.pageTitle;
+    if (contents.isDestroyed()) return;
+    const history = contents.navigationHistory;
+    const placeholder = history.getActiveIndex();
+    try {
+      if (history.canGoToOffset(resting.historyIndex - placeholder)) {
+        history.goToIndex(resting.historyIndex);
+        // Drop the blank placeholder so Back and Forward behave as before.
+        if (placeholder !== resting.historyIndex) history.removeEntryAtIndex(placeholder);
+      } else if (resting.snapshot.currentUrl) {
+        await this.loadUrl(session, resting.snapshot.currentUrl);
+      }
+    } catch {
+      if (resting.snapshot.currentUrl) {
+        await this.loadUrl(session, resting.snapshot.currentUrl).catch(() => undefined);
+      }
+    }
+    this.emitState(session);
+  }
+
+  private emitRestingState(session: BrowserSession): void {
+    const window = this.getWindow();
+    if (!window || window.isDestroyed() || !session.resting) return;
+    window.webContents.send("desktop:browser-host:session-state", session.resting.snapshot);
+  }
+
   hideActiveSession(): void {
     if (!this.activeKey) return;
     const session = this.sessions.get(this.activeKey);
     if (session) {
+      session.lastActiveAt = Date.now();
       this.detachSession(session);
     }
     this.activeKey = null;
@@ -1060,6 +1191,13 @@ export class BrowserHostManager {
     if (!session) return;
     if (session.verificationLease) session.controlEpoch++;
     await this.loadUrl(session, input.url);
+  }
+
+  /** Stop the current load; the page keeps whatever it has painted so far. */
+  stop(input: DesktopBrowserHostControlInput): void {
+    const session = this.sessions.get(this.sessionKey(input.projectId, input.sessionId));
+    if (!session || session.view.webContents.isDestroyed()) return;
+    session.view.webContents.stop();
   }
 
   async reload(input: DesktopBrowserHostControlInput & { ignoreCache?: boolean }): Promise<void> {
@@ -1200,6 +1338,9 @@ export class BrowserHostManager {
   async runAutomation(request: BrowserAutomationRequest, lease?: symbol): Promise<unknown> {
     const session = this.sessions.get(this.sessionKey(request.projectId, request.sessionId));
     if (!session) throw new Error("The requested browser session was not found.");
+    // An agent driving a resting page gets the real page back first. Only
+    // await when resting, so ordinary calls keep their exact ordering.
+    if (session.resting) await this.wakeSession(session);
     const contents = session.view.webContents;
     if (contents.isDestroyed()) throw new Error("The requested browser session is unavailable.");
     if (request.source === "agent") {
@@ -1713,7 +1854,11 @@ export class BrowserHostManager {
     if (!session || session.view.webContents.isDestroyed()) return null;
     try {
       const image = await session.view.webContents.capturePage();
-      return image.isEmpty() ? null : image.toDataURL();
+      if (image.isEmpty()) return null;
+      // The backdrop only stands in for the page while a menu covers it, so a
+      // JPEG is plenty: it encodes several times faster than PNG at retina
+      // sizes, which is what keeps opening a toolbar menu from lagging.
+      return `data:image/jpeg;base64,${image.toJPEG(82).toString("base64")}`;
     } catch {
       return null;
     }
@@ -2337,6 +2482,7 @@ export class BrowserHostManager {
   }
 
   private snapshotSession(session: BrowserSession): DesktopBrowserSessionState {
+    if (session.resting) return session.resting.snapshot;
     return {
       projectId: session.projectId,
       sessionId: session.sessionId,
@@ -2358,6 +2504,7 @@ export class BrowserHostManager {
       temporaryAgentTab: session.temporaryAgentTab,
       userRetained: session.userRetained,
       lastError: session.lastError,
+      pageErrors: session.pageErrors ?? null,
       transientError: session.transientError,
       securityContext: buildSecurityContext({
         url: session.currentUrl,
@@ -2370,6 +2517,8 @@ export class BrowserHostManager {
   }
 
   private emitState(session: BrowserSession): void {
+    // Loading the blank placeholder must never reach the address bar or history.
+    if (session.resting) return;
     const window = this.getWindow();
     if (!window || window.isDestroyed()) {
       return;
@@ -2559,6 +2708,8 @@ export class BrowserHostManager {
       session.currentUrl = url;
       this.comparisons.navigated(session.projectId, session.sessionId, url);
       session.lastError = null;
+      // Errors belong to the page that logged them.
+      session.pageErrors = null;
       session.transientError = null;
       session.certificateError = null;
       session.crashRecoveryAttempts = 0;
@@ -2659,6 +2810,22 @@ export class BrowserHostManager {
           : {}),
       });
       if (details.level === "error") {
+        // Count every error but publish at most a few times a second, so a page
+        // logging in a loop cannot flood the renderer with state updates.
+        const latest = {
+          text: details.message.slice(0, 2000),
+          at: new Date().toISOString(),
+          ...(sanitizedSource.length > 0
+            ? { source: `${sanitizedSource}:${details.lineNumber}` }
+            : {}),
+        };
+        session.pageErrors = { count: (session.pageErrors?.count ?? 0) + 1, latest };
+        if (!session.pageErrorEmitTimer) {
+          session.pageErrorEmitTimer = setTimeout(() => {
+            session.pageErrorEmitTimer = undefined;
+            this.emitState(session);
+          }, 250);
+        }
         console.error(
           `[browser-host] page console error ${session.key} (${sanitizedSource}:${details.lineNumber}): ${details.message}`,
         );

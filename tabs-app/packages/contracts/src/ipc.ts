@@ -1336,6 +1336,10 @@ export interface DesktopBridge {
   ) => Promise<void>;
   activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
   setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
+  /** A JPEG data URL of the active extension view, shown under menus that cover it. */
+  captureExtensionView?: (input: { activationId: string }) => Promise<string | null>;
+  /** Rest out-of-sight browser pages after this many minutes; 0 turns it off. */
+  setBrowserRestAfterMinutes?: (minutes: number) => Promise<void>;
   hideExtensionTool: (input?: DesktopExtensionHideInput | string) => Promise<void>;
   writeClipboardText: (text: string) => Promise<void>;
   readClipboardText?: (type?: "clipboard" | "selection") => Promise<string>;
@@ -1442,6 +1446,8 @@ export interface DesktopBridge {
   activateBrowserSession: (input: DesktopBrowserHostActivateSessionInput) => Promise<void>;
   hideBrowserSession: () => Promise<void>;
   navigateBrowserSession: (input: DesktopBrowserHostNavigateInput) => Promise<void>;
+  /** Stop the page from loading, like the browser's Stop button. */
+  stopBrowserSession?: (input: DesktopBrowserHostControlInput) => Promise<void>;
   reloadBrowserSession: (
     input: DesktopBrowserHostControlInput & { ignoreCache?: boolean },
   ) => Promise<void>;
@@ -2125,6 +2131,12 @@ export interface DesktopBrowserHostEnsureSessionInput {
   profileId?: string | undefined;
   taskId?: string | undefined;
   temporaryAgentTab?: boolean | undefined;
+  /**
+   * Resolve once the session exists instead of after its first page finishes
+   * loading. On-screen surfaces pass false so the page can be shown while it
+   * loads; automation keeps the default and waits for a loaded page.
+   */
+  waitForLoad?: boolean | undefined;
 }
 
 export interface DesktopBrowserHostActivateSessionInput {
@@ -2208,6 +2220,16 @@ export interface DesktopBrowserSessionState {
   temporaryAgentTab?: boolean | undefined;
   userRetained?: boolean | undefined;
   lastError: string | null;
+  /** The page is resting to save memory; it comes back when shown again. */
+  resting?: boolean;
+  /**
+   * Page errors logged to the console since the current page loaded, and the
+   * most recent one, so the UI can offer to hand them to an agent.
+   */
+  pageErrors?: {
+    readonly count: number;
+    readonly latest: { readonly text: string; readonly source?: string; readonly at: string };
+  } | null;
   /** Set when did-fail-load fires with ERR_CONNECTION_REFUSED (-102).
    * Unlike lastError, this is treated as a transient startup condition and
    * does NOT switch the browser UI into an offline/error state — the overlay

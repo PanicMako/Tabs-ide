@@ -51,6 +51,17 @@ export interface NativeSurfaceOverlaySuspensionOptions {
   backdropHost?: { current: HTMLElement | null };
 }
 
+function nextFrames(count: number): Promise<void> {
+  if (typeof requestAnimationFrame !== "function") return Promise.resolve();
+  return new Promise((resolve) => {
+    const step = (remaining: number) => {
+      if (remaining <= 0) return resolve();
+      requestAnimationFrame(() => step(remaining - 1));
+    };
+    step(count);
+  });
+}
+
 /**
  * Shared hook to consolidate debounced MutationObserver checks for genuine
  * blocking overlays (menus, dialogs, command palette).
@@ -60,7 +71,7 @@ export function useNativeSurfaceOverlaySuspension({
   surfaceReady,
   onSuspend,
   onResume,
-  debounceMs = 50,
+  debounceMs = 16,
   captureBackdrop,
   backdropHost,
 }: NativeSurfaceOverlaySuspensionOptions): void {
@@ -81,9 +92,34 @@ export function useNativeSurfaceOverlaySuspension({
     let suspended = false;
     let generation = 0;
     let backdrop: HTMLImageElement | null = null;
+    let backdropSize: { width: number; height: number } | null = null;
+    let sizeObserver: ResizeObserver | null = null;
     const clearBackdrop = () => {
+      sizeObserver?.disconnect();
+      sizeObserver = null;
       backdrop?.remove();
       backdrop = null;
+      backdropSize = null;
+    };
+    // A snapshot only stands in for the page at the size it was taken. Once the
+    // host is resized (device preset, rotation, window resize), drop it rather
+    // than show pixels that no longer match the frame.
+    const watchHostSize = (host: HTMLElement) => {
+      sizeObserver?.disconnect();
+      if (typeof ResizeObserver === "undefined") return;
+      sizeObserver = new ResizeObserver(([entry]) => {
+        if (!entry || !backdropSize || !backdrop) return;
+        const { width, height } = entry.contentRect;
+        if (
+          Math.abs(width - backdropSize.width) > 1 ||
+          Math.abs(height - backdropSize.height) > 1
+        ) {
+          backdrop.remove();
+          backdrop = null;
+          backdropSize = null;
+        }
+      });
+      sizeObserver.observe(host);
     };
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -108,31 +144,48 @@ export function useNativeSurfaceOverlaySuspension({
         // Capture and decode while the native surface is still visible. CSS
         // cannot blur a sibling WebContentsView, so keep its pixels in the DOM.
         void (async () => {
+          const host = hostRef.current?.current ?? null;
+          // Pin the snapshot to the size it was captured at. A viewport change
+          // while suspended resizes the host; stretching old pixels to the new
+          // frame is what made the preview look distorted.
+          const captured = host?.getBoundingClientRect();
           const source = await Promise.resolve()
             .then(() => captureRef.current?.())
             .catch(() => null);
           if (current !== generation) return;
-          const host = hostRef.current?.current;
           if (source && host) {
             const image = new Image();
             image.src = source;
             image.alt = "";
             image.setAttribute("aria-hidden", "true");
-            image.className = "pointer-events-none absolute inset-0 size-full select-none";
+            image.draggable = false;
+            image.className = "pointer-events-none absolute left-0 top-0 select-none";
+            if (captured && captured.width > 0 && captured.height > 0) {
+              image.style.width = `${captured.width}px`;
+              image.style.height = `${captured.height}px`;
+              backdropSize = { width: captured.width, height: captured.height };
+            } else {
+              image.classList.add("size-full");
+              backdropSize = null;
+            }
             image.dataset.slot = "native-surface-backdrop";
             await image.decode().catch(() => undefined);
             if (current !== generation) return;
             clearBackdrop();
             host.append(image);
             backdrop = image;
+            watchHostSize(host);
           }
           onSuspendRef.current();
         })();
       } else {
-        // Keep the captured pixels until the native view has reattached.
-        void Promise.resolve(onResumeRef.current()).finally(() => {
-          if (current === generation) clearBackdrop();
-        });
+        // Keep the captured pixels until the native view has reattached and
+        // composited a frame, so closing a menu never flashes the empty host.
+        void Promise.resolve(onResumeRef.current())
+          .then(() => nextFrames(2))
+          .finally(() => {
+            if (current === generation) clearBackdrop();
+          });
       }
     };
 

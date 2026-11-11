@@ -24,8 +24,19 @@ import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionSto
 import { ExtensionCredentials, type CredentialCryptography } from "./extensionCredentials";
 import { extensionNetworkGetText, validateExtensionNetworkUrl } from "./extensionNetwork";
 import { runExtensionLogicSpike } from "./extensionLogicSpike";
+import { readProtocolFile } from "./protocolFile";
 
 const SCHEME = "tabs-extension";
+const EXTENSION_CONTENT_SECURITY_POLICY =
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+/** Sent on every packaged file, so the policy never depends on a webRequest hook. */
+const EXTENSION_RESPONSE_HEADERS: HeadersInit = {
+  "Content-Security-Policy": EXTENSION_CONTENT_SECURITY_POLICY,
+  "X-Content-Type-Options": "nosniff",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  // Development reloads must see new assets; packaged files are tiny and local.
+  "Cache-Control": "no-store",
+};
 const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const MAX_FILES = 1_000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
@@ -1537,13 +1548,53 @@ export class ExtensionViewManager {
       return;
     }
     if (![input.x, input.y, input.width, input.height].every(Number.isFinite)) return;
+    // The renderer reports CSS pixels, but Tabs zooms its own UI with the
+    // window's zoom factor, so native bounds are those pixels times that
+    // factor (the browser host does the same). Without this, any zoom other
+    // than 100% left the extension view offset and the wrong size.
+    const zoom = this.windowZoomFactor();
     this.coordinator.attachToolView(view);
     view.setBounds({
-      x: Math.max(0, Math.round(input.x)),
-      y: Math.max(0, Math.round(input.y)),
-      width: Math.max(0, Math.round(input.width)),
-      height: Math.max(0, Math.round(input.height)),
+      x: Math.max(0, Math.round(input.x * zoom)),
+      y: Math.max(0, Math.round(input.y * zoom)),
+      width: Math.max(0, Math.round(input.width * zoom)),
+      height: Math.max(0, Math.round(input.height * zoom)),
     });
+    // Extension content scales with the rest of Tabs.
+    const contents = view.webContents;
+    if (
+      typeof contents?.getZoomFactor === "function" &&
+      Math.abs(contents.getZoomFactor() - zoom) > 0.001
+    ) {
+      contents.setZoomFactor(zoom);
+    }
+  }
+
+  /**
+   * Pixels of the active view for the renderer to show while a menu covers it.
+   * Only the current activation may be captured, and only by the main renderer.
+   */
+  async captureActive(activationId: string): Promise<string | null> {
+    const active = this.active;
+    if (!active || active.activationId !== activationId) return null;
+    const contents = active.view.webContents;
+    try {
+      if (typeof contents.isDestroyed === "function" && contents.isDestroyed()) return null;
+      const image = await contents.capturePage();
+      if (this.active?.activationId !== activationId || image.isEmpty()) return null;
+      return `data:image/jpeg;base64,${image.toJPEG(82).toString("base64")}`;
+    } catch {
+      return null;
+    }
+  }
+
+  private windowZoomFactor(): number {
+    try {
+      const factor = this.getWindow()?.webContents?.getZoomFactor?.();
+      return typeof factor === "number" && Number.isFinite(factor) && factor > 0 ? factor : 1;
+    } catch {
+      return 1;
+    }
   }
 
   hide(input?: { readonly activationId?: string } | string): void {
@@ -1608,22 +1659,29 @@ export class ExtensionViewManager {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          "Content-Security-Policy": [
-            "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'",
-          ],
+          "Content-Security-Policy": [EXTENSION_CONTENT_SECURITY_POLICY],
         },
       });
     });
-    extensionSession.protocol.registerFileProtocol(SCHEME, (request, callback) => {
+    // `protocol.handle` commits a real Response. The deprecated
+    // registerFileProtocol can leave a WebContentsView navigation pending
+    // when the handler belongs to a non-default persistent session, which is
+    // what every extension partition is.
+    if (extensionSession.protocol.isProtocolHandled?.(SCHEME)) {
+      extensionSession.protocol.unhandle(SCHEME);
+    }
+    extensionSession.protocol.handle(SCHEME, async (request) => {
       try {
         const url = new URL(request.url);
         if (url.hostname !== allowedHost) throw new Error("Extension origin mismatch.");
         const current = this.requireInstalled(allowedHost);
-        callback({
-          path: this.resolveAsset(current.directory, decodeURIComponent(url.pathname.slice(1))),
-        });
+        const path = this.resolveAsset(
+          current.directory,
+          decodeURIComponent(url.pathname.slice(1)),
+        );
+        return await readProtocolFile(path, EXTENSION_RESPONSE_HEADERS);
       } catch {
-        callback({ error: -6 });
+        return new Response(null, { status: 404, statusText: "Not Found" });
       }
     });
     this.configuredSessions.add(partition);
@@ -1832,9 +1890,36 @@ export class ExtensionViewManager {
     return profile;
   }
 
+  /**
+   * Read the registry, falling back to the last good copy. A file that cannot
+   * be parsed is moved aside rather than left for the next save to overwrite,
+   * which would otherwise silently uninstall everything and drop its grants.
+   */
+  private readRegistry(): unknown {
+    const backup = `${this.statePath}.bak`;
+    let primaryError: unknown = null;
+    try {
+      return JSON.parse(FS.readFileSync(this.statePath, "utf8"));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") primaryError = error;
+    }
+    if (primaryError !== null) {
+      try {
+        FS.renameSync(this.statePath, `${this.statePath}.corrupt-${Date.now()}`);
+      } catch {
+        // Keep going: a read-only state directory must not block startup.
+      }
+    }
+    try {
+      return JSON.parse(FS.readFileSync(backup, "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
   private load(): void {
     try {
-      const entries = JSON.parse(FS.readFileSync(this.statePath, "utf8")) as StoredExtension[];
+      const entries = this.readRegistry() as StoredExtension[] | null;
       if (!Array.isArray(entries)) return;
       for (const entry of entries) {
         try {
@@ -1978,8 +2063,27 @@ export class ExtensionViewManager {
 
   private save(): void {
     FS.mkdirSync(Path.dirname(this.statePath), { recursive: true });
-    const temporary = `${this.statePath}.tmp`;
-    FS.writeFileSync(temporary, JSON.stringify([...this.installed.values()]));
-    FS.renameSync(temporary, this.statePath);
+    const serialized = JSON.stringify([...this.installed.values()]);
+    const temporary = `${this.statePath}.${Crypto.randomBytes(8).toString("hex")}.tmp`;
+    try {
+      // Flushed before the rename, so a crash or power loss leaves either the
+      // old registry or the new one, never a truncated file.
+      const fd = FS.openSync(temporary, "wx", 0o600);
+      try {
+        FS.writeFileSync(fd, serialized);
+        FS.fsyncSync(fd);
+      } finally {
+        FS.closeSync(fd);
+      }
+      try {
+        FS.copyFileSync(this.statePath, `${this.statePath}.bak`);
+      } catch {
+        // No previous registry yet.
+      }
+      FS.renameSync(temporary, this.statePath);
+    } catch (error) {
+      FS.rmSync(temporary, { force: true });
+      throw error;
+    }
   }
 }

@@ -256,6 +256,8 @@ const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 export const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_CAPTURE_CHANNEL = "desktop:extension:capture";
+const BROWSER_HOST_SET_REST_CHANNEL = "desktop:browser-host:set-rest-after";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
@@ -273,6 +275,7 @@ const BROWSER_HOST_ACTIVATE_SESSION_CHANNEL = "desktop:browser-host:activate-ses
 const BROWSER_HOST_HIDE_SESSION_CHANNEL = "desktop:browser-host:hide-session";
 const BROWSER_HOST_NAVIGATE_SESSION_CHANNEL = "desktop:browser-host:navigate-session";
 const BROWSER_HOST_RELOAD_SESSION_CHANNEL = "desktop:browser-host:reload-session";
+const BROWSER_HOST_STOP_SESSION_CHANNEL = "desktop:browser-host:stop-session";
 const BROWSER_HOST_SET_ZOOM_CHANNEL = "desktop:browser-host:set-zoom";
 const BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL = "desktop:browser-host:set-audio-muted";
 const BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL = "desktop:browser-host:open-picture-in-picture";
@@ -3013,6 +3016,28 @@ function registerIpcHandlers(): void {
     }
     extensionViewManager.setBounds(value);
   });
+  ipcMain.removeHandler(BROWSER_HOST_SET_REST_CHANNEL);
+  ipcMain.handle(BROWSER_HOST_SET_REST_CHANNEL, async (event, minutes: unknown) => {
+    requireMainRenderer(event);
+    browserHostManager.setRestAfterMinutes(typeof minutes === "number" ? minutes : 0);
+  });
+  ipcMain.removeHandler(EXTENSION_CAPTURE_CHANNEL);
+  ipcMain.handle(EXTENSION_CAPTURE_CHANNEL, async (event, input: unknown) => {
+    requireMainRenderer(event);
+    const activationId =
+      input && typeof input === "object"
+        ? (input as { activationId?: unknown }).activationId
+        : null;
+    if (
+      typeof activationId !== "string" ||
+      activationId.length === 0 ||
+      activationId.length > 128 ||
+      !/^[a-zA-Z0-9_-]+$/.test(activationId)
+    ) {
+      return null;
+    }
+    return extensionViewManager.captureActive(activationId);
+  });
   ipcMain.removeHandler(EXTENSION_HIDE_CHANNEL);
   ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event, input?: unknown) => {
     requireMainRenderer(event);
@@ -4087,6 +4112,7 @@ function registerIpcHandlers(): void {
           ? (input as { taskId: string }).taskId
           : undefined,
       temporaryAgentTab: (input as { temporaryAgentTab?: unknown }).temporaryAgentTab === true,
+      waitForLoad: (input as { waitForLoad?: unknown }).waitForLoad !== false,
     });
   });
 
@@ -4144,6 +4170,21 @@ function registerIpcHandlers(): void {
       projectId: (input as { projectId: string }).projectId,
       sessionId: readBrowserSessionId(input),
       ignoreCache: (input as { ignoreCache?: unknown }).ignoreCache === true,
+    });
+  });
+
+  ipcMain.removeHandler(BROWSER_HOST_STOP_SESSION_CHANNEL);
+  handleTabsIpc(BROWSER_HOST_STOP_SESSION_CHANNEL, async (_event, input: unknown) => {
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      typeof (input as { projectId?: unknown }).projectId !== "string"
+    ) {
+      return;
+    }
+    browserHostManager.stop({
+      projectId: (input as { projectId: string }).projectId,
+      sessionId: readBrowserSessionId(input),
     });
   });
 

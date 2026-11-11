@@ -20,6 +20,113 @@ const manifest = {
 };
 
 describe("Tabs extension manifest", () => {
+  it("accepts plain-hex themes on API 1.9, even without a tool, and rejects anything that is not a color", () => {
+    const theme = {
+      id: "ember",
+      label: "Ember",
+      appearance: "dark",
+      colors: {
+        background: "#140d0b",
+        foreground: "#f6e7df",
+        card: "#1f1512",
+        border: "#3a2820",
+        primary: "#ff6a3d",
+      },
+    };
+    const themeOnly = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.9.0" },
+      contributes: { tools: [], themes: [theme] },
+    };
+    expect(validateTabsExtensionManifest(themeOnly, "1.3.17").ok).toBe(true);
+    // Without themes a package still needs a tool.
+    expect(
+      validateTabsExtensionManifest({ ...themeOnly, contributes: { tools: [] } }, "1.3.17").ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...themeOnly, engines: { ...themeOnly.engines, api: "^1.8.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    for (const colors of [
+      { ...theme.colors, primary: "red" },
+      { ...theme.colors, primary: "#fff" },
+      { ...theme.colors, background: "url(https://evil.example/x)" },
+      { ...theme.colors, card: "var(--background)" },
+      { ...theme.colors, extra: "#000000" },
+    ])
+      expect(
+        validateTabsExtensionManifest(
+          { ...themeOnly, contributes: { tools: [], themes: [{ ...theme, colors }] } },
+          "1.3.17",
+        ).ok,
+      ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...themeOnly, contributes: { tools: [], themes: [{ ...theme, appearance: "sepia" }] } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("ties Command Palette entries to a contributed tool on API 1.9", () => {
+    const command = {
+      id: "open-board",
+      title: "Deploys: open board",
+      keywords: ["deploy", "ship"],
+      tool: "dashboard",
+    };
+    const valid = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.9.0" },
+      contributes: { ...manifest.contributes, paletteCommands: [command] },
+    };
+    expect(validateTabsExtensionManifest(valid, "1.3.17").ok).toBe(true);
+    for (const paletteCommands of [
+      [{ ...command, tool: "nope" }],
+      [{ ...command, keywords: ["Has Spaces"] }],
+      [{ ...command, title: "" }],
+      [command, command],
+    ])
+      expect(
+        validateTabsExtensionManifest(
+          { ...valid, contributes: { ...valid.contributes, paletteCommands } },
+          "1.3.17",
+        ).ok,
+      ).toBe(false);
+  });
+
+  it("gates launcher quick actions on API 1.8 and ties each one to a contributed tool", () => {
+    const action = { id: "open-board", label: "Deploy board", icon: "rocket", tool: "dashboard" };
+    const valid = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.8.0" },
+      contributes: { ...manifest.contributes, quickActions: [action] },
+    };
+    expect(validateTabsExtensionManifest(valid, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        { ...valid, engines: { ...valid.engines, api: "^1.7.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    for (const quickActions of [
+      [],
+      [{ ...action, tool: "missing" }],
+      [{ ...action, icon: "skull" }],
+      [{ ...action, label: "x".repeat(41) }],
+      [{ ...action, run: "rm -rf /" }],
+      [action, action],
+      Array.from({ length: 7 }, (_, index) => ({ ...action, id: `open-${index}x` })),
+    ])
+      expect(
+        validateTabsExtensionManifest(
+          { ...valid, contributes: { ...valid.contributes, quickActions } },
+          "1.3.17",
+        ).ok,
+      ).toBe(false);
+  });
   it("gates packaged screenshots on API 1.7 and rejects unsafe or inaccessible preview declarations", () => {
     const preview = { path: "preview.png", alt: "Project board showing pending tasks" };
     const valid = {

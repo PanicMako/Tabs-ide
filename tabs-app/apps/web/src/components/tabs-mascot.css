@@ -247,7 +247,8 @@
  *
  * One 6.5s timeline (MASCOT_INTRO_HOLD_MS). Percentages below are of it:
  *   0-40 walk in · 46, 54, 62 hammer hits · 64-73 throw the flag
- *   75-92 fling the hat and hammer away · 84-95 walk to the pole · 95-100 hop.
+ *   74-82 the repaired window clears away, leaving the planted flag
+ *   75-92 fling the hat and hammer away · 84-95 walk under the flag · 95-100 hop.
  * Each element's resting style is its final pose, so reduced motion simply
  * shows the finished scene.
  */
@@ -296,7 +297,8 @@
   height: 0;
 }
 .tabs-stroll-go {
-  transform: translateX(-338px);
+  /* Rests centred under the flag's lettering (pole at -105px, flag 210px wide). */
+  transform: translateX(-175px);
   will-change: transform;
   animation: gag-go var(--gag) ease-in-out both;
 }
@@ -419,6 +421,7 @@
 /* The broken app. Each part rests fixed; keyframes hold it broken until its hit. */
 .tabs-app {
   position: absolute;
+  opacity: 0;
   left: calc(50% - 105px);
   bottom: 41px;
   width: 210px;
@@ -746,7 +749,7 @@
   }
   95%,
   100% {
-    transform: translateX(-338px);
+    transform: translateX(-175px);
   }
 }
 @keyframes gag-hat {
@@ -867,14 +870,23 @@
 @keyframes app-fix-frame {
   0%,
   61.48% {
+    opacity: 1;
     transform: rotate(-3.5deg);
   }
   62.72% {
+    opacity: 1;
     transform: rotate(0.8deg);
   }
   64.8%,
-  100% {
+  74% {
+    opacity: 1;
     transform: none;
+  }
+  /* Its job done, the window shrinks into the ground and clears the stage. */
+  82%,
+  100% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.86);
   }
 }
 @keyframes app-fix-side {

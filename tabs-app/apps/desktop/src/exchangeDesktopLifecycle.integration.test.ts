@@ -111,7 +111,7 @@ function mockElectronView(loadURL: (url: string) => Promise<unknown> = async () 
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
     webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-    protocol: { registerFileProtocol: vi.fn() },
+    protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     closeAllConnections: vi.fn(async () => undefined),
     clearData: vi.fn(async () => undefined),
     clearAuthCache: vi.fn(async () => undefined),

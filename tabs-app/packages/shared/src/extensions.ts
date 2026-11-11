@@ -1,4 +1,8 @@
-import type { TabsExtensionAssignment, TabsExtensionManifest } from "@tabs/contracts";
+import {
+  TABS_EXTENSION_QUICK_ACTION_ICONS,
+  type TabsExtensionAssignment,
+  type TabsExtensionManifest,
+} from "@tabs/contracts";
 import { TABS_EXTENSION_API_VERSION } from "@tabs/extension-api";
 import { compareSemverVersions, parseSemver, satisfiesSemverRange } from "./semver.ts";
 
@@ -6,6 +10,11 @@ const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 const PACKAGE_VERSION = /^[0-9A-Za-z.+-]{1,128}$/;
 const MAX_TOOLS = 12;
 const MAX_COMMANDS = 8;
+const MAX_QUICK_ACTIONS = 6;
+const MAX_THEMES = 8;
+const MAX_PALETTE_COMMANDS = 12;
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const KEYWORD = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const STORAGE_KEY = /^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/;
 
 export function isSafeExtensionPackageVersion(value: unknown): value is string {
@@ -427,11 +436,17 @@ export function validateTabsExtensionManifest(
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
     errors.push("contributes.tools must be an array.");
   } else {
-    if (Object.keys(contributes).some((key) => key !== "tools" && key !== "commands")) {
+    if (
+      Object.keys(contributes).some(
+        (key) => !["tools", "commands", "quickActions", "themes", "paletteCommands"].includes(key),
+      )
+    ) {
       errors.push("contributes has unsupported fields.");
     }
-    if (contributes.tools.length < 1 || contributes.tools.length > MAX_TOOLS) {
-      errors.push(`contributes.tools must contain 1 to ${MAX_TOOLS} tools.`);
+    // A package that only restyles Tabs needs no tool of its own.
+    const minimumTools = contributes.themes !== undefined ? 0 : 1;
+    if (contributes.tools.length < minimumTools || contributes.tools.length > MAX_TOOLS) {
+      errors.push(`contributes.tools must contain ${minimumTools} to ${MAX_TOOLS} tools.`);
     }
     const seen = new Set<string>();
     for (const [index, tool] of contributes.tools.entries()) {
@@ -454,6 +469,15 @@ export function validateTabsExtensionManifest(
       if (tool.icon !== undefined && (!safePackagePath(tool.icon) || !tool.icon.endsWith(".svg"))) {
         errors.push(`Tool ${index} icon must be a relative packaged SVG file.`);
       }
+    }
+    if (contributes.quickActions !== undefined) {
+      validateQuickActions(contributes.quickActions, seen, engines, errors);
+    }
+    if (contributes.themes !== undefined) {
+      validateThemes(contributes.themes, engines, errors);
+    }
+    if (contributes.paletteCommands !== undefined) {
+      validatePaletteCommands(contributes.paletteCommands, seen, engines, errors);
     }
     if (contributes.commands !== undefined) {
       if (
@@ -532,6 +556,165 @@ export function validateTabsExtensionManifest(
   if (errors.length > 0) return { ok: false, errors };
   const manifest = input as TabsExtensionManifest;
   return { ok: true, manifest, id: `${manifest.publisher}.${manifest.name}` };
+}
+
+function requireApi(engines: unknown, minimum: string, field: string, errors: string[]): void {
+  if (
+    !record(engines) ||
+    typeof engines.api !== "string" ||
+    !apiRangeIsSafe(engines.api, minimum)
+  ) {
+    errors.push(`${field} requires engines.api to start at ${minimum} or later.`);
+  }
+}
+
+function validateThemes(themes: unknown, engines: unknown, errors: string[]): void {
+  if (!Array.isArray(themes) || themes.length < 1 || themes.length > MAX_THEMES) {
+    errors.push(`contributes.themes must contain 1 to ${MAX_THEMES} themes.`);
+    return;
+  }
+  requireApi(engines, "1.9.0", "contributes.themes", errors);
+  const ids = new Set<string>();
+  for (const [index, theme] of themes.entries()) {
+    if (!record(theme)) {
+      errors.push(`Theme ${index} must be an object.`);
+      continue;
+    }
+    if (Object.keys(theme).some((key) => !["id", "label", "appearance", "colors"].includes(key))) {
+      errors.push(`Theme ${index} has unsupported fields.`);
+    }
+    if (typeof theme.id !== "string" || !SEGMENT.test(theme.id) || ids.has(theme.id)) {
+      errors.push(`Theme ${index} needs a unique lowercase id.`);
+    } else ids.add(theme.id);
+    if (typeof theme.label !== "string" || !theme.label.trim() || theme.label.length > 60) {
+      errors.push(`Theme ${index} needs a label of at most 60 characters.`);
+    }
+    if (theme.appearance !== "dark" && theme.appearance !== "light") {
+      errors.push(`Theme ${index} appearance must be "dark" or "light".`);
+    }
+    const colors = theme.colors;
+    const keys = ["background", "foreground", "card", "border", "primary"];
+    // Plain hex only: no CSS functions, variables or url(), so a theme can
+    // only recolor Tabs, never inject styles or load remote resources.
+    if (
+      !record(colors) ||
+      Object.keys(colors).length !== keys.length ||
+      !keys.every((key) => typeof colors[key] === "string" && HEX_COLOR.test(colors[key]))
+    ) {
+      errors.push(
+        `Theme ${index} colors must be exactly ${keys.join(", ")} as six-digit hex values.`,
+      );
+    }
+  }
+}
+
+function validatePaletteCommands(
+  commands: unknown,
+  toolIds: ReadonlySet<string>,
+  engines: unknown,
+  errors: string[],
+): void {
+  if (!Array.isArray(commands) || commands.length < 1 || commands.length > MAX_PALETTE_COMMANDS) {
+    errors.push(`contributes.paletteCommands must contain 1 to ${MAX_PALETTE_COMMANDS} commands.`);
+    return;
+  }
+  requireApi(engines, "1.9.0", "contributes.paletteCommands", errors);
+  const ids = new Set<string>();
+  for (const [index, command] of commands.entries()) {
+    if (!record(command)) {
+      errors.push(`Palette command ${index} must be an object.`);
+      continue;
+    }
+    if (
+      Object.keys(command).some(
+        (key) => !["id", "title", "description", "keywords", "tool"].includes(key),
+      )
+    ) {
+      errors.push(`Palette command ${index} has unsupported fields.`);
+    }
+    if (typeof command.id !== "string" || !SEGMENT.test(command.id) || ids.has(command.id)) {
+      errors.push(`Palette command ${index} needs a unique lowercase id.`);
+    } else ids.add(command.id);
+    if (typeof command.title !== "string" || !command.title.trim() || command.title.length > 80) {
+      errors.push(`Palette command ${index} needs a title of at most 80 characters.`);
+    }
+    if (
+      command.description !== undefined &&
+      (typeof command.description !== "string" ||
+        !command.description.trim() ||
+        command.description.length > 160)
+    ) {
+      errors.push(`Palette command ${index} description must be at most 160 characters.`);
+    }
+    if (
+      command.keywords !== undefined &&
+      (!Array.isArray(command.keywords) ||
+        command.keywords.length > 8 ||
+        !command.keywords.every((word: unknown) => typeof word === "string" && KEYWORD.test(word)))
+    ) {
+      errors.push(`Palette command ${index} keywords must be up to 8 short lowercase words.`);
+    }
+    if (typeof command.tool !== "string" || !toolIds.has(command.tool)) {
+      errors.push(`Palette command ${index} must open a tool from contributes.tools.`);
+    }
+  }
+}
+
+function validateQuickActions(
+  quickActions: unknown,
+  toolIds: ReadonlySet<string>,
+  engines: unknown,
+  errors: string[],
+): void {
+  if (
+    !Array.isArray(quickActions) ||
+    quickActions.length < 1 ||
+    quickActions.length > MAX_QUICK_ACTIONS
+  ) {
+    errors.push(`contributes.quickActions must contain 1 to ${MAX_QUICK_ACTIONS} actions.`);
+    return;
+  }
+  if (
+    !record(engines) ||
+    typeof engines.api !== "string" ||
+    !apiRangeIsSafe(engines.api, "1.8.0")
+  ) {
+    errors.push("contributes.quickActions requires engines.api to start at 1.8.0 or later.");
+  }
+  const ids = new Set<string>();
+  for (const [index, action] of quickActions.entries()) {
+    if (!record(action)) {
+      errors.push(`Quick action ${index} must be an object.`);
+      continue;
+    }
+    if (
+      Object.keys(action).some((key) => !["id", "label", "detail", "icon", "tool"].includes(key))
+    ) {
+      errors.push(`Quick action ${index} has unsupported fields.`);
+    }
+    if (typeof action.id !== "string" || !SEGMENT.test(action.id) || ids.has(action.id)) {
+      errors.push(`Quick action ${index} needs a unique lowercase id.`);
+    } else ids.add(action.id);
+    // Short: launcher labels sit on a ring and must not wrap.
+    if (typeof action.label !== "string" || !action.label.trim() || action.label.length > 40) {
+      errors.push(`Quick action ${index} needs a label of at most 40 characters.`);
+    }
+    if (
+      action.detail !== undefined &&
+      (typeof action.detail !== "string" || !action.detail.trim() || action.detail.length > 120)
+    ) {
+      errors.push(`Quick action ${index} detail must be nonempty and at most 120 characters.`);
+    }
+    if (
+      action.icon !== undefined &&
+      !(TABS_EXTENSION_QUICK_ACTION_ICONS as readonly unknown[]).includes(action.icon)
+    ) {
+      errors.push(`Quick action ${index} icon must be one of the launcher icons.`);
+    }
+    if (typeof action.tool !== "string" || !toolIds.has(action.tool)) {
+      errors.push(`Quick action ${index} must open a tool from contributes.tools.`);
+    }
+  }
 }
 
 export function isExtensionEnabledForProject(

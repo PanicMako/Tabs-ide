@@ -148,6 +148,104 @@ workspace without a Git repository reports an error. Workspace write and
 Git mutation brokers are not yet available.
 All bridges remain bound to the active extension main frame.
 
+### Color themes (API 1.9)
+
+`contributes.themes` adds up to eight palettes to Settings → Themes. A package
+that only contributes themes may leave `contributes.tools` empty.
+
+```json
+"contributes": {
+  "tools": [],
+  "themes": [
+    {
+      "id": "ember",
+      "label": "Ember",
+      "appearance": "dark",
+      "colors": {
+        "background": "#140d0b",
+        "foreground": "#f6e7df",
+        "card": "#1f1512",
+        "border": "#3a2820",
+        "primary": "#ff6a3d"
+      }
+    }
+  ]
+}
+```
+
+Exactly these five colors are required, each a six-digit hex value. Tabs
+derives every other surface, the editor colors and readable text colors from
+them with the same engine as the built-in palette studio, so a theme cannot
+hide controls, break contrast, inject CSS or load remote resources. The user's
+fonts are kept. Choosing one applies it as the custom theme, which the user can
+then adjust in the palette studio.
+
+### Command Palette entries (API 1.9)
+
+`contributes.paletteCommands` adds up to twelve entries to the Command Palette,
+each opening one of the extension's tools in the active project.
+
+```json
+"paletteCommands": [
+  { "id": "open-board", "title": "Deploys: open board", "description": "See what is shipping", "keywords": ["deploy", "ship"], "tool": "board" }
+]
+```
+
+- `title`: at most 80 characters. Prefix it with your extension's name so
+  entries are easy to tell apart.
+- `description`: optional, at most 160 characters.
+- `keywords`: optional, up to eight lowercase words (letters, digits, `-`).
+  The extension and tool names are always searchable too.
+- `tool`: the `id` of an entry in `contributes.tools`.
+
+### How Tabs serves and shows extension views
+
+- Packaged files are served over `tabs-extension://<publisher.name>/` by a
+  `protocol.handle` handler that reads exact bytes from the installed package.
+  Every response carries the extension Content-Security-Policy,
+  `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`, so the policy
+  does not depend on a request hook, and development reloads always see new
+  assets. Unknown file types are served as `application/octet-stream`, and
+  anything outside the package (or a missing file) is a 404.
+- Views follow the Tabs window zoom: their bounds and their content scale with
+  the rest of the app.
+- When a Tabs menu or dialog covers a view, Tabs shows a still image of the view
+  until it closes, rather than an empty region. The image stays in the main
+  window's memory and is discarded when the menu closes.
+- The installed-extensions registry is written with a flushed temporary file
+  and keeps the previous copy as a backup. If the registry is ever unreadable,
+  Tabs restores the backup and keeps the damaged file for diagnosis instead of
+  starting with no extensions.
+
+### Quick Actions launcher entries (API 1.8)
+
+An extension can add up to six entries to the Quick Actions launcher with
+`contributes.quickActions`. Each entry opens one of the extension's own tools in
+the active project; it is a shortcut, not a new permission, and the tool still
+runs with only the capabilities the user granted. Set `engines.api` to `^1.8.0`.
+
+```json
+"contributes": {
+  "tools": [{ "id": "board", "label": "Deploy board", "entry": "dist/index.html" }],
+  "quickActions": [
+    { "id": "open-board", "label": "Deploys", "detail": "Check what is shipping", "icon": "rocket", "tool": "board" }
+  ]
+}
+```
+
+- `id`: unique lowercase id within the package.
+- `label`: at most 40 characters; it sits on the launcher ring and never wraps.
+- `detail`: optional, at most 120 characters, shown when the entry is highlighted.
+- `icon`: optional; one of `star`, `link`, `zap`, `book`, `rocket`, `bug`,
+  `database`, `cloud`, `play`, `flask`, `terminal`, `browser`, `code`, `search`.
+  Packaged artwork is not used here so the ring stays legible.
+- `tool`: the `id` of an entry in `contributes.tools`.
+
+Users place extension entries on the ring, in More, or hide them in
+Settings → Quick Actions, like any built-in action. Entries from disabled or
+revoked packages disappear. When the extension is not on for the current
+project, choosing the entry explains how to turn it on.
+
 ## Enabling and profiles
 
 In Tabs desktop development mode, open Settings > Extensions > Discover and

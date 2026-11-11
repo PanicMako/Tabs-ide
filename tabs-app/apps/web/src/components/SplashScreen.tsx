@@ -6,15 +6,13 @@ import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
 import {
+  SOLARI_TILE_COUNT,
   SOLARI_TILE_SETTLE_MS,
   SOLARI_TILE_STAGGER_MS,
   SOLARI_TILE_HIGHLIGHT_MS,
 } from "../lib/startupAnimationTiming";
 import { useReducedStartupMotion } from "../hooks/useStartupAnimation";
-export {
-  STARTUP_ANIMATION_HOLD_MS,
-  STARTUP_ANIMATION_EXIT_MS,
-} from "../lib/startupAnimationTiming";
+export { STARTUP_ANIMATION_EXIT_MS } from "../lib/startupAnimationTiming";
 
 const MASCOT_MESSAGES = [
   "WAKING UP THE MASCOT",
@@ -139,9 +137,11 @@ function SolariTile({
   isDark,
   tileFont,
   tileWeight,
+  onSettled,
 }: {
   target: string;
   index: number;
+  onSettled?: (() => void) | undefined;
   isBlock: boolean;
   isDark: boolean;
   tileFont?: string | undefined;
@@ -149,12 +149,15 @@ function SolariTile({
 }) {
   const [ch, setCh] = useState(target);
   const [justSettled, setJustSettled] = useState(false);
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
 
   const reducedMotion = useReducedStartupMotion();
   useEffect(() => {
     if (reducedMotion) {
       setCh(target);
       setJustSettled(false);
+      onSettledRef.current?.();
       return;
     }
     let highlight: ReturnType<typeof setTimeout> | undefined;
@@ -169,6 +172,7 @@ function SolariTile({
       if (cancelled) return;
       setCh(target);
       setJustSettled(true);
+      onSettledRef.current?.();
       highlight = setTimeout(() => !cancelled && setJustSettled(false), SOLARI_TILE_HIGHLIGHT_MS);
     }, settleAt);
 
@@ -208,7 +212,9 @@ function SolariGrid({
   palette,
   isDark,
   fonts,
+  onSettled,
 }: {
+  onSettled?: (() => void) | undefined;
   palette: "block" | "mono";
   isDark: boolean;
   fonts?:
@@ -219,7 +225,7 @@ function SolariGrid({
       }
     | undefined;
 }) {
-  const word = "TABS IDE".padEnd(8, " ").split("");
+  const word = SOLARI_WORD.padEnd(SOLARI_TILE_COUNT, " ").split("");
   const isBlock = palette === "block";
 
   return (
@@ -246,6 +252,9 @@ function SolariGrid({
               isDark={isDark}
               tileFont={fonts?.headingFont || fonts?.uiFont}
               tileWeight={fonts?.headingWeight}
+              // The board is done once its last tile lands; that is the cue
+              // for the workspace to rise, not a timer.
+              onSettled={i === word.length - 1 ? onSettled : undefined}
             />
           ))}
         </div>
@@ -274,6 +283,8 @@ export interface SplashScreenProps {
   theme?: "light" | "dark" | "system" | undefined;
   fontComboId?: string | undefined;
   customFont?: string | undefined;
+  /** Fired once when the loader's own intro has played (the board's last tile). */
+  onIntroComplete?: (() => void) | undefined;
 }
 
 export function SplashScreen({
@@ -282,6 +293,7 @@ export function SplashScreen({
   theme: overrideTheme,
   fontComboId,
   customFont,
+  onIntroComplete,
 }: SplashScreenProps) {
   const { resolvedTheme, fontPreferences } = useTheme();
   const effectiveTheme =
@@ -313,7 +325,12 @@ export function SplashScreen({
       )}
     >
       {loader === "solari" ? (
-        <SolariGrid palette={palette as any} isDark={isDark} fonts={fonts} />
+        <SolariGrid
+          palette={palette as any}
+          isDark={isDark}
+          fonts={fonts}
+          onSettled={onIntroComplete}
+        />
       ) : (
         <MascotLoader palette={palette as any} isDark={isDark} fonts={fonts} />
       )}

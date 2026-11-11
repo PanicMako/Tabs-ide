@@ -1,4 +1,4 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.7.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.9.0";
 
 export interface TabsExtensionStorageMigration {
   readonly from: number;
@@ -20,6 +20,67 @@ export interface TabsExtensionTool {
   readonly label: string;
   readonly entry: string;
   readonly icon?: string;
+}
+
+/** Icon names a quick action may use; they match the launcher's built-in set. */
+export type TabsExtensionQuickActionIcon =
+  | "star"
+  | "link"
+  | "zap"
+  | "book"
+  | "rocket"
+  | "bug"
+  | "database"
+  | "cloud"
+  | "play"
+  | "flask"
+  | "terminal"
+  | "browser"
+  | "code"
+  | "search";
+
+/**
+ * An entry in the Tabs Quick Actions launcher that opens one of this
+ * extension's tools in the active project. Requires engines.api >=1.8.0.
+ * It grants nothing: the tool still runs with only its granted capabilities.
+ */
+export interface TabsExtensionQuickAction {
+  readonly id: string;
+  readonly label: string;
+  readonly detail?: string;
+  readonly icon?: TabsExtensionQuickActionIcon;
+  /** The id of a tool in contributes.tools. */
+  readonly tool: string;
+}
+
+/**
+ * A color theme shown in Settings → Themes. Tabs derives every surface,
+ * editor color and readable text color from these five values, so a theme
+ * cannot hide controls or break contrast. Requires engines.api >=1.9.0.
+ */
+export interface TabsExtensionTheme {
+  readonly id: string;
+  readonly label: string;
+  readonly appearance: "dark" | "light";
+  /** Six-digit hex colors, e.g. "#101113". */
+  readonly colors: {
+    readonly background: string;
+    readonly foreground: string;
+    readonly card: string;
+    readonly border: string;
+    readonly primary: string;
+  };
+}
+
+/** A Command Palette entry that opens one of this extension's tools. Requires engines.api >=1.9.0. */
+export interface TabsExtensionPaletteCommand {
+  readonly id: string;
+  readonly title: string;
+  readonly description?: string;
+  /** Extra lowercase search words. */
+  readonly keywords?: ReadonlyArray<string>;
+  /** The id of a tool in contributes.tools. */
+  readonly tool: string;
 }
 
 export interface TabsExtensionCommand {
@@ -67,8 +128,15 @@ export interface TabsExtensionManifest {
   };
   readonly logic?: { readonly entry: string };
   readonly contributes: {
+    /** At least one tool, unless the package only contributes themes. */
     readonly tools: ReadonlyArray<TabsExtensionTool>;
     readonly commands?: ReadonlyArray<TabsExtensionCommand>;
+    /** Launcher entries; requires engines.api >=1.8.0. */
+    readonly quickActions?: ReadonlyArray<TabsExtensionQuickAction>;
+    /** Color themes; requires engines.api >=1.9.0. */
+    readonly themes?: ReadonlyArray<TabsExtensionTheme>;
+    /** Command Palette entries; requires engines.api >=1.9.0. */
+    readonly paletteCommands?: ReadonlyArray<TabsExtensionPaletteCommand>;
   };
 }
 

@@ -20,6 +20,7 @@ import {
   customActionDraft,
   newCustomActionDraft,
   placeAction,
+  isExtensionLauncherAction,
   type ActionZone,
   type CustomQuickAction,
   type QuickAction,
@@ -27,6 +28,8 @@ import {
 } from "../quick-actions/actions";
 import { QuickCustomActionForm } from "./QuickCustomActionForm";
 import { QuickSubActionsSettings } from "./QuickSubActionsSettings";
+import { useInstalledExtensions } from "../../state/extensions";
+import { extensionLauncherActions } from "../quick-actions/extensionQuickActions";
 
 const DRAG_TYPE = "application/x-tabs-action";
 
@@ -83,7 +86,9 @@ export function QuickActionsArranger({
     customActions?: CustomQuickAction[];
   }) => void;
 }) {
-  const zones = actionZones(order, hidden, customActions);
+  const installedExtensions = useInstalledExtensions();
+  const extensionActions = extensionLauncherActions(installedExtensions);
+  const zones = actionZones(order, hidden, customActions, extensionActions);
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const [pointedAt, setPointedAt] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -91,14 +96,14 @@ export function QuickActionsArranger({
   const [dropAt, setDropAt] = useState<{ zone: ActionZone; index: number } | null>(null);
 
   const place = (id: string, zone: ActionZone, index: number) => {
-    onPatch(placeAction(order, hidden, id, zone, index, customActions));
+    onPatch(placeAction(order, hidden, id, zone, index, customActions, extensionActions));
   };
   /** A new action goes straight onto the ring, where it can be seen and moved. */
   const create = (saved: CustomQuickAction) => {
     const next = [...customActions, saved];
     onPatch({
       customActions: next,
-      ...placeAction(order, hidden, saved.id, "ring", RING_SLOTS - 1, next),
+      ...placeAction(order, hidden, saved.id, "ring", RING_SLOTS - 1, next, extensionActions),
     });
     setCreatingId(null);
   };
@@ -198,11 +203,13 @@ export function QuickActionsArranger({
           >
             <span className="qa-arr-name">{action.label}</span>
             <span className="block truncate text-xs text-muted-foreground">
-              {"custom" in action
-                ? `Custom · ${action.detail}`
-                : count
-                  ? `${count} shortcut${count === 1 ? "" : "s"}`
-                  : action.detail}
+              {isExtensionLauncherAction(action)
+                ? `Extension · ${action.extension.displayName}`
+                : "custom" in action
+                  ? `Custom · ${action.detail}`
+                  : count
+                    ? `${count} shortcut${count === 1 ? "" : "s"}`
+                    : action.detail}
             </span>
           </button>
           <div className="flex shrink-0 items-center gap-0.5">
@@ -276,7 +283,12 @@ export function QuickActionsArranger({
         </div>
         {open && (
           <div className="mb-1 ml-8 mt-1 rounded-xl border border-border bg-muted/20">
-            {"custom" in action ? (
+            {isExtensionLauncherAction(action) ? (
+              <p className="px-3 py-2.5 text-xs text-muted-foreground">
+                Added by {action.extension.displayName}. Opens its {action.extension.toolLabel} tool
+                in the current project. Manage it in Settings → Extensions.
+              </p>
+            ) : "custom" in action ? (
               <QuickCustomActionForm
                 initial={customActionDraft(customActions.find((entry) => entry.id === action.id)!)}
                 onSave={update}

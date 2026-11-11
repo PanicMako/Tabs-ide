@@ -15,10 +15,20 @@ export function ExtensionToolSurface(props: {
   const { input } = props;
   const overlaySuspended = useRef(false);
   const publishBoundsRef = useRef<(() => void) | null>(null);
+  const activationRef = useRef<string | null>(null);
 
   useNativeSurfaceOverlaySuspension({
     enabled: typeof window !== "undefined" && Boolean(window.desktopBridge),
     surfaceReady: true,
+    // Keep the tool's pixels on screen under menus and dialogs instead of
+    // leaving an empty region while the native view is detached.
+    backdropHost: hostRef,
+    captureBackdrop: async () => {
+      const activationId = activationRef.current;
+      const capture = window.desktopBridge?.captureExtensionView;
+      if (!activationId || !capture) return null;
+      return capture({ activationId }).catch(() => null);
+    },
     onSuspend: () => {
       overlaySuspended.current = true;
       publishBoundsRef.current?.();
@@ -94,6 +104,7 @@ export function ExtensionToolSurface(props: {
           return;
         }
         activated = true;
+        activationRef.current = activationId;
         scheduleBounds();
       })
       .catch((cause) => {
@@ -105,6 +116,7 @@ export function ExtensionToolSurface(props: {
       });
     return () => {
       disposed = true;
+      if (activationRef.current === activationId) activationRef.current = null;
       if (publishBoundsRef.current === publishBounds) publishBoundsRef.current = null;
       unsubscribeError?.();
       observer.disconnect();
@@ -125,7 +137,7 @@ export function ExtensionToolSurface(props: {
       <div
         ref={hostRef}
         role="region"
-        className="min-h-0 flex-1"
+        className="relative min-h-0 flex-1"
         aria-label={`${props.label} extension content`}
       />
       {error ? (

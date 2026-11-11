@@ -16,16 +16,29 @@ import {
   normalizeLauncherDesign,
   clampLauncher,
   orderedActions,
+  isGlanceAction,
+  KEEP_LAUNCHER_OPEN,
+  type GlanceId,
   type QuickSubAction,
   type QuickAction,
   type QuickActionId,
   type LauncherDesign,
 } from "./actions";
 import { RadialLauncher } from "./RadialActions";
+import { useInstalledExtensions } from "~/state/extensions";
+import { extensionLauncherActions } from "./extensionQuickActions";
+import { QuickGlance } from "./QuickGlance";
+import { awaySummaryLine, deriveAwaySummary } from "./glanceLogic";
+import { useAtomValue } from "@effect/atom-react";
+import { projectsAtom, threadsAtom } from "~/state/threads";
+import { toastManager } from "../ui/toast";
+
+/** Coming back after at least this long offers the away summary. */
+const AWAY_THRESHOLD_MS = 15 * 60 * 1000;
 import "./quick-actions.css";
 
 export interface ActionContext {
-  execute: (id: QuickActionId, query: string) => Promise<void>;
+  execute: (id: QuickActionId, query: string) => Promise<void | typeof KEEP_LAUNCHER_OPEN>;
   disabled: (id: QuickActionId) => string | undefined;
 }
 const Context = createContext<ActionContext | null>(null);
@@ -50,6 +63,7 @@ export function QuickActionsHost({
 }: ActionContext & { children: ReactNode }) {
   const settings = useSettings((s) => s.quickActions);
   const keybindings = useKeybindings();
+  const installedExtensions = useInstalledExtensions();
   const enabled = useRef(settings.enabled);
   enabled.current = settings.enabled;
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -58,6 +72,9 @@ export function QuickActionsHost({
   const popup = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [closing, setClosing] = useState(false);
+  const [glance, setGlance] = useState<GlanceId | null>(null);
+  // The away summary counts from when you last left the window.
+  const [awaySince, setAwaySince] = useState(() => Date.now());
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   const dismiss = useCallback(() => {
@@ -67,6 +84,7 @@ export function QuickActionsHost({
       () => {
         setAnchor(null);
         setClosing(false);
+        setGlance(null);
         previousFocus.current?.focus();
       },
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 140,
@@ -83,6 +101,70 @@ export function QuickActionsHost({
   useEffect(() => {
     void window.desktopBridge?.setQuickActionsEnabled?.(settings.enabled).catch(() => undefined);
   }, [settings.enabled]);
+
+  // Glance actions open a panel in place of the ring; everything else runs.
+  const hostExecute: ActionContext["execute"] = useCallback(
+    async (id, query) => {
+      if (isGlanceAction(id)) {
+        setGlance(id);
+        return KEEP_LAUNCHER_OPEN;
+      }
+      return execute(id, query);
+    },
+    [execute],
+  );
+  const runDirect = useCallback(
+    async (id: QuickActionId, query: string) => {
+      await execute(id, query);
+    },
+    [execute],
+  );
+
+  // Back after a while: offer what happened, without opening anything unasked.
+  const threads = useAtomValue(threadsAtom);
+  const projects = useAtomValue(projectsAtom);
+  const awayContext = useRef({ threads, projects });
+  awayContext.current = { threads, projects };
+  useEffect(() => {
+    if (!settings.enabled) return;
+    let leftAt: number | null = null;
+    const leave = () => {
+      leftAt ??= Date.now();
+    };
+    const back = () => {
+      if (document.visibilityState === "hidden" || leftAt === null) return;
+      const since = leftAt;
+      leftAt = null;
+      if (Date.now() - since < AWAY_THRESHOLD_MS) return;
+      const names = new Map(
+        awayContext.current.projects.map((project) => [project.id as string, project.name]),
+      );
+      const line = awaySummaryLine(deriveAwaySummary(awayContext.current.threads, names, since));
+      if (!line) return;
+      setAwaySince(since);
+      toastManager.add({
+        type: "info",
+        title: "While you were away",
+        description: line,
+        actionProps: {
+          children: "View",
+          onClick: () => {
+            open({ x: window.innerWidth / 2, y: window.innerHeight / 3 });
+            setGlance("away");
+          },
+        },
+      });
+    };
+    const visibility = () => (document.visibilityState === "hidden" ? leave() : back());
+    window.addEventListener("blur", leave);
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.removeEventListener("blur", leave);
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [settings.enabled, open]);
   useEffect(() => {
     if (!settings.enabled && anchor) dismiss();
   }, [settings.enabled, anchor, dismiss]);
@@ -200,18 +282,29 @@ export function QuickActionsHost({
               aria-label="Quick actions"
               style={{ left: position.x, top: position.y }}
             >
-              <LauncherSurface
-                design={normalizeLauncherDesign(settings.design)}
-                actions={orderedActions(
-                  settings.actionOrder,
-                  settings.hiddenActions,
-                  settings.customActions,
-                )}
-                subActions={settings.subActions}
-                execute={execute}
-                disabled={disabled}
-                onClose={dismiss}
-              />
+              {glance ? (
+                <QuickGlance
+                  glance={glance}
+                  awaySince={awaySince}
+                  onBack={() => setGlance(null)}
+                  onClose={dismiss}
+                  run={runDirect}
+                />
+              ) : (
+                <LauncherSurface
+                  design={normalizeLauncherDesign(settings.design)}
+                  actions={orderedActions(
+                    settings.actionOrder,
+                    settings.hiddenActions,
+                    settings.customActions,
+                    extensionLauncherActions(installedExtensions),
+                  )}
+                  subActions={settings.subActions}
+                  execute={hostExecute}
+                  disabled={disabled}
+                  onClose={dismiss}
+                />
+              )}
             </div>
           </div>,
           document.body,

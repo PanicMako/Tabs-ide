@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import "./browser-toolbar.css";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -9,6 +10,7 @@ import {
   ChevronDownIcon,
   ExternalLinkIcon,
   PanelTopCloseIcon,
+  XIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Menu, MenuTrigger, MenuPopup, MenuItem } from "../ui/menu";
@@ -77,19 +79,47 @@ export function BrowserToolbar(props: {
   onBack: () => void;
   onForward: () => void;
   onReload: (ignoreCache: boolean) => void;
+  /** The page is loading: the reload control becomes Stop and a progress line runs. */
+  loading?: boolean | undefined;
+  onStop?: (() => void) | undefined;
   onExternal: () => void;
   onCollapse?: (() => void) | undefined;
   address: ReactNode;
   captureActions: BrowserToolbarAction[];
   toolActions: BrowserToolbarAction[];
-  viewControls: ReactNode;
+  /** Pass a function to receive a `close` callback for the View popover. */
+  viewControls: ReactNode | ((controls: { close: () => void }) => ReactNode);
   onViewOpenChange?: ((open: boolean) => void) | undefined;
   onCaptureOpenChange?: ((open: boolean) => void) | undefined;
   onToolsOpenChange?: ((open: boolean) => void) | undefined;
   status?: ReactNode;
 }) {
+  const [viewOpen, setViewOpen] = useState(false);
+  const setView = (open: boolean) => {
+    setViewOpen(open);
+    props.onViewOpenChange?.(open);
+  };
+  const viewControls =
+    typeof props.viewControls === "function"
+      ? props.viewControls({ close: () => setView(false) })
+      : props.viewControls;
   return (
-    <div className="@container/browser-toolbar" data-testid="browser-toolbar">
+    <div
+      className="relative @container/browser-toolbar"
+      data-testid="browser-toolbar"
+      data-loading={props.loading || undefined}
+    >
+      {props.loading ? (
+        // In the toolbar, not over the page: the native page covers anything
+        // drawn on top of it, which is why loading used to look like a blank frame.
+        <div
+          role="progressbar"
+          aria-label="Loading page"
+          className="browser-toolbar-progress pointer-events-none absolute inset-x-2 -bottom-1.5 h-0.5 overflow-hidden rounded-full"
+        >
+          <span />
+        </div>
+      ) : null}
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 @min-[520px]/browser-toolbar:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
         <div
           className="col-start-1 row-start-1 flex items-center gap-0.5"
@@ -116,15 +146,27 @@ export function BrowserToolbar(props: {
           >
             <ArrowRightIcon className="size-4" />
           </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={(event) => props.onReload(event.shiftKey)}
-            aria-label="Reload page"
-            title="Reload (Shift to bypass cache)"
-          >
-            <RefreshCwIcon className="size-4" />
-          </Button>
+          {props.loading && props.onStop ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={props.onStop}
+              aria-label="Stop loading"
+              title="Stop loading"
+            >
+              <XIcon className="size-4" />
+            </Button>
+          ) : (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={(event) => props.onReload(event.shiftKey)}
+              aria-label="Reload page"
+              title="Reload (Shift to bypass cache)"
+            >
+              <RefreshCwIcon className="size-4" />
+            </Button>
+          )}
         </div>
         <div className="col-start-2 row-start-1 min-w-0">{props.address}</div>
         <div
@@ -149,7 +191,7 @@ export function BrowserToolbar(props: {
             actions={props.toolActions}
             onOpenChange={props.onToolsOpenChange}
           />
-          <Popover onOpenChange={props.onViewOpenChange}>
+          <Popover open={viewOpen} onOpenChange={setView}>
             <PopoverTrigger
               render={
                 <Button
@@ -164,9 +206,9 @@ export function BrowserToolbar(props: {
                 </Button>
               }
             />
-            <PopoverPopup align="end" className="w-72" viewportClassName="space-y-3 p-3">
+            <PopoverPopup align="end" className="w-80" viewportClassName="space-y-3 p-3">
               <PopoverTitle className="text-sm">Browser view</PopoverTitle>
-              {props.viewControls}
+              {viewControls}
             </PopoverPopup>
           </Popover>
           <Button

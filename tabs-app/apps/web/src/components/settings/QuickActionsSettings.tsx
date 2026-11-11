@@ -16,6 +16,8 @@ import {
 } from "../quick-actions/actions";
 
 import { QuickActionsArranger } from "./QuickActionsArranger";
+import { useInstalledExtensions } from "../../state/extensions";
+import { extensionLauncherActions } from "../quick-actions/extensionQuickActions";
 import "./quick-actions-studio.css";
 
 /** A small drawing of each launcher, so the list can be read at a glance. */
@@ -53,6 +55,7 @@ function DesignGlyph({ design }: { design: LauncherDesign }) {
 
 export default function QuickActionsSettings() {
   const preferences = useSettings((s) => s.quickActions);
+  const installedExtensions = useInstalledExtensions();
   const { updateSettings: update } = useUpdateSettings();
   const context = useQuickActions();
   const keybindings = useKeybindings();
@@ -136,6 +139,7 @@ export default function QuickActionsSettings() {
                       preferences.actionOrder,
                       preferences.hiddenActions,
                       preferences.customActions,
+                      extensionLauncherActions(installedExtensions),
                     )}
                     subActions={preferences.subActions}
                     execute={context?.execute ?? (async () => {})}

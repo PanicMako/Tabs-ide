@@ -878,6 +878,41 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                     </ul>
                   </div>
                 ) : null}
+                {preparedInstall.manifest.contributes.themes?.length ? (
+                  <div className="text-sm">
+                    <p>Color themes (added to Settings → Themes; colors only):</p>
+                    <ul className="list-disc pl-5">
+                      {preparedInstall.manifest.contributes.themes.map((theme) => (
+                        <li key={theme.id}>
+                          {theme.label} ({theme.appearance})
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {preparedInstall.manifest.contributes.paletteCommands?.length ? (
+                  <div className="text-sm">
+                    <p>Command Palette entries (open this extension's tools):</p>
+                    <ul className="list-disc pl-5">
+                      {preparedInstall.manifest.contributes.paletteCommands.map((command) => (
+                        <li key={command.id}>{command.title}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {preparedInstall.manifest.contributes.quickActions?.length ? (
+                  <div className="text-sm">
+                    <p>Quick Actions launcher entries (open this extension's tools):</p>
+                    <ul className="list-disc pl-5">
+                      {preparedInstall.manifest.contributes.quickActions.map((action) => (
+                        <li key={action.id}>
+                          {action.label}
+                          {action.detail ? `: ${action.detail}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {preparedInstall.manifest.contributes.commands?.some(
                   (command) => command.aiCallable,
                 ) ? (
@@ -1227,6 +1262,31 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                             Pure commands:{" "}
                             {extension.manifest.contributes.commands
                               .map((command) => command.label)
+                              .join(", ")}
+                          </p>
+                        ) : null}
+                        {extension.manifest.contributes.themes?.length ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Themes:{" "}
+                            {extension.manifest.contributes.themes
+                              .map((theme) => theme.label)
+                              .join(", ")}{" "}
+                            · choose them in Settings → Themes
+                          </p>
+                        ) : null}
+                        {extension.manifest.contributes.paletteCommands?.length ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Command Palette:{" "}
+                            {extension.manifest.contributes.paletteCommands
+                              .map((command) => command.title)
+                              .join(", ")}
+                          </p>
+                        ) : null}
+                        {extension.manifest.contributes.quickActions?.length ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Quick Actions:{" "}
+                            {extension.manifest.contributes.quickActions
+                              .map((action) => action.label)
                               .join(", ")}
                           </p>
                         ) : null}

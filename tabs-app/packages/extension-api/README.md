@@ -19,6 +19,10 @@ paths, each at most 1 MiB, paired with a nonempty `alt` description of at most
 The scan worker checks declared image bytes before manual review; the website
 loads them by manifest index only after signed publication. Older clients reject
 this unsupported listing field rather than treating it as remote content.
+Use `^1.8.0` for `contributes.quickActions`: up to six Quick Actions launcher
+entries, each opening one of the package's own tools (see `docs/extensions.md`).
+Use `^1.9.0` for `contributes.themes` (hex-only palettes; a themes-only package
+may have no tools) and `contributes.paletteCommands` (Command Palette entries).
 Older v1 manifests without this field remain compatible. The host validates both `engines.tabs` and
 `engines.api` during local load and package inspection; importing these types
 alone does not validate a manifest. Use the `tabsext` pack/inspect command for

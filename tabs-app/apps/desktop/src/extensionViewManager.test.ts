@@ -109,6 +109,65 @@ async function exchangeUpdateFixture() {
   return { directory, manager, installed, first, second };
 }
 
+it("installs a themes-only package that contributes no tool", () => {
+  const { directory, manager } = fixture();
+  FS.writeFileSync(
+    Path.join(directory, "tabs-extension.json"),
+    JSON.stringify({
+      manifestVersion: 1,
+      publisher: "acme",
+      name: "dashboard",
+      version: "1.0.0",
+      displayName: "Ember Themes",
+      description: "Warm palettes",
+      engines: { tabs: ">=1.3.0 <2.0.0", api: "^1.9.0" },
+      contributes: {
+        tools: [],
+        themes: [
+          {
+            id: "ember",
+            label: "Ember",
+            appearance: "dark",
+            colors: {
+              background: "#140d0b",
+              foreground: "#f6e7df",
+              card: "#1f1512",
+              border: "#3a2820",
+              primary: "#ff6a3d",
+            },
+          },
+        ],
+      },
+    }),
+  );
+  const installed = manager.installDevelopment(directory);
+  expect(installed.manifest.contributes.tools).toEqual([]);
+  expect(installed.manifest.contributes.themes?.[0]?.label).toBe("Ember");
+});
+
+it("recovers installed extensions from the last good registry when the file is damaged", () => {
+  const { directory, manager } = fixture();
+  const installed = manager.installDevelopment(directory);
+  // A second save makes the first registry the backup.
+  manager.setDisabled(installed.id, true);
+  manager.setDisabled(installed.id, false);
+  const statePath = Path.join(directory, "installed.json");
+  FS.writeFileSync(statePath, '[{"id": "acme.dash');
+  const reopened = new ExtensionViewManager(
+    () => null,
+    {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+    statePath,
+    "1.3.17",
+    true,
+  );
+  expect(reopened.list().map((entry) => entry.id)).toEqual([installed.id]);
+  // The damaged file is kept for diagnosis instead of being overwritten.
+  expect(FS.readdirSync(directory).some((name) => name.startsWith("installed.json.corrupt-"))).toBe(
+    true,
+  );
+  expect(FS.readdirSync(directory).some((name) => name.endsWith(".tmp"))).toBe(false);
+});
+
 it("reloads local development assets but requires re-import for manifest changes", () => {
   const { directory, manager } = fixture();
   const installed = manager.installDevelopment(directory);
@@ -129,7 +188,7 @@ function mockElectronExtensionView(loadURL: (url: string) => Promise<unknown>): 
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
     webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-    protocol: { registerFileProtocol: vi.fn() },
+    protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
   } as never);
   vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
     return {
@@ -2255,7 +2314,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       viewClose = vi.fn();
@@ -2323,7 +2382,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       return {
@@ -2391,7 +2450,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       return {
@@ -2437,6 +2496,122 @@ describe("development extension installation", () => {
     );
   });
 
+  it("serves packaged files with the extension policy and refuses anything outside the package", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    (manager as unknown as { coordinator: unknown }).coordinator = {
+      attachToolView: vi.fn(),
+      detachToolView: vi.fn(),
+    };
+    const handle = vi.fn();
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { handle, isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn(),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(),
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+      activationId: "serve",
+    });
+    const handler = handle.mock.calls[0]![1] as (request: Request) => Promise<Response>;
+    const ok = await handler(new Request(`tabs-extension://${installed.id}/dist/index.html`));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(ok.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(ok.headers.get("x-content-type-options")).toBe("nosniff");
+    for (const path of [
+      "dist/%2E%2E/%2E%2E/secret",
+      "dist/missing.html",
+      "dist/..%2Ftabs-extension.json",
+    ])
+      expect((await handler(new Request(`tabs-extension://${installed.id}/${path}`))).status).toBe(
+        404,
+      );
+    expect((await handler(new Request("tabs-extension://acme.other/dist/index.html"))).status).toBe(
+      404,
+    );
+  });
+
+  it("places the native view in window pixels when Tabs is zoomed", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    (manager as unknown as { getWindow: unknown }).getWindow = () => ({
+      webContents: { getZoomFactor: () => 1.25 },
+    });
+    const views: any[] = [];
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      let zoom = 1;
+      const v = {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn(),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(),
+          getZoomFactor: vi.fn(() => zoom),
+          setZoomFactor: vi.fn((next: number) => {
+            zoom = next;
+          }),
+        },
+        setBounds: vi.fn(),
+      };
+      views.push(v);
+      return v as never;
+    });
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+      activationId: "zoomed",
+    };
+    await manager.activate(input);
+    manager.setBounds({ ...input, x: 100, y: 40, width: 800, height: 600, visible: true });
+    expect(views[0]!.setBounds).toHaveBeenLastCalledWith({
+      x: 125,
+      y: 50,
+      width: 1000,
+      height: 750,
+    });
+    expect(views[0]!.webContents.setZoomFactor).toHaveBeenCalledWith(1.25);
+    manager.setBounds({ ...input, x: 100, y: 40, width: 800, height: 600, visible: true });
+    expect(views[0]!.webContents.setZoomFactor).toHaveBeenCalledTimes(1);
+
+    // Only the live activation's pixels can be captured for a menu backdrop.
+    views[0]!.webContents.capturePage = vi.fn(async () => ({
+      isEmpty: () => false,
+      toJPEG: () => Buffer.from("pixels"),
+    }));
+    await expect(manager.captureActive("someone-else")).resolves.toBeNull();
+    await expect(manager.captureActive("zoomed")).resolves.toBe(
+      `data:image/jpeg;base64,${Buffer.from("pixels").toString("base64")}`,
+    );
+    manager.hide({ activationId: "zoomed" });
+    await expect(manager.captureActive("zoomed")).resolves.toBeNull();
+  });
+
   it("rejects stale cleanup and bounds messages from previous activation attempts", async () => {
     const { manager, installed } = await exchangeUpdateFixture();
     const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
@@ -2447,7 +2622,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       const v = {
@@ -2533,7 +2708,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       return {
@@ -2668,7 +2843,7 @@ describe("development extension installation", () => {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
-      protocol: { registerFileProtocol: vi.fn() },
+      protocol: { handle: vi.fn(), isProtocolHandled: vi.fn(() => false), unhandle: vi.fn() },
     } as never);
     vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
       return {

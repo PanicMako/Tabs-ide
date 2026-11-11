@@ -27,7 +27,8 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
   const [visible, setVisible] = useState(true);
   const [settings] = useState(() => readFirstPaintSplashSettings(window.localStorage));
   const state = useSyncExternalStore(subscribeStartupSplash, getStartupSplashState);
-  const transition = useStartupAnimation(state.ready, settings.loader);
+  const [introDone, setIntroDone] = useState(false);
+  const transition = useStartupAnimation(state.ready, settings.loader, introDone);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,7 +83,7 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
             updateStartupSplash({ dismissed: true });
           }}
         >
-          <SplashScreen {...settings} />
+          <SplashScreen {...settings} onIntroComplete={() => setIntroDone(true)} />
           {state.error ? (
             <div
               className="absolute inset-x-4 top-8 bottom-8 mx-auto max-w-2xl overflow-y-auto rounded-lg border bg-background p-5 text-sm"

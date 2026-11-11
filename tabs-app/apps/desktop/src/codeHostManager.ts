@@ -1,4 +1,5 @@
 import { isLightDesktopTheme } from "./desktopTheme";
+import { protocolContentType, readProtocolFile } from "./protocolFile";
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as OS from "node:os";
@@ -337,49 +338,8 @@ function normalizeFilePath(input: string): string {
   return input.replace(/\\/g, "/");
 }
 
-export function getCodeOssContentType(pathname: string): string {
-  switch (Path.extname(pathname).toLowerCase()) {
-    case ".html":
-      return "text/html; charset=utf-8";
-    case ".js":
-    case ".mjs":
-      return "text/javascript; charset=utf-8";
-    case ".css":
-      return "text/css; charset=utf-8";
-    case ".json":
-    case ".map":
-      return "application/json; charset=utf-8";
-    case ".svg":
-      return "image/svg+xml";
-    case ".png":
-      return "image/png";
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".gif":
-      return "image/gif";
-    case ".woff":
-      return "font/woff";
-    case ".woff2":
-      return "font/woff2";
-    case ".ttf":
-      return "font/ttf";
-    case ".wasm":
-      return "application/wasm";
-    default:
-      return "application/octet-stream";
-  }
-}
-
-export async function readCodeOssProtocolFile(
-  pathname: string,
-  initialHeaders?: HeadersInit,
-): Promise<Response> {
-  const contents = await FS.promises.readFile(pathname);
-  const headers = new Headers(initialHeaders);
-  headers.set("Content-Type", getCodeOssContentType(pathname));
-  return new Response(contents, { status: 200, headers });
-}
+export const getCodeOssContentType = protocolContentType;
+export const readCodeOssProtocolFile = readProtocolFile;
 
 function findDefaultWorkspaceFile(workspaceRoot: string): string | null {
   try {

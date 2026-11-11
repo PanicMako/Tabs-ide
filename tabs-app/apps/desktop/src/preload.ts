@@ -99,6 +99,8 @@ const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_CAPTURE_CHANNEL = "desktop:extension:capture";
+const BROWSER_HOST_SET_REST_CHANNEL = "desktop:browser-host:set-rest-after";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const BROWSER_HOST_GET_SESSION_STATE_CHANNEL = "desktop:browser-host:get-session-state";
 const BROWSER_HOST_ENSURE_SESSION_CHANNEL = "desktop:browser-host:ensure-session";
@@ -106,6 +108,7 @@ const BROWSER_HOST_ACTIVATE_SESSION_CHANNEL = "desktop:browser-host:activate-ses
 const BROWSER_HOST_HIDE_SESSION_CHANNEL = "desktop:browser-host:hide-session";
 const BROWSER_HOST_NAVIGATE_SESSION_CHANNEL = "desktop:browser-host:navigate-session";
 const BROWSER_HOST_RELOAD_SESSION_CHANNEL = "desktop:browser-host:reload-session";
+const BROWSER_HOST_STOP_SESSION_CHANNEL = "desktop:browser-host:stop-session";
 const BROWSER_HOST_SET_ZOOM_CHANNEL = "desktop:browser-host:set-zoom";
 const BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL = "desktop:browser-host:set-audio-muted";
 const BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL = "desktop:browser-host:open-picture-in-picture";
@@ -372,6 +375,9 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ),
   activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
   setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
+  captureExtensionView: (input) => ipcRenderer.invoke(EXTENSION_CAPTURE_CHANNEL, input),
+  setBrowserRestAfterMinutes: (minutes) =>
+    ipcRenderer.invoke(BROWSER_HOST_SET_REST_CHANNEL, minutes),
   hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
@@ -382,6 +388,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   navigateBrowserSession: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_NAVIGATE_SESSION_CHANNEL, input),
   reloadBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_RELOAD_SESSION_CHANNEL, input),
+  stopBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_STOP_SESSION_CHANNEL, input),
   setBrowserZoomFactor: (input) => ipcRenderer.invoke(BROWSER_HOST_SET_ZOOM_CHANNEL, input),
   setBrowserAudioMuted: (input) => ipcRenderer.invoke(BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL, input),
   openBrowserPictureInPicture: (input) =>

@@ -73,6 +73,8 @@ export class CompanionBrowserSession {
     await this.bridge.ensureBrowserSession({
       ...this.input,
       initialUrl: normalizeCompanionUrl(initialUrl),
+      // Show the page while it loads instead of a blank panel until it is done.
+      waitForLoad: false,
     });
     if (this.disposed) return;
     const state = await this.bridge.getBrowserSessionState(this.input);

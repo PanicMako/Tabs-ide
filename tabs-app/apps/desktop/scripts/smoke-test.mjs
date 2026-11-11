@@ -603,6 +603,10 @@ async function run() {
             splashVisible,
             hasNativeApi,
             bodySnippet: bodyText.slice(0, 200),
+            splashLeaving: splashOverlay?.hasAttribute("data-leaving") ?? null,
+            workspaceRising: Boolean(document.querySelector("[data-rising]")),
+            visibility: document.visibilityState,
+            animations: document.getAnimations().length,
           };
         })()
       `);
@@ -1963,7 +1967,26 @@ async function run() {
     }
 
     if (!restartedReady) {
-      throw new Error("Restarted Electron renderer failed to bootstrap past loading screen");
+      // Say which condition never cleared, so a failure here is diagnosable.
+      const detail = await cdp2
+        .evaluate(`
+        JSON.stringify((() => {
+          const overlay = document.querySelector('div[class*="z-[9999]"]');
+          return {
+            nativeApi: Boolean(window.__tabsNativeApi),
+            stillConnecting: (document.body?.innerText ?? "").includes("Still connecting to your workspace"),
+            splashPresent: Boolean(overlay),
+            splashLeaving: overlay?.hasAttribute("data-leaving") ?? null,
+            visibility: document.visibilityState,
+            hasFocus: document.hasFocus(),
+            loader: (() => { try { return JSON.parse(localStorage.getItem("tabs:client-settings:v1") ?? "{}").splashLoaderStyle ?? "default"; } catch { return "unreadable"; } })(),
+          };
+        })())
+      `)
+        .catch((cause) => `unavailable: ${cause}`);
+      throw new Error(
+        `Restarted Electron renderer failed to bootstrap past loading screen: ${detail}`,
+      );
     }
 
     // Complete or skip onboarding if present

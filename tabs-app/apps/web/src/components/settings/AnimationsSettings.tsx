@@ -20,11 +20,11 @@ import { CloseScreen } from "../CloseScreen";
 import { STARTUP_RISE_LAYER_CLASS, StartupCurtain } from "../StartupCurtain";
 import { useReducedStartupMotion } from "../../hooks/useStartupAnimation";
 import {
-  STARTUP_ANIMATION_EXIT_MS,
-  startupAnimationHoldMs,
   startupExitBeatMs,
+  startupExitMs,
   startupExitStyle,
 } from "../../lib/startupAnimationTiming";
+import { useStartupIntroDone } from "../../hooks/useStartupAnimation";
 import { CURATED_FONT_COMBOS as FONT_COMBOS, UI_FONT_OPTIONS } from "../../lib/themes";
 import {
   SettingResetButton,
@@ -37,7 +37,8 @@ import {
 function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont, onClose }: any) {
   // Runs exactly as a real launch does: the whole animation, then the real exit.
   const reduced = useReducedStartupMotion();
-  const holdMs = reduced ? 1_500 : startupAnimationHoldMs(loader);
+  const [introSignalled, setIntroSignalled] = useState(false);
+  const introDone = useStartupIntroDone(loader, introSignalled);
   const [leaving, setLeaving] = useState(false);
   const onCloseRef = useRef(onClose);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -52,9 +53,11 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
   }, []);
 
   useEffect(() => {
-    const exitTimer = setTimeout(() => setLeaving(true), holdMs);
+    if (!introDone) return;
+    // Reduced motion has no intro to watch, so hold the still board briefly.
+    const exitTimer = setTimeout(() => setLeaving(true), reduced ? 1_500 : 0);
     return () => clearTimeout(exitTimer);
-  }, [holdMs]);
+  }, [introDone, reduced]);
 
   return (
     <div
@@ -82,7 +85,7 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
       </button>
       <StartupCurtain
         leaving={leaving}
-        durationMs={reduced ? 0 : STARTUP_ANIMATION_EXIT_MS}
+        durationMs={reduced ? 0 : startupExitMs(loader)}
         beatMs={startupExitBeatMs(loader)}
         exit={startupExitStyle(loader)}
         riseRef={riseRef}
@@ -94,6 +97,7 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
           theme={theme}
           fontComboId={fontComboId}
           customFont={customFont}
+          onIntroComplete={() => setIntroSignalled(true)}
         />
       </StartupCurtain>
       <div ref={riseRef} className={STARTUP_RISE_LAYER_CLASS} />

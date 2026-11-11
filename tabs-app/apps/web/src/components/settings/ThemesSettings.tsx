@@ -1,4 +1,10 @@
 import { ToolbarStyleReel } from "./ToolbarStyleReel";
+import { useInstalledExtensions } from "../../state/extensions";
+import {
+  extensionThemePresets,
+  isActiveExtensionTheme,
+  type ExtensionThemePreset,
+} from "../../extensionThemes";
 import { TypographyReel } from "./TypographyReel";
 import {
   Dialog,
@@ -351,7 +357,10 @@ export function ThemePickerGrid({
   onRenamePreset,
   onEditPresetInStudio,
   environmentThemes,
+  extensionThemes = [],
 }: {
+  /** Palettes contributed by installed extensions. */
+  extensionThemes?: readonly ExtensionThemePreset[];
   activeTheme: ThemePreference;
   customConfig: CustomThemeConfig;
   savedPresets: SavedCustomPreset[];
@@ -424,15 +433,35 @@ export function ThemePickerGrid({
               JSON.stringify(customConfig.tokenOverrides ?? {}),
         )
       : undefined;
+  const activeExtensionTheme =
+    activeTheme === "custom"
+      ? extensionThemes.find((preset) => isActiveExtensionTheme(preset, customConfig))
+      : undefined;
   const selectedName =
     activeTheme === "system"
       ? "System Auto"
       : (selectedDefinition?.name ??
         publishedTheme?.name ??
         activeSavedPalette?.name ??
+        activeExtensionTheme?.name ??
         "Custom palette");
 
-  const curatedThemes = [
+  const curatedThemes: Array<{
+    id: ThemePreference;
+    name: string;
+    description: string;
+    baseVariant: string;
+    badge: string;
+    bg: string;
+    card: string;
+    accent: string;
+    border: string;
+    codeKeyword: string;
+    codeString: string;
+    /** Set for extension palettes, which apply through the custom pipeline. */
+    apply?: CustomThemeConfig;
+    active?: boolean;
+  }> = [
     {
       id: "system" as const,
       name: "System Auto",
@@ -482,6 +511,22 @@ export function ThemePickerGrid({
         codeString: colors.foreground ?? fallback.colors.foreground,
       };
     }),
+    ...extensionThemes.map((preset) => ({
+      id: `extension:${preset.id}` as ThemePreference,
+      name: preset.name,
+      description: `From ${preset.extensionName}`,
+      baseVariant: preset.config.baseVariant,
+      badge: "EXT",
+      bg: preset.config.colors.background,
+      card: preset.config.colors.card,
+      accent: preset.config.colors.primary,
+      border: preset.config.colors.border,
+      codeKeyword: preset.config.colors.primary,
+      codeString: preset.config.colors.foreground,
+      // Applied through the custom pipeline, keeping the user's fonts.
+      apply: { ...preset.config, fonts: customConfig.fonts },
+      active: activeExtensionTheme?.id === preset.id,
+    })),
   ];
 
   return (
@@ -527,8 +572,11 @@ export function ThemePickerGrid({
                     data-theme-id={t.id}
                     data-theme-choice
                     aria-label={`Theme: ${t.name}`}
-                    aria-pressed={activeTheme === t.id}
-                    onClick={() => onSelectTheme(t.id)}
+                    aria-pressed={t.apply ? Boolean(t.active) : activeTheme === t.id}
+                    title={t.apply ? t.description : undefined}
+                    onClick={() =>
+                      t.apply ? onSelectTheme("custom", t.apply) : onSelectTheme(t.id)
+                    }
                     className="theme-collection-choice"
                   >
                     <span
@@ -544,6 +592,7 @@ export function ThemePickerGrid({
                           : t.baseVariant === "dark"
                             ? "Dark"
                             : "Light"}
+                        {t.apply ? ` · ${t.description}` : ""}
                       </small>
                     </span>
                   </button>
@@ -708,6 +757,11 @@ export function ThemesSettings() {
   const { updateSettings } = useUpdateSettings();
   const debouncedSettings = useDebouncedSettingsUpdate(350);
   const serverConfig = useServerConfig();
+  const installedExtensions = useInstalledExtensions();
+  const extensionThemes = useMemo(
+    () => extensionThemePresets(installedExtensions, customThemeConfig.fonts),
+    [installedExtensions, customThemeConfig.fonts],
+  );
 
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [studioInitialConfig, setStudioInitialConfig] = useState<CustomThemeConfig | null>(null);
@@ -835,6 +889,7 @@ export function ThemesSettings() {
           customConfig={customThemeConfig}
           savedPresets={savedPresets}
           environmentThemes={serverConfig?.environmentThemes}
+          extensionThemes={extensionThemes}
           onSelectTheme={(t, overrideConfig) => {
             if (overrideConfig) {
               setCustomThemeConfig(overrideConfig);
