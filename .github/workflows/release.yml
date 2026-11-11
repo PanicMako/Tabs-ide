@@ -247,10 +247,10 @@ jobs:
 
       - name: Install Linux system dependencies
         run: |
-          sudo sed -i 's/azure\.archive\.ubuntu\.com/archive\.ubuntu\.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          if ! grep -q "8.8.8.8" /etc/resolv.conf 2>/dev/null; then
-            echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf >/dev/null || true
-          fi
+          sudo sed -i -e 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com/ubuntu/|g' \
+                      -e 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' \
+                      /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/apt-mirrors.txt 2>/dev/null || true
+          printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" | sudo tee /etc/resolv.conf >/dev/null || true
           for attempt in 1 2 3; do
             if sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 && \
                sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 libkrb5-dev libsecret-1-dev libxkbfile-dev; then
@@ -352,10 +352,10 @@ jobs:
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo sed -i 's/azure\.archive\.ubuntu\.com/archive\.ubuntu\.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          if ! grep -q "8.8.8.8" /etc/resolv.conf 2>/dev/null; then
-            echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf >/dev/null || true
-          fi
+          sudo sed -i -e 's|mirror+file:/etc/apt/apt-mirrors.txt|http://archive.ubuntu.com/ubuntu/|g' \
+                      -e 's|azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|g' \
+                      /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/apt-mirrors.txt 2>/dev/null || true
+          printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" | sudo tee /etc/resolv.conf >/dev/null || true
           for attempt in 1 2 3; do
             if sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 && \
                sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 libkrb5-dev libsecret-1-dev libxkbfile-dev; then
