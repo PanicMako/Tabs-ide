@@ -199,8 +199,8 @@
   box-shadow:
     0 16px 48px -4px color-mix(in srgb, var(--foreground) 16%, transparent),
     0 4px 16px -2px color-mix(in srgb, var(--foreground) 8%, transparent);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 .workspace-branch-picker-viewport {
   padding: 0 !important;

@@ -11,6 +11,7 @@ import { AppRoot } from "./AppRoot";
 import { hasCloudPublicConfig, resolveCloudPublicConfig } from "./cloud/publicConfig";
 import { initializeComposerDraftsState } from "./state/composerDrafts";
 import { initializeWorkspaceShellState } from "./state/workspaceShell";
+import { installLinkInterceptor } from "./browserLinkTarget";
 
 const history = isElectron ? createHashHistory() : createBrowserHistory();
 const router = getRouter(history);
@@ -18,6 +19,7 @@ document.title = APP_DISPLAY_NAME;
 
 initializeComposerDraftsState();
 initializeWorkspaceShellState();
+installLinkInterceptor();
 
 const publishableKey = resolveCloudPublicConfig().clerkPublishableKey;
 const managedAuthShellModule =

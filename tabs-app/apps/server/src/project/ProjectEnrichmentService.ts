@@ -166,7 +166,13 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
       ? Effect.logWarning("Failed to enrich optional project metadata", {
           workspaceRoot,
           field,
-          cause: Cause.pretty(result.cause),
+          // Optional metadata: keep the error chain, drop bundle stack frames.
+          cause: Cause.pretty(result.cause)
+            .split("\n")
+            .filter((line) => !/^\s*at\s/u.test(line) && line.trim() !== "}")
+            .join(" ")
+            .replace(/\s+/gu, " ")
+            .trim(),
         })
       : Effect.void;
 

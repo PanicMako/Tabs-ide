@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsSection } from "./SettingsLayout";
 import { QUICK_ACTIONS, type QuickSubAction } from "../quick-actions/actions";
@@ -75,7 +74,7 @@ export function QuickSubActionsSettings({
         </Select>
       )}
       <p className="text-xs leading-relaxed text-muted-foreground">
-        These shortcuts appear beside this action in the launcher. Drag to reorder, or use the
+        These appear in a panel beside this action in the launcher. Drag to reorder, or use the
         arrows.
       </p>
       <div className="divide-y divide-border">
@@ -157,138 +156,128 @@ export function QuickSubActionsSettings({
           No shortcuts yet. The main action still works with one click.
         </p>
       )}
-      <Button size="sm" variant="outline" disabled={children.length >= 8} onClick={create}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={children.length >= 8 || Boolean(draft)}
+        onClick={create}
+      >
         <PlusIcon className="size-3.5" />
         Add shortcut
       </Button>
-      <Dialog
-        open={Boolean(draft)}
-        onOpenChange={(open) => {
-          if (!open) setDraft(null);
-        }}
-      >
-        <DialogPopup className="max-w-sm">
-          {draft && (
-            <form
-              className="space-y-4 p-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const next = { ...draft, label: draft.label.trim() };
-                if (!next.label) return;
-                onChange(
-                  value.some((entry) => entry.id === draft.id)
-                    ? value.map((entry) => (entry.id === draft.id ? next : entry))
-                    : [...value, next],
-                );
-                setDraft(null);
+      {draft && (
+        <form
+          className="space-y-3 rounded-xl border border-border bg-background/60 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const next = { ...draft, label: draft.label.trim() };
+            if (!next.label) return;
+            onChange(
+              value.some((entry) => entry.id === draft.id)
+                ? value.map((entry) => (entry.id === draft.id ? next : entry))
+                : [...value, next],
+            );
+            setDraft(null);
+          }}
+        >
+          <p className="text-sm font-medium">
+            {value.some((entry) => entry.id === draft.id) ? "Edit shortcut" : "New shortcut"}
+          </p>
+          <label className="grid gap-1.5 text-sm">
+            <span>Name</span>
+            <Input
+              autoFocus
+              aria-label="Shortcut name"
+              required
+              maxLength={40}
+              placeholder="For example, Team docs"
+              value={draft.label}
+              onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+            />
+          </label>
+          <div className="space-y-1.5">
+            <span className="text-sm">Opens</span>
+            <Select
+              value={draft.actionId}
+              onValueChange={(next) => {
+                if (next) setDraft({ ...draft, actionId: next, query: "" });
               }}
             >
-              <div className="space-y-1">
-                <DialogTitle>
-                  {value.some((entry) => entry.id === draft.id) ? "Edit shortcut" : "Add shortcut"}
-                </DialogTitle>
-                <DialogDescription>
-                  Under {QUICK_ACTIONS.find((action) => action.id === parent)?.label}. Give it a
-                  clear name and choose what it opens.
-                </DialogDescription>
+              <SelectTrigger aria-label="Shortcut action" className="w-full">
+                <SelectValue>
+                  {QUICK_ACTIONS.find((action) => action.id === draft.actionId)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                {QUICK_ACTIONS.map((action) => (
+                  <SelectItem key={action.id} value={action.id}>
+                    {action.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          </div>
+          {(draft.actionId === "scratch-browser" || draft.actionId === "search") && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1.5" aria-label="Suggested destinations">
+                {(draft.actionId === "search"
+                  ? [
+                      { label: "Google", query: "https://www.google.com/search?q={query}" },
+                      { label: "DuckDuckGo", query: "https://duckduckgo.com/?q={query}" },
+                    ]
+                  : [
+                      { label: "Blank", query: "" },
+                      { label: "Google", query: "https://www.google.com" },
+                      { label: "GitHub", query: "https://github.com" },
+                    ]
+                ).map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        label: draft.label || preset.label,
+                        query: preset.query,
+                      })
+                    }
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
               </div>
               <label className="grid gap-1.5 text-sm">
-                <span>Name</span>
+                <span>{draft.actionId === "search" ? "Search address" : "Web address"}</span>
                 <Input
-                  autoFocus
-                  aria-label="Shortcut name"
-                  required
-                  maxLength={40}
-                  placeholder="For example, Team docs"
-                  value={draft.label}
-                  onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+                  aria-label="Shortcut destination"
+                  placeholder={
+                    draft.actionId === "search"
+                      ? "Choose a search service above"
+                      : "Leave empty for a blank browser"
+                  }
+                  value={draft.query}
+                  onChange={(event) => setDraft({ ...draft, query: event.target.value })}
                 />
               </label>
-              <div className="space-y-1.5">
-                <span className="text-sm">Opens</span>
-                <Select
-                  value={draft.actionId}
-                  onValueChange={(next) => {
-                    if (next) setDraft({ ...draft, actionId: next, query: "" });
-                  }}
-                >
-                  <SelectTrigger aria-label="Shortcut action" className="w-full">
-                    <SelectValue>
-                      {QUICK_ACTIONS.find((action) => action.id === draft.actionId)?.label}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectPopup>
-                    {QUICK_ACTIONS.map((action) => (
-                      <SelectItem key={action.id} value={action.id}>
-                        {action.label}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-              {(draft.actionId === "scratch-browser" || draft.actionId === "search") && (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5" aria-label="Suggested destinations">
-                    {(draft.actionId === "search"
-                      ? [
-                          { label: "Google", query: "https://www.google.com/search?q={query}" },
-                          { label: "DuckDuckGo", query: "https://duckduckgo.com/?q={query}" },
-                        ]
-                      : [
-                          { label: "Blank", query: "" },
-                          { label: "Google", query: "https://www.google.com" },
-                          { label: "GitHub", query: "https://github.com" },
-                        ]
-                    ).map((preset) => (
-                      <Button
-                        key={preset.label}
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        onClick={() =>
-                          setDraft({
-                            ...draft,
-                            label: draft.label || preset.label,
-                            query: preset.query,
-                          })
-                        }
-                      >
-                        {preset.label}
-                      </Button>
-                    ))}
-                  </div>
-                  <label className="grid gap-1.5 text-sm">
-                    <span>{draft.actionId === "search" ? "Search address" : "Web address"}</span>
-                    <Input
-                      aria-label="Shortcut destination"
-                      placeholder={
-                        draft.actionId === "search"
-                          ? "Choose a search service above"
-                          : "Leave empty for a blank browser"
-                      }
-                      value={draft.query}
-                      onChange={(event) => setDraft({ ...draft, query: event.target.value })}
-                    />
-                  </label>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {draft.actionId === "search"
-                      ? "Choose Google or DuckDuckGo, or use a search address with {query} where the search text belongs."
-                      : "Opens in a separate temporary browser tab."}
-                  </p>
-                </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button type="button" size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={!draft.label.trim()}>
-                  Save shortcut
-                </Button>
-              </div>
-            </form>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {draft.actionId === "search"
+                  ? "Choose Google or DuckDuckGo, or use a search address with {query} where the search text belongs."
+                  : "Opens in a separate temporary browser tab."}
+              </p>
+            </div>
           )}
-        </DialogPopup>
-      </Dialog>
+          <div className="flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={!draft.label.trim()}>
+              Save shortcut
+            </Button>
+          </div>
+        </form>
+      )}
     </div>
   );
   return embedded ? (

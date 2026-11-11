@@ -196,6 +196,7 @@ const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startu
 const RESET_TABS_USER_DATA_ARG = "--tabs-reset-user-data";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
+const UPDATE_RETRY_CHECK_CHANNEL = "desktop:update-retry-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
@@ -3688,6 +3689,14 @@ function registerIpcHandlers(): void {
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
   handleTabsIpc(UPDATE_GET_STATE_CHANNEL, async () => updateState);
+
+  ipcMain.removeHandler(UPDATE_RETRY_CHECK_CHANNEL);
+  handleTabsIpc(UPDATE_RETRY_CHECK_CHANNEL, async () => {
+    if (updateState.status === "error" && updateState.errorContext === "check") {
+      await checkForUpdates("retry");
+    }
+    return updateState;
+  });
 
   ipcMain.removeHandler(UPDATE_DOWNLOAD_CHANNEL);
   handleTabsIpc(UPDATE_DOWNLOAD_CHANNEL, async () => {

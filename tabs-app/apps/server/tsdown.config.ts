@@ -1,8 +1,12 @@
 import { defineConfig } from "tsdown";
 
+// Desktop dev only loads dist/index.mjs, so the watcher skips the CommonJS copy:
+// it halves rebuild time and its `import.meta` entry points can't run as CJS.
+const devBundle = process.env.TABS_SERVER_DEV_BUNDLE === "1";
+
 export default defineConfig({
   entry: ["src/index.ts", "src/bin.ts", "src/claudeHistoryWorker.ts"],
-  format: ["esm", "cjs"],
+  format: devBundle ? ["esm"] : ["esm", "cjs"],
   checks: {
     legacyCjs: false,
   },
@@ -16,6 +20,7 @@ export default defineConfig({
   // covers the `@tabs/*` packages plus the (unscoped) `effect-acp` and
   // `effect-codex-app-server` workspace packages.
   deps: {
+    onlyBundle: false,
     // The Locator Library uses the compiler API to parse company page objects
     // without executing them. Keep TypeScript as a runtime dependency instead
     // of embedding its CommonJS-oriented Node host in our ESM server bundle.

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useId } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { cn } from "../lib/cn";
+import { TabsStroll } from "./TabsMascot";
 import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
@@ -15,9 +16,9 @@ export {
   STARTUP_ANIMATION_EXIT_MS,
 } from "../lib/startupAnimationTiming";
 
-const GLASS_MESSAGES = [
-  "COMPILING VIBES",
-  "MELTING NODE_MODULES",
+const MASCOT_MESSAGES = [
+  "WAKING UP THE MASCOT",
+  "FINDING A SPARE TAB",
   "NEGOTIATING WITH THE LINTER",
   "BRIBING THE GARBAGE COLLECTOR",
   "RETICULATING SPLINES",
@@ -94,7 +95,7 @@ function RotatingLabel({
   );
 }
 
-function MoltenGlass({
+function MascotLoader({
   palette,
   isDark,
   fonts,
@@ -109,104 +110,22 @@ function MoltenGlass({
       }
     | undefined;
 }) {
-  const filterId = useId().replace(/:/g, "");
   const isBlock = palette === "block";
-  const animateRef = useRef<SVGAnimationElement>(null);
-  const reducedMotion = useReducedStartupMotion();
-
-  useEffect(() => {
-    if (reducedMotion) return;
-    const triggerAnimation = () => {
-      if (animateRef.current) {
-        try {
-          (animateRef.current as any).beginElement();
-        } catch (e) {}
-      }
-    };
-
-    const frame = requestAnimationFrame(triggerAnimation);
-    const intervalId = setInterval(triggerAnimation, 6700);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(intervalId);
-    };
-  }, [reducedMotion]);
-
-  const headingStyle = fonts?.headingFont
-    ? {
-        fontFamily: fonts.headingFont,
-        fontWeight: fonts.headingWeight,
-        filter: `url(#${filterId})`,
-      }
-    : { filter: `url(#${filterId})` };
-
   return (
-    <div className="relative z-10 flex min-h-[300px] w-full max-w-[560px] items-center justify-center p-6 loader-respect-motion">
-      <div className="relative flex w-full flex-col items-center justify-center gap-[22px]">
-        <svg
-          width="1"
-          height="1"
-          style={{ position: "absolute", opacity: 0.001, pointerEvents: "none" }}
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.02 0.09"
-                numOctaves="2"
-                seed="3"
-                result="noise"
-              >
-                <animate
-                  ref={animateRef}
-                  attributeName="baseFrequency"
-                  dur="6.75s"
-                  begin="indefinite"
-                  values="0.02 0.09;0.035 0.14;0.02 0.09"
-                  repeatCount="indefinite"
-                />
-              </feTurbulence>
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale="12"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-            </filter>
-          </defs>
-        </svg>
-
-        <div
-          className={cn(
-            "relative z-10 text-[80px] font-light tracking-[-0.02em]",
-            isBlock
-              ? isDark
-                ? "text-[#1c0f0e]"
-                : "text-white"
-              : isDark
-                ? "text-white"
-                : "text-black",
-          )}
-          style={headingStyle}
-        >
-          TABS
-        </div>
-
+    <div className="relative z-10 flex min-h-[300px] w-full items-center justify-center p-6 loader-respect-motion">
+      <div className="relative flex w-full flex-col items-center justify-center gap-[18px]">
+        <TabsStroll
+          ink={isBlock ? "#ffffff" : isDark ? "#ffffff" : "#0a0a0a"}
+          paper={isBlock ? "#2563eb" : isDark ? "#09090b" : "#ffffff"}
+        />
         <RotatingLabel
-          messages={GLASS_MESSAGES}
+          // Held back until the gag ends, so only slow loads see it (see tabs-mascot.css).
+          messages={MASCOT_MESSAGES}
           uiFont={fonts?.uiFont}
-          className={
-            isBlock
-              ? isDark
-                ? "text-[#1c0f0e]/85"
-                : "text-white/75"
-              : isDark
-                ? "text-[#a1a1aa]"
-                : "text-[#71717a]"
-          }
+          className={cn(
+            "mascot-status",
+            isBlock ? "text-white/75" : isDark ? "text-[#a1a1aa]" : "text-[#71717a]",
+          )}
         />
       </div>
     </div>
@@ -349,7 +268,8 @@ function SolariGrid({
 }
 
 export interface SplashScreenProps {
-  loader: "glass" | "solari" | string;
+  /** "mascot" | "solari"; a stored "glass" (retired) shows the mascot. */
+  loader: "mascot" | "glass" | "solari" | string;
   palette: "block" | "mono" | string;
   theme?: "light" | "dark" | "system" | undefined;
   fontComboId?: string | undefined;
@@ -395,7 +315,7 @@ export function SplashScreen({
       {loader === "solari" ? (
         <SolariGrid palette={palette as any} isDark={isDark} fonts={fonts} />
       ) : (
-        <MoltenGlass palette={palette as any} isDark={isDark} fonts={fonts} />
+        <MascotLoader palette={palette as any} isDark={isDark} fonts={fonts} />
       )}
     </div>
   );

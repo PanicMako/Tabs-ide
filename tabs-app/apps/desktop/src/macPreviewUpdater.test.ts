@@ -322,6 +322,84 @@ describe("MacPreviewUpdater archive integration", () => {
     return { directory, updater, metadata };
   }
 
+  it.each([403, 429])(
+    "verifies the latest signed release when the list returns HTTP %s",
+    async (status) => {
+      const archive = Buffer.from("signed archive bytes");
+      const { directory, updater, metadata } = await setup(archive);
+      const releasesUrl = "https://github.com/PanicMako/Tabs-ide/releases";
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("https://api.github.com/")) return new Response(null, { status });
+        if (url === `${releasesUrl}/latest`) {
+          expect(init?.redirect).toBe("manual");
+          return Response.redirect(`${releasesUrl}/tag/v1.4.0`);
+        }
+        expect(url).toMatch(/\/download\/v1\.4\.0\//);
+        return url.endsWith(".zip") ? new Response(archive) : metadata(url);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        await expect(updater.checkForUpdates()).resolves.toMatchObject({ version: "1.4.0" });
+        await expect(updater.downloadUpdate(vi.fn())).resolves.toBe("1.4.0");
+      } finally {
+        vi.unstubAllGlobals();
+        await FSPromises.rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each([
+    "https://github.com/another/repo/releases/tag/v1.4.0",
+    "https://github.com/PanicMako/Tabs-ide/releases/tag/v1.4.0-beta.1",
+    "https://github.com/PanicMako/Tabs-ide/releases/tag/v1.3.34",
+  ])("keeps the GitHub error when the fallback release can't be used: %s", async (location) => {
+    const { directory, updater } = await setup(Buffer.from("signed archive bytes"));
+    const fetchMock = vi.fn(async (url: string) =>
+      url.startsWith("https://api.github.com/")
+        ? new Response(null, { status: 403 })
+        : Response.redirect(location),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(updater.checkForUpdates()).rejects.toThrow("HTTP 403");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await expect(updater.downloadUpdate(vi.fn())).rejects.toThrow("No verified macOS update");
+    } finally {
+      vi.unstubAllGlobals();
+      await FSPromises.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { "retry-after": "90" },
+    { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1900000090" },
+  ])("retries the GitHub API only after the rate limit expires (%j)", async (headers) => {
+    const { directory, updater, metadata } = await setup(Buffer.from("signed archive bytes"));
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_900_000_000_000);
+    let attempts = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/latest")) return new Response(null, { status: 404 });
+      if (url.startsWith("https://api.github.com/") && ++attempts === 1) {
+        return new Response(null, { status: 403, headers: new Headers(Object.entries(headers)) });
+      }
+      return metadata(url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(updater.checkForUpdates()).rejects.toThrow(/HTTP 403.*Try again after/);
+      clock.mockReturnValue(1_900_000_089_000);
+      await expect(updater.checkForUpdates()).rejects.toThrow("HTTP 403");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      clock.mockReturnValue(1_900_000_090_000);
+      await expect(updater.checkForUpdates()).resolves.toMatchObject({ version: "1.4.0" });
+      expect(attempts).toBe(2);
+    } finally {
+      clock.mockRestore();
+      vi.unstubAllGlobals();
+      await FSPromises.rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("downloads through the public updater beyond two minutes while bytes keep arriving", async () => {
     const archive = Buffer.from("signed archive bytes");
     const { directory, updater, metadata } = await setup(archive);

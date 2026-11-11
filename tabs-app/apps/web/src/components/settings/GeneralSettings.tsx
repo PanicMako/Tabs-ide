@@ -731,6 +731,34 @@ export function GeneralSettings() {
         />
 
         <SettingsRow
+          title="Agent CLI"
+          description="Add a Chat / CLI switch to each thread so you can run the agent's own command-line tool (Claude Code, Codex and others) in place of the chat. Toggle a thread with ⌘⇧J."
+          resetAction={
+            settings.agentCliEnabled !== DEFAULT_UNIFIED_SETTINGS.agentCliEnabled ? (
+              <SettingResetButton
+                label="agent CLI"
+                onClick={() =>
+                  updateSettings({
+                    agentCliEnabled: DEFAULT_UNIFIED_SETTINGS.agentCliEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.agentCliEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  agentCliEnabled: Boolean(checked),
+                })
+              }
+              aria-label="Enable agent CLI in threads"
+            />
+          }
+        />
+
+        <SettingsRow
           title="Delete confirmation"
           description="Ask before deleting a thread and its chat history."
           resetAction={

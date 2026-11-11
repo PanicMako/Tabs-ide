@@ -1,17 +1,10 @@
-import { useState } from "react";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CheckIcon,
-  RotateCcwIcon,
-  ChevronDownIcon,
-  GripVerticalIcon,
-} from "lucide-react";
+import { CheckIcon, RotateCcwIcon } from "lucide-react";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
+import { shortcutLabelForCommand } from "~/keybindings";
+import { useKeybindings } from "~/state/settings";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import { Switch } from "../ui/switch";
-import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
+import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 import { LauncherSurface, useQuickActions } from "../quick-actions/QuickActions";
 import {
   LAUNCHER_DESIGNS,
@@ -22,147 +15,157 @@ import {
   type LauncherDesign,
 } from "../quick-actions/actions";
 
-import { QuickSubActionsSettings } from "./QuickSubActionsSettings";
+import { QuickActionsArranger } from "./QuickActionsArranger";
+import "./quick-actions-studio.css";
+
+/** A small drawing of each launcher, so the list can be read at a glance. */
+function DesignGlyph({ design }: { design: LauncherDesign }) {
+  const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+  return (
+    <svg className="qa-studio-glyph" viewBox="-24 -24 48 48" aria-hidden="true">
+      {design === "compass" ? (
+        <>
+          <circle r="16" fill="none" stroke="currentColor" strokeOpacity="0.25" />
+          {angles.map((angle, index) => (
+            <circle
+              key={angle}
+              cx={16 * Math.sin((angle * Math.PI) / 180)}
+              cy={-16 * Math.cos((angle * Math.PI) / 180)}
+              r={index === 0 ? 4.5 : 3}
+              fill={index === 0 ? "var(--primary)" : "currentColor"}
+            />
+          ))}
+        </>
+      ) : (
+        angles.map((angle, index) => (
+          <path
+            key={angle}
+            d="M-7 -19.5 A21 21 0 0 1 7 -19.5 L3 -8.5 A9 9 0 0 0 -3 -8.5 Z"
+            transform={`rotate(${angle})`}
+            fill={index === 0 ? "var(--primary)" : "currentColor"}
+            fillOpacity={index === 0 ? 1 : 0.4}
+          />
+        ))
+      )}
+    </svg>
+  );
+}
 
 export default function QuickActionsSettings() {
   const preferences = useSettings((s) => s.quickActions);
   const { updateSettings: update } = useUpdateSettings();
   const context = useQuickActions();
-  const [preview, setPreview] = useState<LauncherDesign>(
-    normalizeLauncherDesign(preferences.design),
-  );
-  const [expandedAction, setExpandedAction] = useState<string | null>("scratch-browser");
-  const actions = orderedActions(preferences.actionOrder, []);
+  const keybindings = useKeybindings();
+  const shortcut = shortcutLabelForCommand(keybindings, "quickActions.toggle");
+  const current = normalizeLauncherDesign(preferences.design);
   const patch = (value: Partial<typeof preferences>) => {
     void update({ quickActions: { ...preferences, ...value } });
   };
-  const reorder = (index: number, delta: number) => {
-    const ids = actions.map((a) => a.id);
-    [ids[index], ids[index + delta]] = [ids[index + delta]!, ids[index]!];
-    patch({ actionOrder: ids });
-  };
-  const selected = LAUNCHER_DESIGNS.find((design) => design.id === preview)!;
+  const selected = LAUNCHER_DESIGNS.find((design) => design.id === current)!;
   return (
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Quick Actions"
         description="Choose how your launcher looks and keep your most useful actions close."
       />
-      <SettingsSection
-        title="Launcher design"
-        description="Three radial launchers. Choose a design to try it before applying."
-      >
-        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[140px_minmax(0,1fr)]">
-          <div
-            className="grid content-start gap-1.5 sm:grid-cols-2 lg:grid-cols-1"
-            aria-label="Launcher designs"
-          >
-            {LAUNCHER_DESIGNS.map((design) => (
-              <button
-                type="button"
-                key={design.id}
-                aria-pressed={preview === design.id}
-                onClick={() => setPreview(design.id)}
-                className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring ${preview === design.id ? "border-ring/50 bg-accent" : "border-transparent hover:bg-muted/60"}`}
-              >
-                <span className="flex items-center justify-between gap-2 text-sm font-medium">
-                  {design.name}
-                  {normalizeLauncherDesign(preferences.design) === design.id && (
-                    <CheckIcon
-                      className="size-3.5 text-muted-foreground"
-                      aria-label="Current design"
-                    />
-                  )}
-                </span>
-                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground lg:hidden">
-                  {design.description}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="min-w-0 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{selected.name} preview</span>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={preview === normalizeLauncherDesign(preferences.design)}
-                onClick={() => patch({ design: preview })}
-              >
-                {preview === normalizeLauncherDesign(preferences.design)
-                  ? "Current design"
-                  : "Use this design"}
-              </Button>
+      <SettingsSection title="Launcher" className="qa-studio-section">
+        <div className="qa-studio">
+          <div className="qa-studio-layout">
+            <div className="qa-studio-library">
+              <div className="qa-studio-list" role="group" aria-label="Launcher designs">
+                {LAUNCHER_DESIGNS.map((design) => (
+                  <button
+                    type="button"
+                    key={design.id}
+                    aria-label={`Design: ${design.name}`}
+                    aria-pressed={current === design.id}
+                    onClick={() => patch({ design: design.id })}
+                    className="qa-studio-choice"
+                  >
+                    <DesignGlyph design={design.id} />
+                    <span className="qa-studio-choice-copy">
+                      <span className="qa-studio-choice-name">{design.name}</span>
+                      <small>{design.tagline}</small>
+                    </span>
+                    {current === design.id && (
+                      <CheckIcon className="qa-studio-choice-mark" aria-label="Current design" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="qa-studio-options">
+                <div className="qa-studio-option">
+                  <span>
+                    <strong>Quick Actions</strong>
+                    <small>Tools menu, shortcut or gesture</small>
+                  </span>
+                  <Switch
+                    aria-label="Enable Quick Actions"
+                    checked={preferences.enabled}
+                    onCheckedChange={(enabled) => patch({ enabled })}
+                  />
+                </div>
+                <div className="qa-studio-option">
+                  <span>
+                    <strong>Open at the pointer</strong>
+                    <small>Option / Alt + right-click</small>
+                  </span>
+                  <Switch
+                    aria-label="Open at the pointer"
+                    checked={preferences.pointerGesture}
+                    disabled={!preferences.enabled}
+                    onCheckedChange={(checked) => patch({ pointerGesture: checked })}
+                  />
+                </div>
+                <div className="qa-studio-option">
+                  <span>
+                    <strong>Keyboard shortcut</strong>
+                    <small>Change it in Keybindings</small>
+                  </span>
+                  <kbd className="qa-studio-kbd">{shortcut ?? "Not set"}</kbd>
+                </div>
+              </div>
             </div>
-            <div className="qa-preview !p-3 sm:!p-4">
-              {context ? (
-                <LauncherSurface
-                  key={preview}
-                  design={preview}
-                  actions={orderedActions(preferences.actionOrder, preferences.hiddenActions)}
-                  subActions={preferences.subActions}
-                  execute={context.execute}
-                  disabled={(id) =>
-                    preferences.enabled
-                      ? context.disabled(id)
-                      : "Enable Quick Actions to run this action."
-                  }
-                  preview
-                />
-              ) : (
-                <p className="py-6 text-sm text-muted-foreground">
-                  Open settings from your workspace to try actions.
-                </p>
-              )}
+            <div className="qa-studio-feature">
+              <div className="qa-studio-stage">
+                <div className="qa-preview">
+                  <LauncherSurface
+                    key={current}
+                    design={current}
+                    actions={orderedActions(
+                      preferences.actionOrder,
+                      preferences.hiddenActions,
+                      preferences.customActions,
+                    )}
+                    subActions={preferences.subActions}
+                    execute={context?.execute ?? (async () => {})}
+                    disabled={(id) =>
+                      !context
+                        ? "Open settings from your workspace to try actions."
+                        : preferences.enabled
+                          ? context.disabled(id)
+                          : "Enable Quick Actions to run this action."
+                    }
+                    preview
+                  />
+                </div>
+              </div>
+              <div className="qa-studio-copy">
+                <h4>{selected.name}</h4>
+                <p>{selected.description} Actions you try here run in your current workspace.</p>
+              </div>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {selected.description} Preview actions run in your current workspace.
-            </p>
           </div>
         </div>
       </SettingsSection>
       <SettingsSection
-        title="Open the launcher"
-        description="Use Tools → Quick Actions or your Quick Actions shortcut."
-      >
-        <SettingsRow
-          title="Enable Quick Actions"
-          description="Open the launcher from the Tools menu, shortcut, or pointer gesture. Your design and shortcuts are kept when it’s off."
-          control={
-            <Switch
-              aria-label="Enable Quick Actions"
-              checked={preferences.enabled}
-              onCheckedChange={(enabled) => patch({ enabled })}
-            />
-          }
-        />
-        <SettingsRow
-          title="Open at the pointer"
-          description="Option / Alt + right-click in workspace chrome."
-          control={
-            <Switch
-              aria-label="Open at the pointer"
-              checked={preferences.pointerGesture}
-              disabled={!preferences.enabled}
-              onCheckedChange={(checked) => patch({ pointerGesture: checked })}
-            />
-          }
-        />
-        <SettingsRow
-          title="Keyboard shortcut"
-          description="Change Quick Actions: Toggle in Keybindings. The default is Command-Option-K on macOS and Ctrl-Alt-K on Windows and Linux."
-          status="Escape returns focus. Arrow keys navigate; Tab reaches every control. Choose More for workspace and settings actions."
-        />
-      </SettingsSection>
-      <SettingsSection
         title="Actions & shortcuts"
-        description="Turn actions on or off, drag to arrange the ring, and expand an action to manage its shortcuts."
+        description="Make your own actions and drag any of them between the ring, More and Hidden."
         headerAction={
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setPreview("compass");
               patch({
                 actionOrder: QUICK_ACTIONS.map((a) => a.id),
                 hiddenActions: [],
@@ -177,104 +180,13 @@ export default function QuickActionsSettings() {
           </Button>
         }
       >
-        {actions.map((action, index) => (
-          <div key={action.id} className="border-t border-border first:border-t-0">
-            <div
-              draggable
-              onDragStart={(event) =>
-                event.dataTransfer.setData("application/x-tabs-action", action.id)
-              }
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const from = event.dataTransfer.getData("application/x-tabs-action");
-                const ids = actions.map((entry) => entry.id);
-                const start = ids.findIndex((id) => id === from);
-                if (start < 0 || start === index) return;
-                const [moved] = ids.splice(start, 1);
-                ids.splice(index, 0, moved!);
-                patch({ actionOrder: ids });
-              }}
-              data-slot="settings-row"
-              className="flex items-center gap-2 px-4 py-3 sm:px-5"
-            >
-              <GripVerticalIcon
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-muted-foreground/50"
-              />
-              <Checkbox
-                aria-label={`Show ${action.label}`}
-                checked={!preferences.hiddenActions.includes(action.id)}
-                disabled={action.id === "customize"}
-                onCheckedChange={(checked) =>
-                  patch({
-                    hiddenActions: checked
-                      ? preferences.hiddenActions.filter((id) => id !== action.id)
-                      : [...preferences.hiddenActions, action.id],
-                  })
-                }
-              />
-              <button
-                type="button"
-                className="min-w-0 flex-1 text-left"
-                aria-expanded={expandedAction === action.id}
-                aria-label={`Configure ${action.label}`}
-                onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-              >
-                <span className="block text-sm font-medium">{action.label}</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {
-                    (preferences.subActions ?? DEFAULT_SUB_ACTIONS).filter(
-                      (entry) => entry.parentId === action.id,
-                    ).length
-                  }{" "}
-                  shortcuts{preferences.hiddenActions.includes(action.id) ? " · Hidden" : ""}
-                </span>
-              </button>
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label={`Move ${action.label} earlier`}
-                  disabled={index === 0}
-                  onClick={() => reorder(index, -1)}
-                >
-                  <ArrowUpIcon className="size-3.5" />
-                </Button>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label={`Move ${action.label} later`}
-                  disabled={index === actions.length - 1}
-                  onClick={() => reorder(index, 1)}
-                >
-                  <ArrowDownIcon className="size-3.5" />
-                </Button>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label={`Configure ${action.label} shortcuts`}
-                  aria-expanded={expandedAction === action.id}
-                  onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-                >
-                  <ChevronDownIcon
-                    className={`size-3.5 transition-transform ${expandedAction === action.id ? "rotate-180" : ""}`}
-                  />
-                </Button>
-              </div>
-            </div>
-            {expandedAction === action.id && (
-              <div className="border-t border-border bg-muted/20">
-                <QuickSubActionsSettings
-                  parentId={action.id}
-                  embedded
-                  value={preferences.subActions ?? DEFAULT_SUB_ACTIONS}
-                  onChange={(subActions) => patch({ subActions })}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+        <QuickActionsArranger
+          order={preferences.actionOrder}
+          hidden={preferences.hiddenActions}
+          subActions={preferences.subActions ?? DEFAULT_SUB_ACTIONS}
+          customActions={preferences.customActions ?? []}
+          onPatch={patch}
+        />
       </SettingsSection>
     </div>
   );

@@ -1,4 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
+import { ThreadSurfaceSwitch } from "./ThreadSurfaceSwitch";
+import type { ThreadSurface } from "~/stores/threadSurfaceStore";
 import { threadsAtom } from "../../state/threads";
 import { useWorkspaceActionsState, type WorkspaceActionSection } from "./workspaceActionsState";
 import { GitCompanionIcon } from "../WorkspaceToolMarks";
@@ -121,6 +123,11 @@ interface ChatHeaderProps {
   isMaximized?: boolean | undefined;
   onToggleMaximize?: (() => void) | undefined;
   onClosePane?: (() => void) | undefined;
+  /** Chat UI or the agent CLI; the switch is hidden without `onSurfaceChange`. */
+  surface?: ThreadSurface | undefined;
+  onSurfaceChange?: ((surface: ThreadSurface) => void) | undefined;
+  surfaceAttention?: boolean | undefined;
+  surfaceShortcutLabel?: string | null | undefined;
 }
 
 /** Branch picker + checkout + worktree-creation with search, ahead/behind, pull, merge, and divergence */
@@ -825,6 +832,10 @@ export const ChatHeader = memo(function ChatHeader({
   isMaximized = false,
   onToggleMaximize,
   onClosePane,
+  surface = "chat",
+  onSurfaceChange,
+  surfaceAttention = false,
+  surfaceShortcutLabel,
 }: ChatHeaderProps) {
   const persistedConversation = useAtomValue(threadsAtom, (threads) =>
     threads.some(
@@ -1374,6 +1385,14 @@ export const ChatHeader = memo(function ChatHeader({
               </button>
             )}
 
+          {onSurfaceChange && (
+            <ThreadSurfaceSwitch
+              surface={surface}
+              onChange={onSurfaceChange}
+              attention={surfaceAttention}
+              shortcutLabel={surfaceShortcutLabel}
+            />
+          )}
           {activeProjectName && (
             <Tooltip>
               <TooltipTrigger

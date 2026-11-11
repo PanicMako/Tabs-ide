@@ -53,6 +53,8 @@ const calls = {
   preview: vi.fn(),
   inspect: vi.fn(),
   agent: vi.fn(async (_text: string) => {}),
+  runCommand: vi.fn(),
+  createPreset: vi.fn(),
 };
 let listeners: Record<string, (event: TerminalAttachStreamEvent) => void> = {};
 const stopStream = vi.fn();
@@ -184,6 +186,12 @@ async function mount(empty = false, manual = false, extra = false, height = 760)
         onInspectPreview={calls.inspect}
         canInspectPreview
         onAddToAgent={calls.agent}
+        onRunCommand={calls.runCommand}
+        onCreatePreset={calls.createPreset}
+        loadSuggestions={async () => [
+          { name: "dev", command: "bun run dev", detail: "vite --port 5733" },
+          { name: "test", command: "bun run test", detail: "vitest run" },
+        ]}
       />
     </div>,
   );
@@ -323,7 +331,7 @@ it("keeps layout choices after remount and fits themes and smaller windows", asy
   }
 });
 
-it("previews the two launch choices without executing them and keeps the empty state responsive", async () => {
+it("runs a typed command, saves presets and keeps the empty state responsive", async () => {
   const original = snapshotThemeState();
   try {
     for (const width of [1440, 768, 390]) {
@@ -331,50 +339,43 @@ it("previews the two launch choices without executing them and keeps the empty s
       await page.viewport(width, 900);
       const view = await mount(true);
       try {
-        await expect.element(page.getByRole("heading", { name: "Start something." })).toBeVisible();
+        await expect
+          .element(page.getByRole("heading", { name: "Nothing running yet." }))
+          .toBeVisible();
         expect(view.container.querySelector(".dock-services")).toBeNull();
         const root = view.container.querySelector<HTMLElement>(".dock-workspace")!;
-        const launchpad = view.container.querySelector<HTMLElement>(".dock-launchpad")!;
-        const bench = view.container.querySelector<HTMLElement>(".dock-launchpad-bench")!;
-        const before = bench.getBoundingClientRect().toJSON();
-        expect(parseFloat(getComputedStyle(bench).borderRadius)).toBe(36);
         expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
-        const preset = page.getByRole("button", { name: "Create a preset", exact: true });
-        const terminal = page.getByRole("button", { name: "Open a terminal", exact: true });
-        if (width > 600) {
-          expect(parseFloat(getComputedStyle(terminal.element()).borderBottomLeftRadius)).toBe(36);
-          expect(parseFloat(getComputedStyle(terminal.element()).borderBottomRightRadius)).toBe(36);
-          expect(parseFloat(getComputedStyle(preset.element()).borderBottomRightRadius)).toBe(36);
-          expect(parseFloat(getComputedStyle(preset.element()).borderBottomLeftRadius)).toBe(36);
-        }
-        await userEvent.hover(preset);
-        expect(launchpad.dataset.preview).toBe("preset");
-        expect(calls.add).not.toHaveBeenCalled();
-        expect(calls.terminal).not.toHaveBeenCalled();
-        expect(bench.getBoundingClientRect().toJSON()).toEqual(before);
-        await Promise.all(
-          launchpad.getAnimations({ subtree: true }).map((animation) => animation.finished),
+
+        // Project scripts are offered; clicking one runs it once.
+        await expect.element(page.getByRole("button", { name: "Run bun run dev" })).toBeVisible();
+        await page.getByRole("button", { name: "Run bun run dev" }).click();
+        expect(calls.runCommand).toHaveBeenLastCalledWith("bun run dev");
+        await page.getByRole("button", { name: "Save test as a preset" }).click();
+        expect(calls.createPreset).toHaveBeenLastCalledWith(
+          expect.objectContaining({ label: "test", commands: ["bun run test"] }),
         );
+
+        // Enter runs the typed command once; nothing is saved.
+        const input = page.getByRole("textbox", { name: "Run a command in Tabs" });
+        await input.fill("ls -la");
+        await userEvent.keyboard("{Enter}");
+        expect(calls.runCommand).toHaveBeenLastCalledWith("ls -la");
+        await expect.element(input).toHaveValue("");
+
         await page.screenshot({
           element: view.container,
-          path: `__screenshots__/dock/launchpad-preset-${width}.png`,
+          path: `__screenshots__/dock/launchpad-${width}.png`,
         });
-        await preset.click();
+
+        await page.getByRole("button", { name: "Create a preset", exact: true }).click();
         expect(calls.add).toHaveBeenCalledTimes(1);
-        expect(calls.run).not.toHaveBeenCalled();
-        await userEvent.hover(terminal);
-        expect(launchpad.dataset.preview).toBe("terminal");
-        await Promise.all(
-          launchpad.getAnimations({ subtree: true }).map((animation) => animation.finished),
-        );
-        await page.screenshot({
-          element: view.container,
-          path: `__screenshots__/dock/launchpad-shell-${width}.png`,
-        });
-        await terminal.click();
+        await page.getByRole("button", { name: "Open a terminal", exact: true }).click();
         expect(calls.terminal).toHaveBeenCalledTimes(1);
+        expect(calls.run).not.toHaveBeenCalled();
         calls.add.mockClear();
         calls.terminal.mockClear();
+        calls.runCommand.mockClear();
+        calls.createPreset.mockClear();
       } finally {
         await view.unmount();
       }
@@ -385,31 +386,25 @@ it("previews the two launch choices without executing them and keeps the empty s
   }
 });
 
-it("previews launch choices from the keyboard and respects reduced motion", async () => {
+it("saves a typed command as a preset with Cmd+Enter and respects reduced motion", async () => {
   const previous = document.documentElement.dataset.reducedMotion;
   const view = await mount(true);
   try {
     document.documentElement.dataset.reducedMotion = "reduce";
-    const preset = page.getByRole("button", { name: "Create a preset", exact: true });
-    const terminal = page.getByRole("button", { name: "Open a terminal", exact: true });
-    terminal.element().focus();
-    expect(view.container.querySelector<HTMLElement>(".dock-launchpad")!.dataset.preview).toBe(
-      "terminal",
+    const input = page.getByRole("textbox", { name: "Run a command in Tabs" });
+    await input.fill("npm run dev");
+    await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
+    expect(calls.createPreset).toHaveBeenLastCalledWith(
+      expect.objectContaining({ label: "dev", commands: ["npm run dev"] }),
     );
-    await userEvent.keyboard("{Tab}");
-    await expect.element(preset).toHaveFocus();
-    expect(view.container.querySelector<HTMLElement>(".dock-launchpad")!.dataset.preview).toBe(
-      "preset",
-    );
-    expect(calls.add).not.toHaveBeenCalled();
+    expect(calls.runCommand).not.toHaveBeenCalled();
     expect(
-      getComputedStyle(view.container.querySelector(".dock-launchpad-scene")!).transitionDuration,
-    ).toBe("0s");
-    await userEvent.keyboard("{Enter}");
-    expect(calls.add).toHaveBeenCalledTimes(1);
+      getComputedStyle(view.container.querySelector(".dock-launchpad-mark")!).animationName,
+    ).toBe("none");
   } finally {
     if (previous) document.documentElement.dataset.reducedMotion = previous;
     else delete document.documentElement.dataset.reducedMotion;
+    calls.createPreset.mockClear();
     await view.unmount();
   }
 });

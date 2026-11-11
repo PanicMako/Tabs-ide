@@ -1,4 +1,6 @@
 import DataRecoverySettings from "../components/settings/DataRecoverySettings";
+import { startupExitBeatMs } from "../lib/startupAnimationTiming";
+import { StartupCurtain } from "../components/StartupCurtain";
 import { ProjectId, ThreadId } from "@tabs/contracts";
 import {
   Outlet,
@@ -185,22 +187,18 @@ function FullAppRootView() {
   }, [bootstrapReady]);
 
   useEffect(() => {
-    if (ready) {
-      const timer = setTimeout(() => setMounted(false), transition.exitMs);
-      return () => clearTimeout(timer);
-    } else {
-      setMounted(true);
-    }
-  }, [ready, transition.exitMs]);
+    if (!ready) setMounted(true);
+  }, [ready]);
 
   return (
     <>
       {mounted && !earlySplash && (
-        <div
-          className={cn(
-            "fixed inset-0 z-[9999] bg-background transition-transform duration-500 ease-in-out motion-reduce:duration-0",
-            ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0",
-          )}
+        <StartupCurtain
+          leaving={ready}
+          durationMs={transition.exitMs}
+          beatMs={transition.exitMs > 0 ? startupExitBeatMs(settings.splashLoaderStyle) : 0}
+          ariaHidden={ready}
+          onLeft={() => setMounted(false)}
         >
           <SplashScreen
             loader={settings.splashLoaderStyle}
@@ -225,7 +223,7 @@ function FullAppRootView() {
               finishes.
             </p>
           ) : null}
-        </div>
+        </StartupCurtain>
       )}
       <ToastProvider>
         <AnchoredToastProvider>

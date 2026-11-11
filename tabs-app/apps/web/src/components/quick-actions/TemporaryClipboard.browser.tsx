@@ -18,11 +18,13 @@ it("accepts pasted text, searches it, copies it and pins it for later", async ()
   const read = vi.spyOn(navigator.clipboard, "readText").mockResolvedValue("A useful snippet");
   const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
   try {
+    await page.viewport(1000, 720);
     await render(<TemporaryClipboard open onOpenChange={() => {}} />);
     await page.getByRole("button", { name: "Paste", exact: true }).click();
     await expect
       .element(page.getByRole("button", { name: "Open clipboard item", exact: true }))
       .toHaveTextContent("A useful snippet");
+    await page.screenshot({ path: "__screenshots__/quick-actions/clipboard.png" });
     await page.getByRole("button", { name: "Copy clipboard item", exact: true }).click();
     expect(write).toHaveBeenCalledWith("A useful snippet");
     await page.getByRole("button", { name: "Save clipboard item", exact: true }).click();

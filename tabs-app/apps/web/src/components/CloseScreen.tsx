@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useId, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { cn } from "~/lib/utils";
 import "./close-animation.css";
 import "./loaders.css";
+import { TabsBedtime, TABS_MASCOT_GOODBYE_MS } from "./TabsMascot";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
 export type ClosePhase = "idle" | "closing" | "holding";
 
-const GLASS_WORD = "TABS";
 const SOLARI_WORD = "TABS IDE";
 
-const CLOSE_GLASS_MESSAGES = [
-  "SAVING YOUR EXCUSES",
+const CLOSE_MASCOT_MESSAGES = [
+  "TUCKING IN YOUR TABS",
   "TELLING THE CPU TO TAKE A NAP",
   "ARCHIVING ABANDONED SIDE PROJECTS",
   "YEETING TEMPORARY FILES",
@@ -78,7 +78,7 @@ function RotatingLabel({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   MOLTEN GLASS CLOSE
+   TABS MASCOT CLOSE — says goodbye, hops into bed and falls asleep
    ═══════════════════════════════════════════════════════════════════════ */
 
 interface CloseAnimationProps {
@@ -95,162 +95,57 @@ interface CloseAnimationProps {
     | undefined;
 }
 
-function MoltenGlassClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAnimationProps) {
-  const filterId = useId().replace(/:/g, "");
+function MascotClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAnimationProps) {
   const isBlock = palette === "block";
-  const dispRef = useRef<SVGFEDisplacementMapElement>(null);
-  const animateRef = useRef<SVGAnimationElement>(null);
-  const rafRef = useRef<number | null>(null);
-
-  const prefersReducedMotion =
-    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   const onIntroEndRef = useRef(onIntroEnd);
   useEffect(() => {
     onIntroEndRef.current = onIntroEnd;
   }, [onIntroEnd]);
 
-  const runDrain = useCallback(() => {
-    const start = performance.now();
-    const duration = 800; // ms — displacement scale ramp
-
-    const ramp = (now: DOMHighResTimeStamp) => {
-      const t = Math.min(1, (now - start) / duration);
-      if (dispRef.current) {
-        dispRef.current.setAttribute("scale", (12 + t * 34).toFixed(1));
-      }
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(ramp);
-      }
-    };
-
-    rafRef.current = requestAnimationFrame(ramp);
-
-    // Whole intro sequence ends ~1400ms after trigger
-    const holdTimer = setTimeout(() => {
+  useEffect(() => {
+    if (phase !== "closing") return;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
       onIntroEndRef.current?.();
-    }, 1400);
-
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      clearTimeout(holdTimer);
-    };
-  }, []);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (animateRef.current) {
-        try {
-          (animateRef.current as any).beginElement();
-        } catch (e) {}
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    if (phase === "closing") {
-      if (prefersReducedMotion) {
-        onIntroEndRef.current?.();
-        return;
-      }
-      const cleanup = runDrain();
-      return cleanup;
+      return;
     }
-    // Reset displacement scale when replayed
-    if (phase === "idle" && dispRef.current) {
-      dispRef.current.setAttribute("scale", "12");
-    }
-  }, [phase, runDrain, prefersReducedMotion]);
+    const timer = setTimeout(() => onIntroEndRef.current?.(), TABS_MASCOT_GOODBYE_MS);
+    return () => clearTimeout(timer);
+  }, [phase]);
 
-  const animating = phase === "closing" || phase === "holding";
-  const headingStyle = fonts?.headingFont
-    ? {
-        fontFamily: fonts.headingFont,
-        fontWeight: fonts.headingWeight,
-        filter: `url(#${filterId})`,
-      }
-    : { filter: `url(#${filterId})` };
+  const ink = isBlock || isDark ? "#ffffff" : "#0a0a0a";
+  const paper = isBlock ? "#2563eb" : isDark ? "#09090b" : "#ffffff";
+  const muted = isBlock ? "text-white/75" : isDark ? "text-[#a1a1aa]" : "text-[#52525b]";
 
   return (
-    <div className="close-screen relative z-10 flex min-h-[300px] w-full max-w-[560px] items-center justify-center p-6 loader-respect-motion">
-      <svg
-        width="1"
-        height="1"
-        style={{ position: "absolute", opacity: 0.001, pointerEvents: "none" }}
-        aria-hidden="true"
-      >
-        <defs>
-          <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.02 0.09"
-              numOctaves={2}
-              seed="7"
-              result="noise"
-            >
-              <animate
-                ref={animateRef}
-                attributeName="baseFrequency"
-                dur="6.75s"
-                begin="indefinite"
-                values="0.02 0.09;0.035 0.14;0.02 0.09"
-                repeatCount="indefinite"
-              />
-            </feTurbulence>
-            <feDisplacementMap
-              ref={dispRef}
-              in="SourceGraphic"
-              in2="noise"
-              scale="12"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        </defs>
-      </svg>
-
-      <div className="relative flex w-full flex-col items-center justify-center gap-[22px]">
-        {/* Card with fade animation */}
-        <div
-          className={cn(
-            "relative w-full flex flex-col items-center justify-center gap-[22px] transform-origin-center",
-            animating && "cq-card-fade",
-          )}
+    <div className="close-screen relative z-10 flex min-h-[300px] w-full max-w-[780px] flex-wrap items-center justify-center gap-x-10 gap-y-4 p-6 loader-respect-motion">
+      <TabsBedtime
+        // Remount on replay so bedtime plays from the start.
+        key={phase === "idle" ? "idle" : "bye"}
+        ink={ink}
+        paper={paper}
+        phase={phase === "idle" ? "idle" : "closing"}
+      />
+      <div className="tabs-bed-side">
+        <p
+          className="m-0 mb-2 text-[20px] font-medium"
+          style={{
+            color: ink,
+            ...(fonts?.headingFont
+              ? { fontFamily: fonts.headingFont, fontWeight: fonts.headingWeight }
+              : {}),
+          }}
         >
-          {/* Word with drain animation */}
-          <div
-            className={cn(
-              "text-[80px] font-light tracking-[-0.02em] transform-origin-[center_bottom]",
-              animating && "cq-word-drain",
-              isBlock
-                ? isDark
-                  ? "text-[#1c0f0e]"
-                  : "text-white"
-                : isDark
-                  ? "text-white"
-                  : "text-black",
-            )}
-            style={headingStyle}
-          >
-            {GLASS_WORD}
-          </div>
-        </div>
-
-        {/* Rotating status label — visible in all phases (closing + holding) */}
+          Shutting down…
+        </p>
         <RotatingLabel
-          messages={CLOSE_GLASS_MESSAGES}
+          messages={CLOSE_MASCOT_MESSAGES}
           phase={phase}
+          intervalMs={1_100}
           uiFont={fonts?.uiFont}
-          className={
-            isBlock
-              ? isDark
-                ? "text-[#1c0f0e]/85"
-                : "text-white/75"
-              : isDark
-                ? "text-[#a1a1aa]"
-                : "text-[#52525b]"
-          }
+          className={cn("text-left", muted)}
         />
       </div>
     </div>
@@ -367,7 +262,8 @@ function SolariGridClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAni
    ═══════════════════════════════════════════════════════════════════════ */
 
 export interface CloseScreenProps {
-  loader: "glass" | "solari" | string;
+  /** "mascot" | "solari"; a stored "glass" (retired) shows the mascot. */
+  loader: "mascot" | "glass" | "solari" | string;
   palette: "block" | "mono" | string;
   theme?: "light" | "dark" | "system";
   phase?: ClosePhase | undefined;
@@ -424,7 +320,7 @@ export function CloseScreen({
           onIntroEnd={onIntroEnd}
         />
       ) : (
-        <MoltenGlassClose
+        <MascotClose
           phase={phase}
           palette={palette as "block" | "mono"}
           isDark={isDark}

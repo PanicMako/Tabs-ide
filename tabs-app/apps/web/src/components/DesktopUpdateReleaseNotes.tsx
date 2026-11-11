@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import { openLinkFromEvent } from "../browserLinkTarget";
 import type { ReactNode } from "react";
 import type { DesktopUpdateState } from "@tabs/contracts";
 import { XIcon } from "lucide-react";
@@ -39,9 +40,8 @@ function ReleaseNotesLink({
       href={href}
       className="text-foreground underline underline-offset-2"
       onClick={(event) => {
-        if (!window.desktopBridge) return;
         event.preventDefault();
-        void window.desktopBridge.openExternal(href);
+        openLinkFromEvent(href, event);
       }}
     >
       {children}

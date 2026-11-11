@@ -5,11 +5,19 @@ import {
   type WorkspaceToolActionTarget,
 } from "./WorkspaceToolActions";
 import {
+  addScratchBrowserTool,
   canCloseWorkspaceTool,
   closeWorkspaceTool,
+  findScratchBrowserForUrl,
   isTemporaryWorkspaceTool,
   keepWorkspaceTool,
+  SCRATCH_BROWSER_ID_PREFIX,
+  scratchBrowserLabelForUrl,
 } from "../temporaryWorkspaceTools";
+import { registerInAppLinkHost } from "../browserLinkTarget";
+import { processTerminalLaunch } from "../processTerminalLaunch";
+import { suggestScripts } from "./dock/scriptSuggestions";
+import { AgentCliActivityHost } from "./chat/AgentCliActivityHost";
 import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { BrowserStartupState } from "./BrowserStartupState";
 import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
@@ -225,6 +233,7 @@ import {
 } from "../lib/projectReactQuery";
 import {
   cn,
+  isConversationPopout,
   isWindowsPlatform,
   newCommandId,
   newProjectId,
@@ -317,6 +326,7 @@ import {
   browserSessionStateKey,
   EMPTY_PROJECT_CODE_TOOL_STATE,
   EMPTY_PROJECT_GIT_TOOL_STATE,
+  createDefaultProjectWorkspaceSettings,
   resolveProjectTools,
   useWorkspaceShellStore,
 } from "../workspaceShellStore";
@@ -10542,11 +10552,13 @@ function CustomProcessTool(props: {
           variant="embedded"
           showControls={false}
           threadId={props.threadId}
-          cwd={props.process.cwd.trim().length > 0 ? props.process.cwd : props.project.cwd}
-          runtimeEnv={projectScriptRuntimeEnv({
-            project: { cwd: props.project.cwd },
-            worktreePath: null,
-          })}
+          {...(() => {
+            const launch = processTerminalLaunch({
+              projectCwd: props.project.cwd,
+              process: props.process,
+            });
+            return { cwd: launch.cwd, runtimeEnv: launch.env };
+          })()}
           height={props.terminalState.terminalHeight}
           terminalIds={[props.process.id]}
           activeTerminalId={props.process.id}
@@ -10621,11 +10633,32 @@ function ServerTool(props: {
   runningProcessIds: ReadonlyArray<string>;
   activeTerminalId: string | null;
   hasTerminalWorkspace: boolean;
+  onRunCommand: (command: string) => void;
 }) {
   const { confirm, confirmDialog } = useConfirm();
   const processes = useMemo(() => {
     return props.projectSettings.serverPresets ?? [];
   }, [props.projectSettings.serverPresets]);
+  const existingPresetCommands = useMemo(
+    () => new Set(processes.flatMap((preset) => preset.commands.map((command) => command.trim()))),
+    [processes],
+  );
+  const loadScriptSuggestions = useCallback(async () => {
+    const api = await environmentApi(props.project.environmentId);
+    const root = await api.projects.listEntries({ cwd: props.project.cwd, directoryPath: "" });
+    const rootNames = new Set(
+      root.entries
+        .filter((entry) => entry.kind === "file")
+        .map((entry) => entry.path.split(/[\\/]/).at(-1) ?? entry.path),
+    );
+    const packageJson = rootNames.has("package.json")
+      ? await api.projects
+          .readFile({ cwd: props.project.cwd, relativePath: "package.json" })
+          .then((file) => file.contents)
+          .catch(() => null)
+      : null;
+    return suggestScripts({ rootNames, packageJson, existingCommands: existingPresetCommands });
+  }, [existingPresetCommands, props.project.cwd, props.project.environmentId]);
   const terminalIdSet = new Set(props.terminalIds);
   const runningProcessIdSet = new Set(props.runningProcessIds);
   const [serverState, setServerState] = useProjectServerState(
@@ -11016,6 +11049,17 @@ function ServerTool(props: {
         }
         canInspectPreview={Boolean(window.desktopBridge?.pickBrowserElement)}
         onAddToAgent={props.onDockAddToAgent}
+        onRunCommand={(command) => {
+          props.onRevealTerminal();
+          props.onRunCommand(command);
+        }}
+        onCreatePreset={(preset) =>
+          props.onSavePresets([
+            ...processes.map((current) => ({ ...current, commands: [...current.commands] })),
+            { ...preset, commands: [...preset.commands] },
+          ])
+        }
+        loadSuggestions={loadScriptSuggestions}
       />
       <Dialog
         open={isPresetDialogOpen}
@@ -12647,6 +12691,44 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     }
     setShellTerminalFocusRequestId((value) => value + 1);
   }, [serverThreadId, storeNewTerminal, serverTerminalState, storeCloseTerminal]);
+  const runCommandInNewServerTerminal = useCallback(
+    async (command: string) => {
+      if (!serverThreadId || !activeProject) return;
+      const terminalId = `terminal-${randomUUID()}`;
+      storeNewTerminal(serverThreadId, terminalId);
+      if (
+        serverTerminalState?.terminalIds.includes(DEFAULT_THREAD_TERMINAL_ID) &&
+        !serverTerminalState.runningTerminalIds.includes(DEFAULT_THREAD_TERMINAL_ID)
+      ) {
+        storeCloseTerminal(serverThreadId, DEFAULT_THREAD_TERMINAL_ID);
+      }
+      setShellTerminalFocusRequestId((value) => value + 1);
+      try {
+        const api = activeProjectApi ?? (await environmentApi(activeProject.environmentId));
+        // Same launch context as the Dock's terminal view, so its open does not restart us.
+        const { cwd, env } = processTerminalLaunch({
+          projectCwd: activeProject.cwd,
+          process: { cwd: "" },
+        });
+        await api.terminal.open({ threadId: serverThreadId, terminalId, cwd, env });
+        await api.terminal.write({ threadId: serverThreadId, terminalId, data: `${command}\r` });
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Could not run the command",
+          description: error instanceof Error ? error.message : "Terminal startup failed.",
+        });
+      }
+    },
+    [
+      activeProject,
+      activeProjectApi,
+      serverTerminalState,
+      serverThreadId,
+      storeCloseTerminal,
+      storeNewTerminal,
+    ],
+  );
   const activateServerTerminal = useCallback(
     (terminalId: string) => {
       if (!serverThreadId) return;
@@ -12681,15 +12763,32 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       process: ProjectWorkspaceSettings["terminalProcesses"][number];
       reveal: boolean;
     }) => {
-      const api = activeProjectApi;
-      if (!api || !activeProject) return;
+      if (!activeProject) return;
       const commands = input.process.commands
         .map((command) => command.trim())
         .filter((command) => command.length > 0);
       if (commands.length === 0 && !input.process.interactiveShell) return;
+      // The project's API connects asynchronously; resolve it instead of
+      // silently doing nothing when Run is clicked before it is ready.
+      let api = activeProjectApi;
+      if (!api) {
+        try {
+          api = await environmentApi(activeProject.environmentId);
+        } catch (error) {
+          toastManager.add({
+            type: "error",
+            title: `Could not run "${input.process.label}"`,
+            description: error instanceof Error ? error.message : "Not connected to the project.",
+          });
+          return;
+        }
+      }
       const terminalId = input.process.id || DEFAULT_THREAD_TERMINAL_ID;
-      const cwd = input.process.cwd.trim().length > 0 ? input.process.cwd : activeProject.cwd;
-      const env = input.process.env;
+      // Must match what the terminal views open with (see processTerminalLaunch).
+      const { cwd, env } = processTerminalLaunch({
+        projectCwd: activeProject.cwd,
+        process: input.process,
+      });
       if (input.reveal) {
         storeSetTerminalOpen(input.threadId, true);
       }
@@ -13095,14 +13194,16 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               showControls={false}
               threadId={serverThreadId}
               environmentId={activeProject.environmentId}
-              cwd={
-                activeProjectSettings.serverPresets.find((preset) => preset.id === terminalId)
-                  ?.cwd || activeProject.cwd
-              }
-              runtimeEnv={projectScriptRuntimeEnv({
-                project: { cwd: activeProject.cwd },
-                worktreePath: null,
-              })}
+              {...(() => {
+                const preset = activeProjectSettings.serverPresets.find(
+                  (entry) => entry.id === terminalId,
+                );
+                const launch = processTerminalLaunch({
+                  projectCwd: activeProject.cwd,
+                  process: preset ?? { cwd: "" },
+                });
+                return { cwd: launch.cwd, runtimeEnv: launch.env };
+              })()}
               height={serverTerminalState.terminalHeight}
               terminalIds={[terminalId]}
               activeTerminalId={terminalId}
@@ -13185,6 +13286,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         onRevealTerminal={revealServerTerminal}
         onHideTerminal={hideServerTerminal}
         onNewTerminal={createNewServerTerminal}
+        onRunCommand={(command) => void runCommandInNewServerTerminal(command)}
         onCloseAllTerminals={() => void closeAllServerTerminals()}
         onSavePresets={(presets) =>
           upsertProjectSettings(activeProject.id, (current) => {
@@ -13238,6 +13340,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 project: { cwd: activeProject.cwd },
                 worktreePath: null,
               })}
+              launchProfiles={Object.fromEntries(
+                activeProjectSettings.serverPresets.map((preset) => [
+                  preset.id,
+                  processTerminalLaunch({ projectCwd: activeProject.cwd, process: preset }),
+                ]),
+              )}
               height={serverTerminalState.terminalHeight}
               terminalIds={serverTerminalState.terminalIds}
               activeTerminalId={serverTerminalState.activeTerminalId}
@@ -13344,6 +13452,41 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const isWelcomeSurface =
     !isSettingsSurfaceActive && (isActivePendingTab || !activeProject || !activeProjectSettings);
   const shouldHideShellChrome = embeddedMode.enabled;
+
+  // Links clicked anywhere in the app open as Scratch Browser tabs of the
+  // active project (see browserLinkTarget.ts). The host declines — and the link
+  // falls back to the system browser — whenever no tab strip is showing.
+  const inAppLinkHostState = useRef({
+    projectId: activeProject?.id ?? null,
+    available: !isSettingsSurfaceActive && !shouldHideShellChrome && !isActivePendingTab,
+  });
+  inAppLinkHostState.current = {
+    projectId: activeProject?.id ?? null,
+    available: !isSettingsSurfaceActive && !shouldHideShellChrome && !isActivePendingTab,
+  };
+  useEffect(() => {
+    if (isConversationPopout) return;
+    return registerInAppLinkHost((url) => {
+      const { projectId, available } = inAppLinkHostState.current;
+      if (!projectId || !available) return false;
+      const current =
+        useWorkspaceShellStore.getState().projectSettingsByProjectId[projectId] ??
+        createDefaultProjectWorkspaceSettings();
+      const existing = findScratchBrowserForUrl(current, url);
+      const toolId = existing ?? `${SCRATCH_BROWSER_ID_PREFIX}${randomUUID()}`;
+      if (!existing) {
+        upsertProjectSettings(projectId, (settings) =>
+          addScratchBrowserTool(settings, {
+            id: toolId,
+            label: scratchBrowserLabelForUrl(url),
+            url,
+          }),
+        );
+      }
+      setActiveTool(projectId, toolId);
+      return true;
+    });
+  }, [setActiveTool, upsertProjectSettings]);
   const isEmbeddedWorkspacePending =
     embeddedMode.enabled &&
     Boolean(embeddedMode.workspaceRoot) &&
@@ -13621,18 +13764,21 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       setClipboardOpen(true);
     } else if (activeProject && id === "scratch-terminal") {
       const id = `scratch-terminal-${randomUUID()}`;
+      // A custom action can carry a command; the tab runs it as it opens.
+      const command = query.trim();
+      const label = command ? command.slice(0, 28) : "Terminal";
       upsertProjectSettings(activeProject.id, (current) => ({
         ...current,
         terminalProcesses: [
           ...current.terminalProcesses,
           {
             id,
-            label: "Terminal",
-            commands: [],
+            label,
+            commands: command ? [command] : [],
             cwd: activeProject.cwd,
             env: {},
             autoStart: false,
-            interactiveShell: true,
+            interactiveShell: !command,
           },
         ],
         tools: [
@@ -13640,7 +13786,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           {
             id,
             kind: "custom_process",
-            label: "Terminal",
+            label,
             visible: true,
             temporary: true,
             terminalProcessId: id,
@@ -13650,32 +13796,15 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       setActiveTool(activeProject.id, id);
       await navigate({ to: "/" });
     } else if (activeProject && (id === "scratch-browser" || id === "search")) {
-      const embedId = `scratch-${randomUUID()}`;
+      const embedId = `${SCRATCH_BROWSER_ID_PREFIX}${randomUUID()}`;
       const url = id === "search" || query.trim() ? searchTarget(query) : "about:blank";
-      upsertProjectSettings(activeProject.id, (current) => ({
-        ...current,
-        customEmbeds: [
-          ...current.customEmbeds,
-          {
-            id: embedId,
-            label: id === "search" ? "Web search" : "Scratch browser",
-            url,
-            resumeLastVisitedPage: true,
-            partitionMode: "isolated",
-          },
-        ],
-        tools: [
-          ...current.tools,
-          {
-            id: embedId,
-            kind: "custom_embed",
-            temporary: true,
-            label: id === "search" ? "Web search" : "Scratch browser",
-            visible: true,
-            customEmbedId: embedId,
-          },
-        ],
-      }));
+      upsertProjectSettings(activeProject.id, (current) =>
+        addScratchBrowserTool(current, {
+          id: embedId,
+          label: id === "search" ? "Web search" : "Scratch browser",
+          url,
+        }),
+      );
       setActiveTool(activeProject.id, embedId);
       await navigate({ to: "/" });
     } else if (activeProject && (id === "code" || id === "git")) {
@@ -13692,6 +13821,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         {toolCloseDialog}
         <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
+        <AgentCliActivityHost />
         <KeepWorkspaceToolDialog
           tool={toolToKeep}
           onClose={() => setToolToKeep(null)}

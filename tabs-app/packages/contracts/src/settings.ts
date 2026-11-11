@@ -149,9 +149,21 @@ export const ReducedMotionMode = Schema.Literals(["system", "always", "never"]);
 export type ReducedMotionMode = typeof ReducedMotionMode.Type;
 export const DEFAULT_REDUCED_MOTION_MODE: ReducedMotionMode = "system";
 
-export const SplashLoaderStyle = Schema.Literals(["glass", "solari"]);
+/**
+ * Startup / close animation style. "mascot" is the animated Tabs mascot;
+ * "glass" is the retired Molten Glass style, still accepted from older
+ * settings and shown as the mascot (see `normalizeSplashLoaderStyle`).
+ */
+export const SplashLoaderStyle = Schema.Literals(["mascot", "solari", "glass"]);
 export type SplashLoaderStyle = typeof SplashLoaderStyle.Type;
 export const DEFAULT_SPLASH_LOADER_STYLE: SplashLoaderStyle = "solari";
+export function normalizeSplashLoaderStyle(value: unknown): "mascot" | "solari" {
+  return value === "solari"
+    ? "solari"
+    : value === "mascot" || value === "glass"
+      ? "mascot"
+      : "solari";
+}
 
 export const SplashLoaderPalette = Schema.Literals(["block", "mono"]);
 export type SplashLoaderPalette = typeof SplashLoaderPalette.Type;
@@ -351,13 +363,26 @@ export const BrowserRecordingFrameRate = Schema.Literals(BROWSER_RECORDING_FRAME
 export type BrowserRecordingFrameRate = typeof BrowserRecordingFrameRate.Type;
 export const DEFAULT_BROWSER_RECORDING_FRAME_RATE: BrowserRecordingFrameRate = 30;
 /**
- * Where a clicked link goes: the OS default browser, or a tab in the in-app
- * browser beside the thread. "system" is the default because that is what
- * every link did before the setting existed.
+ * Where a clicked link goes: "app" opens it in a Scratch Browser tab inside
+ * Tabs, "system" hands it to the OS default browser. In-app is the default;
+ * the system browser stays one modifier-click (Cmd/Ctrl) away.
  */
 export const BrowserLinkTarget = Schema.Literals(["system", "app"]);
 export type BrowserLinkTarget = typeof BrowserLinkTarget.Type;
-export const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "system";
+export const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "app";
+
+/**
+ * Client settings are persisted whole, so installs from before the in-app
+ * default carry a stored "system" nobody picked. Only an explicit choice
+ * (`browserLinkTargetChosen`) keeps "system"; otherwise the default applies.
+ */
+export function effectiveBrowserLinkTarget(settings: {
+  readonly browserLinkTarget?: BrowserLinkTarget | undefined;
+  readonly browserLinkTargetChosen?: boolean | undefined;
+}): BrowserLinkTarget {
+  if (!settings.browserLinkTargetChosen) return DEFAULT_BROWSER_LINK_TARGET;
+  return settings.browserLinkTarget ?? DEFAULT_BROWSER_LINK_TARGET;
+}
 
 export const LoadBalancingWeights = Schema.Record(
   TrimmedNonEmptyString,
@@ -394,6 +419,17 @@ export const QuickActionsPreferences = Schema.Struct({
         parentId: Schema.String,
         actionId: Schema.String,
         label: Schema.String,
+        query: Schema.String,
+      }),
+    ),
+  ),
+  customActions: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        label: Schema.String,
+        icon: Schema.String,
+        actionId: Schema.String,
         query: Schema.String,
       }),
     ),
@@ -448,12 +484,15 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
   /**
-   * Where links clicked in a thread (chat markdown, terminal output) open.
-   * Only the desktop app has an in-app browser, so other clients ignore "app".
+   * Where links clicked anywhere in the app (chat, terminals, PR links…) open.
+   * Read it through `effectiveBrowserLinkTarget`. Surfaces that cannot show a
+   * Scratch Browser fall back to the system browser.
    */
   browserLinkTarget: BrowserLinkTarget.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_LINK_TARGET)),
   ),
+  /** True once the user picked "Open links in" themselves. */
+  browserLinkTargetChosen: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
    * Whether an agent using a preview pops the floating mini player into
    * view. Only applies when the agent didn't ask either way — an explicit
@@ -519,6 +558,11 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   confirmThreadArchive: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   confirmThreadDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /**
+   * Opt-in: adds a Chat / CLI switch to threads so an agent's own CLI (Claude
+   * Code, Codex…) can replace the chat. Off by default.
+   */
+  agentCliEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   confirmThreadUnpin: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   dismissedProviderUpdateNotificationKeys: Schema.Array(TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -2263,6 +2307,7 @@ export const ClientSettingsPatch = Schema.Struct({
   browserRecordingShowKeyPresses: Schema.optionalKey(Schema.Boolean),
   browserRecordingShowMousePresses: Schema.optionalKey(Schema.Boolean),
   browserLinkTarget: Schema.optionalKey(BrowserLinkTarget),
+  browserLinkTargetChosen: Schema.optionalKey(Schema.Boolean),
   browserAutoShowFloatingPreview: Schema.optionalKey(Schema.Boolean),
   aiProvider: Schema.optionalKey(AiProvider),
   toolbarStyle: Schema.optionalKey(ToolbarStyle),
@@ -2291,6 +2336,7 @@ export const ClientSettingsPatch = Schema.Struct({
   confirmQuit: Schema.optionalKey(QuitConfirmationMode),
   confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
   confirmThreadDelete: Schema.optionalKey(Schema.Boolean),
+  agentCliEnabled: Schema.optionalKey(Schema.Boolean),
   confirmThreadUnpin: Schema.optionalKey(Schema.Boolean),
   diffFilesCollapsed: Schema.optionalKey(Schema.Boolean),
   diffIgnoreWhitespace: Schema.optionalKey(Schema.Boolean),

@@ -202,7 +202,11 @@ export function QuickActionsHost({
             >
               <LauncherSurface
                 design={normalizeLauncherDesign(settings.design)}
-                actions={orderedActions(settings.actionOrder, settings.hiddenActions)}
+                actions={orderedActions(
+                  settings.actionOrder,
+                  settings.hiddenActions,
+                  settings.customActions,
+                )}
                 subActions={settings.subActions}
                 execute={execute}
                 disabled={disabled}

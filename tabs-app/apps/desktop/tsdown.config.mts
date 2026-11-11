@@ -8,6 +8,9 @@ const shared = {
   minify: { compress: false, mangle: false, codegen: { removeWhitespace: true } },
   outExtensions: () => ({ js: ".js" }),
   dts: false,
+  // Electron's main process is CommonJS. Effect reads `import.meta?.env`
+  // optionally, so rolldown's empty-object substitution is the intended result.
+  checks: { emptyImportMeta: false },
 };
 
 export default defineConfig([
@@ -16,11 +19,14 @@ export default defineConfig([
     entry: ["src/main.ts"],
     clean: true,
     // One compiled runtime avoids loading Effect's dependency graph file by file.
-    noExternal: (id) =>
-      id.startsWith("@tabs/") ||
-      id === "effect" ||
-      id.startsWith("effect/") ||
-      id.startsWith("@effect/"),
+    deps: {
+      onlyBundle: false,
+      alwaysBundle: (id: string) =>
+        id.startsWith("@tabs/") ||
+        id === "effect" ||
+        id.startsWith("effect/") ||
+        id.startsWith("@effect/"),
+    },
   },
   {
     ...shared,
@@ -28,7 +34,10 @@ export default defineConfig([
     // Sandboxed Electron preloads cannot require arbitrary packages at runtime.
     // Keep Clerk's small preload bridge inside our generated preload bundle so
     // a navigation or Vite full reload cannot lose every contextBridge API.
-    noExternal: (id) => id.startsWith("@clerk/electron"),
+    deps: {
+      onlyBundle: false,
+      alwaysBundle: (id: string) => id.startsWith("@clerk/electron"),
+    },
   },
   {
     ...shared,

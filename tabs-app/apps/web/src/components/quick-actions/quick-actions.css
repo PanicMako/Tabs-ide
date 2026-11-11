@@ -2,12 +2,26 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: color-mix(in srgb, var(--background) 12%, transparent);
-  animation: qa-appear 140ms ease-out both;
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--background) 34%, transparent);
+  /* "backwards", not "both": a retained opacity effect would make this a
+     backdrop root and the glass inside could no longer see the page. */
+  animation: qa-appear 140ms ease-out backwards;
+}
+/* Blur lives on a sibling of the popup for the same reason. */
+.qa-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Keep the -webkit- line first: the minifier drops the unprefixed one
+     otherwise, and Chromium only honours the unprefixed property. */
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
 }
 .qa-popup {
   position: fixed;
+  /* Sub-action stacks hang beside the plate; reserve room so placement keeps
+     them on screen near the window edges. */
+  padding: 0 78px;
   max-width: calc(100vw - 16px);
   max-height: calc(100dvh - 16px);
   border: 0;
@@ -18,6 +32,7 @@
   display: flex;
   justify-content: center;
   overflow: hidden;
+  padding-inline: 78px !important;
   min-width: 0;
   padding: 12px;
   background: var(--muted);
@@ -34,7 +49,7 @@
   pointer-events: none;
 }
 .qa-popup {
-  animation: qa-rise 160ms ease-out both;
+  animation: qa-rise 160ms ease-out backwards;
 }
 @keyframes qa-appear {
   from {

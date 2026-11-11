@@ -34,6 +34,7 @@ import {
   type WsWelcomePayload,
   type TerminalEvent,
   TerminalEvent as TerminalEventSchema,
+  TerminalAttachStreamEvent as TerminalAttachStreamEventSchema,
   ResourceTelemetrySnapshot,
   type OrchestrationReadModel,
   ScheduledTaskListResult,
@@ -47,6 +48,9 @@ import { showCustomConfirm } from "./lib/customConfirm";
 
 const decodeShellStreamItem = Schema.decodeUnknownSync(OrchestrationV2ShellStreamItem);
 const decodeThreadStreamItem = Schema.decodeUnknownSync(OrchestrationV2ThreadStreamItem);
+
+/** About half a minute of backoff before a terminal stream gives up. */
+const MAX_TERMINAL_ATTACH_RETRIES = 20;
 
 export function normalizeOrchestrationCommand(command: any): any {
   if (!command || typeof command !== "object") return command;
@@ -518,7 +522,39 @@ export function createWsNativeApi(options?: {
           unsubscribeRpc();
         };
       },
-      attach: () => () => {},
+      attach: (input, callback) => {
+        // A view often subscribes a moment before the terminal it shows has
+        // been opened; the server then rejects the stream. Retry with backoff
+        // instead of leaving the view stuck on "stopped" with no output or PID.
+        let stop: (() => void) | null = null;
+        let closed = false;
+        let attempt = 0;
+        let retry: ReturnType<typeof setTimeout> | undefined;
+        const decode = Schema.decodeUnknownSync(TerminalAttachStreamEventSchema);
+        const connect = () => {
+          stop = transport.subscribeRpc(
+            WS_METHODS.terminalAttach,
+            () => input,
+            decode,
+            (event) => {
+              attempt = 0;
+              callback(event);
+            },
+            () => {
+              stop?.();
+              stop = null;
+              if (closed || attempt >= MAX_TERMINAL_ATTACH_RETRIES) return;
+              retry = setTimeout(connect, Math.min(2_000, 150 * 2 ** attempt++));
+            },
+          );
+        };
+        connect();
+        return () => {
+          closed = true;
+          clearTimeout(retry);
+          stop?.();
+        };
+      },
       onMetadata: () => () => {},
     },
     projects: {

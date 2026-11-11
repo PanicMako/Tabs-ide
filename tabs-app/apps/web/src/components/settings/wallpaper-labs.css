@@ -27,8 +27,8 @@
   [data-timeline-root="true"]
   div[class*="rounded-lg border border-border"] {
   background-color: rgba(14, 16, 24, 0.9) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
     0 8px 30px rgba(0, 0, 0, 0.6),
@@ -59,8 +59,8 @@
   [data-timeline-root="true"]
   div[class*="border-r-2"] {
   background-color: rgba(16, 18, 28, 0.72) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   padding: 0.625rem 1rem;
   border-radius: var(--radius-surface) var(--radius-surface) var(--radius-surface)
     var(--radius-surface);
@@ -108,8 +108,8 @@
 /* Chat Header (Dark) */
 [data-agent-wallpaper="active"]:not([data-theme="light"]) header {
   background-color: color-mix(in oklab, var(--background) 94%, transparent) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent) !important;
 }
 
@@ -118,8 +118,8 @@
   [data-chat-composer-form="true"]
   [class*="rounded-2xl border"] {
   background-color: color-mix(in oklab, var(--card) 94%, black 6%) !important;
-  backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   border-color: color-mix(in oklab, var(--border) 75%, white 12%) !important;
   box-shadow:
     0 16px 36px -6px rgba(0, 0, 0, 0.75),
@@ -131,8 +131,8 @@
 /* Chat Header (Light) */
 [data-agent-wallpaper="active"][data-theme="light"] header {
   background-color: rgba(255, 255, 255, 0.78) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -144,8 +144,8 @@
   [data-timeline-root="true"]
   div[class*="rounded-lg border border-border"] {
   background-color: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-color: rgba(0, 0, 0, 0.1) !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
   color: #1e293b !important;
@@ -175,8 +175,8 @@
   [data-timeline-root="true"]
   div[class*="border-r-2"] {
   background-color: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   padding: 0.625rem 1rem;
   border-radius: var(--radius-surface) var(--radius-surface) var(--radius-surface)
     var(--radius-surface);
@@ -226,8 +226,8 @@
   [data-chat-composer-form="true"]
   [class*="rounded-2xl border"] {
   background-color: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   border-color: rgba(0, 0, 0, 0.12) !important;
   box-shadow:
     0 16px 36px -6px rgba(0, 0, 0, 0.08),

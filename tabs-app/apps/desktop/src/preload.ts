@@ -36,6 +36,7 @@ const APP_CLEANUP_DONE_CHANNEL = "desktop:app-cleanup-done";
 const APP_READY_TO_EXIT_CHANNEL = "desktop:app-ready-to-exit";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
+const UPDATE_RETRY_CHECK_CHANNEL = "desktop:update-retry-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
@@ -275,6 +276,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   openDataBackupFolder: () => ipcRenderer.invoke("desktop:data-backups:open"),
   deleteDataBackup: (id) => ipcRenderer.invoke("desktop:data-backups:delete", id),
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
+  retryUpdateCheck: () => ipcRenderer.invoke(UPDATE_RETRY_CHECK_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
   installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
   getCodeHostState: () => ipcRenderer.invoke(CODE_HOST_GET_STATE_CHANNEL),

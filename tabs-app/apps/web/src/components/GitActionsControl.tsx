@@ -4,6 +4,7 @@ import type {
   GitStatusResult,
   ThreadId,
 } from "@tabs/contracts";
+import { openLink } from "../browserLinkTarget";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon, CloudUploadIcon, GitCommitIcon, InfoIcon } from "lucide-react";
@@ -414,7 +415,7 @@ export default function GitActionsControl({
       });
       return;
     }
-    void api.shell.openExternal(prUrl).catch((err) => {
+    void openLink(prUrl).catch((err) => {
       toastManager.add({
         type: "error",
         title: "Unable to open PR link",
@@ -567,7 +568,7 @@ export default function GitActionsControl({
                       const api = readNativeApi();
                       if (!api) return;
                       closeResultToast();
-                      void api.shell.openExternal(prUrl);
+                      void openLink(prUrl);
                     },
                   },
                 }

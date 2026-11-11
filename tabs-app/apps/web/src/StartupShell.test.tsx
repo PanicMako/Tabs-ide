@@ -25,6 +25,14 @@ beforeEach(() => {
     setTimeout(() => callback(0), 0),
   );
   vi.stubGlobal("cancelAnimationFrame", (handle: number) => clearTimeout(handle));
+  // happy-dom has no Web Animations; model one that finishes after its duration.
+  Object.defineProperty(HTMLElement.prototype, "animate", {
+    configurable: true,
+    value: (_keyframes: unknown, options: { duration: number }) => ({
+      finished: new Promise((resolve) => setTimeout(resolve, options.duration)),
+      cancel: () => undefined,
+    }),
+  });
   deactivate = activateStartupSplash();
   container = document.createElement("div");
   document.body.append(container);
@@ -37,7 +45,7 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-it("finishes the airport sequence before a ready workspace exits upward for half a second", async () => {
+it("finishes the airport sequence before a ready workspace lifts straight up", async () => {
   const load = vi.fn(async () => <div>Workspace</div>);
   await act(async () => root.render(<StartupShell loadApplication={load} />));
   expect(container.textContent).toContain("Airport animation");
@@ -50,21 +58,22 @@ it("finishes the airport sequence before a ready workspace exits upward for half
   });
   expect(getStartupSplashState().dismissed).toBe(false);
   expect(container.querySelector('[aria-label="Starting Tabs"]')).not.toBeNull();
-  expect(container.querySelector('[aria-label="Starting Tabs"]')?.className).toContain(
-    "translate-y-0",
-  );
+  expect(
+    container.querySelector('[aria-label="Starting Tabs"]')?.hasAttribute("data-leaving"),
+  ).toBe(false);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1);
   });
-  expect(container.querySelector('[aria-label="Starting Tabs"]')?.className).toContain(
-    "-translate-y-full",
-  );
+  expect(
+    container.querySelector('[aria-label="Starting Tabs"]')?.hasAttribute("data-leaving"),
+  ).toBe(true);
+  // The lift waits for the workspace's first paint, then runs its full length.
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS - 1);
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS / 2);
   });
   expect(getStartupSplashState().dismissed).toBe(false);
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS / 2 + 50);
   });
   expect(getStartupSplashState().dismissed).toBe(true);
   expect(container.querySelector('[aria-label="Starting Tabs"]')).toBeNull();
@@ -91,12 +100,12 @@ it("keeps the loader visible past the animation when the backend is still loadin
     await vi.advanceTimersByTimeAsync(10_000);
   });
   expect(getStartupSplashState().dismissed).toBe(false);
-  expect(container.querySelector('[aria-label="Starting Tabs"]')?.className).toContain(
-    "translate-y-0",
-  );
+  expect(
+    container.querySelector('[aria-label="Starting Tabs"]')?.hasAttribute("data-leaving"),
+  ).toBe(false);
   await act(async () => updateStartupSplash({ ready: true }));
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS);
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS + 50);
   });
   expect(getStartupSplashState().dismissed).toBe(true);
 });
@@ -139,7 +148,7 @@ it("keeps the loader visible when readiness arrives before the application modul
     finish(<div>Workspace</div>);
   });
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS);
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS + 50);
   });
   expect(container.textContent).toContain("Workspace");
   expect(container.querySelector('[aria-label="Starting Tabs"]')).toBeNull();

@@ -1,7 +1,7 @@
 # Exchange liveness monitor
 
 A scheduled Cloudflare Worker requests `https://exchange.buildwithtabs.com/livez`
-every ten minutes. It does not query Neon or storage, follow redirects, or read the
+every 12 minutes. It does not query PostgreSQL or storage, follow redirects, or read the
 response body. Non-200 responses and network failures fail the scheduled invocation
 and appear in Workers Logs. There is no public HTTP route or secret to configure.
 

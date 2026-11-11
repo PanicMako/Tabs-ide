@@ -91,35 +91,158 @@ export const QUICK_ACTIONS = [
     icon: "settings",
   },
 ] as const;
-export type QuickActionId = (typeof QUICK_ACTIONS)[number]["id"];
-export type QuickAction = (typeof QUICK_ACTIONS)[number];
+export type BuiltInQuickAction = (typeof QUICK_ACTIONS)[number];
+export type QuickActionId = BuiltInQuickAction["id"];
+
+export const CUSTOM_ACTION_ICONS = [
+  "star",
+  "link",
+  "zap",
+  "book",
+  "rocket",
+  "bug",
+  "database",
+  "cloud",
+  "play",
+  "flask",
+  "terminal",
+  "browser",
+  "code",
+  "search",
+] as const;
+export type CustomActionIcon = (typeof CUSTOM_ACTION_ICONS)[number];
+
+/** A user-made action as saved in settings. */
+export interface CustomQuickAction {
+  id: string;
+  label: string;
+  icon: string;
+  actionId: string;
+  query: string;
+}
+/** A user-made action ready for the launcher: it runs a built-in with its own input. */
+export interface CustomLauncherAction {
+  id: string;
+  label: string;
+  detail: string;
+  group: "Custom";
+  icon: CustomActionIcon;
+  custom: { actionId: QuickActionId; query: string };
+}
+export type QuickAction = BuiltInQuickAction | CustomLauncherAction;
+
+/** The built-in that actually runs when this action is chosen. */
+export function actionRunId(action: QuickAction): QuickActionId {
+  return "custom" in action ? action.custom.actionId : action.id;
+}
+
+export type CustomActionKind = "web" | "search" | "command" | "builtin";
+export interface CustomActionDraft {
+  id: string;
+  label: string;
+  icon: CustomActionIcon;
+  kind: CustomActionKind;
+  value: string;
+  builtin: QuickActionId;
+}
+
+function isBuiltInId(id: string): id is QuickActionId {
+  return QUICK_ACTIONS.some((action) => action.id === id);
+}
+
+export function newCustomActionDraft(id: string): CustomActionDraft {
+  return { id, label: "", icon: "star", kind: "web", value: "", builtin: "new-agent" };
+}
+
+export function customActionDraft(saved: CustomQuickAction): CustomActionDraft {
+  const icon = CUSTOM_ACTION_ICONS.find((entry) => entry === saved.icon) ?? "star";
+  const base = { id: saved.id, label: saved.label, icon, value: saved.query };
+  if (saved.query && saved.actionId === "scratch-browser")
+    return { ...base, kind: "web", builtin: "new-agent" };
+  if (saved.query && saved.actionId === "search")
+    return { ...base, kind: "search", builtin: "new-agent" };
+  if (saved.query && saved.actionId === "scratch-terminal")
+    return { ...base, kind: "command", builtin: "new-agent" };
+  return {
+    ...base,
+    kind: "builtin",
+    value: "",
+    builtin: isBuiltInId(saved.actionId) ? saved.actionId : "new-agent",
+  };
+}
+
+/** Why a draft cannot be saved yet, or null when it can. */
+export function customActionProblem(draft: CustomActionDraft): string | null {
+  if (!draft.label.trim()) return "Give it a name.";
+  const value = draft.value.trim();
+  if (draft.kind === "web" && !value) return "Enter a web address.";
+  if (draft.kind === "command" && !value) return "Enter a command to run.";
+  if (draft.kind === "search" && !value.includes("{query}"))
+    return "Put {query} where the search text belongs.";
+  return null;
+}
+
+export function customActionFromDraft(draft: CustomActionDraft): CustomQuickAction {
+  const actionId =
+    draft.kind === "web"
+      ? "scratch-browser"
+      : draft.kind === "search"
+        ? "search"
+        : draft.kind === "command"
+          ? "scratch-terminal"
+          : draft.builtin;
+  return {
+    id: draft.id,
+    label: draft.label.trim(),
+    icon: draft.icon,
+    actionId,
+    query: draft.kind === "builtin" ? "" : draft.value.trim(),
+  };
+}
+
+function toLauncherAction(saved: CustomQuickAction): CustomLauncherAction | null {
+  if (!isBuiltInId(saved.actionId)) return null;
+  const { icon } = customActionDraft(saved);
+  const builtIn = QUICK_ACTIONS.find((action) => action.id === saved.actionId)!;
+  return {
+    id: saved.id,
+    label: saved.label,
+    detail: saved.query || builtIn.label,
+    group: "Custom",
+    icon,
+    custom: { actionId: saved.actionId, query: saved.query },
+  };
+}
 export const LAUNCHER_DESIGNS = [
   {
     id: "compass",
-    name: "Halo Fade",
-    description: "Eight actions with a soft halo that follows the selected action's color.",
-  },
-  {
-    id: "dial",
-    name: "Glass Dial",
-    description: "Six labelled nodes with a quiet center and More for secondary actions.",
+    name: "Orbit",
+    tagline: "Icons on a ring",
+    description: "Eight icons on a ring; a light glides to your choice and the center explains it.",
   },
   {
     id: "sectors",
-    name: "Pie Sectors",
-    description: "Rounded wedges with action-colored highlights and an outer More menu.",
+    name: "Pie",
+    tagline: "Wedges you flick into",
+    description: "Wedges you can flick into with the pointer; sub-actions fan out beyond the edge.",
   },
 ] as const;
 export type LauncherDesign = (typeof LAUNCHER_DESIGNS)[number]["id"];
 
-export function orderedActions(order: readonly string[], hidden: readonly string[]): QuickAction[] {
+export function orderedActions(
+  order: readonly string[],
+  hidden: readonly string[],
+  custom: readonly CustomQuickAction[] = [],
+): QuickAction[] {
   const rank = new Map(order.map((id, index) => [id, index]));
-  return [...QUICK_ACTIONS]
+  const all: QuickAction[] = [
+    ...QUICK_ACTIONS,
+    ...custom.flatMap((entry) => toLauncherAction(entry) ?? []),
+  ];
+  return all
     .filter((a) => !hidden.includes(a.id) || a.id === "customize")
     .sort(
-      (a, b) =>
-        (rank.get(a.id) ?? 100 + QUICK_ACTIONS.indexOf(a)) -
-        (rank.get(b.id) ?? 100 + QUICK_ACTIONS.indexOf(b)),
+      (a, b) => (rank.get(a.id) ?? 100 + all.indexOf(a)) - (rank.get(b.id) ?? 100 + all.indexOf(b)),
     );
 }
 export function searchTarget(query: string): string {
@@ -140,9 +263,59 @@ export function clampLauncher(
   };
 }
 
+/** A stored "dial" (retired) and anything unknown show Orbit. */
 export const normalizeLauncherDesign = (design: string): LauncherDesign =>
-  design === "dial" || design === "sectors" ? design : "compass";
-export function actionAccentIdentity(action: QuickAction): string {
+  design === "sectors" ? "sectors" : "compass";
+
+/** Ring positions for actions; the eighth is More when anything overflows. */
+export const RING_SLOTS = 7;
+export type ActionZone = "ring" | "more" | "hidden";
+
+export function actionZones(
+  order: readonly string[],
+  hidden: readonly string[],
+  custom: readonly CustomQuickAction[] = [],
+) {
+  const visible = orderedActions(order, hidden, custom);
+  return {
+    ring: visible.slice(0, RING_SLOTS),
+    more: visible.slice(RING_SLOTS),
+    hidden: orderedActions(order, [], custom).filter(
+      (action) => hidden.includes(action.id) && action.id !== "customize",
+    ),
+  };
+}
+
+/**
+ * Puts one action at a position in a zone. The ring is simply the first
+ * RING_SLOTS visible actions, so a full ring pushes its last action into More
+ * and a ring with a gap is refilled from the top of More.
+ */
+export function placeAction(
+  order: readonly string[],
+  hidden: readonly string[],
+  id: string,
+  zone: ActionZone,
+  index: number,
+  custom: readonly CustomQuickAction[] = [],
+): { actionOrder: string[]; hiddenActions: string[] } {
+  const zones = actionZones(order, hidden, custom);
+  const ids = (list: readonly QuickAction[]): string[] =>
+    list.map((action) => action.id).filter((entry) => entry !== id);
+  const ring = ids(zones.ring),
+    more = ids(zones.more),
+    gone = ids(zones.hidden);
+  const target = zone === "hidden" && id === "customize" ? "ring" : zone;
+  if (target === "ring") ring.splice(Math.min(index, ring.length), 0, id);
+  else if (target === "hidden") gone.splice(Math.min(index, gone.length), 0, id);
+  else {
+    // Whatever refills the ring must not be the action just sent to More.
+    const refill = Math.max(0, RING_SLOTS - ring.length);
+    more.splice(Math.max(refill, Math.min(index, more.length)), 0, id);
+  }
+  return { actionOrder: [...ring, ...more, ...gone], hiddenActions: gone };
+}
+export function actionAccentIdentity(action: BuiltInQuickAction): string {
   return {
     tab: "workspace",
     agent: "agents",

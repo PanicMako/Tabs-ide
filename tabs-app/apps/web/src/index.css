@@ -1912,8 +1912,8 @@ label:has(> select#reasoning-effort) select {
 [data-slot="dialog-backdrop"],
 [data-slot="alert-dialog-backdrop"],
 [data-slot="sheet-backdrop"] {
-  backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(8px) !important;
 }
 
 /* Glassmorphism for all floating popup panels */
@@ -1926,8 +1926,8 @@ label:has(> select#reasoning-effort) select {
   [data-slot="select-popup"],
   [data-slot="tooltip-popup"]
 ) {
-  backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
+  backdrop-filter: blur(16px) !important;
 }
 
 /* --- Toolbar Styles --- */

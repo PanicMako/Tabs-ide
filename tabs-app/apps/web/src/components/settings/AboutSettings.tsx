@@ -75,22 +75,31 @@ function desktopUpdateButtonLabel(action: DesktopUpdateButtonAction): string {
 function DesktopUpdateControl({
   state,
   runUpdateAction,
+  retryUpdateCheck,
 }: {
   readonly state: DesktopUpdateState;
   readonly runUpdateAction: (action: DesktopUpdateButtonAction) => void;
+  readonly retryUpdateCheck?: () => void;
 }) {
   const action = resolveDesktopUpdateButtonAction(state);
   if (action === "none") {
     if (state.status === "disabled" || state.status === "error") {
       return (
-        <Button
-          size="xs"
-          variant="outline"
-          className="cursor-pointer"
-          onClick={() => void window.desktopBridge?.openExternal(TABS_RELEASES_URL)}
-        >
-          View releases
-        </Button>
+        <div className="flex flex-wrap items-center gap-1">
+          {state.enabled && state.errorContext === "check" && state.canRetry && retryUpdateCheck ? (
+            <Button size="xs" variant="outline" onClick={retryUpdateCheck}>
+              Retry update check
+            </Button>
+          ) : null}
+          <Button
+            size="xs"
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => void window.desktopBridge?.openExternal(TABS_RELEASES_URL)}
+          >
+            View releases
+          </Button>
+        </div>
       );
     }
     return (
@@ -219,6 +228,17 @@ export function AboutSettings() {
       });
   }, []);
 
+  const retryUpdateCheck = useCallback(() => {
+    const bridge = window.desktopBridge;
+    if (!bridge?.retryUpdateCheck) return;
+    setUpdateActionError(null);
+    void bridge.retryUpdateCheck().then(setUpdateState, (error: unknown) => {
+      setUpdateActionError(
+        error instanceof Error ? error.message : "Could not retry the update check.",
+      );
+    });
+  }, []);
+
   const beginDataReset = useCallback(async () => {
     const bridge = window.desktopBridge;
     if (!bridge?.resetTabsUserData) {
@@ -321,7 +341,13 @@ export function AboutSettings() {
                 </div>
               ) : null
             }
-            control={<DesktopUpdateControl state={updateState} runUpdateAction={runUpdateAction} />}
+            control={
+              <DesktopUpdateControl
+                state={updateState}
+                runUpdateAction={runUpdateAction}
+                {...(window.desktopBridge?.retryUpdateCheck ? { retryUpdateCheck } : {})}
+              />
+            }
           />
         ) : null}
 

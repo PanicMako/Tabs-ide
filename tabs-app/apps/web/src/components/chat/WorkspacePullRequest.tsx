@@ -1,4 +1,5 @@
 import type { GitResolvedPullRequest, GitStatusResult } from "@tabs/contracts";
+import { openLink } from "../../browserLinkTarget";
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
@@ -62,15 +63,13 @@ export function WorkspacePullRequest({
   const prs = pullRequests && pullRequests.length > 0 ? pullRequests : details ? [details] : [];
 
   const handleOpenPr = (url: string) => {
-    void environmentApi(environmentId)
-      .then((api) => api.shell.openExternal(url))
-      .catch((error) => {
-        toastManager.add({
-          type: "error",
-          title: "Could not open pull request",
-          description: error instanceof Error ? error.message : String(error),
-        });
+    void openLink(url).catch((error) => {
+      toastManager.add({
+        type: "error",
+        title: "Could not open pull request",
+        description: error instanceof Error ? error.message : String(error),
       });
+    });
   };
 
   if (prs.length === 0) {

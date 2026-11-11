@@ -1,4 +1,5 @@
 import { OrbitGroup } from "../ui/orbit-group";
+import { openLink } from "../../browserLinkTarget";
 import { cn } from "../../lib/utils";
 import {
   ArrowUpDown,
@@ -873,7 +874,7 @@ export function PRsPanel({
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        void api?.shell.openExternal(pr.url).catch((error) => {
+                        void openLink(pr.url).catch((error) => {
                           toastManager.add({
                             type: "error",
                             title: "Unable to open pull request",

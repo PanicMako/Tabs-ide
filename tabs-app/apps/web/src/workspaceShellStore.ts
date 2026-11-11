@@ -861,6 +861,22 @@ export function syncWorkspaceShellState(
 ): WorkspaceShellPersistedState {
   const projectIds = new Set(projects.map((project) => project.id));
   let nextState = createDefaultWorkspaceShellPersistedState();
+  // Projects missing from this list are kept, not discarded. With several
+  // environments (local, remote, relay) the first snapshot to arrive can hold
+  // only some of them; pruning here used to close those tabs and delete their
+  // workspace settings for good, so data appeared to vanish on some launches.
+  // A project that is really gone only leaves inert entries behind.
+  const isDormant = (projectId: string) => !projectIds.has(projectId as ProjectId);
+  const keepDormant = <T>(source: Record<ProjectId, T> | undefined) =>
+    Object.fromEntries(
+      Object.entries(source ?? {}).filter(([projectId]) => isDormant(projectId)),
+    ) as Record<ProjectId, T>;
+  nextState.projectSettingsByProjectId = keepDormant(input.projectSettingsByProjectId);
+  nextState.browserStateByProjectId = keepDormant(input.browserStateByProjectId);
+  nextState.codeStateByProjectId = keepDormant(input.codeStateByProjectId);
+  nextState.codeChromeStateByProjectId = keepDormant(input.codeChromeStateByProjectId);
+  nextState.gitStateByProjectId = keepDormant(input.gitStateByProjectId);
+  nextState.serverStateByProjectId = keepDormant(input.serverStateByProjectId);
   // Preserve per-tab navigated URLs and per-session browser states (keyed by `${projectId}:${sessionId}`) across
   // the project sync so tabs reopen where the user left them.
   nextState.browserUrlBySessionKey = { ...input.browserUrlBySessionKey };
@@ -900,6 +916,9 @@ export function syncWorkspaceShellState(
   const openProjectIds = input.session.openProjectIds.filter((projectId) =>
     projectIds.has(projectId),
   );
+  // Open tabs whose environment has not reported yet stay open (the shell only
+  // renders tabs it can resolve), so they come back as soon as it does.
+  const dormantOpenProjectIds = input.session.openProjectIds.filter(isDormant);
   // Preserve pending tab IDs as-is — they have no server-side project to
   // resolve against, so the existing "resolve or drop" filter must not touch them.
   const pendingTabIds = [...(input.session.pendingTabIds ?? [])];
@@ -911,18 +930,24 @@ export function syncWorkspaceShellState(
   let activeProjectId = activePendingTabId
     ? null
     : input.session.activeProjectId &&
-      projectIds.has(input.session.activeProjectId) &&
-      nextOpenProjectIds.includes(input.session.activeProjectId)
+        projectIds.has(input.session.activeProjectId) &&
+        nextOpenProjectIds.includes(input.session.activeProjectId)
       ? input.session.activeProjectId
       : (nextOpenProjectIds[0] ?? null);
 
-  if (nextOpenProjectIds.length === 0 && pendingTabIds.length === 0) {
+  if (
+    nextOpenProjectIds.length === 0 &&
+    dormantOpenProjectIds.length === 0 &&
+    pendingTabIds.length === 0
+  ) {
     const freshPendingId = randomUUID();
     pendingTabIds.push(freshPendingId);
     activePendingTabId = freshPendingId;
     activeProjectId = null;
   }
-  const rememberedThreadIdByProjectId: Record<ProjectId, ThreadId> = {};
+  const rememberedThreadIdByProjectId: Record<ProjectId, ThreadId> = keepDormant(
+    input.session.rememberedThreadIdByProjectId,
+  );
   const threadIds = new Set(threads.map((thread) => thread.id));
   for (const [projectId, threadId] of Object.entries(
     input.session.rememberedThreadIdByProjectId,
@@ -933,7 +958,9 @@ export function syncWorkspaceShellState(
     rememberedThreadIdByProjectId[projectId] = threadId;
   }
 
-  const activeToolIdByProjectId: Record<ProjectId, string> = {};
+  const activeToolIdByProjectId: Record<ProjectId, string> = keepDormant(
+    input.session.activeToolIdByProjectId,
+  );
   for (const project of projects) {
     activeToolIdByProjectId[project.id] = resolveActiveToolId(
       nextState.projectSettingsByProjectId[project.id] ?? createDefaultProjectWorkspaceSettings(),
@@ -942,7 +969,9 @@ export function syncWorkspaceShellState(
   }
 
   nextState.session = {
-    openProjectIds: nextOpenProjectIds,
+    openProjectIds: input.session.openProjectIds.filter(
+      (projectId) => nextOpenProjectIds.includes(projectId) || isDormant(projectId),
+    ),
     activeProjectId,
     pendingTabIds,
     activePendingTabId,

@@ -22,18 +22,48 @@ it("paints the original airport loader before imports finish and preserves it th
     await expect.element(page.getByRole("button", { name: "Workspace loaded" })).toBeVisible();
     expect(document.querySelector(".grid-cols-4")).toBe(tiles);
     const curtain = document.querySelector<HTMLElement>('[aria-label="Starting Tabs"]')!;
-    expect(getComputedStyle(curtain).transitionDuration).toBe("0.5s");
     updateStartupSplash({ ready: true });
     // A fast backend must not cut off the airport tiles halfway through.
-    expect(curtain.classList.contains("-translate-y-full")).toBe(false);
-    await expect
-      .poll(() => curtain.classList.contains("-translate-y-full"), { timeout: 5_000 })
-      .toBe(true);
+    expect(curtain.hasAttribute("data-leaving")).toBe(false);
+    await expect.poll(() => curtain.hasAttribute("data-leaving"), { timeout: 5_000 }).toBe(true);
+    // The lift is a real animation on the compositor, not a CSS class swap.
+    await expect.poll(() => curtain.getAnimations().length, { timeout: 2_000 }).toBeGreaterThan(0);
     expect(tiles?.textContent?.replace(/\u00a0/g, " ")).toBe("TABS IDE");
     await expect.poll(() => curtain.isConnected, { timeout: 5_000 }).toBe(false);
   } finally {
     await view.unmount();
     release();
+  }
+});
+
+it("brings the workspace up from the bottom after the mascot gag", async () => {
+  window.localStorage.setItem(
+    "tabs:client-settings:v1",
+    JSON.stringify({ splashLoaderStyle: "mascot" }),
+  );
+  const release = activateStartupSplash();
+  const view = await render(
+    <StartupShell loadApplication={async () => <button>Workspace loaded</button>} />,
+  );
+  try {
+    const curtain = document.querySelector<HTMLElement>('[aria-label="Starting Tabs"]')!;
+    const workspace = page.getByRole("button", { name: "Workspace loaded" });
+    await expect.element(workspace).toBeInTheDocument();
+    const layer = workspace.element().parentElement!;
+    expect(getComputedStyle(layer).display).toBe("contents");
+    updateStartupSplash({ ready: true });
+    await expect.poll(() => layer.dataset.rising, { timeout: 8_000 }).toBe("true");
+    expect(getComputedStyle(layer).position).toBe("fixed");
+    expect(layer.getAnimations().length).toBeGreaterThan(0);
+    // The splash holds still and is covered; it is not the thing moving away.
+    expect(curtain.getAnimations().length).toBe(0);
+    await expect.poll(() => curtain.isConnected, { timeout: 5_000 }).toBe(false);
+    expect(layer.dataset.rising).toBeUndefined();
+    expect(getComputedStyle(layer).display).toBe("contents");
+  } finally {
+    await view.unmount();
+    release();
+    window.localStorage.removeItem("tabs:client-settings:v1");
   }
 });
 

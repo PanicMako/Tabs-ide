@@ -1,3 +1,4 @@
+import { normalizeSplashLoaderStyle } from "@tabs/contracts/settings";
 import type { SplashScreenProps } from "./components/SplashScreen";
 
 export function readFirstPaintSplashSettings(storage: Pick<Storage, "getItem">): SplashScreenProps {
@@ -7,7 +8,7 @@ export function readFirstPaintSplashSettings(storage: Pick<Storage, "getItem">):
       unknown
     > | null;
     return {
-      loader: parsed?.splashLoaderStyle === "glass" ? "glass" : "solari",
+      loader: normalizeSplashLoaderStyle(parsed?.splashLoaderStyle),
       palette: parsed?.splashLoaderPalette === "block" ? "block" : "mono",
       theme:
         parsed?.splashLoaderTheme === "light" || parsed?.splashLoaderTheme === "dark"

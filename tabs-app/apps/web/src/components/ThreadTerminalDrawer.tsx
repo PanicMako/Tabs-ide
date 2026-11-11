@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { openLink } from "../browserLinkTarget";
 import {
   Plus,
   RotateCcwIcon,
@@ -7,7 +8,7 @@ import {
   Trash2,
   XIcon,
 } from "lucide-react";
-import { type ThreadId, type NativeApi } from "@tabs/contracts";
+import { ProviderInstanceId, type ThreadId, type NativeApi } from "@tabs/contracts";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -208,6 +209,10 @@ interface TerminalViewportProps {
   cwd: string;
   runtimeEnv?: Record<string, string>;
   environmentId?: string | null | undefined;
+  /** Provider instance whose environment (auth, home dirs) the shell inherits. */
+  providerInstanceId?: string | undefined;
+  /** Typed into the shell once when this session starts with no history. */
+  launchCommand?: string | undefined;
   onSessionExited: () => void;
   onAddTerminalContext: (selection: TerminalContextSelection) => void;
   focusRequestId: number;
@@ -238,6 +243,8 @@ function ConnectedTerminalViewport({
   terminalLabel,
   cwd,
   runtimeEnv,
+  providerInstanceId,
+  launchCommand,
   onSessionExited,
   onAddTerminalContext,
   focusRequestId,
@@ -245,6 +252,8 @@ function ConnectedTerminalViewport({
   resizeEpoch,
   drawerHeight,
 }: TerminalViewportProps & { api: NativeApi }) {
+  const launchCommandRef = useRef(launchCommand);
+  launchCommandRef.current = launchCommand;
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -430,7 +439,9 @@ function ConnectedTerminalViewport({
               if (!latestTerminal) return;
 
               if (match.kind === "url") {
-                void api.shell.openExternal(match.text).catch((error) => {
+                // Terminal links already need a modifier to activate, so the
+                // modifier is not the "system browser" escape hatch here.
+                void openLink(match.text).catch((error) => {
                   writeSystemMessage(
                     latestTerminal,
                     error instanceof Error ? error.message : "Unable to open link",
@@ -531,11 +542,23 @@ function ConnectedTerminalViewport({
           cols: activeTerminal.cols,
           rows: activeTerminal.rows,
           ...(runtimeEnv ? { env: runtimeEnv } : {}),
+          ...(providerInstanceId
+            ? { providerInstanceId: ProviderInstanceId.make(providerInstanceId) }
+            : {}),
         });
         if (disposed) return;
         activeTerminal.write("\u001bc");
         if (snapshot.history.length > 0) {
           activeTerminal.write(snapshot.history);
+        } else if (launchCommandRef.current) {
+          // A fresh shell: start the requested program in it. Leaving the
+          // shell underneath means quitting the program drops to a prompt in
+          // the same directory instead of closing the tab.
+          await api.terminal.write({
+            threadId,
+            terminalId,
+            data: `${launchCommandRef.current}\r`,
+          });
         }
         if (autoFocus) {
           window.requestAnimationFrame(() => {
@@ -650,7 +673,7 @@ function ConnectedTerminalViewport({
     // autoFocus is intentionally omitted;
     // it is only read at mount time and must not trigger terminal teardown/recreation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, cwd, runtimeEnv, terminalId, threadId]);
+  }, [api, cwd, runtimeEnv, providerInstanceId, terminalId, threadId]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -712,11 +735,29 @@ function ConnectedTerminalViewport({
   return <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-none" />;
 }
 
+export interface TerminalLaunchProfile {
+  readonly providerInstanceId?: string | null | undefined;
+  /**
+   * Launch context for this terminal when it differs from the drawer's. Every
+   * caller that opens the same terminal must pass the same cwd and env: the
+   * server restarts a session whose launch context changes, wiping whatever was
+   * running in it.
+   */
+  readonly cwd?: string | undefined;
+  readonly env?: Record<string, string> | undefined;
+  readonly command?: string | null | undefined;
+}
+
 interface ThreadTerminalDrawerProps {
   threadId: ThreadId;
   cwd: string;
   runtimeEnv?: Record<string, string>;
   environmentId?: string | null | undefined;
+  /**
+   * terminalId → how that shell starts: the provider instance whose
+   * environment it inherits and a program typed into it on first start.
+   */
+  launchProfiles?: Record<string, TerminalLaunchProfile> | undefined;
   height: number;
   variant?: "drawer" | "embedded";
   showControls?: boolean;
@@ -782,6 +823,7 @@ export default function ThreadTerminalDrawer({
   cwd,
   runtimeEnv,
   environmentId,
+  launchProfiles,
   height,
   variant = "drawer",
   showControls = true,
@@ -807,6 +849,8 @@ export default function ThreadTerminalDrawer({
   // because its caller reconstructed an equivalent environment object.
   const runtimeEnvKey = JSON.stringify(runtimeEnv);
   const stableRuntimeEnv = useMemo(() => runtimeEnv, [runtimeEnvKey]);
+  const launchProfilesKey = JSON.stringify(launchProfiles ?? null);
+  const stableLaunchProfiles = useMemo(() => launchProfiles, [launchProfilesKey]);
   const [terminalToCloseId, setTerminalToCloseId] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState(() => clampDrawerHeight(height));
   const [resizeEpoch, setResizeEpoch] = useState(0);
@@ -1126,8 +1170,17 @@ export default function ThreadTerminalDrawer({
                         threadId={threadId}
                         terminalId={terminalId}
                         terminalLabel={terminalLabelById.get(terminalId) ?? "Terminal"}
-                        cwd={cwd}
-                        {...(stableRuntimeEnv ? { runtimeEnv: stableRuntimeEnv } : {})}
+                        cwd={stableLaunchProfiles?.[terminalId]?.cwd ?? cwd}
+                        {...((stableLaunchProfiles?.[terminalId]?.env ?? stableRuntimeEnv)
+                          ? {
+                              runtimeEnv:
+                                stableLaunchProfiles?.[terminalId]?.env ?? stableRuntimeEnv!,
+                            }
+                          : {})}
+                        providerInstanceId={
+                          stableLaunchProfiles?.[terminalId]?.providerInstanceId ?? undefined
+                        }
+                        launchCommand={stableLaunchProfiles?.[terminalId]?.command ?? undefined}
                         onSessionExited={() => onCloseTerminal(terminalId)}
                         onAddTerminalContext={onAddTerminalContext}
                         focusRequestId={focusRequestId}
@@ -1147,8 +1200,21 @@ export default function ThreadTerminalDrawer({
                   threadId={threadId}
                   terminalId={resolvedActiveTerminalId}
                   terminalLabel={terminalLabelById.get(resolvedActiveTerminalId) ?? "Terminal"}
-                  cwd={cwd}
-                  {...(stableRuntimeEnv ? { runtimeEnv: stableRuntimeEnv } : {})}
+                  cwd={stableLaunchProfiles?.[resolvedActiveTerminalId]?.cwd ?? cwd}
+                  {...((stableLaunchProfiles?.[resolvedActiveTerminalId]?.env ?? stableRuntimeEnv)
+                    ? {
+                        runtimeEnv:
+                          stableLaunchProfiles?.[resolvedActiveTerminalId]?.env ??
+                          stableRuntimeEnv!,
+                      }
+                    : {})}
+                  providerInstanceId={
+                    stableLaunchProfiles?.[resolvedActiveTerminalId]?.providerInstanceId ??
+                    undefined
+                  }
+                  launchCommand={
+                    stableLaunchProfiles?.[resolvedActiveTerminalId]?.command ?? undefined
+                  }
                   onSessionExited={() => onCloseTerminal(resolvedActiveTerminalId)}
                   onAddTerminalContext={onAddTerminalContext}
                   focusRequestId={focusRequestId}

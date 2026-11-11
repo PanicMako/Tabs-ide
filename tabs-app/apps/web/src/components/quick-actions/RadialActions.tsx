@@ -1,24 +1,36 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowUpRight,
+  BookOpen,
   Braces,
+  Bug,
+  Cloud,
+  Database,
+  FlaskConical,
   GitBranch,
   HardDrive,
+  Link,
   MoreHorizontal,
+  Play,
   Plus,
+  Rocket,
   Search,
   Settings2,
+  Star,
   Terminal,
   CircleGauge,
   Clipboard,
   X,
+  Zap,
 } from "lucide-react";
 import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { BrowserPlanetIcon } from "../BrowserPlanetIcon";
-import { interfaceStudyAccent } from "../../lib/interfaceStudy";
+import { TabsMascot } from "../TabsMascot";
 import {
-  actionAccentIdentity,
   DEFAULT_SUB_ACTIONS,
+  QUICK_ACTIONS,
+  RING_SLOTS,
+  actionRunId,
   type QuickSubAction,
   type QuickAction,
   type QuickActionId,
@@ -34,7 +46,7 @@ type RadialIconComponent = React.ComponentType<{
   "aria-hidden"?: boolean | "true" | "false";
 }>;
 
-const ICONS: Record<QuickAction["icon"], RadialIconComponent> = {
+export const QUICK_ACTION_ICONS: Record<QuickAction["icon"], RadialIconComponent> = {
   tab: Plus,
   agent: AssistantBubbleIcon,
   branch: GitBranch,
@@ -47,46 +59,60 @@ const ICONS: Record<QuickAction["icon"], RadialIconComponent> = {
   usage: CircleGauge,
   settings: Settings2,
   clipboard: Clipboard,
+  star: Star,
+  link: Link,
+  zap: Zap,
+  book: BookOpen,
+  rocket: Rocket,
+  bug: Bug,
+  database: Database,
+  cloud: Cloud,
+  play: Play,
+  flask: FlaskConical,
 };
+/** One or two words: labels sit on a ring and must never wrap. */
 const SHORT_LABELS: Record<QuickActionId, string> = {
-  "new-tab": "New workspace",
-  "new-agent": "Conversation",
-  "isolated-agent": "Isolated agent",
-  "scratch-browser": "Temp browser",
+  "new-tab": "New tab",
+  "new-agent": "New chat",
+  "isolated-agent": "Isolated",
+  "scratch-browser": "Browser",
   "scratch-terminal": "Terminal",
   search: "Search",
-  popout: "Pop out chat",
+  popout: "Pop out",
   code: "Code",
-  git: "Source control",
+  git: "Git",
   worktrees: "Worktrees",
-  usage: "Usage & limits",
+  usage: "Usage",
   customize: "Customize",
   clipboard: "Clipboard",
 };
-const accent = (action: QuickAction | undefined) =>
-  interfaceStudyAccent(action ? actionAccentIdentity(action) : "settings")[
-    "--study-tint" as keyof CSSProperties
-  ];
+const SEARCH_ACTION = QUICK_ACTIONS.find((action) => action.id === "search")!;
+function shortLabel(action: QuickAction): string {
+  return "custom" in action ? action.label : SHORT_LABELS[action.id];
+}
+/** The site a shortcut opens, shown quietly beside its name. */
+function destinationHint(query: string): string | null {
+  if (!query) return null;
+  try {
+    return new URL(query.replace("{query}", "x")).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
 function point(radius: number, angle: number) {
   const radians = (angle * Math.PI) / 180;
   return { x: radius * Math.sin(radians), y: -radius * Math.cos(radians) };
 }
-function sectorLabelWidth(angle: number, step: number) {
-  const radians = (angle * Math.PI) / 180;
-  const radial = Math.abs(Math.sin(radians));
-  const tangent = Math.abs(Math.cos(radians));
-  const labelHeight = 28;
-  const radialSpace = 54;
-  const tangentSpace = 2 * 166 * Math.sin(((step / 2 - 4) * Math.PI) / 180);
-  return Math.floor(
-    Math.min(
-      102,
-      radial > 0.01 ? (radialSpace - labelHeight * tangent) / radial : Infinity,
-      tangent > 0.01 ? (tangentSpace - labelHeight * radial) / tangent : Infinity,
-    ),
-  );
+/**
+ * Selection angles keep counting past 360 degrees so the indicator always
+ * takes the short way round instead of spinning back through every action.
+ */
+function useContinuousAngle(angle: number): number {
+  const last = useRef(angle);
+  const delta = ((((angle - last.current) % 360) + 540) % 360) - 180;
+  last.current += delta;
+  return last.current;
 }
-
 export function radialSector(inner: number, outer: number, start: number, end: number, corner = 7) {
   const p = (radius: number, angle: number) => {
     const v = point(radius, angle);
@@ -126,9 +152,7 @@ export function RadialLauncher({
     [searchTemplate, setSearchTemplate] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
-  const gradientId = useId().replace(/:/g, "");
-  const count = design === "dial" ? 6 : 8;
-  const main = actions.slice(0, count - 1);
+  const main = actions.slice(0, RING_SLOTS);
   const more = actions.filter((action) => !main.some((entry) => entry.id === action.id));
   const nodes: readonly (QuickAction | undefined)[] = [
     ...main,
@@ -138,7 +162,8 @@ export function RadialLauncher({
   const active = nodes[currentIndex];
   const isMore = !active && more.length > 0;
   const children = isMore
-    ? more.map((action) => ({ action, label: SHORT_LABELS[action.id], query: "", id: action.id }))
+    ? // Pills have room for the full name; only ring nodes use the short one.
+      more.map((action) => ({ action, label: action.label, query: "", id: action.id }))
     : subActions
         .filter((entry) => entry.parentId === active?.id)
         .flatMap((entry) => {
@@ -147,7 +172,7 @@ export function RadialLauncher({
             ? [
                 {
                   action,
-                  label: entry.label.trim() || SHORT_LABELS[action.id],
+                  label: entry.label.trim() || shortLabel(action),
                   query: entry.query,
                   id: entry.id,
                 },
@@ -162,46 +187,33 @@ export function RadialLauncher({
           `${action.label} ${action.detail}`.toLowerCase().includes(query.toLowerCase()),
         )
       : undefined;
-  const highlighted = query.trim()
-    ? (matched ?? actions.find((action) => action.id === "search"))
-    : (selectedSub ?? active);
-  const Icon: RadialIconComponent =
-    (highlighted ? ICONS[highlighted.icon] : undefined) ?? MoreHorizontal;
-  const childStep =
-    design === "sectors"
-      ? children.length > 3
-        ? 32
-        : 44
-      : children.length <= 2
-        ? 48
-        : children.length === 3
-          ? 38
-          : design === "dial"
-            ? 26
-            : 30;
-  const trimmedQuery = query.trim();
-  const isUrl =
-    Boolean(trimmedQuery) &&
-    (/^https?:\/\//i.test(trimmedQuery) ||
-      /^(localhost|[\w-]+(?:\.[\w-]+)+)(:\d+)?(?:\/.*)?$/.test(trimmedQuery));
-  const childAngle = (i: number) => activeAngle + (i - (children.length - 1) / 2) * childStep;
+  const highlighted = query.trim() ? (matched ?? SEARCH_ACTION) : (selectedSub ?? active);
   const activeAngle = (currentIndex * 360) / Math.max(nodes.length, 1);
-  const run = async (action: QuickAction | undefined, target = query) => {
-    if (
-      action?.id === "search" &&
-      (!target.trim() || (target.includes("{query}") && !query.trim()))
-    ) {
+  const indicatorAngle = useContinuousAngle(activeAngle);
+  const wedge = 360 / Math.max(nodes.length, 1);
+  // Sub-actions sit in one panel beside the plate on the parent's side, so any
+  // number of them stays readable and none crosses the ring.
+  const parentPoint = point(112, activeAngle);
+  const stackSide: "left" | "right" = parentPoint.x < -8 ? "left" : "right";
+  const panelReach = 270 - (40 + children.length * 37) / 2;
+  const panelY = Math.min(Math.max(parentPoint.y, -panelReach), panelReach);
+  const eyes = point(16, activeAngle);
+  const run = async (action: QuickAction | undefined, given = query) => {
+    // A custom action always runs with its own saved input.
+    const target = action && "custom" in action ? action.custom.query : given;
+    const runId = action ? actionRunId(action) : undefined;
+    if (runId === "search" && (!target.trim() || (target.includes("{query}") && !query.trim()))) {
       setSearchTemplate(target.includes("{query}") ? target : null);
       setSearching(true);
       requestAnimationFrame(() => input.current?.focus());
       return;
     }
-    if (!action || busy || disabled(action.id)) return;
+    if (!action || !runId || busy || disabled(runId)) return;
     setBusy(true);
     setError(null);
     try {
       await execute(
-        action.id,
+        runId,
         target.includes("{query}")
           ? target.replaceAll("{query}", encodeURIComponent(query))
           : target,
@@ -216,12 +228,10 @@ export function RadialLauncher({
   };
   const submitSearch = (customTemplate = searchTemplate) => {
     if (!query.trim()) return;
-    const searchAction = actions.find((action) => action.id === "search");
-    if (!searchAction) return;
     if (customTemplate) {
-      void run(searchAction, customTemplate);
+      void run(SEARCH_ACTION, customTemplate);
     } else {
-      void run(matched ?? searchAction, query);
+      void run(matched ?? SEARCH_ACTION, query);
     }
   };
   const select = (next: number, focus = false) => {
@@ -230,7 +240,7 @@ export function RadialLauncher({
       const direction = next >= currentIndex ? 1 : -1;
       for (let attempts = 0; attempts < nodes.length; attempts++) {
         const candidate = nodes[value];
-        if (!candidate || !disabled(candidate.id)) break;
+        if (!candidate || !disabled(actionRunId(candidate))) break;
         value = (value + direction + nodes.length) % nodes.length;
       }
     }
@@ -265,8 +275,7 @@ export function RadialLauncher({
       aria-busy={busy}
       style={
         {
-          "--qa-action-color": accent(highlighted),
-          "--qa-angle": `${activeAngle}deg`,
+          "--qa-angle": `${indicatorAngle}deg`,
           "--qa-scale": scale,
         } as CSSProperties
       }
@@ -315,7 +324,7 @@ export function RadialLauncher({
                   : children.length - 1
                 : (subIndex + direction + children.length) % children.length;
             for (let attempts = 0; attempts < children.length; attempts++) {
-              if (!disabled(children[next]!.action.id)) break;
+              if (!disabled(actionRunId(children[next]!.action))) break;
               next = (next + direction + children.length) % children.length;
             }
             setSubIndex(next);
@@ -329,12 +338,8 @@ export function RadialLauncher({
         ) {
           event.preventDefault();
           if (query.trim()) {
-            if (searchTemplate)
-              void run(
-                actions.find((action) => action.id === "search"),
-                searchTemplate,
-              );
-            else void run(matched ?? actions.find((action) => action.id === "search"));
+            if (searchTemplate) void run(SEARCH_ACTION, searchTemplate);
+            else void run(matched ?? SEARCH_ACTION);
           } else if (isMore) {
             setExpanded(true);
             setSubIndex(Math.max(subIndex, 0));
@@ -358,7 +363,7 @@ export function RadialLauncher({
         }}
         onPointerMove={(event) => {
           if (
-            (event.target as Element).closest(".qa-more-action") ||
+            (event.target as Element).closest(".qa-sub-panel") ||
             (expanded && children.length > 0)
           )
             return;
@@ -375,94 +380,54 @@ export function RadialLauncher({
           if (next !== currentIndex) select(next);
         }}
       >
-        <div className="qa-radial-disc" aria-hidden="true" />
-        {design !== "sectors" && !searching && (
-          <svg className="qa-halo-art" viewBox="-280 -280 560 560" aria-hidden="true">
-            <defs>
-              <radialGradient
-                id={`${gradientId}-halo`}
-                gradientUnits="userSpaceOnUse"
-                cx="0"
-                cy="0"
-                r="182"
-              >
-                <stop offset=".12" stopColor="var(--qa-action-color)" stopOpacity=".95" />
-                <stop offset=".45" stopColor="var(--qa-action-color)" stopOpacity=".5" />
-                <stop offset="1" stopColor="var(--qa-action-color)" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <path
-              fill={`url(#${gradientId}-halo)`}
-              d={radialSector(
-                44,
-                180,
-                activeAngle - 180 / nodes.length - 3,
-                activeAngle + 180 / nodes.length + 3,
-                1,
-              )}
-            />
-          </svg>
-        )}
-        {design === "sectors" && !searching && (
-          <svg className="qa-sector-art" viewBox="-280 -280 560 560" aria-hidden="true">
-            <defs>
-              {nodes.map((action, i) => (
-                <radialGradient
-                  key={i}
-                  id={`${gradientId}-${i}`}
-                  gradientUnits="userSpaceOnUse"
-                  cx="0"
-                  cy="0"
-                  r="180"
-                >
-                  <stop offset=".2" stopColor={String(accent(action))} stopOpacity=".65" />
-                  <stop offset="1" stopColor={String(accent(action))} stopOpacity=".12" />
-                </radialGradient>
-              ))}
-            </defs>
-            {nodes.map((action, i) => (
-              <path
-                key={i}
-                d={radialSector(
-                  60,
-                  128,
-                  (i * 360) / nodes.length - 180 / nodes.length + 2,
-                  (i * 360) / nodes.length + 180 / nodes.length - 2,
-                )}
-                data-current={i === currentIndex}
-                style={{
-                  fill: i === currentIndex ? `url(#${gradientId}-${i})` : undefined,
-                  stroke: i === currentIndex ? String(accent(action)) : undefined,
-                }}
-              />
-            ))}
-            {expanded &&
-              !searching &&
-              children.map((entry, i) => (
+        {!searching && <div className="qa-radial-disc" aria-hidden="true" />}
+        {!searching && (
+          <svg className="qa-ring-art" viewBox="-280 -280 560 560" aria-hidden="true">
+            {design === "sectors" ? (
+              nodes.map((_, i) => (
                 <path
-                  key={`sub-${entry.id}`}
-                  className="qa-sub-sector"
-                  data-current={i === subIndex}
+                  key={i}
+                  className="qa-sector"
+                  data-current={i === currentIndex}
                   d={radialSector(
+                    60,
                     134,
-                    198,
-                    childAngle(i) - childStep / 2 + 1.4,
-                    childAngle(i) + childStep / 2 - 1.4,
-                    9,
+                    i * wedge - wedge / 2 + 1.5,
+                    i * wedge + wedge / 2 - 1.5,
                   )}
                 />
-              ))}
+              ))
+            ) : (
+              <circle className="qa-ring-track" r={112} />
+            )}
+            {/* The selection glides around the ring to the active action. */}
+            <g className="qa-indicator">
+              {design === "sectors" ? (
+                <path
+                  className="qa-indicator-band"
+                  d={radialSector(137, 145, -wedge / 2 + 2, wedge / 2 - 2, 3)}
+                />
+              ) : (
+                <>
+                  <path
+                    className="qa-indicator-wedge"
+                    d={radialSector(50, 160, -wedge / 2, wedge / 2, 6)}
+                  />
+                  <path
+                    className="qa-indicator-band"
+                    d={radialSector(156, 162, -wedge / 2 + 6, wedge / 2 - 6, 3)}
+                  />
+                </>
+              )}
+            </g>
           </svg>
         )}
         {!searching &&
           nodes.map((action, i) => {
-            const p = point(
-                design === "sectors" ? 94 : design === "dial" ? 108 : 112,
-                (i * 360) / nodes.length,
-              ),
+            const p = point(design === "sectors" ? 97 : 112, (i * 360) / nodes.length),
               NodeIcon: RadialIconComponent =
-                (action ? ICONS[action.icon] : undefined) ?? MoreHorizontal;
-            const reason = action ? disabled(action.id) : undefined;
+                (action ? QUICK_ACTION_ICONS[action.icon] : undefined) ?? MoreHorizontal;
+            const reason = action ? disabled(actionRunId(action)) : undefined;
             return (
               <button
                 key={action?.id ?? "more"}
@@ -474,7 +439,6 @@ export function RadialLauncher({
                   {
                     left: 280 + p.x,
                     top: 280 + p.y,
-                    "--qa-node-color": accent(action),
                   } as CSSProperties
                 }
                 disabled={busy || Boolean(reason)}
@@ -502,7 +466,6 @@ export function RadialLauncher({
                 }}
               >
                 <NodeIcon aria-hidden="true" size={22} width={22} height={22} />
-                {design === "dial" && <span>{action ? SHORT_LABELS[action.id] : "More"}</span>}
               </button>
             );
           })}
@@ -551,6 +514,18 @@ export function RadialLauncher({
                   <X size={12} width={12} height={12} aria-hidden="true" />
                 </button>
               )}
+              <button
+                type="button"
+                className="qa-search-go-btn"
+                aria-label="Submit search - Search the web"
+                disabled={busy || !query.trim()}
+                onClick={() => submitSearch()}
+              >
+                <span>Go</span>
+                <kbd className="qa-search-kbd">↵</kbd>
+              </button>
+            </div>
+            <div className="qa-search-footer">
               <div className="qa-search-engines" role="radiogroup" aria-label="Search engine">
                 <button
                   type="button"
@@ -577,16 +552,6 @@ export function RadialLauncher({
               </div>
               <button
                 type="button"
-                className="qa-search-go-btn"
-                aria-label="Submit search - Search the web"
-                disabled={busy || !query.trim()}
-                onClick={() => submitSearch()}
-              >
-                <span>Go</span>
-                <kbd className="qa-search-kbd">↵</kbd>
-              </button>
-              <button
-                type="button"
                 className="qa-search-panel-close"
                 aria-label="Close search"
                 title="Close search (Esc)"
@@ -597,63 +562,65 @@ export function RadialLauncher({
                   root.current?.focus();
                 }}
               >
-                <X size={13} width={13} height={13} aria-hidden="true" />
+                <kbd>esc</kbd>
+                <span>to close</span>
               </button>
             </div>
           </div>
         )}
         {!searching && (
           <div className="qa-radial-hub">
-            <Icon size={24} width={24} height={24} aria-hidden="true" />
-            <span className="qa-hub-label">
-              {expanded && subIndex >= 0
-                ? children[subIndex]?.label
-                : highlighted
-                  ? SHORT_LABELS[highlighted.id]
-                  : "More"}
-            </span>
+            <TabsMascot mode="intro" eyeColor="var(--popover)" look={eyes} />
             <span className="sr-only">Type to search</span>
           </div>
         )}
-        {expanded &&
-          !searching &&
-          children.map((entry, i) => {
-            const { action } = entry;
-            const angle = childAngle(i);
-            const p = point(design === "sectors" ? 166 : design === "dial" ? 204 : 206, angle);
-            const reason = disabled(action.id);
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                className="qa-more-action"
-                data-sub-index={i}
-                data-current={i === subIndex}
-                style={
-                  {
-                    left: 280 + p.x,
-                    top: 280 + p.y,
-                    "--qa-node-color": accent(action),
-                    "--qa-sector-label-width":
-                      design === "sectors" ? `${sectorLabelWidth(angle, childStep)}px` : undefined,
-                  } as CSSProperties
-                }
-                disabled={busy || Boolean(reason)}
-                aria-label={reason ? `${entry.label}: ${reason}` : entry.label}
-                title={`${entry.label} · ${reason ?? action.detail}`}
-                onPointerEnter={() => setSubIndex(i)}
-                onFocus={() => setSubIndex(i)}
-                onClick={() => void run(action, entry.query)}
-              >
-                {design === "sectors" ? <span>{entry.label}</span> : entry.label}
-              </button>
-            );
-          })}
+        {expanded && !searching && children.length > 0 && (
+          <div
+            className="qa-sub-panel"
+            role="group"
+            aria-label={`${active?.label ?? "More"} options`}
+            data-side={stackSide}
+            style={
+              {
+                left: 280 + (stackSide === "right" ? 178 : -178),
+                top: 280 + panelY,
+              } as CSSProperties
+            }
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <p className="qa-sub-title">{active ? shortLabel(active) : "More"}</p>
+            {children.map((entry, i) => {
+              const { action } = entry;
+              const reason = disabled(actionRunId(action));
+              const RowIcon = QUICK_ACTION_ICONS[action.icon];
+              const hint = destinationHint(entry.query);
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className="qa-more-action"
+                  data-sub-index={i}
+                  data-current={i === subIndex}
+                  disabled={busy || Boolean(reason)}
+                  aria-label={reason ? `${entry.label}: ${reason}` : entry.label}
+                  title={`${entry.label} · ${reason ?? action.detail}`}
+                  onPointerEnter={() => setSubIndex(i)}
+                  onFocus={() => setSubIndex(i)}
+                  onClick={() => void run(action, entry.query)}
+                >
+                  <RowIcon aria-hidden="true" size={15} width={15} height={15} />
+                  <span className="qa-sub-label">{entry.label}</span>
+                  {hint && <span className="qa-sub-hint">{hint}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <span className="sr-only" aria-live="polite">
         {label}.{" "}
         {highlighted
-          ? (disabled(highlighted.id) ?? highlighted.detail)
+          ? (disabled(actionRunId(highlighted)) ?? highlighted.detail)
           : "Choose a secondary action."}{" "}
         Arrow keys select. Enter runs. Escape closes.
       </span>

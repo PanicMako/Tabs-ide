@@ -48,6 +48,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "alt+1", command: "workspace.basicMode" },
   { key: "alt+2", command: "workspace.advancedMode" },
   { key: "mod+j", command: "terminal.toggle" },
+  { key: "mod+shift+j", command: "thread.toggleSurface" },
   { key: "mod+d", command: "terminal.split", when: "terminalFocus" },
   { key: "mod+n", command: "terminal.new", when: "terminalFocus" },
   { key: "mod+w", command: "terminal.close", when: "terminalFocus" },

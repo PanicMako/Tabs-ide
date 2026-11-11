@@ -300,19 +300,50 @@ export async function reuseVerifiedMacPreviewStage(
   }
 }
 
-async function fetchRequired(
-  url: string,
-  headers: Readonly<Record<string, string>>,
-): Promise<Response> {
-  const response = await fetch(url, {
-    headers,
-    redirect: "follow",
+function fetchUpdateResource(url: string, options: RequestInit): Promise<Response> {
+  return fetch(url, {
+    ...options,
     signal: AbortSignal.timeout(120_000),
   });
+}
+
+function requireUpdateResponse(response: Response, url: string): Response {
   if (!response.ok) {
     throw new Error(`Update server returned HTTP ${response.status} for ${Path.basename(url)}.`);
   }
   return response;
+}
+
+function releaseListRetryAt(headers: Headers, now: number): number {
+  const retryAfter = headers.get("retry-after");
+  if (retryAfter) {
+    const until = /^\d+$/.test(retryAfter)
+      ? now + Number(retryAfter) * 1_000
+      : Date.parse(retryAfter);
+    if (Number.isFinite(until) && until >= now) return until;
+  }
+  if (headers.get("x-ratelimit-remaining") === "0") {
+    const reset = Number(headers.get("x-ratelimit-reset")) * 1_000;
+    if (Number.isFinite(reset) && reset > now) return reset;
+  }
+  return now + 60_000;
+}
+
+async function fetchRequired(
+  url: string,
+  headers: Readonly<Record<string, string>>,
+): Promise<Response> {
+  return requireUpdateResponse(await fetchUpdateResource(url, { headers }), url);
+}
+
+async function fetchLatestStableTag(repository: string): Promise<string | null> {
+  const releaseUrl = `https://github.com/${repository}/releases`;
+  const response = await fetchUpdateResource(`${releaseUrl}/latest`, { redirect: "manual" });
+  const tagPrefix = `${releaseUrl}/tag/`;
+  const location = response.headers.get("location");
+  if (response.status !== 302 || !location?.startsWith(tagPrefix)) return null;
+  const tag = location.slice(tagPrefix.length);
+  return /^v?\d+\.\d+\.\d+$/.test(tag) ? tag : null;
 }
 
 async function validateBundle(bundlePath: string, expectedVersion: string): Promise<void> {
@@ -344,6 +375,7 @@ async function validateBundle(bundlePath: string, expectedVersion: string): Prom
 
 export class MacPreviewUpdater {
   readonly #options: MacPreviewUpdaterOptions;
+  #releaseListCooldown: { readonly until: number; readonly error: Error } | null = null;
   #availableTag: string | null = null;
   #availableManifest: MacPreviewUpdateManifest | null = null;
   #downloadedUpdate: DownloadedUpdate | null = null;
@@ -357,22 +389,42 @@ export class MacPreviewUpdater {
   }
 
   async checkForUpdates(): Promise<MacPreviewUpdateManifest | null> {
-    const releaseResponse = await fetchRequired(
-      `https://api.github.com/repos/${this.#options.repository}/releases?per_page=100`,
-      this.#options.requestHeaders ?? {},
-    );
-    const tag = selectMacPreviewRelease(
-      await releaseResponse.json(),
-      this.#options.currentVersion,
-      this.#options.releaseChannel,
-    );
+    const cooldown = this.#releaseListCooldown;
+    if (cooldown && Date.now() < cooldown.until) {
+      if (this.#availableManifest) return this.#availableManifest;
+      throw cooldown.error;
+    }
+    this.#releaseListCooldown = null;
+    const { repository, currentVersion, releaseChannel, requestHeaders = {} } = this.#options;
+    const releaseUrl = `https://api.github.com/repos/${repository}/releases?per_page=100`;
+    const releaseResponse = await fetchUpdateResource(releaseUrl, { headers: requestHeaders });
     this.#availableManifest = null;
     this.#availableTag = null;
+    let tag: string | null;
+    if (releaseResponse.status === 403 || releaseResponse.status === 429) {
+      const until = releaseListRetryAt(releaseResponse.headers, Date.now());
+      const error = new Error(
+        `GitHub returned HTTP ${releaseResponse.status} while checking for updates. Try again after ${new Date(until).toLocaleString()}.`,
+      );
+      this.#releaseListCooldown = { until, error };
+      // The public latest-release redirect works independently of the REST API.
+      tag = await fetchLatestStableTag(repository);
+      // An older stable release can't tell us whether a newer beta is available.
+      if (!tag || compareMacPreviewVersions(tag.replace(/^v/, ""), currentVersion) <= 0) {
+        throw error;
+      }
+    } else {
+      tag = selectMacPreviewRelease(
+        await requireUpdateResponse(releaseResponse, releaseUrl).json(),
+        currentVersion,
+        releaseChannel,
+      );
+    }
     if (!tag) return null;
-    const manifestUrl = releaseAssetUrl(this.#options.repository, tag, MANIFEST_NAME);
+    const manifestUrl = releaseAssetUrl(repository, tag, MANIFEST_NAME);
     const [manifestResponse, signatureResponse] = await Promise.all([
-      fetchRequired(manifestUrl, this.#options.requestHeaders ?? {}),
-      fetchRequired(`${manifestUrl}.sig`, this.#options.requestHeaders ?? {}),
+      fetchRequired(manifestUrl, requestHeaders),
+      fetchRequired(`${manifestUrl}.sig`, requestHeaders),
     ]);
     const manifestBytes = Buffer.from(await manifestResponse.arrayBuffer());
     const signatureText = await signatureResponse.text();

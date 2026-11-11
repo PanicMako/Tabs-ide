@@ -2,6 +2,21 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.3.2] - 2026-11-11
+
+### Quick Actions Studio, Agent CLI surface, and faster startup
+
+Organize and customize quick actions with an interactive arranger, switch between chat and agent CLI surfaces, and launch package scripts directly from Dock. Development startup is also noticeably quieter and faster.
+
+### What changed
+
+- Arrange and reorder Quick Actions with the new visual arranger, create custom actions, and configure sub-actions directly in Settings.
+- Switch between conversation chat and dedicated Agent CLI views within threads to monitor long-running terminal and tool activity.
+- Run detected package scripts and suggested commands directly from Dock Launchpad with clear execution feedback.
+- Enjoy an updated startup experience with the Tabs mascot animation and refined splash transitions.
+- Speed up development startup by building ESM-only during local development, eliminating duplicate CommonJS compilation and noisy warning outputs.
+- Direct external links to appropriate browser profiles and windows with refined link target routing.
+
 ## [v2.3.1] - 2026-11-09
 
 ### A more personal workspace

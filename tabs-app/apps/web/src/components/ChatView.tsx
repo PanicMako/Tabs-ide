@@ -1,5 +1,14 @@
 import { WorkspaceAgents, type WorkspaceAgentContext } from "./chat/WorkspaceAgents";
 import { ensureDraftThreadExists, type DraftThreadCreation } from "../stores/ensureDraftThread";
+import { AgentCliSurface } from "./chat/AgentCliSurface";
+import {
+  resolveThreadSurface,
+  threadSurfaceKey,
+  useThreadSurfaceStore,
+  type ThreadSurface,
+} from "../stores/threadSurfaceStore";
+import { useAgentCliStore } from "../stores/agentCliStore";
+import { useAgentCliActivityStore } from "../stores/agentCliActivity";
 import { onApiServerProvidersUpdated } from "../wsNativeApi";
 import {
   ADD_WORKSPACE_FILE_EVENT,
@@ -1569,6 +1578,37 @@ export default function ChatView({
       : null;
   const selectedModelForPicker = selectedModel;
 
+  // Chat or CLI: how this thread's conversation area is shown.
+  const surfaceKey = threadSurfaceKey(environmentId, threadId);
+  // The CLI surface is opt-in (Settings → General → Agent CLI).
+  const agentCliEnabled = settings.agentCliEnabled;
+  const storedThreadSurface = useThreadSurfaceStore((state) =>
+    resolveThreadSurface(state, surfaceKey, hasThreadStarted),
+  );
+  const threadSurface: ThreadSurface = agentCliEnabled ? storedThreadSurface : "chat";
+  const setThreadSurface = useCallback(
+    (surface: ThreadSurface) => useThreadSurfaceStore.getState().setSurface(surfaceKey, surface),
+    [surfaceKey],
+  );
+  const cliSessionIds = useAgentCliStore((state) =>
+    (state.workspaces[surfaceKey]?.sessions ?? []).map((session) => session.terminalId).join("\n"),
+  );
+  const cliNeedsAttention = useAgentCliActivityStore((state) =>
+    cliSessionIds.split("\n").some((id) => id !== "" && state.activity[id] === "waiting"),
+  );
+  const ensureThreadForCli = useCallback(
+    async (agentLabel: string) => {
+      const creation = queueThreadCreationRef.current;
+      if (!isLocalDraftThread || !creation) return;
+      const api = await environmentApi(environmentId);
+      await ensureDraftThreadExists(api.orchestration, threadId, {
+        ...creation,
+        title: `${agentLabel} CLI`,
+      });
+    },
+    [environmentId, isLocalDraftThread, threadId],
+  );
+
   // If the user manually removes the Ultrathink prefix from the prompt, revert the model selection
   // to avoid being stuck in an effort mode that doesn't match the prompt content.
   useEffect(() => {
@@ -2374,6 +2414,10 @@ export default function ChatView({
   const isGitRepo = branchesQuery.data?.isRepo ?? true;
   const terminalToggleShortcutLabel = useMemo(
     () => shortcutLabelForCommand(keybindings, "terminal.toggle"),
+    [keybindings],
+  );
+  const threadSurfaceShortcutLabel = useMemo(
+    () => shortcutLabelForCommand(keybindings, "thread.toggleSurface"),
     [keybindings],
   );
   const splitTerminalShortcutLabel = useMemo(
@@ -3441,6 +3485,14 @@ export default function ChatView({
         return;
       }
 
+      if (command === "thread.toggleSurface") {
+        if (!activeProject || !agentCliEnabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setThreadSurface(threadSurface === "cli" ? "chat" : "cli");
+        return;
+      }
+
       if (command === "terminal.split") {
         event.preventDefault();
         event.stopPropagation();
@@ -3505,6 +3557,9 @@ export default function ChatView({
     isServerThread,
     isActivePane,
     threadApi,
+    threadSurface,
+    setThreadSurface,
+    agentCliEnabled,
   ]);
 
   const addComposerImages = (files: File[]) => {
@@ -6492,6 +6547,14 @@ export default function ChatView({
             isMaximized={isMaximized}
             onToggleMaximize={onToggleMaximize}
             onClosePane={onClosePane}
+            {...(activeProject && agentCliEnabled
+              ? {
+                  surface: threadSurface,
+                  onSurfaceChange: setThreadSurface,
+                  surfaceAttention: cliNeedsAttention,
+                  surfaceShortcutLabel: threadSurfaceShortcutLabel,
+                }
+              : {})}
           />
           <aside
             ref={setWorkspaceActionsContainer}
@@ -6517,142 +6580,159 @@ export default function ChatView({
       <div className="chat-workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Chat column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
-            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              <div
-                ref={setMessagesScrollContainerRef}
-                className={cn(
-                  "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain py-3",
-                  isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5 sm:py-4",
-                )}
-                onScroll={onMessagesScroll}
-                onClickCapture={onMessagesClickCapture}
-                onWheel={onMessagesWheel}
-                onPointerDown={onMessagesPointerDown}
-                onPointerUp={onMessagesPointerUp}
-                onPointerCancel={onMessagesPointerCancel}
-                onTouchStart={onMessagesTouchStart}
-                onTouchMove={onMessagesTouchMove}
-                onTouchEnd={onMessagesTouchEnd}
-                onTouchCancel={onMessagesTouchEnd}
-              >
-                <MessagesTimeline
-                  key={displayedTimelineKey ?? activeThread.id}
-                  hasMessages={hasTimelineEntries}
-                  isWorking={!paintOnlyDisplayedTimeline && isWorking}
-                  activeTurnInProgress={
-                    !paintOnlyDisplayedTimeline && (isWorking || !latestTurnSettled)
-                  }
-                  activeTurnStartedAt={paintOnlyDisplayedTimeline ? null : activeWorkStartedAt}
-                  scrollContainer={messagesScrollElement}
-                  timelineEntries={displayedTimeline.entries}
-                  completionDividerBeforeEntryId={
-                    paintOnlyDisplayedTimeline ? null : completionDividerBeforeEntryId
-                  }
-                  completionSummary={paintOnlyDisplayedTimeline ? null : completionSummary}
-                  turnDiffSummaryByAssistantMessageId={
-                    paintOnlyDisplayedTimeline
-                      ? (EMPTY_MAP as Map<MessageId, TurnDiffSummary>)
-                      : turnDiffSummaryByAssistantMessageId
-                  }
-                  nowIso={nowIso}
-                  expandedWorkGroups={expandedWorkGroups}
-                  onToggleWorkGroup={onToggleWorkGroup}
-                  onOpenTurnDiff={paintOnlyDisplayedTimeline ? noop : onOpenTurnDiff}
-                  revertTurnCountByUserMessageId={
-                    paintOnlyDisplayedTimeline
-                      ? (EMPTY_MAP as Map<MessageId, number>)
-                      : revertTurnCountByUserMessageId
-                  }
-                  onRevertUserMessage={paintOnlyDisplayedTimeline ? noop : onRevertUserMessage}
-                  isRevertingCheckpoint={!paintOnlyDisplayedTimeline && isRevertingCheckpoint}
-                  onImageExpand={onExpandTimelineImage}
-                  markdownCwd={
-                    (paintOnlyDisplayedTimeline ? heldPaintContext?.markdownCwd : gitCwd) ??
-                    undefined
-                  }
-                  resolvedTheme={resolvedTheme}
-                  timestampFormat={timestampFormat}
-                  workspaceRoot={
-                    (paintOnlyDisplayedTimeline
-                      ? heldPaintContext?.workspaceRoot
-                      : activeProject?.cwd) ?? undefined
-                  }
-                  environmentId={environmentId ?? undefined}
-                  threadId={activeThread.id}
-                  citationRequest={citationRequest}
-                  onCiteAssistantText={citeAssistantText}
-                  latestTaskDescription={paintOnlyDisplayedTimeline ? null : latestTaskDescription}
-                  providerInstanceId={selectedProvider}
-                  providerDriverKind={activeProviderStatus?.driver}
-                />
-              </div>
-
-              {shouldCenterEmptyThreadComposer ? (
+          {threadSurface === "cli" && activeProject && !compact ? (
+            <AgentCliSurface
+              key={surfaceKey}
+              threadId={activeThread.id}
+              environmentId={environmentId ?? null}
+              cwd={gitCwd ?? activeProject.cwd}
+              runtimeEnv={threadTerminalRuntimeEnv}
+              instanceId={selectedProvider}
+              model={selectedModel || null}
+              hasConversation={hasThreadStarted}
+              ensureThread={ensureThreadForCli}
+              onSwitchToChat={() => setThreadSurface("chat")}
+            />
+          ) : (
+            <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <div
-                  data-wallpaper-empty-heading="true"
-                  className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center"
+                  ref={setMessagesScrollContainerRef}
+                  className={cn(
+                    "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain py-3",
+                    isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5 sm:py-4",
+                  )}
+                  onScroll={onMessagesScroll}
+                  onClickCapture={onMessagesClickCapture}
+                  onWheel={onMessagesWheel}
+                  onPointerDown={onMessagesPointerDown}
+                  onPointerUp={onMessagesPointerUp}
+                  onPointerCancel={onMessagesPointerCancel}
+                  onTouchStart={onMessagesTouchStart}
+                  onTouchMove={onMessagesTouchMove}
+                  onTouchEnd={onMessagesTouchEnd}
+                  onTouchCancel={onMessagesTouchEnd}
                 >
-                  <h2 className="text-balance text-3xl font-medium tracking-tight text-foreground/92 sm:text-4xl">
-                    {activeProject?.name
-                      ? `What should we build in ${activeProject.name}?`
-                      : "What should we build?"}
-                  </h2>
-                  <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground/65 sm:text-base">
-                    Start a new thread with a task, question, or plan. Tabs will keep the project
-                    context and workspace tools connected to this conversation.
-                  </p>
+                  <MessagesTimeline
+                    key={displayedTimelineKey ?? activeThread.id}
+                    hasMessages={hasTimelineEntries}
+                    isWorking={!paintOnlyDisplayedTimeline && isWorking}
+                    activeTurnInProgress={
+                      !paintOnlyDisplayedTimeline && (isWorking || !latestTurnSettled)
+                    }
+                    activeTurnStartedAt={paintOnlyDisplayedTimeline ? null : activeWorkStartedAt}
+                    scrollContainer={messagesScrollElement}
+                    timelineEntries={displayedTimeline.entries}
+                    completionDividerBeforeEntryId={
+                      paintOnlyDisplayedTimeline ? null : completionDividerBeforeEntryId
+                    }
+                    completionSummary={paintOnlyDisplayedTimeline ? null : completionSummary}
+                    turnDiffSummaryByAssistantMessageId={
+                      paintOnlyDisplayedTimeline
+                        ? (EMPTY_MAP as Map<MessageId, TurnDiffSummary>)
+                        : turnDiffSummaryByAssistantMessageId
+                    }
+                    nowIso={nowIso}
+                    expandedWorkGroups={expandedWorkGroups}
+                    onToggleWorkGroup={onToggleWorkGroup}
+                    onOpenTurnDiff={paintOnlyDisplayedTimeline ? noop : onOpenTurnDiff}
+                    revertTurnCountByUserMessageId={
+                      paintOnlyDisplayedTimeline
+                        ? (EMPTY_MAP as Map<MessageId, number>)
+                        : revertTurnCountByUserMessageId
+                    }
+                    onRevertUserMessage={paintOnlyDisplayedTimeline ? noop : onRevertUserMessage}
+                    isRevertingCheckpoint={!paintOnlyDisplayedTimeline && isRevertingCheckpoint}
+                    onImageExpand={onExpandTimelineImage}
+                    markdownCwd={
+                      (paintOnlyDisplayedTimeline ? heldPaintContext?.markdownCwd : gitCwd) ??
+                      undefined
+                    }
+                    resolvedTheme={resolvedTheme}
+                    timestampFormat={timestampFormat}
+                    workspaceRoot={
+                      (paintOnlyDisplayedTimeline
+                        ? heldPaintContext?.workspaceRoot
+                        : activeProject?.cwd) ?? undefined
+                    }
+                    environmentId={environmentId ?? undefined}
+                    threadId={activeThread.id}
+                    citationRequest={citationRequest}
+                    onCiteAssistantText={citeAssistantText}
+                    latestTaskDescription={
+                      paintOnlyDisplayedTimeline ? null : latestTaskDescription
+                    }
+                    providerInstanceId={selectedProvider}
+                    providerDriverKind={activeProviderStatus?.driver}
+                  />
                 </div>
-              ) : null}
 
-              {showScrollToBottom && (
-                <div className="pointer-events-none absolute bottom-1 left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
-                  <button
-                    type="button"
-                    onClick={() => scrollMessagesToBottom("smooth")}
-                    className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-muted-foreground text-xs shadow-sm transition-colors hover:border-border hover:text-foreground hover:cursor-pointer"
+                {shouldCenterEmptyThreadComposer ? (
+                  <div
+                    data-wallpaper-empty-heading="true"
+                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center"
                   >
-                    <ChevronDownIcon className="size-3.5" />
-                    Scroll to bottom
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="relative w-full">
-              <div className="w-full">
-                {loadedProjectionKey === projectionKey &&
-                workspaceAgentContext &&
-                isProviderNativeSubagentThread(workspaceAgentContext.thread) ? (
-                  <div className="mx-4 mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm">
-                    <p className="min-w-0 flex-1 text-muted-foreground">
-                      Provider sub-agent · read only. Reply to questions and approvals in the parent
-                      conversation.
+                    <h2 className="text-balance text-3xl font-medium tracking-tight text-foreground/92 sm:text-4xl">
+                      {activeProject?.name
+                        ? `What should we build in ${activeProject.name}?`
+                        : "What should we build?"}
+                    </h2>
+                    <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground/65 sm:text-base">
+                      Start a new thread with a task, question, or plan. Tabs will keep the project
+                      context and workspace tools connected to this conversation.
                     </p>
-                    {workspaceAgentContext.thread.lineage.parentThreadId && (
-                      <button
-                        type="button"
-                        className="shrink-0 rounded-lg px-3 py-2 font-medium hover:bg-muted"
-                        onClick={() => {
-                          void navigate({
-                            to: "/$environmentId/$threadId",
-                            params: {
-                              environmentId: resolvedEnvironmentId,
-                              threadId: workspaceAgentContext.thread.lineage.parentThreadId!,
-                            },
-                          });
-                        }}
-                      >
-                        Open parent
-                      </button>
-                    )}
                   </div>
-                ) : (
-                  composerSection
+                ) : null}
+
+                {showScrollToBottom && (
+                  <div className="pointer-events-none absolute bottom-1 left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => scrollMessagesToBottom("smooth")}
+                      className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-muted-foreground text-xs shadow-sm transition-colors hover:border-border hover:text-foreground hover:cursor-pointer"
+                    >
+                      <ChevronDownIcon className="size-3.5" />
+                      Scroll to bottom
+                    </button>
+                  </div>
                 )}
               </div>
+
+              <div className="relative w-full">
+                <div className="w-full">
+                  {loadedProjectionKey === projectionKey &&
+                  workspaceAgentContext &&
+                  isProviderNativeSubagentThread(workspaceAgentContext.thread) ? (
+                    <div className="mx-4 mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm">
+                      <p className="min-w-0 flex-1 text-muted-foreground">
+                        Provider sub-agent · read only. Reply to questions and approvals in the
+                        parent conversation.
+                      </p>
+                      {workspaceAgentContext.thread.lineage.parentThreadId && (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-lg px-3 py-2 font-medium hover:bg-muted"
+                          onClick={() => {
+                            void navigate({
+                              to: "/$environmentId/$threadId",
+                              params: {
+                                environmentId: resolvedEnvironmentId,
+                                threadId: workspaceAgentContext.thread.lineage.parentThreadId!,
+                              },
+                            });
+                          }}
+                        >
+                          Open parent
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    composerSection
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
           {pullRequestDialogState ? (
             <PullRequestThreadDialog
               key={pullRequestDialogState.key}

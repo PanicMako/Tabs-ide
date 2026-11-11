@@ -1,4 +1,5 @@
 import "./font-specimens.css";
+import { normalizeSplashLoaderStyle } from "@tabs/contracts/settings";
 import { SegmentedControl } from "../ui/segmented-control";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -16,6 +17,14 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { toastManager } from "../ui/toast";
 import { SplashScreen } from "../SplashScreen";
 import { CloseScreen } from "../CloseScreen";
+import { STARTUP_RISE_LAYER_CLASS, StartupCurtain } from "../StartupCurtain";
+import { useReducedStartupMotion } from "../../hooks/useStartupAnimation";
+import {
+  STARTUP_ANIMATION_EXIT_MS,
+  startupAnimationHoldMs,
+  startupExitBeatMs,
+  startupExitStyle,
+} from "../../lib/startupAnimationTiming";
 import { CURATED_FONT_COMBOS as FONT_COMBOS, UI_FONT_OPTIONS } from "../../lib/themes";
 import {
   SettingResetButton,
@@ -26,11 +35,13 @@ import {
 } from "./SettingsLayout";
 
 function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont, onClose }: any) {
-  const previewHoldMs = 2_000;
-  const previewExitMs = 1_000;
-  const [isExiting, setIsExiting] = useState(false);
+  // Runs exactly as a real launch does: the whole animation, then the real exit.
+  const reduced = useReducedStartupMotion();
+  const holdMs = reduced ? 1_500 : startupAnimationHoldMs(loader);
+  const [leaving, setLeaving] = useState(false);
   const onCloseRef = useRef(onClose);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const riseRef = useRef<HTMLDivElement>(null);
   onCloseRef.current = onClose;
 
   useEffect(() => {
@@ -41,21 +52,9 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
   }, []);
 
   useEffect(() => {
-    const exitTimer = setTimeout(() => {
-      setIsExiting(true);
-    }, previewHoldMs);
-
+    const exitTimer = setTimeout(() => setLeaving(true), holdMs);
     return () => clearTimeout(exitTimer);
-  }, []);
-
-  useEffect(() => {
-    if (isExiting) {
-      const closeTimer = setTimeout(() => {
-        onCloseRef.current();
-      }, previewExitMs + 200);
-      return () => clearTimeout(closeTimer);
-    }
-  }, [isExiting]);
+  }, [holdMs]);
 
   return (
     <div
@@ -64,13 +63,9 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
       aria-modal="true"
       aria-label="Startup animation preview"
       tabIndex={-1}
-      className={cn(
-        "fixed inset-0 z-[99999] cursor-pointer will-change-transform transition-transform duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
-        isExiting ? "-translate-y-full" : "translate-y-0",
-      )}
-      onClick={() => setIsExiting(true)}
+      className="fixed inset-0 z-[99999]"
       onKeyDown={(event) => {
-        if (event.key === "Escape") setIsExiting(true);
+        if (event.key === "Escape") onCloseRef.current();
         if (event.key === "Tab") {
           event.preventDefault();
           event.currentTarget.querySelector("button")?.focus();
@@ -80,18 +75,28 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
       <button
         type="button"
         aria-label="Close startup animation preview"
-        className="absolute right-5 top-5 z-10 rounded-full bg-black/40 p-2 text-white hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        onClick={() => setIsExiting(true)}
+        className="absolute right-5 top-5 z-[10001] rounded-full bg-black/40 p-2 text-white hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        onClick={() => onCloseRef.current()}
       >
         <XIcon className="size-5" aria-hidden="true" />
       </button>
-      <SplashScreen
-        loader={loader}
-        palette={palette}
-        theme={theme}
-        fontComboId={fontComboId}
-        customFont={customFont}
-      />
+      <StartupCurtain
+        leaving={leaving}
+        durationMs={reduced ? 0 : STARTUP_ANIMATION_EXIT_MS}
+        beatMs={startupExitBeatMs(loader)}
+        exit={startupExitStyle(loader)}
+        riseRef={riseRef}
+        onLeft={() => onCloseRef.current()}
+      >
+        <SplashScreen
+          loader={loader}
+          palette={palette}
+          theme={theme}
+          fontComboId={fontComboId}
+          customFont={customFont}
+        />
+      </StartupCurtain>
+      <div ref={riseRef} className={STARTUP_RISE_LAYER_CLASS} />
     </div>
   );
 }
@@ -133,10 +138,9 @@ function ClosePreviewOverlay({ loader, palette, theme, fontComboId, customFont, 
       aria-label="Close animation preview"
       tabIndex={-1}
       className={cn(
-        "fixed inset-0 z-[99999] cursor-pointer will-change-transform transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "fixed inset-0 z-[99999] will-change-transform transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
         isExiting ? "-translate-y-full" : "translate-y-0",
       )}
-      onClick={() => setIsExiting(true)}
       onKeyDown={(event) => {
         if (event.key === "Escape") setIsExiting(true);
         if (event.key === "Tab") {
@@ -172,13 +176,17 @@ export function AnimationsSettings() {
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
 
-  const [previewStyle, setPreviewStyle] = useState(settings.splashLoaderStyle);
+  const [previewStyle, setPreviewStyle] = useState(
+    normalizeSplashLoaderStyle(settings.splashLoaderStyle),
+  );
   const [previewPalette, setPreviewPalette] = useState(settings.splashLoaderPalette);
   const [previewTheme, setPreviewTheme] = useState<"system" | "dark" | "light">(
     settings.splashLoaderTheme,
   );
 
-  const [closePreviewStyle, setClosePreviewStyle] = useState(settings.closeLoaderStyle);
+  const [closePreviewStyle, setClosePreviewStyle] = useState(
+    normalizeSplashLoaderStyle(settings.closeLoaderStyle),
+  );
   const [closePreviewPalette, setClosePreviewPalette] = useState(settings.closeLoaderPalette);
   const [closePreviewTheme, setClosePreviewTheme] = useState<"system" | "dark" | "light">(
     settings.closeLoaderTheme,
@@ -255,10 +263,10 @@ export function AnimationsSettings() {
   );
 
   const isAnimationsDirty =
-    previewStyle !== settings.splashLoaderStyle ||
+    previewStyle !== normalizeSplashLoaderStyle(settings.splashLoaderStyle) ||
     previewPalette !== settings.splashLoaderPalette ||
     previewTheme !== settings.splashLoaderTheme ||
-    closePreviewStyle !== settings.closeLoaderStyle ||
+    closePreviewStyle !== normalizeSplashLoaderStyle(settings.closeLoaderStyle) ||
     closePreviewPalette !== settings.closeLoaderPalette ||
     closePreviewTheme !== settings.closeLoaderTheme ||
     previewStartupAnimationFontComboId !== savedStartupAnimationFontComboId ||
@@ -320,11 +328,11 @@ export function AnimationsSettings() {
     animationTab === "startup" ? effectivePreviewTheme : effectiveClosePreviewTheme;
 
   useEffect(() => {
-    setPreviewStyle(settings.splashLoaderStyle);
+    setPreviewStyle(normalizeSplashLoaderStyle(settings.splashLoaderStyle));
     setPreviewPalette(settings.splashLoaderPalette);
     setPreviewTheme(settings.splashLoaderTheme);
 
-    setClosePreviewStyle(settings.closeLoaderStyle);
+    setClosePreviewStyle(normalizeSplashLoaderStyle(settings.closeLoaderStyle));
     setClosePreviewPalette(settings.closeLoaderPalette);
     setClosePreviewTheme(settings.closeLoaderTheme);
 
@@ -530,7 +538,7 @@ export function AnimationsSettings() {
                   aria-label="Animation style"
                 >
                   {[
-                    { value: "glass", label: "Molten Glass" },
+                    { value: "mascot", label: "Tabs Mascot" },
                     { value: "solari", label: "Solari Grid" },
                   ].map((option) => (
                     <button

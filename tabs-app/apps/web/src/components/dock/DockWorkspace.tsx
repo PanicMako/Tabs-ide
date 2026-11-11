@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import type { ScriptSuggestion } from "./scriptSuggestions";
 import type { ProjectWorkspaceSettings } from "@tabs/contracts/settings";
 import {
   CopyIcon,
@@ -60,6 +61,12 @@ interface Props {
   onInspectPreview: (preset: DockPreset) => void;
   canInspectPreview: boolean;
   onAddToAgent: (text: string) => Promise<void>;
+  /** Run a command once in a fresh Dock terminal. */
+  onRunCommand: (command: string) => void;
+  /** Append a new preset. */
+  onCreatePreset: (preset: DockPreset) => void;
+  /** The project's own scripts, for the empty Dock. */
+  loadSuggestions?: (() => Promise<ScriptSuggestion[]>) | undefined;
 }
 const DRAG = "application/x-tabs-dock-preset";
 function LayoutGlyph({ layout }: { layout: string }) {
@@ -114,6 +121,15 @@ export function DockWorkspace(props: Props) {
     props.terminalIds.map((id) => [id, output[id]?.pid ?? null]),
   );
   const resources = useDockResources(props.api, props.threadId, resourceRoots);
+  // Live totals across every Dock process, for the header.
+  const totals = (() => {
+    const samples = Object.values(resources.samples);
+    if (samples.length === 0) return null;
+    return {
+      cpu: samples.reduce((sum, sample) => sum + (sample.cpuPercent ?? 0), 0),
+      memory: samples.reduce((sum, sample) => sum + sample.memoryBytes, 0),
+    };
+  })();
   const selectedSample = selectedId ? resources.samples[selectedId] : undefined;
   const panelId = useId();
   const servicesOpen = view.services ?? true;
@@ -181,6 +197,16 @@ export function DockWorkspace(props: Props) {
     setClosedTabs((ids) => ids.filter((closed) => closed !== id));
     props.onRun(id);
   };
+  // A preset created with "run" starts once it is part of the saved settings;
+  // running earlier would look it up before it exists.
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingRunId || !props.presets.some((preset) => preset.id === pendingRunId)) return;
+    setPendingRunId(null);
+    runPreset(pendingRunId);
+    // runPreset is recreated every render; the preset list is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRunId, props.presets]);
   useEffect(() => {
     const id = props.activeTerminalId;
     if (!id || closedTabs.includes(id) || !props.terminalIds.includes(id)) return;
@@ -292,9 +318,16 @@ export function DockWorkspace(props: Props) {
           <DockUfoIcon className="size-6" />
           <div>
             <h1>Dock</h1>
-            <span>
-              {props.projectName} <i>·</i> {props.runningIds.length} running
+            <span className="dock-title-project">{props.projectName}</span>
+            <span className="dock-live" data-live={props.runningIds.length > 0 || undefined}>
+              <i aria-hidden="true" />
+              {props.runningIds.length} running
             </span>
+            {totals && (
+              <span className="dock-totals" title="All Dock processes">
+                {totals.cpu.toFixed(1)}% CPU <i>·</i> {formatDockMemory(totals.memory)}
+              </span>
+            )}
           </div>
         </div>
         <div className="dock-topbar-actions">
@@ -400,6 +433,20 @@ export function DockWorkspace(props: Props) {
             cwd={props.cwd}
             onNewTerminal={props.onNewTerminal}
             onAdd={props.onAdd}
+            onRunCommand={props.onRunCommand}
+            onSaveCommand={({ label, command, run }) => {
+              const id = `preset-${crypto.randomUUID()}`;
+              props.onCreatePreset({
+                id,
+                label,
+                commands: [command],
+                cwd: "",
+                env: {},
+                autoStart: false,
+              });
+              if (run) setPendingRunId(id);
+            }}
+            loadSuggestions={props.loadSuggestions}
           />
         ) : (
           <>
@@ -426,7 +473,21 @@ export function DockWorkspace(props: Props) {
                 </div>
                 <div className="dock-service-list">
                   {props.presets.length === 0 && (
-                    <p className="dock-muted-note">Save a command as a preset to launch it here.</p>
+                    <DockPresetSuggestions
+                      loadSuggestions={props.loadSuggestions}
+                      onSave={(suggestion, run) => {
+                        const id = `preset-${crypto.randomUUID()}`;
+                        props.onCreatePreset({
+                          id,
+                          label: suggestion.name,
+                          commands: [suggestion.command],
+                          cwd: "",
+                          env: {},
+                          autoStart: false,
+                        });
+                        if (run) setPendingRunId(id);
+                      }}
+                    />
                   )}
                   {[true, false].map((running) => {
                     const group = props.presets.filter(
@@ -1117,6 +1178,55 @@ export function DockWorkspace(props: Props) {
         )}
       </div>
       {confirmDialog}
+    </div>
+  );
+}
+
+/** Empty presets column: the project's own scripts, one click from being presets. */
+function DockPresetSuggestions({
+  loadSuggestions,
+  onSave,
+}: {
+  loadSuggestions?: (() => Promise<ScriptSuggestion[]>) | undefined;
+  onSave: (suggestion: ScriptSuggestion, run: boolean) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<ScriptSuggestion[]>([]);
+  useEffect(() => {
+    if (!loadSuggestions) return;
+    let active = true;
+    loadSuggestions()
+      .then((next) => active && setSuggestions(next))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [loadSuggestions]);
+  return (
+    <div className="dock-preset-suggestions">
+      <p className="dock-muted-note">
+        Presets keep the commands you run every day: start, restart and watch them here.
+      </p>
+      {suggestions.length > 0 && (
+        <>
+          <div className="dock-preset-suggestions-label">From this project</div>
+          <ul>
+            {suggestions.map((suggestion) => (
+              <li key={suggestion.name}>
+                <button
+                  type="button"
+                  className="dock-preset-suggestion"
+                  title={`${suggestion.command} · ${suggestion.detail}`}
+                  aria-label={`Save ${suggestion.name} as a preset`}
+                  onClick={() => onSave(suggestion, false)}
+                >
+                  <span>{suggestion.name}</span>
+                  <PlusIcon aria-hidden="true" className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

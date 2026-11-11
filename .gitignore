@@ -26,3 +26,4 @@ synara-main/
 
 # Local recovery backups (kept on disk, not published)
 /_maintenance/
+/orca-main

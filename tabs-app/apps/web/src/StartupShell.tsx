@@ -1,5 +1,15 @@
-import { useEffect, useState, useSyncExternalStore, lazy, Suspense, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  lazy,
+  Suspense,
+  type ReactNode,
+} from "react";
+import { startupExitBeatMs, startupExitStyle } from "./lib/startupAnimationTiming";
 import { SplashScreen } from "./components/SplashScreen";
+import { STARTUP_RISE_LAYER_CLASS, StartupCurtain } from "./components/StartupCurtain";
 import { readFirstPaintSplashSettings } from "./startupSplashSettings";
 import {
   getStartupSplashState,
@@ -18,6 +28,7 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
   const [settings] = useState(() => readFirstPaintSplashSettings(window.localStorage));
   const state = useSyncExternalStore(subscribeStartupSplash, getStartupSplashState);
   const transition = useStartupAnimation(state.ready, settings.loader);
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,23 +65,22 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
     return () => cancelAnimationFrame(frame);
   }, [application]);
 
-  useEffect(() => {
-    if (!transition.ready || !application) return;
-    const timer = setTimeout(() => {
-      setVisible(false);
-      updateStartupSplash({ dismissed: true });
-    }, transition.exitMs);
-    return () => clearTimeout(timer);
-  }, [transition.ready, transition.exitMs, application]);
+  const leaving = transition.ready && !!application;
 
   return (
     <>
       {visible && (
-        <div
-          role="status"
-          aria-label="Starting Tabs"
-          aria-hidden={(transition.ready && !!application) || undefined}
-          className={`fixed inset-0 z-[9999] bg-background transition-transform duration-500 ease-in-out motion-reduce:duration-0 ${transition.ready && application ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0"}`}
+        <StartupCurtain
+          leaving={leaving}
+          durationMs={transition.exitMs}
+          beatMs={transition.exitMs > 0 ? startupExitBeatMs(settings.loader) : 0}
+          exit={startupExitStyle(settings.loader)}
+          riseRef={workspaceRef}
+          ariaHidden={leaving}
+          onLeft={() => {
+            setVisible(false);
+            updateStartupSplash({ dismissed: true });
+          }}
         >
           <SplashScreen {...settings} />
           {state.error ? (
@@ -93,9 +103,12 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
               finishes.
             </p>
           ) : null}
-        </div>
+        </StartupCurtain>
       )}
-      {application}
+      {/* Layout-neutral except while it carries the workspace up over the splash. */}
+      <div ref={workspaceRef} className={STARTUP_RISE_LAYER_CLASS}>
+        {application}
+      </div>
     </>
   );
 }

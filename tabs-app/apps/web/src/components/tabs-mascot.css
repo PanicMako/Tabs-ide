@@ -1,0 +1,1312 @@
+/* The Tabs mascot: startup intro + idle loop, and a sleepy goodbye. */
+.tabs-mascot {
+  --mascot-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --mascot-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  width: 132px;
+  height: 144px;
+}
+.tabs-mascot-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tabs-mascot-rig,
+.tabs-mascot-body,
+.tabs-mascot-tab,
+.tabs-mascot-eye,
+.tabs-mascot-shadow {
+  transform-box: fill-box;
+}
+.tabs-mascot-rig {
+  transform-origin: 50% 100%;
+}
+.tabs-mascot-body {
+  transform-origin: 50% 100%;
+}
+.tabs-mascot-tab {
+  transform-origin: 50% 100%;
+}
+.tabs-mascot-eye {
+  transform-origin: 50% 50%;
+}
+.tabs-mascot-eyes {
+  transition: transform 220ms var(--mascot-ease);
+}
+.tabs-mascot-shadow {
+  transform-origin: 50% 50%;
+  fill: currentColor;
+  opacity: 0.12;
+}
+
+/* ── Intro: spring in, dock the tab, blink, then idle ─────────────────── */
+.tabs-mascot[data-mode="intro"] .tabs-mascot-rig {
+  animation: mascot-bob 3.2s ease-in-out 1.25s infinite;
+}
+.tabs-mascot[data-mode="intro"] .tabs-mascot-body {
+  animation: mascot-body-in 640ms var(--mascot-spring) both;
+}
+.tabs-mascot[data-mode="intro"] .tabs-mascot-tab {
+  animation:
+    mascot-tab-dock 620ms var(--mascot-ease) 320ms both,
+    mascot-tab-hop 4.8s ease-in-out 2.4s infinite;
+}
+.tabs-mascot[data-mode="intro"] .tabs-mascot-eye {
+  animation:
+    mascot-blink-twice 520ms ease-in-out 900ms both,
+    mascot-blink 3.6s ease-in-out 3s infinite;
+}
+.tabs-mascot[data-mode="intro"] .tabs-mascot-shadow {
+  animation:
+    mascot-shadow-in 640ms var(--mascot-ease) both,
+    mascot-shadow-bob 3.2s ease-in-out 1.25s infinite;
+}
+
+@keyframes mascot-body-in {
+  0% {
+    opacity: 0;
+    transform: translateY(46px) scale(0.72, 0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-8px) scale(0.96, 1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+/* The tab glides in from the left, lands with a squash, and settles. */
+@keyframes mascot-tab-dock {
+  0% {
+    opacity: 0;
+    transform: translate(-90px, -40px) rotate(-14deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(4px, 0) rotate(2deg) scale(1.04, 0.9);
+  }
+  80% {
+    transform: translate(-1px, -3px) rotate(0) scale(0.98, 1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+}
+@keyframes mascot-tab-hop {
+  0%,
+  78%,
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+  }
+  84% {
+    transform: translateY(2px) scale(1.04, 0.92);
+  }
+  90% {
+    transform: translateY(-22px) rotate(-6deg) scale(0.97, 1.04);
+  }
+  96% {
+    transform: translateY(1px) scale(1.03, 0.95);
+  }
+}
+@keyframes mascot-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes mascot-shadow-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  to {
+    opacity: 0.12;
+    transform: scaleX(1);
+  }
+}
+@keyframes mascot-shadow-bob {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.12;
+  }
+  50% {
+    transform: scaleX(0.9);
+    opacity: 0.08;
+  }
+}
+@keyframes mascot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes mascot-blink-twice {
+  0%,
+  40%,
+  100% {
+    transform: scaleY(1);
+  }
+  20%,
+  60% {
+    transform: scaleY(0.12);
+  }
+  80% {
+    transform: scaleY(1);
+  }
+}
+
+/* ── Goodbye: eyes droop shut, a little shiver, then it sinks away ────── */
+.tabs-mascot[data-mode="goodbye"] .tabs-mascot-eye {
+  animation: mascot-eyes-close 520ms ease-in-out both;
+}
+.tabs-mascot[data-mode="goodbye"] .tabs-mascot-tab {
+  animation: mascot-tab-tuck 600ms var(--mascot-ease) 360ms both;
+}
+.tabs-mascot[data-mode="goodbye"] .tabs-mascot-rig {
+  animation: mascot-sink 760ms cubic-bezier(0.55, 0, 0.75, 0.2) 640ms both;
+}
+.tabs-mascot[data-mode="goodbye"] .tabs-mascot-shadow {
+  animation: mascot-shadow-out 760ms ease-in 640ms both;
+}
+@keyframes mascot-eyes-close {
+  0% {
+    transform: scaleY(1);
+  }
+  60% {
+    transform: scaleY(0.45);
+  }
+  100% {
+    transform: translateY(12px) scaleY(0.1);
+  }
+}
+@keyframes mascot-tab-tuck {
+  from {
+    transform: translate(0, 0) rotate(0);
+  }
+  to {
+    transform: translate(24px, -6px) rotate(6deg);
+  }
+}
+@keyframes mascot-sink {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-6px) scale(1.02, 0.97);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(70px) scale(0.86, 0.7);
+  }
+}
+@keyframes mascot-shadow-out {
+  to {
+    opacity: 0;
+    transform: scaleX(0.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabs-mascot * {
+    animation: none !important;
+  }
+}
+
+.mascot-status {
+  transition: opacity 200ms ease;
+}
+[data-leaving] .mascot-status {
+  opacity: 0;
+}
+
+/* Only slow loads see the status line; the gag has its own caption. */
+.tabs-stroll ~ .mascot-status {
+  animation: mascot-status-in 300ms ease 6700ms backwards;
+}
+@keyframes mascot-status-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * ══ Stroll: walk in, hammer the broken app back together, plant the flag ══
+ *
+ * One 6.5s timeline (MASCOT_INTRO_HOLD_MS). Percentages below are of it:
+ *   0-40 walk in · 46, 54, 62 hammer hits · 64-73 throw the flag
+ *   75-92 fling the hat and hammer away · 84-95 walk to the pole · 95-100 hop.
+ * Each element's resting style is its final pose, so reduced motion simply
+ * shows the finished scene.
+ */
+.tabs-stroll {
+  --stroll-walk: 2600ms;
+  --gag: 6500ms;
+  /* The pole stands at the app's left edge, so the lettering is centred over it. */
+  --gag-x: calc(50% - 105px);
+  position: relative;
+  width: 100%;
+  height: 320px;
+  container-type: inline-size;
+}
+.tabs-stroll-scene {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  animation: gag-shake var(--gag) linear both;
+}
+.tabs-stroll-ground {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 40px;
+  height: 1px;
+  opacity: 0.14;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+/* The walker and the carried flag share one path in from off-screen right. */
+.tabs-stroll-walker,
+.tabs-stroll-flag-track {
+  position: absolute;
+  will-change: transform;
+  animation: stroll-walk-in var(--stroll-walk) cubic-bezier(0.35, 0.3, 0.55, 1) both;
+}
+.tabs-stroll-walker {
+  left: calc(50% + 175px);
+  bottom: 27px;
+  margin-left: -56px;
+}
+.tabs-stroll-flag-track {
+  left: var(--gag-x);
+  bottom: 40px;
+  width: 0;
+  height: 0;
+}
+.tabs-stroll-go {
+  transform: translateX(-338px);
+  will-change: transform;
+  animation: gag-go var(--gag) ease-in-out both;
+}
+.tabs-stroll-flag-step {
+  will-change: transform;
+  animation: stroll-step 433ms ease-in-out 6;
+}
+.tabs-stroll-step {
+  position: relative;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation:
+    stroll-step 433ms ease-in-out 6,
+    stroll-step 358ms ease-in-out 5460ms 2,
+    stroll-breathe 3.2s ease-in-out var(--gag) infinite;
+}
+.tabs-stroll-act {
+  position: relative;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: gag-act var(--gag) ease-in-out both;
+}
+.tabs-stroll-act .tabs-mascot {
+  width: 112px;
+  height: 122px;
+}
+.tabs-stroll-act .tabs-mascot-shadow {
+  display: none;
+}
+
+/* The hammer swings from the mascot's side. */
+.tabs-gag-hammer {
+  position: absolute;
+  left: -17px;
+  bottom: 75px;
+  width: 56px;
+  height: 100px;
+  transform: translate(calc(50cqw + 560px), -320px) rotate(1100deg);
+  transform-origin: 50% 96%;
+  will-change: transform;
+  animation: gag-hammer var(--gag) linear both;
+}
+.tabs-gag-hammer svg,
+.tabs-gag-hat svg,
+.tabs-gag-burst svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The flag: thrown off the mascot's back, then speared through the bug. */
+.tabs-stroll-flag-toss {
+  width: 0;
+  height: 0;
+  will-change: transform;
+  animation: gag-flag-toss var(--gag) ease-in-out both;
+}
+.tabs-stroll-pole {
+  position: absolute;
+  left: -1.5px;
+  bottom: 0;
+  width: 3px;
+  height: 214px;
+  border-radius: 2px;
+}
+.tabs-stroll-pole::after {
+  content: "";
+  position: absolute;
+  left: -2.5px;
+  top: -6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: inherit;
+}
+.tabs-stroll-flag {
+  position: absolute;
+  left: 1px;
+  bottom: 146px;
+  display: flex;
+  width: 210px;
+  height: 64px;
+  transform-origin: 0% 50%;
+  will-change: transform;
+  animation: gag-flag-unfurl var(--gag) ease-out both;
+}
+/* Vertical strips rippling out of phase read as cloth, on the compositor. */
+.tabs-flag-strip {
+  position: relative;
+  flex: 0 0 6px;
+  height: 100%;
+  will-change: transform;
+  animation: flag-wave 1.15s ease-in-out calc((35 - var(--i)) * -36ms) infinite;
+}
+.tabs-flag-strip svg {
+  display: block;
+  width: 6.6px;
+  height: 100%;
+}
+.tabs-flag-shade {
+  position: absolute;
+  inset: 0;
+  right: -0.6px;
+  opacity: 0.16;
+  will-change: opacity;
+  animation: flag-shade 1.15s ease-in-out calc((35 - var(--i)) * -36ms) infinite;
+}
+
+/* The hard hat sits on the mascot's head. */
+.tabs-gag-hat {
+  position: absolute;
+  left: 3px;
+  bottom: 96px;
+  width: 62px;
+  transform: translate(calc(50cqw + 560px), -420px) rotate(900deg);
+  will-change: transform;
+  animation: gag-hat var(--gag) linear both;
+}
+
+/* The broken app. Each part rests fixed; keyframes hold it broken until its hit. */
+.tabs-app {
+  position: absolute;
+  left: calc(50% - 105px);
+  bottom: 41px;
+  width: 210px;
+  height: 130px;
+  border: 2px solid;
+  border-radius: 10px;
+  transform-origin: 0% 100%;
+  will-change: transform;
+  animation: app-fix-frame var(--gag) linear both;
+}
+.tabs-app-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding-left: 8px;
+  border-bottom: 1.5px solid;
+}
+.tabs-app-bar i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+.tabs-app-tab {
+  width: 46px;
+  height: 12px;
+  margin-left: 8px;
+  border-radius: 3px 3px 0 0;
+  background: currentColor;
+  transform-origin: 0% 100%;
+  will-change: transform;
+  animation: app-fix-tab var(--gag) linear both;
+}
+.tabs-app-side {
+  position: absolute;
+  left: 8px;
+  top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 44px;
+  height: 90px;
+  padding: 7px 6px;
+  border: 1.5px solid;
+  border-radius: 5px;
+  transform-origin: 0% 0%;
+  will-change: transform;
+  animation: app-fix-side var(--gag) linear both;
+}
+.tabs-app-side i,
+.tabs-app-code i {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.tabs-app-code {
+  position: absolute;
+  left: 62px;
+  top: 30px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tabs-app-code i {
+  transform: none;
+  will-change: transform;
+  animation: app-fix-line var(--gag) linear both;
+}
+.tabs-app-status {
+  position: absolute;
+  left: 62px;
+  right: 8px;
+  bottom: 8px;
+  height: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  line-height: 14px;
+}
+.tabs-app-status span {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  white-space: nowrap;
+  animation: var(--line) var(--gag) linear both;
+}
+.tabs-app-status span[data-final] {
+  opacity: 0.8;
+}
+.tabs-app-crack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: var(--crack) var(--gag) linear both;
+}
+.tabs-app-spark {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fbbf24;
+  opacity: 0;
+  animation: app-spark var(--gag) linear both;
+}
+.tabs-app-spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: app-spark-pop 380ms ease-out var(--d) 12;
+}
+.tabs-app-check {
+  position: absolute;
+  right: 10px;
+  top: 28px;
+  width: 22px;
+  height: 22px;
+  will-change: transform, opacity;
+  animation: app-check var(--gag) ease-out both;
+}
+.tabs-gag-burst {
+  position: absolute;
+  left: calc(50% + 48px);
+  bottom: 62px;
+  width: 120px;
+  margin-left: -60px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: gag-burst 500ms ease-out 2980ms 3 both;
+}
+
+/* The running count: reels step on the compositor, whatever the app is doing. */
+.tabs-gag-caption {
+  position: absolute;
+  inset: auto 0 6px;
+  height: 30px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 30px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tabs-gag-count {
+  position: absolute;
+  inset: 0;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.tabs-gag-count[data-done] {
+  opacity: 0;
+  font-weight: 500;
+}
+.tabs-gag-reel {
+  display: inline-block;
+  height: 30px;
+  overflow: hidden;
+  vertical-align: top;
+}
+.tabs-gag-reel b {
+  display: block;
+  font-weight: inherit;
+  transform: translateY(-270px);
+  will-change: transform;
+  animation: gag-reel var(--reel) steps(10, jump-none) var(--turns) both;
+}
+.tabs-gag-reel u {
+  display: block;
+  height: 30px;
+  text-decoration: none;
+}
+.tabs-gag-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 180px;
+  height: 2px;
+  margin-left: -90px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.tabs-gag-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0.16;
+}
+.tabs-gag-progress i {
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  transform: scaleX(0.99);
+  transform-origin: 0% 50%;
+  will-change: transform;
+  animation: gag-progress var(--gag) linear both;
+}
+/* Stuck at 99 until the workspace is actually ready, as is tradition. */
+[data-leaving] .tabs-gag-count {
+  opacity: 0;
+}
+[data-leaving] .tabs-gag-count[data-done] {
+  opacity: 1;
+}
+[data-leaving] .tabs-gag-progress i {
+  animation: none;
+  transform: none;
+}
+
+/* Walk mode on the mascot: feet step, it eyes the bug, then its eyes go wide. */
+.tabs-mascot[data-mode="walk"] .tabs-mascot-tab {
+  animation:
+    mascot-foot-step 433ms ease-in-out 6,
+    mascot-foot-step 358ms ease-in-out 5460ms 2;
+}
+.tabs-mascot[data-mode="walk"] .tabs-mascot-eyes {
+  transform-box: view-box;
+  animation: gag-eyes var(--gag) ease-out both;
+}
+.tabs-mascot[data-mode="walk"] .tabs-mascot-eye {
+  animation: mascot-blink 3.4s ease-in-out 3s infinite;
+}
+
+@keyframes stroll-walk-in {
+  from {
+    transform: translateX(calc(50cqw - 65px));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes stroll-step {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-7px) rotate(-2deg);
+  }
+}
+@keyframes stroll-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.01, 0.99);
+  }
+}
+@keyframes mascot-foot-step {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-10px, -16px);
+  }
+}
+@keyframes gag-eyes {
+  0%,
+  40% {
+    transform: translate(0, 0);
+  }
+  44%,
+  94% {
+    transform: translate(-20px, 4px);
+  }
+  97%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+@keyframes gag-act {
+  0%,
+  41.5%,
+  48.2%,
+  49.8%,
+  56.1%,
+  58%,
+  64%,
+  73%,
+  80%,
+  95%,
+  100% {
+    transform: none;
+  }
+  44%,
+  51.5%,
+  59.3% {
+    transform: rotate(4deg) scale(0.98, 1.04);
+  }
+  46.15%,
+  53.85%,
+  61.54% {
+    transform: translateX(-6px) rotate(-6deg) scale(1.05, 0.92);
+  }
+  66%,
+  75% {
+    transform: rotate(5deg) scale(0.98, 1.04);
+  }
+  70%,
+  78% {
+    transform: translateY(-8px) rotate(-7deg);
+  }
+  97% {
+    transform: translateY(-18px);
+  }
+  99% {
+    transform: scale(1.05, 0.94);
+  }
+}
+@keyframes gag-go {
+  0%,
+  84% {
+    transform: translateX(0);
+  }
+  95%,
+  100% {
+    transform: translateX(-338px);
+  }
+}
+@keyframes gag-hat {
+  0%,
+  75% {
+    transform: none;
+  }
+  78% {
+    transform: translateY(-40px) rotate(-14deg);
+  }
+  84% {
+    transform: translate(210px, -230px) rotate(330deg);
+  }
+  92%,
+  100% {
+    transform: translate(calc(50cqw + 560px), -420px) rotate(900deg);
+  }
+}
+@keyframes gag-hammer {
+  0%,
+  41.5% {
+    transform: rotate(-20deg);
+  }
+  44%,
+  51.5%,
+  59.3% {
+    transform: rotate(30deg);
+  }
+  46.15%,
+  53.85%,
+  61.54% {
+    transform: rotate(-92deg);
+  }
+  48.2%,
+  56.1%,
+  64% {
+    transform: rotate(-84deg);
+  }
+  69% {
+    transform: rotate(-20deg);
+  }
+  75% {
+    transform: rotate(35deg);
+  }
+  82% {
+    transform: translate(170px, -190px) rotate(520deg);
+  }
+  90%,
+  100% {
+    transform: translate(calc(50cqw + 560px), -320px) rotate(1100deg);
+  }
+}
+@keyframes gag-burst {
+  0%,
+  1% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  6% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  45%,
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@keyframes gag-shake {
+  0%,
+  46.1%,
+  48.6%,
+  53.8%,
+  56.3%,
+  61.5%,
+  64%,
+  71.4%,
+  73.6%,
+  100% {
+    transform: translate(0, 0);
+  }
+  46.7%,
+  54.4%,
+  62.1% {
+    transform: translate(-4px, 3px);
+  }
+  47.5%,
+  55.2%,
+  62.9% {
+    transform: translate(3px, -2px);
+  }
+  72% {
+    transform: translate(0, 3px);
+  }
+  73% {
+    transform: translate(0, -1px);
+  }
+}
+@keyframes gag-flag-toss {
+  0%,
+  63.8% {
+    transform: translate(250px, -34px) rotate(0);
+  }
+  67.5% {
+    transform: translate(120px, -116px) rotate(-16deg);
+  }
+  71.5% {
+    transform: translate(-4px, -4px) rotate(3deg);
+  }
+  73% {
+    transform: translate(0, 2px) rotate(-1deg);
+  }
+  76%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes app-fix-frame {
+  0%,
+  61.48% {
+    transform: rotate(-3.5deg);
+  }
+  62.72% {
+    transform: rotate(0.8deg);
+  }
+  64.8%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes app-fix-side {
+  0%,
+  46.11% {
+    transform: translate(-16px, 16px) rotate(-15deg);
+  }
+  47.35% {
+    transform: translate(2px, -2px) rotate(1.5deg);
+  }
+  49.85%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes app-fix-line {
+  0%,
+  53.75% {
+    transform: translateX(var(--off)) rotate(var(--tilt));
+  }
+  54.83%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes app-fix-tab {
+  0%,
+  61.48% {
+    transform: translateY(5px) rotate(42deg);
+  }
+  62.72% {
+    transform: rotate(-5deg);
+  }
+  64.8%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes app-crack-1 {
+  0%,
+  46.11% {
+    opacity: 1;
+  }
+  46.52%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-crack-2 {
+  0%,
+  53.75% {
+    opacity: 1;
+  }
+  54.17%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-crack-3 {
+  0%,
+  61.48% {
+    opacity: 1;
+  }
+  61.89%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-spark {
+  0%,
+  61.39% {
+    opacity: 1;
+  }
+  61.48%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-spark-pop {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--sx), -16px) scale(0.3);
+  }
+}
+@keyframes app-check {
+  0%,
+  63.97% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-30deg);
+  }
+  67.29% {
+    opacity: 1;
+    transform: scale(1.3) rotate(6deg);
+  }
+  70.62%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes app-text-broken {
+  0%,
+  53.75% {
+    opacity: 0.8;
+  }
+  53.83%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-text-compiles {
+  0%,
+  53.75% {
+    opacity: 0;
+  }
+  53.83%,
+  61.48% {
+    opacity: 0.8;
+  }
+  61.56%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes app-text-works {
+  0%,
+  61.48% {
+    opacity: 0;
+  }
+  61.56%,
+  100% {
+    opacity: 0.8;
+  }
+}
+@keyframes gag-reel {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-270px);
+  }
+}
+@keyframes gag-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.99);
+  }
+}
+@keyframes gag-flag-unfurl {
+  0%,
+  71% {
+    transform: scaleX(0.84) skewY(-3deg);
+  }
+  76% {
+    transform: scaleX(1.05) skewY(1deg);
+  }
+  82%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes flag-wave {
+  0%,
+  100% {
+    transform: translateY(calc(var(--amp) * -1));
+  }
+  50% {
+    transform: translateY(var(--amp));
+  }
+}
+@keyframes flag-shade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+/* The workspace is coming up from below: the mascot hops out of its way. */
+[data-leaving] .tabs-stroll-act {
+  animation: gag-startle 520ms cubic-bezier(0.3, 0, 0.3, 1) both;
+}
+@keyframes gag-startle {
+  0% {
+    transform: none;
+  }
+  25% {
+    transform: scale(1.06, 0.9);
+  }
+  100% {
+    transform: translateY(-46px) scale(0.97, 1.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs-stroll,
+  .tabs-stroll * {
+    animation: none !important;
+  }
+}
+
+/* ══ Bedtime: say goodbye, hop into bed, tuck in, lights out ═════════════
+ * One 3.6s timeline (TABS_MASCOT_GOODBYE_MS); it must stay under the desktop
+ * shell's 5s close timeout.
+ */
+.tabs-bed {
+  --bed: 3600ms;
+  position: relative;
+  flex: none;
+  width: 380px;
+  height: 280px;
+}
+.tabs-bed-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  height: 1px;
+  opacity: 0.14;
+}
+.tabs-bed-frame {
+  position: absolute;
+  left: 124px;
+  bottom: 40px;
+  display: block;
+  width: 240px;
+  height: 110px;
+}
+.tabs-bed-mascot {
+  position: absolute;
+  left: 6px;
+  bottom: 27px;
+  will-change: transform;
+}
+.tabs-bed-mascot .tabs-mascot {
+  width: 112px;
+  height: 122px;
+}
+.tabs-bed-mascot .tabs-mascot-shadow {
+  display: none;
+}
+.tabs-bed-blanket {
+  position: absolute;
+  left: 204px;
+  bottom: 88px;
+  width: 150px;
+  height: 84px;
+  border-radius: 34px 26px 6px 6px;
+  background: repeating-linear-gradient(90deg, #818cf8 0 16px, #a5b4fc 16px 32px);
+  opacity: 0;
+  transform-origin: 100% 50%;
+  will-change: transform, opacity;
+}
+.tabs-bed-bubble {
+  position: absolute;
+  left: 0;
+  bottom: 176px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  transform-origin: 30% 100%;
+  will-change: transform, opacity;
+}
+.tabs-bed-bubble::after {
+  content: "";
+  position: absolute;
+  left: 42px;
+  top: 100%;
+  border: 7px solid transparent;
+  border-top-color: currentColor;
+  color: var(--bed-bubble);
+}
+.tabs-bed-z {
+  position: absolute;
+  left: 176px;
+  bottom: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.tabs-bed-side {
+  flex: 0 1 300px;
+  min-width: 0;
+}
+.tabs-bed[data-phase="closing"] .tabs-bed-mascot {
+  animation: bed-hop var(--bed) ease-in-out both;
+}
+.tabs-bed[data-phase="closing"] .tabs-mascot-rig {
+  animation: bed-wave var(--bed) ease-in-out both;
+}
+.tabs-bed[data-phase="closing"] .tabs-mascot-eye {
+  animation: bed-eyes var(--bed) ease-in-out both;
+}
+.tabs-bed[data-phase="closing"] .tabs-bed-blanket {
+  animation: bed-blanket var(--bed) ease-out both;
+}
+.tabs-bed[data-phase="closing"] .tabs-bed-bubble {
+  animation: bed-bubble var(--bed) ease-out both;
+}
+.tabs-bed[data-phase="closing"] .tabs-bed-z {
+  animation: bed-z 1200ms ease-out var(--d) infinite backwards;
+}
+.tabs-bed[data-phase="closing"] {
+  animation: bed-night var(--bed) ease-in both;
+}
+@keyframes bed-hop {
+  0%,
+  34% {
+    transform: none;
+  }
+  38% {
+    transform: scale(1.06, 0.9);
+  }
+  46% {
+    transform: translate(60px, -100px) rotate(-22deg) scale(0.95, 1.05);
+  }
+  56% {
+    transform: translate(144px, -62px) rotate(-90deg) scale(0.72);
+  }
+  60% {
+    transform: translate(144px, -44px) rotate(-90deg) scale(0.76, 0.68);
+  }
+  64%,
+  100% {
+    transform: translate(144px, -48px) rotate(-90deg) scale(0.72);
+  }
+}
+@keyframes bed-wave {
+  0%,
+  30%,
+  100% {
+    transform: none;
+  }
+  5%,
+  15%,
+  25% {
+    transform: rotate(-7deg);
+  }
+  10%,
+  20% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes bed-eyes {
+  0%,
+  64% {
+    transform: scaleY(1);
+  }
+  69% {
+    transform: scaleY(0.45);
+  }
+  72% {
+    transform: scaleY(0.75);
+  }
+  79%,
+  100% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes bed-blanket {
+  0%,
+  62% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  63% {
+    opacity: 1;
+    transform: scaleX(0.05);
+  }
+  75%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bed-bubble {
+  0%,
+  2% {
+    opacity: 0;
+    transform: scale(0.6) translateY(8px);
+  }
+  8% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  11%,
+  33% {
+    opacity: 1;
+    transform: none;
+  }
+  38%,
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes bed-z {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.7);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(18px, -46px) scale(1.5);
+  }
+}
+@keyframes bed-night {
+  0%,
+  84% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs-bed,
+  .tabs-bed * {
+    animation: none !important;
+  }
+}

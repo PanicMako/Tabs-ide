@@ -1,6 +1,6 @@
 {
   "name": "tabs",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
   "main": "./dist/bin.mjs",
   "scripts": {
     "dev": "bun run src/index.ts",
-    "dev:bundle": "tsdown --watch",
+    "dev:bundle": "TABS_SERVER_DEV_BUNDLE=1 tsdown --watch",
     "build": "bun scripts/cli.ts build",
     "start": "node dist/bin.mjs",
     "testing:ci": "bun scripts/testing-ci.ts",

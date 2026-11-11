@@ -568,7 +568,8 @@ const makeKeybindings = Effect.gen(function* () {
         customConfig.some((entry) => isSameKeybindingRule(entry, defaultRule)),
       ).map((rule) => rule.command);
       if (matchingDefaults.length > 0) {
-        yield* Effect.logWarning("default keybinding rule already defined in user config", {
+        // Expected whenever a saved config repeats a default; not actionable.
+        yield* Effect.logDebug("default keybinding rule already defined in user config", {
           path: keybindingsConfigPath,
           commands: matchingDefaults,
         });

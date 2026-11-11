@@ -58,3 +58,71 @@ export function closeWorkspaceTool(
     ),
   };
 }
+
+/** Prefix shared by every Scratch Browser tool and its custom embed. */
+export const SCRATCH_BROWSER_ID_PREFIX = "scratch-";
+
+/**
+ * Add a temporary Scratch Browser tab. Quick Actions and in-app link handling
+ * both create Scratch Browsers through here so they stay identical: isolated
+ * partition, resumes its last page, discarded on close unless kept.
+ */
+export function addScratchBrowserTool(
+  settings: ProjectWorkspaceSettings,
+  input: { id: string; label: string; url: string },
+): ProjectWorkspaceSettings {
+  return {
+    ...settings,
+    customEmbeds: [
+      ...settings.customEmbeds,
+      {
+        id: input.id,
+        label: input.label,
+        url: input.url,
+        resumeLastVisitedPage: true,
+        partitionMode: "isolated",
+      },
+    ],
+    tools: [
+      ...settings.tools,
+      {
+        id: input.id,
+        kind: "custom_embed",
+        temporary: true,
+        label: input.label,
+        visible: true,
+        customEmbedId: input.id,
+      },
+    ],
+  };
+}
+
+/**
+ * A still-open temporary Scratch Browser that was opened for exactly this URL,
+ * so clicking the same link twice focuses the existing tab instead of stacking
+ * duplicates.
+ */
+export function findScratchBrowserForUrl(
+  settings: ProjectWorkspaceSettings,
+  url: string,
+): string | null {
+  const tool = settings.tools.find((entry) => {
+    if (entry.kind !== "custom_embed" || !entry.visible || !isTemporaryWorkspaceTool(entry))
+      return false;
+    const embed = settings.customEmbeds.find((item) => item.id === entry.customEmbedId);
+    return (
+      embed?.url === url && (embed.lastVisitedUrl === undefined || embed.lastVisitedUrl === url)
+    );
+  });
+  return tool?.id ?? null;
+}
+
+/** Short tab label for a link: its host without `www.`. */
+export function scratchBrowserLabelForUrl(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return host || "Scratch browser";
+  } catch {
+    return "Scratch browser";
+  }
+}

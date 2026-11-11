@@ -13,7 +13,10 @@ vi.mock("~/hooks/useActiveProjectTarget", () => ({
     cwd: "/workspace",
   }),
 }));
-vi.mock("~/state/workspaceShell", () => ({ useProjectWorkspaceSettings: () => null }));
+vi.mock("~/state/workspaceShell", () => ({
+  useProjectWorkspaceSettings: () => null,
+  useWorkspaceActiveProjectId: () => "project",
+}));
 vi.mock("./CompanionFilesPanel", () => ({ CompanionFilesPanel: () => null }));
 vi.mock("./CompanionDiffPanel", () => ({ CompanionDiffPanel: () => null }));
 vi.mock("./CompanionTerminalPanel", () => ({ CompanionTerminalPanel: () => null }));

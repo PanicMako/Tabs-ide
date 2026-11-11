@@ -69,6 +69,27 @@ it("Auto uses the resolved dark theme and fills both animation previews at every
   }
 });
 
+it("plays the full startup preview and only a close control ends it early", async () => {
+  const view = await render(<AnimationsSettings />);
+  try {
+    await page.getByRole("button", { name: "Startup", exact: true }).click();
+    await page.getByRole("button", { name: "Tabs Mascot", exact: true }).click();
+    await page.getByRole("button", { name: "Preview Fullscreen", exact: true }).click();
+    const preview = page.getByRole("dialog", { name: "Startup animation preview" });
+    await expect.element(preview).toBeVisible();
+    // A stray click must not dismiss it, and the old 2s cut-off is gone.
+    await preview.click({ position: { x: 40, y: 200 } });
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    const curtain = document.querySelector('[aria-label="Starting Tabs"]')!;
+    expect(curtain.hasAttribute("data-leaving")).toBe(false);
+    await expect.element(preview).toBeVisible();
+    await page.getByRole("button", { name: "Close startup animation preview" }).click();
+    await expect.element(preview).not.toBeInTheDocument();
+  } finally {
+    await view.unmount();
+  }
+});
+
 it("System Auto keeps its split dark/light design inside the rounded border", async () => {
   const view = await render(<ThemesSettings />);
   try {

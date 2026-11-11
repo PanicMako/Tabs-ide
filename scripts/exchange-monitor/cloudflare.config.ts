@@ -10,6 +10,6 @@ export default defineConfig({
       enabled: true,
       traces: { enabled: true },
     },
-    triggers: [triggers.scheduled({ schedule: "*/10 * * * *" })],
+    triggers: [triggers.scheduled({ schedule: "*/12 * * * *" })],
   },
 });

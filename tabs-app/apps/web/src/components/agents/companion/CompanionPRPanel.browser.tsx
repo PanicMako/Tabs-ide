@@ -8,6 +8,7 @@ import { PRsPanel } from "../../git/PRsPanel";
 const fixture = vi.hoisted(() => ({
   create: vi.fn(),
   external: vi.fn(async () => {}),
+  openLink: vi.fn(async () => "app" as const),
   pr: {
     number: 7,
     title: "Keep browser navigation and address history in sync",
@@ -29,6 +30,10 @@ const fixture = vi.hoisted(() => ({
     actions: ["merge", "enable_auto_merge", "close"],
     mergeMethods: ["squash", "merge"],
   },
+}));
+vi.mock("../../../browserLinkTarget", async (original) => ({
+  ...(await original<typeof import("../../../browserLinkTarget")>()),
+  openLink: fixture.openLink,
 }));
 vi.mock("../../git/gitApiContext", () => ({
   useGitApi: () => ({ shell: { openExternal: fixture.external } }),
@@ -94,7 +99,8 @@ it.each([360, 900])("keeps PR summaries readable and actions accessible at %ipx"
     await expect.element(page.getByRole("button", { name: "Enable auto-merge…" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Open on GitHub" }).click();
-    expect(fixture.external).toHaveBeenCalledWith(fixture.pr.url);
+    // PR links follow the "Open links in" setting like every other link.
+    expect(fixture.openLink).toHaveBeenCalledWith(fixture.pr.url);
   } finally {
     await view.unmount();
     client.clear();

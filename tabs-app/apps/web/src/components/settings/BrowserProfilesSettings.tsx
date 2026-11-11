@@ -1,5 +1,5 @@
 import {
-  DEFAULT_BROWSER_LINK_TARGET,
+  effectiveBrowserLinkTarget,
   type BrowserLinkTarget,
   type BrowserProfileDefinition,
 } from "@tabs/contracts/settings";
@@ -92,6 +92,7 @@ function slugifyProfileId(input: string): string {
 
 export function BrowserProfilesSettings() {
   const settings = useSettings();
+  const linkTarget = effectiveBrowserLinkTarget(settings);
   const { updateSettings } = useUpdateSettings();
   const { confirm, confirmDialog } = useConfirm();
   const projects = useAtomValue(projectsAtom);
@@ -681,28 +682,31 @@ export function BrowserProfilesSettings() {
       <SettingsSection title="Browsing">
         <SettingsRow
           title="Open links in"
-          description="Choose where links from chat open."
+          description="Links from agents, chat, terminals and pull requests open in a Scratch Browser tab, or in your default browser. Cmd/Ctrl-click always uses your default browser."
           control={
             <Select
-              value={settings.browserLinkTarget ?? DEFAULT_BROWSER_LINK_TARGET}
+              value={linkTarget}
               onValueChange={(value) => {
                 if (value) {
-                  updateSettings({ browserLinkTarget: value as BrowserLinkTarget });
+                  updateSettings({
+                    browserLinkTarget: value as BrowserLinkTarget,
+                    browserLinkTargetChosen: true,
+                  });
                 }
               }}
             >
               <SelectTrigger
-                aria-label="Open chat links in"
-                title="Hold Command or Control while clicking a link to use your system browser."
-                className="h-9 w-full sm:w-48"
+                aria-label="Open links in"
+                title="Hold Command or Control while clicking a link to use your default browser."
+                className="h-9 w-full sm:w-52"
               >
                 <SelectValue>
-                  {settings.browserLinkTarget === "app" ? "Tabs browser" : "System browser"}
+                  {linkTarget === "app" ? "Open in Tabs" : "Open in Default Browser"}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup>
-                <SelectItem value="system">Default system browser</SelectItem>
-                <SelectItem value="app">Tabs integrated browser</SelectItem>
+                <SelectItem value="app">Open in Tabs</SelectItem>
+                <SelectItem value="system">Open in Default Browser</SelectItem>
               </SelectPopup>
             </Select>
           }

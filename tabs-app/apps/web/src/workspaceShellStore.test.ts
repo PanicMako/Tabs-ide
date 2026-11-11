@@ -388,8 +388,11 @@ describe("workspaceShellStore", () => {
 
     const next = syncWorkspaceShellState(input, [alpha, beta], [alphaThread]);
 
-    expect(next.session.openProjectIds).toEqual([alpha.id]);
+    // Gamma has not been reported (yet): its tab stays open but the active
+    // project falls back to one that can be shown.
+    expect(next.session.openProjectIds).toEqual([alpha.id, gammaProjectId]);
     expect(next.session.activeProjectId).toBe(alpha.id);
+    expect(next.session.activeToolIdByProjectId[gammaProjectId]).toBe("server");
     expect(next.session.activeToolIdByProjectId[alpha.id]).toBe("git");
     expect(next.session.activeToolIdByProjectId[beta.id]).toBe("browser");
     expect(next.session.rememberedThreadIdByProjectId).toEqual({
@@ -450,16 +453,19 @@ describe("workspaceShellStore", () => {
     expect(next.session.activeToolIdByProjectId[project.id]).toBe("code");
   });
 
-  it("clears open tabs when synced against an empty project list (why callers must gate on hydration)", () => {
-    // syncWorkspaceShellState rebuilds from scratch and keeps only tabs whose
-    // project is present in `projects`. If a caller runs it before the server
-    // read model has loaded (projects still []), it wipes the restored
-    // workspace. WorkspaceShell therefore gates the sync effect on
-    // `threadsHydrated`; this test pins the clobbering behavior so that gate is
-    // never removed without understanding the consequence.
-    const project = makeProject("project-prehydration");
+  it("keeps tabs and workspace settings of projects whose environment has not reported yet", async () => {
+    // With several environments the first snapshot can hold only some
+    // projects. Syncing against it must not close the others' tabs or delete
+    // their settings; they come back as soon as their environment reports.
+    const project = makeProject("project-late-environment");
     const baseState = createDefaultWorkspaceShellPersistedState();
-
+    const { createDefaultProjectWorkspaceSettings } = await import("./workspaceShellStore");
+    const settings = {
+      ...createDefaultProjectWorkspaceSettings(),
+      serverPresets: [
+        { id: "dev", label: "dev", commands: ["bun run dev"], cwd: "", env: {}, autoStart: false },
+      ],
+    };
     const input: WorkspaceShellPersistedState = {
       ...baseState,
       session: {
@@ -467,12 +473,18 @@ describe("workspaceShellStore", () => {
         openProjectIds: [project.id],
         activeProjectId: project.id,
       },
+      projectSettingsByProjectId: { [project.id]: settings },
     };
 
-    const next = syncWorkspaceShellState(input, [], []);
+    const early = syncWorkspaceShellState(input, [], []);
+    expect(early.session.openProjectIds).toEqual([project.id]);
+    expect(early.session.pendingTabIds).toEqual([]);
+    expect(early.projectSettingsByProjectId[project.id]?.serverPresets).toHaveLength(1);
 
-    expect(next.session.openProjectIds).toEqual([]);
-    expect(next.session.activeProjectId).toBeNull();
+    const late = syncWorkspaceShellState(early, [project], []);
+    expect(late.session.openProjectIds).toEqual([project.id]);
+    expect(late.session.activeProjectId).toBe(project.id);
+    expect(late.projectSettingsByProjectId[project.id]?.serverPresets).toHaveLength(1);
   });
 
   it("restores custom terminal and browser tabs (plus per-tab URLs) when the project id is stable", () => {

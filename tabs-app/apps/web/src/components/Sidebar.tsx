@@ -1,4 +1,5 @@
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
+import { openLink } from "../browserLinkTarget";
 import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
@@ -609,7 +610,7 @@ export default function Sidebar() {
       return;
     }
 
-    void api.shell.openExternal(prUrl).catch((error) => {
+    void openLink(prUrl).catch((error) => {
       toastManager.add({
         type: "error",
         title: "Unable to open PR link",

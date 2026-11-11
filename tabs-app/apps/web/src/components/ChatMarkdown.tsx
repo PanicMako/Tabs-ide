@@ -43,9 +43,7 @@ import { remarkGithubAlerts } from "../markdown-github-alerts";
 import { createIncrementalMarkdownPlugin } from "../markdown-incremental";
 import { resolveMarkdownFileLinkTarget } from "../markdown-links";
 import { readNativeApi } from "../nativeApi";
-import { useSettings } from "../hooks/useSettings";
-import { useWorkspaceActiveProjectId } from "../state/workspaceShell";
-import { openLinkInIntegratedBrowser, resolveBrowserLinkTarget } from "../browserLinkTarget";
+import { isWebUrl, openLinkFromEvent } from "../browserLinkTarget";
 import { HighlightedCodeLines, toHtml } from "./chat/HighlightedCodeLines";
 import { basenameOfPath } from "~/vscode-icons";
 import { CHAT_FILE_TAG_CHIP_CLASS_NAME, FileTagChipContent } from "./chat/FileTagChip";
@@ -461,8 +459,6 @@ function SuspenseShikiCodeBlock({
 
 function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
-  const browserLinkTarget = useSettings((settings) => settings.browserLinkTarget);
-  const activeProjectId = useWorkspaceActiveProjectId();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
   const markdownComponents = useMemo<Components>(
     () => ({
@@ -507,18 +503,10 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
               target="_blank"
               rel="noreferrer"
               onClick={(event) => {
-                if (!href) return;
-                const target = resolveBrowserLinkTarget({
-                  url: href,
-                  preference: browserLinkTarget,
-                  projectId: activeProjectId,
-                  metaKey: event.metaKey,
-                  ctrlKey: event.ctrlKey,
-                });
-                if (target !== "app" || !activeProjectId) return;
+                if (!href || !isWebUrl(href)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                openLinkInIntegratedBrowser(activeProjectId, href);
+                openLinkFromEvent(href, event);
               }}
             >
               {children}
@@ -594,7 +582,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         );
       },
     }),
-    [activeProjectId, browserLinkTarget, cwd, diffThemeName, isStreaming, resolvedTheme],
+    [cwd, diffThemeName, isStreaming, resolvedTheme],
   );
 
   const incrementalParsing = isStreaming === true && /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
