@@ -57,6 +57,9 @@ it("keeps controls, highlights and content surfaces consistent across theme skin
 });
 
 it("uses proportionate Code OSS rows, text highlights and continuous notification frames", async () => {
+  // Tabs styles Code only when Code runs inside it (the embedded workbench).
+  const originalEmbedded = document.documentElement.classList.contains("tabs-embedded-workbench");
+  document.documentElement.classList.add("tabs-embedded-workbench");
   const style = document.createElement("style");
   style.textContent = workbenchStyles;
   document.head.append(style);
@@ -105,16 +108,19 @@ it("uses proportionate Code OSS rows, text highlights and continuous notificatio
   );
   const element = (id: string) => view.container.querySelector(`[data-testid="${id}"]`)!;
   try {
+    // Workspace rows share the shell's pill; overlays (notifications, toasts)
+    // use the medium tier, and rows inside them the small tier, so short rows
+    // never turn into capsules. The last notification closes the frame.
     expect(getComputedStyle(element("tree-row")).borderRadius).toBe("36px");
     for (const id of ["line", "match"]) {
       expect(getComputedStyle(element(id)).borderRadius).toBe("5px");
     }
-    expect(getComputedStyle(element("notification")).borderRadius).toBe("0px 0px 36px 36px");
+    expect(getComputedStyle(element("notification")).borderRadius).toBe("0px 0px 12px 12px");
     expect(
       getComputedStyle(view.container.querySelector(".notifications-center")!).borderRadius,
-    ).toBe("36px");
-    expect(getComputedStyle(element("notification-focus")).borderRadius).toBe("36px");
-    expect(getComputedStyle(element("toast")).borderRadius).toBe("36px");
+    ).toBe("12px");
+    expect(getComputedStyle(element("notification-focus")).borderRadius).toBe("8px");
+    expect(getComputedStyle(element("toast")).borderRadius).toBe("12px");
     const selection = getComputedStyle(element("selection"));
     expect(selection.borderTopLeftRadius).toBe("5px");
     expect(selection.borderTopRightRadius).toBe("0px");
@@ -122,6 +128,7 @@ it("uses proportionate Code OSS rows, text highlights and continuous notificatio
     expect(getComputedStyle(element("split-end")).borderTopLeftRadius).toBe("0px");
   } finally {
     style.remove();
+    document.documentElement.classList.toggle("tabs-embedded-workbench", originalEmbedded);
     await view.unmount();
   }
 });
@@ -132,7 +139,7 @@ it.each([
   [false, true],
   [true, true],
 ])(
-  "keeps Code pickers and inputs rounded (embedded: %s, reversed styles: %s)",
+  "keeps Code pickers and inputs on their tiers (embedded: %s, reversed styles: %s)",
   async (embedded, reversedStyles) => {
     const originalEmbedded = document.documentElement.classList.contains("tabs-embedded-workbench");
     document.documentElement.classList.toggle("tabs-embedded-workbench", embedded);
@@ -192,27 +199,34 @@ it.each([
       </div>,
     );
     try {
-      for (const selector of [
-        ".quick-input-widget",
-        ".quick-input-widget .monaco-inputbox",
-        ".monaco-list-row",
-        '[data-testid="search-field"]',
-        '[data-testid="settings-field"]',
-        '[data-testid="code-button"]',
-      ]) {
-        expect(getComputedStyle(view.container.querySelector(selector)!).borderTopLeftRadius).toBe(
-          "36px",
-        );
+      // Inside Tabs: Quick Open is a medium-tier overlay whose input and rows
+      // use the small tier; Search and Settings fields are small-tier by design;
+      // buttons keep the shell's pill. Outside Tabs, Tabs adds no geometry.
+      const expected: ReadonlyArray<[string, string]> = [
+        [".quick-input-widget", "12px"],
+        [".quick-input-widget .monaco-inputbox", "8px"],
+        [".monaco-list-row", "8px"],
+        ['[data-testid="search-field"]', "8px"],
+        ['[data-testid="settings-field"]', "8px"],
+        ['[data-testid="code-button"]', "36px"],
+      ];
+      for (const [selector, radius] of expected) {
+        expect(
+          getComputedStyle(view.container.querySelector(selector)!).borderTopLeftRadius,
+          selector,
+        ).toBe(embedded ? radius : "0px");
       }
       const input = view.container.querySelector<HTMLInputElement>("input")!;
       input.focus();
       input.setSelectionRange(0, 6);
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(6);
-      expect(getComputedStyle(input).paddingLeft).toBe("12px");
+      // Tabs' roomier picker padding applies only inside Tabs, like its corners.
+      const padding = embedded ? "12px" : "0px";
+      expect(getComputedStyle(input).paddingLeft).toBe(padding);
       expect(
         getComputedStyle(view.container.querySelector(".quick-input-header")!).paddingLeft,
-      ).toBe("12px");
+      ).toBe(padding);
       await page.screenshot({
         element: view.container,
         path: "__screenshots__/radii/code-picker.png",
@@ -259,12 +273,18 @@ it("preserves authentic project tabs with rounded top corners and flush bottom c
     for (const skin of [null, "light", "dark"]) {
       if (skin) document.documentElement.setAttribute("data-interface-study", skin);
       else document.documentElement.removeAttribute("data-interface-study");
+      // Folder-tab geometry: a rounded top and a flat bottom the fillets join,
+      // with every tab in the strip sharing one top radius.
+      const tops = new Set<string>();
       for (const tab of view.container.querySelectorAll('[data-slot="workspace-project-tab"]')) {
         const shape = getComputedStyle(tab);
-        expect(shape.borderTopLeftRadius).toBe("16px");
+        expect(Number.parseFloat(shape.borderTopLeftRadius)).toBeGreaterThan(0);
+        expect(shape.borderTopRightRadius).toBe(shape.borderTopLeftRadius);
         expect(shape.borderBottomLeftRadius).toBe("0px");
         expect(shape.borderBottomRightRadius).toBe("0px");
+        tops.add(shape.borderTopLeftRadius);
       }
+      expect(tops.size).toBe(1);
       expect(getComputedStyle(view.container.querySelector("svg")!).display).not.toBe("none");
     }
     document.documentElement.removeAttribute("data-interface-study");

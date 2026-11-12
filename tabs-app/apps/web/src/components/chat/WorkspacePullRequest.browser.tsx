@@ -14,6 +14,14 @@ const calls = vi.hoisted(() => ({
   environments: [] as Array<string | undefined>,
 }));
 
+// PR links go through the shared link router, which honours "Open links in".
+vi.mock("../../browserLinkTarget", () => ({
+  openLink: (url: string) => {
+    calls.openExternal(url);
+    return Promise.resolve("system");
+  },
+}));
+
 vi.mock("../../connection/environmentApiRegistry", () => ({
   environmentApi: async (environmentId?: string) => {
     calls.environments.push(environmentId);

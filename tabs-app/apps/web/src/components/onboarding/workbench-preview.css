@@ -2,7 +2,8 @@
    its text palette local and its slots separate from live workspace chrome. */
 [data-slot="onboarding-workbench-preview"] {
   --preview-foreground: #1e293b;
-  --preview-muted: #64748b;
+  /* Just enough darker than slate-500 to keep small labels at 4.5:1. */
+  --preview-muted: #5c6a7f;
   --preview-tab-active-bg: #ffffff;
   --preview-tab-active-text: #0f172a;
   --preview-tab-inactive-text: #475569;
@@ -30,34 +31,52 @@
 }
 
 /* Scoped tab styles within preview, immune to global workspace chrome .dark rules */
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"],
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"] span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"]
+  span {
   color: #475569 !important;
 }
 
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"]:hover,
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"]:hover span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"]:hover,
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"]:hover
+  span {
   color: #0f172a !important;
 }
 
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"][data-active="true"],
-[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"][data-active="true"] span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"][data-active="true"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"]
+  [data-slot="workspace-project-tab"][data-active="true"]
+  span {
   background-color: #ffffff !important;
   color: #0f172a !important;
 }
 
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"],
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"] span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"]
+  span {
   color: rgba(255, 255, 255, 0.65) !important;
 }
 
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"]:hover,
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"]:hover span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"]:hover,
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"]:hover
+  span {
   color: #ffffff !important;
 }
 
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"][data-active="true"],
-[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"][data-active="true"] span {
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"][data-active="true"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"]
+  [data-slot="workspace-project-tab"][data-active="true"]
+  span {
   background-color: #292929 !important;
   color: #ffffff !important;
 }

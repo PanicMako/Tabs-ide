@@ -80,7 +80,10 @@ for (const outer of ["light", "dark"] as const) {
         );
         try {
           assertReadable(view.container);
-          const projects = view.container.querySelectorAll('[data-slot="onboarding-project-tab"]');
+          // The preview's project tabs share the real workspace tab slot and styling.
+          const projects = view.container.querySelectorAll(
+            '[data-slot="onboarding-workbench-preview"] [data-slot="workspace-project-tab"]',
+          );
           expect(projects.length).toBe(3);
           for (const tab of projects) {
             expect(getComputedStyle(tab).borderBottomLeftRadius).toBe("0px");
@@ -90,7 +93,7 @@ for (const outer of ["light", "dark"] as const) {
             "Project 3",
             "Project 1",
             "Agents",
-            "Launchpad",
+            "Dock",
             "Git",
             "Browser",
             "Code",

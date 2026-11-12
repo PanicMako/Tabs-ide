@@ -15,27 +15,55 @@ vi.mock("@tanstack/react-router", async (original) => ({
   useNavigate: () => vi.fn(),
 }));
 
-it("preserves connected tool tabs in Labs", async () => {
+it("keeps Labs tool tabs as evenly rounded pills", async () => {
+  // Tool tabs only exist inside the Labs interface study, in either skin. They
+  // are pill chips (Code, Agents, Dock, Git, Browser), rounded on every corner.
+  const html = document.documentElement;
+  const previous = html.getAttribute("data-interface-study");
   const view = await render(
     <button className="study-tool-tab active" role="tab">
       Code
     </button>,
   );
   try {
-    const style = getComputedStyle(view.container.querySelector("button")!);
-    expect(style.borderTopLeftRadius).toBe("16px");
-    expect(style.borderBottomLeftRadius).toBe("0px");
+    for (const skin of ["light", "dark"]) {
+      html.setAttribute("data-interface-study", skin);
+      const style = getComputedStyle(view.container.querySelector("button")!);
+      const corners = [
+        style.borderTopLeftRadius,
+        style.borderTopRightRadius,
+        style.borderBottomRightRadius,
+        style.borderBottomLeftRadius,
+      ];
+      expect(new Set(corners).size, `Labs ${skin} tool tab corners: ${corners}`).toBe(1);
+      expect(Number.parseFloat(corners[0]!)).toBeGreaterThan(0);
+    }
   } finally {
+    if (previous === null) html.removeAttribute("data-interface-study");
+    else html.setAttribute("data-interface-study", previous);
     await view.unmount();
   }
 });
 
 it("keeps onboarding project tabs consistent with the real workspace", async () => {
-  const view = await render(<WorkbenchPreview />);
+  const view = await render(
+    <div>
+      <div data-slot="workspace-project-tab" data-testid="real-tab" className="rounded-t-xl">
+        tabs
+      </div>
+      <WorkbenchPreview />
+    </div>,
+  );
   try {
-    const tab = view.container.querySelector('[aria-label="Explore example projects"] button')!;
-    expect(getComputedStyle(tab).borderTopLeftRadius).toBe("16px");
-    expect(getComputedStyle(tab).borderBottomLeftRadius).toBe("0px");
+    // The setup preview must draw project tabs exactly like the workspace does.
+    const real = getComputedStyle(view.container.querySelector('[data-testid="real-tab"]')!);
+    const tab = getComputedStyle(
+      view.container.querySelector('[aria-label="Explore example projects"] button')!,
+    );
+    expect(Number.parseFloat(real.borderTopLeftRadius)).toBeGreaterThan(0);
+    expect(tab.borderTopLeftRadius).toBe(real.borderTopLeftRadius);
+    expect(tab.borderTopRightRadius).toBe(real.borderTopRightRadius);
+    expect(tab.borderBottomLeftRadius).toBe("0px");
   } finally {
     await view.unmount();
   }

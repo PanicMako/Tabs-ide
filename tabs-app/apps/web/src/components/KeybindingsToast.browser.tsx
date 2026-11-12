@@ -287,6 +287,18 @@ describe("Keybindings update toast", () => {
     localStorage.clear();
     useRightPanelStore.setState({ isOpen: false, maximized: false, choosingSurface: true });
     useWorkspaceShellStore.setState(useWorkspaceShellStore.getInitialState());
+    // Conversations live inside an open project tab. With no tab open the
+    // workspace shows an empty New Tab, which deliberately wins over the route.
+    useWorkspaceShellStore.setState((state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        openProjectIds: [PROJECT_ID],
+        activeProjectId: PROJECT_ID,
+        pendingTabIds: [],
+        activePendingTabId: null,
+      },
+    }));
     document.body.innerHTML = "";
     useComposerDraftStore.setState({
       draftsByThreadId: {},

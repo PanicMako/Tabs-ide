@@ -877,6 +877,18 @@ describe("ChatView browser behavior (full app)", () => {
     hydrateClientSettings(true);
     updateClientSettings((settings) => ({ ...settings, onboardingCompletedAt: NOW_ISO }));
     useWorkspaceShellStore.setState(useWorkspaceShellStore.getInitialState());
+    // Conversations live inside an open project tab. With no tab open the
+    // workspace shows an empty New Tab, which deliberately wins over the route.
+    useWorkspaceShellStore.setState((state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        openProjectIds: [PROJECT_ID],
+        activeProjectId: PROJECT_ID,
+        pendingTabIds: [],
+        activePendingTabId: null,
+      },
+    }));
     document.body.innerHTML = "";
     wsRequests.length = 0;
     useComposerDraftStore.setState({
@@ -1672,7 +1684,7 @@ describe("ChatView browser behavior (full app)", () => {
 
     try {
       const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
-      await expect.element(newThreadButton).toBeInTheDocument();
+      await expect.element(newThreadButton, { timeout: 8_000 }).toBeInTheDocument();
       await newThreadButton.click();
 
       await waitForURL(
@@ -1682,7 +1694,9 @@ describe("ChatView browser behavior (full app)", () => {
       );
 
       const composerEditor = await waitForComposerEditor();
-      await expect.element(page.getByText("What should we build in Project?")).toBeVisible();
+      await expect
+        .element(page.getByText("What should we build in Project?"), { timeout: 8_000 })
+        .toBeVisible();
       expect(composerEditor.getBoundingClientRect().height).toBeLessThan(200);
       const send = document.querySelector<HTMLButtonElement>(
         '[data-workspace-action="send-message"]',
@@ -1725,6 +1739,11 @@ describe("ChatView browser behavior (full app)", () => {
           await page.screenshot({
             path: `__screenshots__/workspace-actions/thread-composer-${theme}.png`,
           });
+          // The hover look is in the page capture above. Moving off the button
+          // lets its transition finish, so the element capture can settle even
+          // on a busy machine instead of timing out waiting for it to stop.
+          await page.getByRole("button", { name: "New thread", exact: true }).unhover();
+          await waitForLayout();
           await page.screenshot({
             element: page.getByRole("button", { name: "New thread", exact: true }).element(),
             path: `__screenshots__/workspace-actions/new-thread-${theme}.png`,

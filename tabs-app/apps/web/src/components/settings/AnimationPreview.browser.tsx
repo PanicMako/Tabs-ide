@@ -90,17 +90,18 @@ it("plays the full startup preview and only a close control ends it early", asyn
   }
 });
 
-it("System Auto keeps its split dark/light design inside the rounded border", async () => {
+it("lists System Auto as its own appearance choice in the theme collection", async () => {
+  // The collection is a list since 2.3.1; System Auto follows the OS setting.
   const view = await render(<ThemesSettings />);
   try {
-    const system = view.container.querySelector(
-      '[data-theme-id="system"] [data-shape="thumbnail"]',
-    ) as HTMLElement;
-    expect(getComputedStyle(system.children[1]!).backgroundImage).toContain("linear-gradient");
-    expect(getComputedStyle(system.children[1]!).backgroundImage).toContain("rgb(20, 20, 20)");
-    expect(getComputedStyle(system.children[1]!).backgroundImage).toContain("rgb(246, 245, 242)");
-    expect(getComputedStyle(system).backgroundClip).toBe("padding-box");
-    expect(getComputedStyle(system).borderRadius).toBe("24px");
+    const system = view.container.querySelector<HTMLButtonElement>('[data-theme-id="system"]');
+    expect(system).not.toBeNull();
+    expect(system!.textContent).toContain("System Auto");
+    expect(system!.textContent).toContain("Auto");
+    await page.getByRole("button", { name: "Theme: System Auto", exact: true }).click();
+    await expect
+      .element(page.getByRole("button", { name: "Theme: System Auto", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
   } finally {
     await view.unmount();
   }

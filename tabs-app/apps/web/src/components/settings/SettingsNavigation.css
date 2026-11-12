@@ -133,3 +133,19 @@ nav.settings-navigation[data-slot="settings-nav"] button:focus-visible {
     padding-block: 4px;
   }
 }
+
+/* With every page listed, a 720px-tall window needs one more step to keep the
+   whole index visible without scrolling the rail. Rows stay at least 25px. */
+@media (max-height: 760px) and (min-width: 561px) {
+  .settings-navigation-group + .settings-navigation-group {
+    margin-block-start: 8px;
+  }
+  .settings-navigation-heading {
+    margin-block-end: 3px;
+    line-height: 14px;
+  }
+  nav.settings-navigation[data-slot="settings-nav"] button {
+    min-height: 25px;
+    padding-block: 3px;
+  }
+}

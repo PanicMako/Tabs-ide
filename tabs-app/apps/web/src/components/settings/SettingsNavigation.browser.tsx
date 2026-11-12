@@ -30,9 +30,9 @@ it("groups every existing settings page once under labelled sections", async () 
           .getByRole("button", { name: "Labs", exact: true }),
       )
       .toBeVisible();
-    expect(SETTINGS_NAV).toHaveLength(16);
-    expect(new Set(SETTINGS_NAV.map((item) => item.id)).size).toBe(16);
-    expect(document.querySelectorAll("[data-settings-nav-item]")).toHaveLength(16);
+    // Every page appears exactly once, however many pages Settings grows to.
+    expect(new Set(SETTINGS_NAV.map((item) => item.id)).size).toBe(SETTINGS_NAV.length);
+    expect(document.querySelectorAll("[data-settings-nav-item]")).toHaveLength(SETTINGS_NAV.length);
     await expect
       .element(page.getByRole("button", { name: "General", exact: true }))
       .toHaveAttribute("aria-current", "page");
