@@ -135,15 +135,34 @@ export function makeAcpReplayCompletenessAssertion(
     ),
   );
 
-  return readAndDecode.pipe(
-    Effect.retry({ times: 5, schedule: Schedule.spaced("50 millis") }),
+  const complete = (status: ReplayStatus) =>
+    status.failure === undefined &&
+    status.cursor === transcript.entries.length &&
+    status.total === transcript.entries.length;
+  // The replay agent records its cursor asynchronously from a child process.
+  // On a loaded runner the last frame can still be in flight when the test
+  // asks, so keep reading (bounded) while it is progressing without failure;
+  // a recorded failure or a final short cursor still fails the assertion.
+  const settled = readAndDecode.pipe(
+    Effect.flatMap((status) =>
+      complete(status) || status.failure !== undefined
+        ? Effect.succeed(status)
+        : Effect.fail(
+            new EffectAcpErrors.AcpTransportError({
+              detail: `ACP replay still in progress for ${transcript.scenario}`,
+              cause: status,
+            }),
+          ),
+    ),
+  );
+
+  return settled.pipe(
+    Effect.retry({ times: 60, schedule: Schedule.spaced("50 millis") }),
+    // A replay that never settles is reported with its last status below.
+    Effect.catch(() => readAndDecode),
     Effect.provideService(Clock.Clock, Clock.Clock.defaultValue()),
     Effect.flatMap((status) => {
-      if (
-        status.failure === undefined &&
-        status.cursor === transcript.entries.length &&
-        status.total === transcript.entries.length
-      ) {
+      if (complete(status)) {
         return Effect.void;
       }
       return Effect.fail(
