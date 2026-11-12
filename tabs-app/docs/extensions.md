@@ -180,6 +180,10 @@ hide controls, break contrast, inject CSS or load remote resources. The user's
 fonts are kept. Choosing one applies it as the custom theme, which the user can
 then adjust in the palette studio.
 
+For a working package that uses a tool, a Quick Actions entry, a Command
+Palette entry and two themes together, see
+[`examples/workbench-extras-extension`](../examples/workbench-extras-extension).
+
 ### Command Palette entries (API 1.9)
 
 `contributes.paletteCommands` adds up to twelve entries to the Command Palette,

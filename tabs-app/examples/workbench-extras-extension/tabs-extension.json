@@ -1,0 +1,57 @@
+{
+  "manifestVersion": 1,
+  "publisher": "tabs-example",
+  "name": "workbench-extras",
+  "version": "0.1.0",
+  "displayName": "Workbench Extras",
+  "description": "A scratch notes tool you can open from Quick Actions or the Command Palette, plus two color themes.",
+  "engines": { "tabs": ">=2.4.0 <3.0.0", "api": "^1.9.0" },
+  "capabilities": ["profile-storage"],
+  "contributes": {
+    "tools": [{ "id": "notes", "label": "Scratch notes", "entry": "dist/index.html" }],
+    "quickActions": [
+      {
+        "id": "open-notes",
+        "label": "Notes",
+        "detail": "Jot something down for this project",
+        "icon": "book",
+        "tool": "notes"
+      }
+    ],
+    "paletteCommands": [
+      {
+        "id": "open-notes",
+        "title": "Workbench Extras: Open scratch notes",
+        "description": "Per-project notes kept in this extension's storage",
+        "keywords": ["notes", "scratch", "jot"],
+        "tool": "notes"
+      }
+    ],
+    "themes": [
+      {
+        "id": "ember",
+        "label": "Ember",
+        "appearance": "dark",
+        "colors": {
+          "background": "#140d0b",
+          "foreground": "#f6e7df",
+          "card": "#1f1512",
+          "border": "#3a2820",
+          "primary": "#ff6a3d"
+        }
+      },
+      {
+        "id": "paper",
+        "label": "Paper",
+        "appearance": "light",
+        "colors": {
+          "background": "#f7f4ee",
+          "foreground": "#2a2622",
+          "card": "#fffdf9",
+          "border": "#e3ddd2",
+          "primary": "#3b5bdb"
+        }
+      }
+    ]
+  }
+}
