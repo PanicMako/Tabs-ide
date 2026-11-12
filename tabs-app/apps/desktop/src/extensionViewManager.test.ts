@@ -772,6 +772,47 @@ describe("development extension installation", () => {
     await expect(manager.invokeLogic(sender as never, "sum", null)).rejects.toThrow(/unavailable/);
   });
 
+  it("runs a palette entry's logic command for an enabled project only", async () => {
+    const logicRun = vi.fn(async (_source: string, call: unknown) => ({ ran: call }));
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines = { tabs: ">=1.3.0 <2.0.0", api: "^1.10.0" };
+    manifest.contributes.commands = [
+      { id: "summarize", label: "Summarize", description: "Summarize the board." },
+    ];
+    manifest.contributes.paletteCommands = [
+      { id: "run-summary", title: "Dashboard: summarize", command: "summarize" },
+      { id: "open-board", title: "Dashboard: open", tool: "main" },
+    ];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 1;");
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledGlobally: false,
+      enabledProjectIds: ["project-a"],
+    });
+    const run = (projectId: string, paletteCommandId: string) =>
+      manager.runPaletteCommand({ projectId, extensionId: installed.id, paletteCommandId });
+    await expect(run("project-a", "run-summary")).resolves.toEqual({
+      ran: { commandId: "summarize", input: {} },
+    });
+    expect(logicRun).toHaveBeenCalledWith(
+      "globalThis.run = () => 1;",
+      { commandId: "summarize", input: {} },
+      { signal: expect.any(AbortSignal) },
+    );
+    // Not enabled there, opens a tool instead, unknown, or malformed: refused.
+    await expect(run("project-b", "run-summary")).rejects.toThrow(/not available/);
+    await expect(run("project-a", "open-board")).rejects.toThrow(/not available/);
+    await expect(run("project-a", "nope")).rejects.toThrow(/not available/);
+    await expect(run("project-a", "Bad ID")).rejects.toThrow(/Invalid/);
+    manager.setDisabled(installed.id, true);
+    await expect(run("project-a", "run-summary")).rejects.toThrow(/not available/);
+  });
+
   it("exposes AI commands only for granted projects and rechecks profile changes", async () => {
     let finish: ((value: unknown) => void) | undefined;
     const logicRun = vi.fn(

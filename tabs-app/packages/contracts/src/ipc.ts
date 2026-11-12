@@ -1338,6 +1338,12 @@ export interface DesktopBridge {
   setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
   /** A JPEG data URL of the active extension view, shown under menus that cover it. */
   captureExtensionView?: (input: { activationId: string }) => Promise<string | null>;
+  /** Run the logic command a Command Palette entry names; resolves with its JSON result. */
+  runExtensionPaletteCommand?: (input: {
+    projectId: string;
+    extensionId: string;
+    paletteCommandId: string;
+  }) => Promise<unknown>;
   /** Rest out-of-sight browser pages after this many minutes; 0 turns it off. */
   setBrowserRestAfterMinutes?: (minutes: number) => Promise<void>;
   hideExtensionTool: (input?: DesktopExtensionHideInput | string) => Promise<void>;

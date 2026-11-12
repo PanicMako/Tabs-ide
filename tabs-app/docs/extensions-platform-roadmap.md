@@ -6,7 +6,7 @@ the plan for getting there without giving up the security model in
 [extensions.md](extensions.md) (sandboxed views, per-project grants, signed
 Exchange packages).
 
-## Where we are (API 1.9)
+## Where we are (API 1.10)
 
 | Surface | Status |
 | --- | --- |
@@ -15,7 +15,7 @@ Exchange packages).
 | Agent tools (`aiCallable` + `ai-tools` grant) | Shipped. Exposed through the Tabs MCP server. |
 | Quick Actions entries (`contributes.quickActions`) | Shipped in 1.8. Launcher entries that open a tool. |
 | Color themes (`contributes.themes`) | Shipped in 1.9. Hex-only palettes in Settings → Themes. |
-| Command Palette entries (`contributes.paletteCommands`) | Shipped in 1.9. Entries that open a tool. |
+| Command Palette entries (`contributes.paletteCommands`) | Shipped in 1.9 (open a tool) and 1.10 (run a logic command). |
 | Brokers | Storage, read-only workspace, git status, HTTPS GET, credential attach. |
 
 ## Principles
@@ -44,8 +44,8 @@ Exchange packages).
 
 ## Phase 2: commands everywhere
 
-- ✅ `contributes.paletteCommands` (1.9): entries that open a tool. Still to
-  come: entries that run a logic command and show its result.
+- ✅ `contributes.paletteCommands`: entries that open a tool (1.9) or run a
+  logic command and show its result (1.10).
 - `contributes.keybindings`: default shortcuts for those commands, shown in
   Settings → Keybindings and overridable there.
 - `contributes.contextMenus`: entries on files (Code), changes (Git), links and

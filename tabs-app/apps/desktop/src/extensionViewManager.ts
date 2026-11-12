@@ -160,7 +160,7 @@ export class ExtensionViewManager {
   private readonly logicRequests = new Set<{
     readonly extensionId: string;
     readonly controller: AbortController;
-    readonly origin: "view" | "agent";
+    readonly origin: "view" | "agent" | "palette";
   }>();
   private active: ActiveView | null = null;
   private activationSequence = 0;
@@ -409,6 +409,47 @@ export class ExtensionViewManager {
     );
   }
 
+  /**
+   * Run the pure logic command a Command Palette entry names, for the user, in
+   * the given project. Same checks as a call from the extension's own view
+   * (enabled for the project, not revoked or paused, command declared), same
+   * disposable runtime, no extra capability, and `{}` as the only input.
+   */
+  async runPaletteCommand(input: {
+    readonly projectId: string;
+    readonly extensionId: string;
+    readonly paletteCommandId: string;
+  }): Promise<unknown> {
+    if (
+      typeof input.paletteCommandId !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}$/.test(input.paletteCommandId)
+    ) {
+      throw new Error("Invalid palette command ID.");
+    }
+    const authorize = () => {
+      const installed = this.requireInstalled(input.extensionId);
+      this.assertNotDeleting(installed.id);
+      const entry = installed.manifest.contributes.paletteCommands?.find(
+        (candidate) => candidate.id === input.paletteCommandId,
+      );
+      const commandId = entry?.command;
+      if (
+        installed.revoked ||
+        this.isDisabled(installed) ||
+        this.compatibilityError(installed) ||
+        !isExtensionEnabledForProject(installed.assignment, input.projectId) ||
+        !installed.manifest.logic?.entry ||
+        !commandId ||
+        !installed.manifest.contributes.commands?.some((command) => command.id === commandId)
+      ) {
+        throw new Error("This command is not available in this project.");
+      }
+      return { installed, commandId };
+    };
+    const { installed, commandId } = authorize();
+    return this.runLogicCommand(installed, commandId, {}, () => authorize().installed, "palette");
+  }
+
   listAiToolsForProject(projectId: string): DesktopExtensionAiTool[] {
     const tools: DesktopExtensionAiTool[] = [];
     for (const installed of this.installed.values()) {
@@ -468,7 +509,7 @@ export class ExtensionViewManager {
     commandId: string,
     input: unknown,
     reauthorize: () => StoredExtension,
-    origin: "view" | "agent",
+    origin: "view" | "agent" | "palette",
   ): Promise<unknown> {
     if (
       this.logicRequests.size >= 4 ||

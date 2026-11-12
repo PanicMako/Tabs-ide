@@ -70,6 +70,40 @@ describe("Tabs extension manifest", () => {
     ).toBe(false);
   });
 
+  it("lets a Command Palette entry run a declared logic command on API 1.10", () => {
+    const base = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.10.0" },
+      logic: { entry: "dist/logic.js" },
+      contributes: {
+        ...manifest.contributes,
+        commands: [{ id: "summarize", label: "Summarize", description: "Summarize the board." }],
+        paletteCommands: [{ id: "run-summary", title: "Deploys: summarize", command: "summarize" }],
+      },
+    };
+    expect(validateTabsExtensionManifest(base, "1.3.17").ok).toBe(true);
+    const variant = (paletteCommand: Record<string, unknown>, api = "^1.10.0") =>
+      validateTabsExtensionManifest(
+        {
+          ...base,
+          engines: { ...base.engines, api },
+          contributes: { ...base.contributes, paletteCommands: [paletteCommand] },
+        },
+        "1.3.17",
+      ).ok;
+    // Older hosts cannot run palette commands, so 1.9 packages may not ask to.
+    expect(
+      variant({ id: "run-summary", title: "Deploys: summarize", command: "summarize" }, "^1.9.0"),
+    ).toBe(false);
+    expect(variant({ id: "run-summary", title: "Deploys: summarize", command: "missing" })).toBe(
+      false,
+    );
+    expect(
+      variant({ id: "both", title: "Deploys: both", command: "summarize", tool: "dashboard" }),
+    ).toBe(false);
+    expect(variant({ id: "neither", title: "Deploys: neither" })).toBe(false);
+  });
+
   it("ties Command Palette entries to a contributed tool on API 1.9", () => {
     const command = {
       id: "open-board",

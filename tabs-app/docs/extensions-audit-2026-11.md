@@ -25,6 +25,7 @@ extension surfaces 13 unit + 8 browser, Exchange 544.
 | 7 | Extensions could only add toolbar tools | Not a platform: no way to add to the launcher, palette or look of Tabs | API 1.8 `contributes.quickActions`; API 1.9 `contributes.themes` (hex-only, run through the theme engine) and `contributes.paletteCommands`; themes-only packages allowed | `packages/shared/src/extensions.test.ts`, `extensionQuickActions.test.ts`, `extensionThemes.test.ts`, `extensionPaletteCommands.test.tsx` | Fixed in 2.4.0 |
 | 8 | Browser "Clear cookies and cache" used a native OS confirm | Breaks the no-native-UI rule | In-app confirm dialog | Code review; typecheck | Fixed in 2.4.0 |
 | 9 | No sample used the new contribution points, and samples were never validated | Authors had nothing to copy, and samples could silently stop installing | `examples/workbench-extras-extension`; `examples.test.ts` validates every sample against the shipping desktop version | `packages/extension-package` 24 tests (all 7 samples) | Fixed on main after 2.4.0 |
+| 10 | Command Palette entries could only open a tool | Extensions could not offer one-step actions from the palette | API 1.10: a palette entry may name `command` to run one of the extension's pure logic commands with `{}` and show the result; same project/profile/enablement checks and disposable runtime as the extension's own calls, no extra capability; main-renderer-only IPC | `extensionViewManager.test.ts` "runs a palette entry's logic command for an enabled project only"; validator tests; `extensionPaletteCommands.test.tsx`; the sample's `tip` command runs in the real QuickJS sandbox | Fixed on main after 2.4.0 |
 
 ## Checked and left as is
 
@@ -37,11 +38,19 @@ extension surfaces 13 unit + 8 browser, Exchange 544.
 | Storage and credentials | Write safety, quotas | Unique temp files with `0600` and rename; per-value, document and namespace quotas. |
 | View sandbox | Preload, permissions, navigation, cross-extension access | Sandboxed, context-isolated, deny-all permissions, popups and navigation blocked, foreign packages unreachable (smoke test). |
 
-## Known limits, by design
+## Deliberate security boundaries
 
-- The logic runtime is per call with no persistent background process (see
-  [extensions.md](extensions.md#not-yet-supported)).
-- Palette commands open a tool; running a logic command from the palette and
-  showing its result is on the [roadmap](extensions-platform-roadmap.md).
-- Workspace writes, Git mutations and terminal runs are not exposed to
-  extensions; each needs its own capability and review before it ships.
+These are not defects. Each would give extensions a new power over the user's
+machine or code, so each needs its own capability, a consent screen that
+explains it, a per-project grant and a security review before it ships.
+Building them quickly would make the platform less production-grade, not more.
+
+- **No persistent background process.** Extension logic runs per call in a
+  fresh, memory- and time-limited sandbox. A long-lived process could keep
+  running after the user closes the tool and is far harder to contain. The
+  safe next step is bounded scheduled invocations (see the
+  [roadmap](extensions-platform-roadmap.md), phase 5).
+- **No workspace writes, Git mutations or terminal runs.** Reading the
+  workspace and Git status are already separate, opt-in grants. Writes should
+  arrive as patch proposals the user approves, never silent edits (roadmap,
+  phase 4).

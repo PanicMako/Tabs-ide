@@ -258,6 +258,7 @@ export const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_CAPTURE_CHANNEL = "desktop:extension:capture";
 const BROWSER_HOST_SET_REST_CHANNEL = "desktop:browser-host:set-rest-after";
+const EXTENSION_PALETTE_COMMAND_CHANNEL = "desktop:extension:palette-command";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
@@ -3015,6 +3016,27 @@ function registerIpcHandlers(): void {
       return;
     }
     extensionViewManager.setBounds(value);
+  });
+  ipcMain.removeHandler(EXTENSION_PALETTE_COMMAND_CHANNEL);
+  ipcMain.handle(EXTENSION_PALETTE_COMMAND_CHANNEL, async (event, input: unknown) => {
+    // Only the main Tabs renderer (the Command Palette) may run these.
+    requireMainRenderer(event);
+    if (!input || typeof input !== "object") throw new Error("Invalid palette command request.");
+    const value = input as Record<string, unknown>;
+    if (
+      typeof value.projectId !== "string" ||
+      !value.projectId ||
+      value.projectId.length > 200 ||
+      typeof value.extensionId !== "string" ||
+      typeof value.paletteCommandId !== "string"
+    ) {
+      throw new Error("Invalid palette command request.");
+    }
+    return extensionViewManager.runPaletteCommand({
+      projectId: value.projectId,
+      extensionId: value.extensionId,
+      paletteCommandId: value.paletteCommandId,
+    });
   });
   ipcMain.removeHandler(BROWSER_HOST_SET_REST_CHANNEL);
   ipcMain.handle(BROWSER_HOST_SET_REST_CHANNEL, async (event, minutes: unknown) => {

@@ -2,13 +2,24 @@
   "manifestVersion": 1,
   "publisher": "tabs-example",
   "name": "workbench-extras",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "Workbench Extras",
   "description": "A scratch notes tool you can open from Quick Actions or the Command Palette, plus two color themes.",
-  "engines": { "tabs": ">=2.4.0 <3.0.0", "api": "^1.9.0" },
-  "capabilities": ["profile-storage"],
+  "engines": {
+    "tabs": ">=2.4.0 <3.0.0",
+    "api": "^1.10.0"
+  },
+  "capabilities": [
+    "profile-storage"
+  ],
   "contributes": {
-    "tools": [{ "id": "notes", "label": "Scratch notes", "entry": "dist/index.html" }],
+    "tools": [
+      {
+        "id": "notes",
+        "label": "Scratch notes",
+        "entry": "dist/index.html"
+      }
+    ],
     "quickActions": [
       {
         "id": "open-notes",
@@ -23,8 +34,22 @@
         "id": "open-notes",
         "title": "Workbench Extras: Open scratch notes",
         "description": "Per-project notes kept in this extension's storage",
-        "keywords": ["notes", "scratch", "jot"],
+        "keywords": [
+          "notes",
+          "scratch",
+          "jot"
+        ],
         "tool": "notes"
+      },
+      {
+        "id": "show-tip",
+        "title": "Workbench Extras: Show a tip",
+        "description": "A quick tip, shown right in the notification",
+        "keywords": [
+          "tip",
+          "help"
+        ],
+        "command": "tip"
       }
     ],
     "themes": [
@@ -52,6 +77,16 @@
           "primary": "#3b5bdb"
         }
       }
+    ],
+    "commands": [
+      {
+        "id": "tip",
+        "label": "Workbench tip",
+        "description": "Returns a short tip for working in Tabs."
+      }
     ]
+  },
+  "logic": {
+    "entry": "dist/logic.js"
   }
 }

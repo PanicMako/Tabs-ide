@@ -101,6 +101,7 @@ const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_CAPTURE_CHANNEL = "desktop:extension:capture";
 const BROWSER_HOST_SET_REST_CHANNEL = "desktop:browser-host:set-rest-after";
+const EXTENSION_PALETTE_COMMAND_CHANNEL = "desktop:extension:palette-command";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const BROWSER_HOST_GET_SESSION_STATE_CHANNEL = "desktop:browser-host:get-session-state";
 const BROWSER_HOST_ENSURE_SESSION_CHANNEL = "desktop:browser-host:ensure-session";
@@ -378,6 +379,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   captureExtensionView: (input) => ipcRenderer.invoke(EXTENSION_CAPTURE_CHANNEL, input),
   setBrowserRestAfterMinutes: (minutes) =>
     ipcRenderer.invoke(BROWSER_HOST_SET_REST_CHANNEL, minutes),
+  runExtensionPaletteCommand: (input) =>
+    ipcRenderer.invoke(EXTENSION_PALETTE_COMMAND_CHANNEL, input),
   hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),

@@ -477,7 +477,19 @@ export function validateTabsExtensionManifest(
       validateThemes(contributes.themes, engines, errors);
     }
     if (contributes.paletteCommands !== undefined) {
-      validatePaletteCommands(contributes.paletteCommands, seen, engines, errors);
+      validatePaletteCommands(
+        contributes.paletteCommands,
+        seen,
+        new Set(
+          Array.isArray(contributes.commands)
+            ? contributes.commands.flatMap((command: unknown) =>
+                record(command) && typeof command.id === "string" ? [command.id] : [],
+              )
+            : [],
+        ),
+        engines,
+        errors,
+      );
     }
     if (contributes.commands !== undefined) {
       if (
@@ -611,6 +623,7 @@ function validateThemes(themes: unknown, engines: unknown, errors: string[]): vo
 function validatePaletteCommands(
   commands: unknown,
   toolIds: ReadonlySet<string>,
+  logicCommandIds: ReadonlySet<string>,
   engines: unknown,
   errors: string[],
 ): void {
@@ -627,7 +640,7 @@ function validatePaletteCommands(
     }
     if (
       Object.keys(command).some(
-        (key) => !["id", "title", "description", "keywords", "tool"].includes(key),
+        (key) => !["id", "title", "description", "keywords", "tool", "command"].includes(key),
       )
     ) {
       errors.push(`Palette command ${index} has unsupported fields.`);
@@ -654,8 +667,18 @@ function validatePaletteCommands(
     ) {
       errors.push(`Palette command ${index} keywords must be up to 8 short lowercase words.`);
     }
-    if (typeof command.tool !== "string" || !toolIds.has(command.tool)) {
+    // Exactly one target: a tool to open, or a pure logic command to run.
+    const opensTool = command.tool !== undefined;
+    const runsCommand = command.command !== undefined;
+    if (opensTool === runsCommand) {
+      errors.push(`Palette command ${index} must set exactly one of tool and command.`);
+    } else if (opensTool && (typeof command.tool !== "string" || !toolIds.has(command.tool))) {
       errors.push(`Palette command ${index} must open a tool from contributes.tools.`);
+    } else if (runsCommand) {
+      if (typeof command.command !== "string" || !logicCommandIds.has(command.command)) {
+        errors.push(`Palette command ${index} must run a command from contributes.commands.`);
+      }
+      requireApi(engines, "1.10.0", `Palette command ${index} command`, errors);
     }
   }
 }

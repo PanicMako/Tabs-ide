@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { useInstalledExtensions } from "~/state/extensions";
-import { extensionPaletteCommands } from "~/extensionPaletteCommands";
+import { extensionPaletteCommands, summarizePaletteResult } from "~/extensionPaletteCommands";
+import { useWorkspaceShellStore } from "~/workspaceShellStore";
 import { requestOpenExtensionTool } from "~/extensionToolRequests";
 import { toastManager } from "./ui/toast";
 import {
@@ -791,6 +792,12 @@ function OpenCommandPaletteDialog(props: {
   }, [clearOpenIntent, openAddProjectSourcesView, openIntent]);
 
   const installedExtensions = useInstalledExtensions();
+  // Commands run for the project in front of the user, read when chosen.
+  // An active empty New Tab means no project is in front of the user.
+  const activeExtensionProjectId = () => {
+    const { session } = useWorkspaceShellStore.getState();
+    return session.activePendingTabId ? null : (session.activeProjectId ?? null);
+  };
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
 
   if (projects.length > 0) {
@@ -876,7 +883,8 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
-  // Entries contributed by installed extensions; each opens one of its tools.
+  // Entries contributed by installed extensions: open one of their tools, or
+  // run one of their pure commands and show the result.
   for (const command of extensionPaletteCommands(installedExtensions)) {
     actionItems.push({
       kind: "action",
@@ -886,13 +894,35 @@ function OpenCommandPaletteDialog(props: {
       description: command.description,
       icon: <PuzzleIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
-        await requestOpenExtensionTool(command.toolbarToolId).catch((error: unknown) => {
+        const fail = (error: unknown) =>
           toastManager.add({
             type: "error",
-            title: `Could not open ${command.title}`,
+            title: `Could not run ${command.title}`,
             description: error instanceof Error ? error.message : String(error),
           });
-        });
+        if (command.target.kind === "tool") {
+          await requestOpenExtensionTool(command.target.toolbarToolId).catch(fail);
+          return;
+        }
+        const projectId = activeExtensionProjectId();
+        const runCommand = window.desktopBridge?.runExtensionPaletteCommand;
+        if (!projectId || !runCommand) {
+          fail(new Error("Open a project first."));
+          return;
+        }
+        await runCommand({
+          projectId,
+          extensionId: command.target.extensionId,
+          paletteCommandId: command.target.paletteCommandId,
+        }).then(
+          (result) =>
+            toastManager.add({
+              type: "success",
+              title: command.title,
+              description: summarizePaletteResult(result),
+            }),
+          fail,
+        );
       },
     });
   }

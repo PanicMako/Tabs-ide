@@ -200,7 +200,12 @@ each opening one of the extension's tools in the active project.
 - `description`: optional, at most 160 characters.
 - `keywords`: optional, up to eight lowercase words (letters, digits, `-`).
   The extension and tool names are always searchable too.
-- `tool`: the `id` of an entry in `contributes.tools`.
+- `tool`: the `id` of an entry in `contributes.tools` to open, **or**
+- `command` (API 1.10): the `id` of an entry in `contributes.commands` to run.
+  It runs in the same disposable logic runtime as calls from the extension's
+  own view, with `{}` as its input and no extra capability, for the project in
+  front of the user. A string result is shown as is and anything else as JSON,
+  in a short notification. Set exactly one of `tool` and `command`.
 
 ### How Tabs serves and shows extension views
 

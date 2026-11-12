@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DesktopInstalledExtension } from "@tabs/contracts";
 import { extensionToolbarToolId } from "./extensionToolbarTools";
-import { extensionPaletteCommands } from "./extensionPaletteCommands";
+import { extensionPaletteCommands, summarizePaletteResult } from "./extensionPaletteCommands";
 import { requestOpenExtensionTool, useOpenExtensionToolRequests } from "./extensionToolRequests";
 
 function installed(overrides: Partial<DesktopInstalledExtension> = {}): DesktopInstalledExtension {
@@ -39,9 +39,38 @@ describe("extension Command Palette entries", () => {
     expect(command).toMatchObject({
       title: "Deploys: open board",
       description: "Deploys · Deploy board",
-      toolbarToolId: extensionToolbarToolId(extension, "board"),
+      target: { kind: "tool", toolbarToolId: extensionToolbarToolId(extension, "board") },
     });
     expect(command!.searchTerms).toEqual(["ship", "deploys", "deploy board", "extension"]);
+  });
+
+  it("can run one of the extension's commands instead of opening a tool", () => {
+    const extension = installed();
+    const manifest = extension.manifest as unknown as {
+      contributes: Record<string, unknown>;
+    };
+    manifest.contributes.commands = [
+      { id: "summarize", label: "Summarize", description: "Summarize the board." },
+    ];
+    manifest.contributes.paletteCommands = [
+      { id: "run-summary", title: "Deploys: summarize", command: "summarize" },
+      { id: "dangling", title: "Deploys: gone", command: "missing" },
+    ];
+    const commands = extensionPaletteCommands([extension]);
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toMatchObject({
+      description: "Deploys · Summarize",
+      target: { kind: "command", extensionId: "acme.deploys", paletteCommandId: "run-summary" },
+    });
+    expect(commands[0]!.searchTerms).toContain("summarize");
+  });
+
+  it("summarizes a command result as one short line", () => {
+    expect(summarizePaletteResult("3 deploys today")).toBe("3 deploys today");
+    expect(summarizePaletteResult({ words: 4, lines: 2 })).toBe('{"words":4,"lines":2}');
+    expect(summarizePaletteResult(null)).toBe("Done.");
+    expect(summarizePaletteResult("line one\n\nline two")).toBe("line one line two");
+    expect(summarizePaletteResult("x".repeat(500))).toHaveLength(278);
   });
 
   it("drop out with paused, revoked or incompatible packages", () => {

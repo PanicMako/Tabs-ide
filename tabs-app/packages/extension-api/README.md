@@ -23,6 +23,8 @@ Use `^1.8.0` for `contributes.quickActions`: up to six Quick Actions launcher
 entries, each opening one of the package's own tools (see `docs/extensions.md`).
 Use `^1.9.0` for `contributes.themes` (hex-only palettes; a themes-only package
 may have no tools) and `contributes.paletteCommands` (Command Palette entries).
+Use `^1.10.0` when a palette command sets `command` to run a logic command
+instead of opening a tool.
 Older v1 manifests without this field remain compatible. The host validates both `engines.tabs` and
 `engines.api` during local load and package inspection; importing these types
 alone does not validate a manifest. Use the `tabsext` pack/inspect command for

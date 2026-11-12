@@ -1,4 +1,4 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.9.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.10.0";
 
 export interface TabsExtensionStorageMigration {
   readonly from: number;
@@ -72,16 +72,34 @@ export interface TabsExtensionTheme {
   };
 }
 
-/** A Command Palette entry that opens one of this extension's tools. Requires engines.api >=1.9.0. */
-export interface TabsExtensionPaletteCommand {
+interface TabsExtensionPaletteCommandBase {
   readonly id: string;
   readonly title: string;
   readonly description?: string;
   /** Extra lowercase search words. */
   readonly keywords?: ReadonlyArray<string>;
-  /** The id of a tool in contributes.tools. */
-  readonly tool: string;
 }
+
+/**
+ * A Command Palette entry. Requires engines.api >=1.9.0 to open a tool, and
+ * >=1.10.0 to run a command. Set exactly one of `tool` and `command`.
+ */
+export type TabsExtensionPaletteCommand =
+  | (TabsExtensionPaletteCommandBase & {
+      /** The id of a tool in contributes.tools to open. */
+      readonly tool: string;
+      readonly command?: never;
+    })
+  | (TabsExtensionPaletteCommandBase & {
+      /**
+       * The id of a command in contributes.commands to run with `{}` as input.
+       * It runs in the same disposable runtime as the extension's own calls,
+       * with no extra capability; a string result is shown as is, anything
+       * else as JSON, in a short notification.
+       */
+      readonly command: string;
+      readonly tool?: never;
+    });
 
 export interface TabsExtensionCommand {
   readonly id: string;

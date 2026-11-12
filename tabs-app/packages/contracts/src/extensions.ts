@@ -61,13 +61,18 @@ export const TabsExtensionTheme = Schema.Struct({
 });
 export type TabsExtensionTheme = typeof TabsExtensionTheme.Type;
 
-/** A Command Palette entry that opens one of the extension's own tools. */
+/**
+ * A Command Palette entry. It either opens one of the extension's tools
+ * (`tool`) or runs one of its pure logic commands and shows the result
+ * (`command`, API 1.10). Exactly one of the two is set.
+ */
 export const TabsExtensionPaletteCommand = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
   description: Schema.optionalKey(Schema.String),
   keywords: Schema.optionalKey(Schema.Array(Schema.String)),
-  tool: Schema.String,
+  tool: Schema.optionalKey(Schema.String),
+  command: Schema.optionalKey(Schema.String),
 });
 export type TabsExtensionPaletteCommand = typeof TabsExtensionPaletteCommand.Type;
 

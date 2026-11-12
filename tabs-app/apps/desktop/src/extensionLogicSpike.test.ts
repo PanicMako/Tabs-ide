@@ -4,6 +4,17 @@ import { describe, expect, it } from "vitest";
 import { runExtensionLogicSpike, runInDisposableLogicWorker } from "./extensionLogicSpike.ts";
 
 describe("disposable QuickJS-in-WASM logic probe", () => {
+  it("runs the Workbench Extras palette command sample", async () => {
+    const source = FS.readFileSync(
+      Path.join(__dirname, "../../../examples/workbench-extras-extension/dist/logic.js"),
+      "utf8",
+    );
+    const tip = await runExtensionLogicSpike(source, { commandId: "tip", input: {} });
+    expect(typeof tip === "string" && tip.length > 10).toBe(true);
+    await expect(runExtensionLogicSpike(source, { commandId: "nope", input: {} })).rejects.toThrow(
+      /Unknown command/,
+    );
+  });
   it("runs the integrated Project Companion sample without privileged globals", async () => {
     const source = FS.readFileSync(
       Path.join(__dirname, "../../../examples/project-companion-extension/dist/logic.js"),
