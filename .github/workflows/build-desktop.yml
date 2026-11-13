@@ -241,6 +241,13 @@ jobs:
             sleep 10
           done
 
+      - name: Setup pnpm
+        # Code-OSS 1.146+ is a pnpm workspace; the version comes from the
+        # packageManager field of tabs-code-oss/package.json.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: tabs-code-oss/package.json
+
       - name: Install VS Code dependencies
         working-directory: tabs-code-oss
         shell: bash
@@ -248,10 +255,10 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=12288"
           VSCODE_SKIP_NODE_VERSION_CHECK: "1"
         run: |
-          npm install --ignore-scripts
+          pnpm install --frozen-lockfile --ignore-scripts
           # The workbench gulp tasks import dependencies from build/package.json.
           # Those are not installed by the root package install.
-          npm --prefix build install --ignore-scripts
+          pnpm --dir build install --frozen-lockfile --ignore-scripts
           # Download electron.d.ts types required for workbench compilation.
           # GitHub release assets can intermittently return 5xx responses.
           for attempt in 1 2 3 4 5; do
@@ -294,10 +301,10 @@ jobs:
         run: |
           # out/ : dev workbench + server-main.js (skip extensions & Monaco
           # typechecking — the desktop build doesn't need them).
-          npm run gulp compile-client
+          pnpm run gulp compile-client
           # out-build/nls.messages.{json,js} : required by the artifact assert and
           # the runtime. without-mangling avoids the protected-fields mangler error.
-          npm run gulp compile-build-without-mangling
+          pnpm run gulp compile-build-without-mangling
           # Code-OSS 1.140 writes nls.messages.json to out-build via bundle --nls
           test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
 
@@ -322,32 +329,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Shared extensions package (extensions/package.json → vscode-extensions)
-          # provides extensions/node_modules/typescript, which
-          # typescript-language-features compiles against (referenced literally as
-          # ../../../../node_modules/typescript). The parent tabs-code-oss install
-          # already has typescript 6.0.0-dev at the root, which npm can dedupe
-          # against — leaving extensions/node_modules/typescript MISSING and the
-          # compile failing with ~48 cascading type errors. Use `npm ci` for the
-          # exact locked version, then hard-guarantee the local copy exists.
-          (cd extensions && (npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts))
-          if [ ! -f extensions/node_modules/typescript/lib/typescript.js ]; then
-            echo "::warning::typescript not present in extensions/node_modules — forcing a nested local install"
-            (cd extensions && npm install typescript@6.0.2 --no-save --no-audit --no-fund --ignore-scripts --install-strategy=nested)
-          fi
+          # Built-in extensions are their own pnpm install root (extensions/
+          # pnpm-workspace.yaml); hoisted linking puts typescript at
+          # extensions/node_modules/typescript, which typescript-language-features
+          # compiles against. One frozen install covers every extension and nested
+          # client/ and server/ package, so their node_modules ship in the runtime.
+          # Scripts stay off for the same OOM reason as the root install.
+          pnpm --dir extensions install --frozen-lockfile --ignore-scripts
+          pnpm --dir extensions/copilot install --frozen-lockfile --ignore-scripts
           test -f extensions/node_modules/typescript/lib/typescript.js
-          # Install deps for every PRODUCT built-in extension (plus any nested
-          # client/ and server/ packages, e.g. the language features) so each
-          # one's TypeScript compiles and its node_modules ship in the runtime.
-          # Dep-less extensions (themes, grammars) are a fast no-op. Skip
-          # node_modules.
-          for pkg in extensions/*/package.json extensions/*/client/package.json extensions/*/server/package.json; do
-            [ -f "$pkg" ] || continue
-            dir="$(dirname "$pkg")"
-            case "$dir" in */node_modules*) continue;; esac
-            (cd "$dir" && npm install --no-audit --no-fund --ignore-scripts) || \
-              echo "::warning::npm install failed for $dir (continuing; the compile below is the real check)"
-          done
 
           # Compile every PRODUCT built-in extension to extensions/<ext>/out (and
           # client/out, server/out for the language features). We deliberately do
@@ -370,14 +360,14 @@ jobs:
             exit 1
           fi
           echo "Compiling ${#tasks[@]} product built-in extensions"
-          npm run gulp -- "${tasks[@]}"
+          pnpm run gulp "${tasks[@]}"
 
           # Produce the same lean extension layout used by upstream Code-OSS
           # distributions instead of shipping source and dev dependencies.
-          npm run gulp compile-extensions-build
-          npm run gulp compile-copilot-extension-build
+          pnpm run gulp compile-extensions-build
+          pnpm run gulp compile-copilot-extension-build
           # Packaging cleans .build/extensions; generate media into the final tree afterwards.
-          npm run gulp compile-extension-media-build
+          pnpm run gulp compile-extension-media-build
           bun ../tabs-app/scripts/verify-code-oss-media.ts .build/extensions
           # fs-copyfile uses a native binding only on macOS. Linux and Windows
           # use its JavaScript fallback; binding.gyp builds no binary there.

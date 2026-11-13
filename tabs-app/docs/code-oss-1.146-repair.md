@@ -90,3 +90,19 @@ VS Code 1.145.0 (`a717861c07586a53d83b80d742cd3f59b20a6273`) on branch
 
 - Windows and Linux desktop installer artifacts were not built locally (tested on macOS arm64).
 - Production release code-signing, auto-updater signatures, and live AI provider authentication flows were not tested.
+
+## CI and packaging follow-up (pnpm)
+
+The 1.146 sync left `.github/workflows/build-desktop.yml` and `release.yml`
+on npm, which has no lockfile in the new tree. Both now install pnpm from
+`tabs-code-oss/package.json`'s `packageManager`, run
+`pnpm install --frozen-lockfile --ignore-scripts` for the root and `build/`,
+install `extensions/` and `extensions/copilot/` as their own pnpm roots, and
+call `pnpm run gulp ...`. The install step (with the Electron native rebuild)
+passed from a fresh checkout on macOS arm64. `actionlint` passes. Windows,
+Linux, Intel macOS and a packaged DMG still need a real CI run.
+
+The 181 CSS classes in the Tabs stylesheets were checked against upstream
+source; four (`chat-input-part`, `chat-suggest-followups`,
+`webview-overlay-auxiliarybar-top-left/right`) are not literal upstream
+strings, and were equally absent in 1.145.

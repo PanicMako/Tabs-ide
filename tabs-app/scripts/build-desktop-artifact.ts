@@ -1063,8 +1063,8 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     return yield* new BuildScriptError({
       message:
         `The VS Code runtime at ${vsCodeSourceDir} has no production-packaged extensions. ` +
-        "Run `npm run gulp compile-extensions-build` and " +
-        "`npm run gulp compile-copilot-extension-build` in tabs-code-oss before building. " +
+        "Run `pnpm run gulp compile-extensions-build` and " +
+        "`pnpm run gulp compile-copilot-extension-build` in tabs-code-oss before building. " +
         "Shipping the source extensions directory would include gigabytes of build/test dependencies.",
     });
   }
@@ -1143,7 +1143,7 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
       message:
         `The VS Code runtime at ${vsCodeSourceDir} is not fully compiled — missing: ` +
         `${missingMarkers.join(", ")}. Compile the core AND the built-in extensions before ` +
-        "building (in tabs-code-oss run `npm run compile`, which runs the gulp `compile-extensions` " +
+        "building (in tabs-code-oss run `pnpm run compile`, which runs the gulp `compile-extensions` " +
         "task), then point TABS_CODE_OSS_BUILD_DIR at the fully compiled tree.",
     });
   }
