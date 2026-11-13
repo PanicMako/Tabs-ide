@@ -7,6 +7,7 @@
 - **MANDATORY ARCHITECTURE PROTOCOL:** Before creating new files or adding features, you must consult `instructions/architecture.instructions.md` to understand where your code belongs within the `apps/` and `packages/` monorepo structure. Do not guess.
 - **MANDATORY UI/UX PROTOCOL:** Any task involving frontend development must comply with `instructions/ui-ux.instructions.md`. All UI must be production-ready and premium. Do not hallucinate layouts; use mockups and ask for clarification.
 - **MANDATORY PRODUCTION STANDARDS:** All code must be performant, tested, and CI-ready. Before completing any task, you must consult `instructions/production-standards.instructions.md`. You are forbidden from pushing untested code or code that fails local pre-flight checks (types, lint, tests).
+- **MANDATORY NO-WORKTREES RULE:** Never create a git worktree unless the user explicitly asks for one in that message. Work on a branch in the main checkout and follow `instructions/no-worktrees.instructions.md`; worktrees duplicate the whole repo and fill the disk.
 - **MANDATORY SAFETY NET:** To prevent workspace corruption, you must strictly follow `instructions/safety-net.instructions.md`. You are forbidden from running `npm`/`yarn`, auto-committing to Git without permission, or modifying files outside this workspace.
 ## This is an Electron app — it must be launched as a desktop app, never as a plain web page in a browser
 

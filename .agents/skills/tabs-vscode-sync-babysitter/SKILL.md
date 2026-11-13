@@ -28,7 +28,7 @@ Work from the monorepo root containing `vscode-main/`, `tabs-code-oss/`, and `ta
 
 ## Update and replay
 
-1. Create a dedicated branch named `chore/sync-vscode-<version>` unless the user supplied a branch.
+1. Create a dedicated branch named `chore/sync-vscode-<version>` in the main checkout (`git switch -c`) unless the user supplied a branch. Do not create a git worktree (see `.agents/instructions/no-worktrees.instructions.md`). Before the sync, run `df -h` and make sure at least 20 GB is free; delete old build output rather than adding copies.
 2. Refresh `vscode-main/` to the exact pristine upstream tree, excluding upstream `.git` metadata.
 3. Refresh `tabs-code-oss/` from that same tree, then replay only the reviewed Tabs fork delta. Resolve semantic conflicts against the new upstream implementation rather than blindly accepting old hunks.
 4. Preserve Tabs-owned additions such as `TABS_ARCHITECTURE.md`, the `vs/workbench/contrib/tabs/` contribution, Tabs branding, and their tests. Reassess modifications to upstream files one by one.
@@ -50,7 +50,7 @@ New or changed Code-OSS native-host methods are a compatibility event: compare u
 
 Run the narrowest checks after each conflict cluster, then all required gates:
 
-1. In `tabs-code-oss/`, use its checked-in Node/npm toolchain as required by upstream: install from the lockfile, compile core assets (`out/vs/base/parts/sandbox/electron-browser/preload.js`, `out/vs/code/electron-browser/workbench/workbench-dev.html`, `out-build/nls.messages.json`, `product.json`), run client typecheck, and run focused tests for every preserved or changed fork patch. Build production extensions (`compile-extensions-build` and the Copilot extension build) before packaging.
+1. In `tabs-code-oss/`, use its checked-in Node/pnpm toolchain (pnpm since 1.146): install from the lockfile, compile core assets (`out/vs/base/parts/sandbox/electron-browser/preload.js`, `out/vs/code/electron-browser/workbench/workbench-dev.html`, `out-build/nls.messages.json`, `product.json`), run client typecheck, and run focused tests for every preserved or changed fork patch. Build production extensions (`compile-extensions-build` and the Copilot extension build) before packaging.
 2. In `tabs-app/`, use Bun/Vite+ only: focused regression tests, `vp check`, `vp run typecheck`, `vp test`, and `bun run test:desktop-smoke`.
 3. Launch only with `bun run dev:desktop`. Before launch, verify no existing Tabs instance with the repository's prescribed narrow process check. Never launch the plain web dev server as a substitute. Verify that the local Code-OSS desktop renderer resolves cleanly from `../tabs-code-oss` without triggering runtime errors or remote download attempts.
 4. Exercise the full checklist in `docs/code-oss-parity.md`, with special attention to project switching, Explorer writes, Git/terminal/search/debug, extension install and activation, notifications over Code/Browser/Testing, assistant rail/secondary-sidebar placement, authentication callbacks, and native menus/dialogs.

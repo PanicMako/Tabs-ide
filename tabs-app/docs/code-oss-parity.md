@@ -33,7 +33,7 @@ customization.
 
 `tabs-code-oss/` is the tracked embedded Code-OSS runtime in the monorepo; `vscode-main/` is an untracked/ignored local upstream comparison snapshot. Neither directory is an independent Git repository. Do not run `git merge` or merge Microsoft's commit history directly into Tabs.
 
-Updates are performed in an isolated clean worktree on a dedicated branch (`chore/sync-vscode-<version>`):
+Updates are performed on a dedicated branch (`chore/sync-vscode-<version>`) in the main checkout, never in a separate git worktree (worktrees copy the whole repository and exhaust the disk):
 
 1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.146.0` at `69047191fc427f2f92828279aae1d90d8eeda7ab` synced from `1.145.0` at `a717861c07586a53d83b80d742cd3f59b20a6273`).
 2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.145.0`), excluding generated outputs, build caches, and dependencies.
@@ -59,7 +59,7 @@ Updates are performed in an isolated clean worktree on a dedicated branch (`chor
 
 Resolve conflicts only in the documented Tabs integration surface. Treat new conflicts elsewhere as a signal that the patch boundary has expanded and needs review.
 
-For development, run `npm run gulp compile-extension-media` in
+For development, run `pnpm run gulp compile-extension-media` in
 `tabs-code-oss/` to populate the source extension directories as well. The
 production media command above runs after the production bundles and writes to
 `.build/extensions`; the artifact builder checks that tree and the staged
