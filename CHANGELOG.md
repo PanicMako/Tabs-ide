@@ -2,6 +2,18 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.4.1] - 2026-11-13
+
+### The built-in editor is now VS Code 1.146
+
+Tabs' Code tab now runs on the latest VS Code (1.146), so you get its newest editor, terminal and extension improvements while your Tabs layout and styling stay exactly as they were.
+
+### What changed
+
+- Work in the Code tab on VS Code 1.146, the current upstream editor, with its latest editing, terminal and extension updates.
+- Keep the Tabs look: the rounded sidebar, editor, terminal and chat cards, the activity rail and the Tabs theme colors carry over unchanged.
+- Keep Markdown Editor and Preview, notebooks, the integrated browser and the terminal working as before, now on the new editor.
+
 ## [v2.4.0] - 2026-11-12
 
 ### Quick glances, a smoother browser preview, and extensions that can restyle Tabs
