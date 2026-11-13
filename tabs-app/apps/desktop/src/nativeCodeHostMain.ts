@@ -1172,6 +1172,31 @@ export async function createNativeCodeHostMainBackend(
         embeddedWindow?.win.setFullScreen(!(embeddedWindow.win.isFullScreen() ?? false));
         return undefined;
       }
+      if (command === "handleTitleDoubleClick") {
+        const win = embeddedWindow?.win;
+        if (!win) return undefined;
+        if (process.platform === "darwin") {
+          const action = systemPreferences.getUserDefault("AppleActionOnDoubleClick", "string");
+          if (action === "Minimize") {
+            win.minimize();
+          } else if (action === "None") {
+            // no-op
+          } else {
+            if (win.isMaximized()) {
+              win.unmaximize();
+            } else {
+              win.maximize();
+            }
+          }
+        } else {
+          if (win.isMaximized()) {
+            win.unmaximize();
+          } else {
+            win.maximize();
+          }
+        }
+        return undefined;
+      }
       if (command === "getCursorScreenPoint") {
         const point = screen.getCursorScreenPoint();
         return { point, display: screen.getDisplayNearestPoint(point).bounds };

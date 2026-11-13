@@ -50,8 +50,21 @@ describe("embedded Code native-host contract", () => {
     const handled = collectHandledCommands(implementation);
     const missing = [...methods].filter((method) => !handled.has(method));
 
-    expect(methods.size).toBe(115);
+    expect(methods.size).toBe(116);
     expect(missing).toEqual([]);
+  });
+
+  it("registers the command and event names added in VS Code 1.146.0", () => {
+    const v146AddedMethods = ["handleTitleDoubleClick"];
+
+    const mainSource = readFileSync(
+      Path.join(import.meta.dirname, "nativeCodeHostMain.ts"),
+      "utf8",
+    );
+
+    for (const method of v146AddedMethods) {
+      expect(mainSource).toContain(`command === "${method}"`);
+    }
   });
 
   it("registers the command and event names added in VS Code 1.145.0", () => {

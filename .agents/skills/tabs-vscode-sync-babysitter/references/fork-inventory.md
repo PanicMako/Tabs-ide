@@ -1,7 +1,7 @@
 # Tabs Code-OSS fork inventory
 
 This document tracks the reviewed patch surface between Microsoft VS Code upstream and Tabs' embedded `tabs-code-oss` runtime.
-Updated for **VS Code 1.145.0** (`a717861c07586a53d83b80d742cd3f59b20a6273`) synced from 1.143.0 (`2d0b7506a36c1d6db9a466440131a8e01eab2289`).
+Updated for **VS Code 1.146.0** (`69047191fc427f2f92828279aae1d90d8eeda7ab`) synced from 1.145.0 (`a717861c07586a53d83b80d742cd3f59b20a6273`).
 
 ## Tabs-owned Code-OSS additions (13 files)
 
@@ -19,7 +19,7 @@ Updated for **VS Code 1.145.0** (`a717861c07586a53d83b80d742cd3f59b20a6273`) syn
 - `tabs-code-oss/src/vs/workbench/test/browser/tabsEmbeddedLayout.test.ts`: Unit tests verifying list and tree row measurements.
 - `tabs-code-oss/src/vs/workbench/test/browser/tabsRailPresentation.test.ts`: Unit tests verifying rail coordinate transformations and presentation constraints.
 
-## Retained and adapted upstream modifications (51 files)
+## Retained and adapted upstream modifications (53 files)
 
 - **Bootstrap, Preload & IPC (3 files):**
   - `src/vs/base/parts/contextmenu/electron-main/contextmenu.ts`: Context menu coordinate offset routing to native host; preserves strong `menu` reference in callback closure for GC protection (VS Code issue 72447) with deferred sender notification.
@@ -41,7 +41,7 @@ Updated for **VS Code 1.145.0** (`a717861c07586a53d83b80d742cd3f59b20a6273`) syn
   - `src/vs/base/browser/ui/list/list.css`: 4px list and tree row corners limited to Tabs-owned windows.
   - `src/vs/editor/browser/controller/editContext/native/nativeEditContextUtils.ts`: Native edit context handling.
   - `src/vs/editor/browser/services/abstractCodeEditorService.ts`: Code editor service hooks.
-  - `src/vs/workbench/browser/layout.ts`: Default Zen and layout settings fallback using nullish coalescing to prevent unintended layout resets.
+  - `src/vs/workbench/browser/layout.ts`: Default Zen and layout settings fallback using nullish coalescing to prevent unintended layout resets; 240px default sidebar width.
   - `src/vs/workbench/browser/parts/activitybar/media/activityaction.css`: Activity bar item padding tuned for embedded shell integration.
   - `src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart.ts`: Assistant container switch visibility behavior preserved in auxiliary bar.
   - `src/vs/workbench/browser/parts/editor/breadcrumbsControl.ts`: Breadcrumb row height calculation via shared layout measurement.
@@ -64,28 +64,33 @@ Updated for **VS Code 1.145.0** (`a717861c07586a53d83b80d742cd3f59b20a6273`) syn
   - `src/vs/workbench/contrib/webview/test/browser/overlayWebview.test.ts`: Tests for overlay webview integration.
   - `src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts`: Concurrent webview activation and resolver lookup without blocking on full extension host startup; a single `toDisposable(() => source.dispose(true))` owner cancels pending revival before disposing the token source.
   - `src/vs/workbench/contrib/webviewView/test/browser/webviewViewPane.test.ts`: Real-pane disposal and replacement regression using WebviewViewService, covering cancellation of pending revival.
-  - `src/vs/workbench/services/layout/browser/layoutService.ts`: Shared layout measurements.
+  - `src/vs/workbench/services/layout/browser/layoutService.ts`: Shared layout measurements and rail margins.
   - `src/vs/workbench/services/layout/test/browser/layoutService.test.ts`: Layout service tests.
-- **Build, Dependencies & Packaging (7 files):**
-  - `package.json`: Gulp memory allocation increased to 12,288 MB (`--max-old-space-size=12288`) to accommodate full monorepo compilation; version updated to 1.145.0.
+- **Build, Dependencies & Packaging (9 files):**
+  - `package.json`: Gulp memory allocation increased to 12,288 MB (`--max-old-space-size=12288`) to accommodate full monorepo compilation; version updated to 1.146.0.
   - `extensions/copilot/package.json`: Moves runtime dependencies (`dotenv`, `source-map-support`) into production scope.
-  - `extensions/copilot/package-lock.json`: Lockfile metadata reflecting production scope dependencies.
   - `build/lib/test/copilot.test.ts`: Copilot platform packaging test covering production dependency assertions and SDK exclusion guards.
   - `src/vs/platform/agentHost/test/node/codex/codexProviderConfiguration.test.ts`: Explicitly typed let declarations avoiding TypeScript circular type inference issues.
   - `build/hygiene.ts`: Scope Git discovery, staged paths and JavaScript allowlisting to the vendored checkout.
   - `build/lib/test/hygiene.test.ts`: Regression coverage for vendored hygiene and index preservation.
-  - `build/lib/i18n.resources.json`, `build/lib/stylelint/vscode-known-variables.json`, `build/npm/postinstall.ts`.
+  - `build/npm/electronTypes.ts`: Electron mirror and download fallback support for electron types fetching.
+  - `src/vs/workbench/contrib/chat/test/browser/widget/chatListWidget.test.ts`: Retries markdown rendered check across streaming yields.
+  - `build/lib/i18n.resources.json`, `build/lib/stylelint/vscode-known-variables.json`, `build/npm/postinstall.ts` (with dynamic `patchNativeGyp` guard).
 
 ## Upstream file purges
 
-886 files deleted upstream between 1.143.0 and 1.145.0 were systematically identified, exported to `_analysis/sync-1.145.0/evidence/upstream-deletions.txt`, and purged from `tabs-code-oss`.
+640 files deleted upstream between 1.145.0 and 1.146.0 were systematically identified, exported to `_analysis/sync-1.146.0/evidence/upstream-deletions.txt`, and purged from `tabs-code-oss`.
 
-## Native-Host contract audit (115 methods)
+## Upstream Package Manager Migration
 
-In VS Code 1.145.0, the `ICommonNativeHostService` / `INativeHostService` contracts expanded from 111 to 115 callable methods:
-- 4 methods added: `startFileDrag`, `requestScreenCaptureAccess`, `getFreeDiskSpace`, `writeImage`.
-- 1 method modified: `createZipFile` returns `Promise<INativeZipResult>` with a readonly array of `{ path, error }` entries in `skippedFiles`.
-- The 115-method inventory checks callable names. Use runtime probes for behavior and platform-specific permissions.
+In VS Code 1.146.0, Microsoft migrated the entire build system from `npm` to `pnpm@12.16.0`. All `package-lock.json` files were removed upstream in favor of `pnpm-lock.yaml` and `pnpm-workspace.yaml`. The bootstrap lifecycle runs through `pnpm install --frozen-lockfile` and invokes `build/npm/preinstall.ts` and `build/npm/postinstall.ts`.
+
+## Native-Host contract audit (116 methods)
+
+In VS Code 1.146.0, the `ICommonNativeHostService` / `INativeHostService` contracts expanded from 115 to 116 callable methods:
+- 1 method added: `handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>`.
+  Implemented in `tabs-app/apps/desktop/src/nativeCodeHostMain.ts` honoring macOS system preferences (`AppleActionOnDoubleClick`: Minimize, None, or Maximize/Restore) and standard platform maximize/unmaximize on Windows/Linux.
+- Verified in `tabs-app/apps/desktop/src/nativeCodeHostContract.test.ts` (116 methods covered) and `scripts/code-oss-native-contract-smoke.mjs`.
 
 ## Additional Code-OSS repair
 

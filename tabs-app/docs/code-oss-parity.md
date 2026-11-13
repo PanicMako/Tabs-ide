@@ -35,26 +35,25 @@ customization.
 
 Updates are performed in an isolated clean worktree on a dedicated branch (`chore/sync-vscode-<version>`):
 
-1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.145.0` at `a717861c07586a53d83b80d742cd3f59b20a6273` synced from `1.143.0` at `2d0b7506a36c1d6db9a466440131a8e01eab2289`).
-2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.143.0`), excluding generated outputs, build caches, and dependencies.
+1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.146.0` at `69047191fc427f2f92828279aae1d90d8eeda7ab` synced from `1.145.0` at `a717861c07586a53d83b80d742cd3f59b20a6273`).
+2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.145.0`), excluding generated outputs, build caches, and dependencies.
 3. **Refresh comparison snapshot:** Extract the pristine upstream source into `vscode-main/` for clean diffing.
 4. **Refresh patched runtime:** Unpack the pristine upstream source into `tabs-code-oss/`, purge files removed upstream (`git diff --no-renames --diff-filter=D`), and semantically replay the reviewed Tabs fork patches.
-5. **Toolchain boundary:** Use Node/npm (Node v24) strictly inside `tabs-code-oss/` and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
+5. **Toolchain boundary:** Use Node/pnpm (Node v24) strictly inside `tabs-code-oss/` (upstream 1.146.0 migrated from npm to `pnpm@12.16.0`) and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
 6. **Compile and validate Code-OSS:**
    ```bash
    cd tabs-code-oss
-   npm ci --ignore-scripts
-   VSCODE_FORCE_INSTALL=true npm_command=install node --experimental-strip-types build/npm/postinstall.ts
-   npm run compile-client
+   pnpm install --frozen-lockfile
+   pnpm run compile-client
    node build/next/index.ts bundle --nls
-   npm run typecheck-client
-   npm run hygiene
+   pnpm run typecheck-client
+   pnpm run hygiene
    ```
 7. **Production extension packaging:**
    ```bash
-   npm run compile-extensions-build
-   npm run gulp compile-copilot-extension-build
-   npm run gulp compile-extension-media-build
+   pnpm run compile-extensions-build
+   pnpm run gulp compile-copilot-extension-build
+   pnpm run gulp compile-extension-media-build
    bun ../tabs-app/scripts/verify-code-oss-media.ts .build/extensions
    ```
 

@@ -1108,9 +1108,16 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
       }
     }
   }
-  // fs-copyfile loads its native binding on macOS only; Linux and Windows use
-  // its JavaScript fallback. Keep the source package available for packaging.
-  compiledMarkers.push("extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js");
+  // Under npm (pre-1.146), fs-copyfile lived in extensions/git/node_modules.
+  // Under pnpm (1.146+), dependencies are hoisted into root node_modules and
+  // packaged into .build/extensions/git/node_modules by compile-extensions-build.
+  if (
+    yield* fs.exists(
+      path.join(vsCodeSourceDir, "extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"),
+    )
+  ) {
+    compiledMarkers.push("extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js");
+  }
   compiledMarkers.push("node_modules/@vscode/fs-copyfile/lib/native.js");
   if (platform === "mac") {
     compiledMarkers.push("node_modules/@vscode/fs-copyfile/build/Release/vscode_fs.node");
