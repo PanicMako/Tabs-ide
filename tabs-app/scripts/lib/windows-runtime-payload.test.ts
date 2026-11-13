@@ -10,6 +10,7 @@ import {
   includeWindowsCompiledFile,
   readAdditionalRuntimeDependencyPaths,
   stripInlineSourceMap,
+  filterRuntimeInventoryPaths,
   validateProductionDependencyPaths,
   verifyWindowsRuntimePayload,
   WINDOWS_RUNTIME_FILE_FILTER,
@@ -236,5 +237,23 @@ describe("Windows editor production payload", () => {
 
     expect(hasUnacceptableNpmLsErrors("")).toBe(true);
     expect(hasUnacceptableNpmLsErrors("npm ERR! fatal network failure")).toBe(true);
+  });
+});
+
+describe("filterRuntimeInventoryPaths", () => {
+  it("drops pnpm workspace-member dependencies but keeps root and invalid paths", () => {
+    const source = path.resolve("/src/tabs-code-oss");
+    const keep = path.join(source, "node_modules/minimist");
+    const outside = path.join(source, "../outside");
+    expect(
+      filterRuntimeInventoryPaths(source, [
+        source,
+        keep,
+        path.join(source, "test/componentFixtures/playwright/node_modules/typescript"),
+        path.join(source, "scripts/node_modules/chokidar"),
+        outside,
+        "",
+      ]),
+    ).toEqual([source, keep, outside]);
   });
 });

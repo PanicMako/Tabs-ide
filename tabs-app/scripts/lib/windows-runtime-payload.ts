@@ -82,9 +82,29 @@ export function readProductionDependencyPaths(sourceRoot: string): string[] {
     throw new Error(`Cannot inventory Code-OSS production dependencies: ${result.stderr}`);
   }
   return validateProductionDependencyPaths(sourceRoot, [
-    ...result.stdout.split(/\r?\n/),
+    ...filterRuntimeInventoryPaths(sourceRoot, result.stdout.split(/\r?\n/)),
     ...readAdditionalRuntimeDependencyPaths(sourceRoot),
   ]);
+}
+
+/**
+ * Code-OSS 1.146+ is a pnpm workspace. `npm ls` also reports the dependencies
+ * of workspace members (test fixtures, scripts, eslint plugins), which live
+ * under the member directory instead of the root `node_modules` and are not
+ * part of the runtime. Drop those; everything else still goes through the
+ * strict validation below.
+ */
+export function filterRuntimeInventoryPaths(sourceRoot: string, entries: string[]): string[] {
+  const root = path.resolve(sourceRoot);
+  return entries.filter((entry) => {
+    if (!entry.trim()) return false;
+    const relative = path.relative(root, path.resolve(entry));
+    const segments = relative.split(path.sep);
+    const insideRoot = relative !== "" && !segments.includes("..") && !path.isAbsolute(relative);
+    const isWorkspaceMemberDependency =
+      insideRoot && segments[0] !== "node_modules" && segments.includes("node_modules");
+    return !isWorkspaceMemberDependency;
+  });
 }
 
 export function validateProductionDependencyPaths(sourceRoot: string, entries: string[]): string[] {
