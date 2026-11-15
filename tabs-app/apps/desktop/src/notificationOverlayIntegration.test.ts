@@ -474,4 +474,15 @@ describe("Notification Overlay Integration & Behavior Suite", () => {
     expect(html).toContain("dismissToastOptimistically(toast.id)");
     expect(html).toContain("toast-exit");
   });
+
+  // 19. Actions and the "+N more" stack badge share one wrapping row instead of stacking.
+  it("19. notification overlay puts the action button and stack badge in one wrapping row", () => {
+    const htmlPath = resolve(__dirname, "../resources/notification-overlay.html");
+    const html = readFileSync(htmlPath, "utf-8");
+
+    expect(html).toMatch(/\.toast-footer\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;/);
+    expect(html).toContain('<div class="toast-footer">${actionsHtml}${stackBadgeHtml}</div>');
+    // The badge no longer pins itself to its own line.
+    expect(html).not.toMatch(/\.stack-badge\s*\{[^}]*align-self:\s*flex-start/);
+  });
 });

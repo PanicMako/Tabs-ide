@@ -2132,7 +2132,9 @@ async function run() {
       pendingAfterRestart.scheduledFor !== pendingBeforeRestart.scheduledFor ||
       pendingAfterRestart.text !== pendingBeforeRestart.text
     )
-      throw new Error("Pending queue identity or schedule was lost across restart");
+      throw new Error(
+        `Pending queue identity or schedule was lost across restart: before=${JSON.stringify(pendingBeforeRestart)} after=${JSON.stringify(pendingAfterRestart ?? null)}`,
+      );
     console.log("[Persistence] Pending queued run and schedule preserved across backend restart");
 
     // Capture screenshot 10: Restored state after restart

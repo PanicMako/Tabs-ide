@@ -580,6 +580,18 @@ describe("CodeHostManager", () => {
     expect(replacementRegistrar.mock.calls[0]?.[3]).toBe(workspaceId);
   });
 
+  it("prewarm leaves sessions alone when there is no runtime or no such session", async () => {
+    const workspaceRoot = makeTempDir("tabs-prewarm-");
+    const manager = new CodeHostManager(() => createMockWindow() as never, {
+      state: { available: true, mode: "embedded", entry: "http://127.0.0.1:3000", reason: null },
+      runtime: null,
+    });
+    await manager.ensureSession({ projectId: "warm", workspaceRoot });
+    await expect(manager.prewarmSession("warm")).resolves.toBeUndefined();
+    await expect(manager.prewarmSession("missing")).resolves.toBeUndefined();
+    expect(webContentsViews[0]!.webContents.loadURL).not.toHaveBeenCalled();
+  });
+
   it.each(["Bloomberg Terminal Alternative", "literal%20folder", "hash#question?", "café folder"])(
     "passes decoded URI components to Code-OSS for %s",
     (folderName) => {

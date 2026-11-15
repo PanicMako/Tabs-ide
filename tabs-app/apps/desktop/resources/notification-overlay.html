@@ -334,6 +334,14 @@
         margin-top: 8px;
       }
 
+      /* Actions and the stack badge share one row and only wrap when the card is too narrow. */
+      .toast-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 6px;
+      }
+
       /* Stack indicator badge on front card */
       .stack-badge {
         display: none;
@@ -346,8 +354,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius-control);
         padding: 2px 8px;
-        margin-top: 6px;
-        align-self: flex-start;
+        margin-top: 8px;
         cursor: pointer;
       }
 
@@ -787,8 +794,7 @@
                   </div>
                 </div>
                 ${toast.description ? `<span class="toast-description">${escapeHtml(toast.description)}</span>` : ""}
-                ${actionsHtml}
-                ${stackBadgeHtml}
+                ${actionsHtml || stackBadgeHtml ? `<div class="toast-footer">${actionsHtml}${stackBadgeHtml}</div>` : ""}
               </div>
             </div>
           `;

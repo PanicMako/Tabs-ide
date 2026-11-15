@@ -3787,8 +3787,10 @@ function registerIpcHandlers(): void {
     }
     const projectId = (input as { projectId: string }).projectId;
     const workspaceRoot = (input as { workspaceRoot: string }).workspaceRoot;
+    const prewarm = (input as { prewarm?: unknown }).prewarm === true;
     try {
       await codeHostManager.ensureSession({ projectId, workspaceRoot });
+      if (prewarm) await codeHostManager.prewarmSession(projectId);
     } catch (error) {
       console.error(`[code-oss:${projectId}] ensureSession IPC failed`, error);
       throw error;
@@ -5707,12 +5709,31 @@ if (clerkBridge.isPrimaryInstance) {
         "pointerLock",
         "notifications",
       ]);
-      session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-        callback(allowedPermissions.has(permission));
-      });
-      session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-        return allowedPermissions.has(permission);
-      });
+      // Voice input records in the app's own window; camera and other windows stay denied.
+      const isAppWindow = (contents: Electron.WebContents | null) =>
+        contents !== null && mainWindow !== null && contents === mainWindow.webContents;
+      session.defaultSession.setPermissionRequestHandler(
+        (webContents, permission, callback, details) => {
+          if (permission === "media") {
+            const mediaTypes = "mediaTypes" in details ? (details.mediaTypes ?? []) : [];
+            callback(
+              isAppWindow(webContents) &&
+                mediaTypes.length > 0 &&
+                mediaTypes.every((type) => type === "audio"),
+            );
+            return;
+          }
+          callback(allowedPermissions.has(permission));
+        },
+      );
+      session.defaultSession.setPermissionCheckHandler(
+        (webContents, permission, _origin, details) => {
+          if (permission === "media") {
+            return isAppWindow(webContents) && details.mediaType === "audio";
+          }
+          return allowedPermissions.has(permission);
+        },
+      );
 
       void bootstrap().catch((error) => {
         handleFatalStartupError("bootstrap", error);

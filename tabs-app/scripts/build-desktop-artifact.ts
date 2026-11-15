@@ -929,6 +929,8 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       "apps/desktop/prod-resources/*.ico",
       "apps/desktop/prod-resources/*.png",
       "apps/desktop/prod-resources/*.icns",
+      // On-device dictation loads transcribe-cpp's native libraries with dlopen.
+      "**/node_modules/@transcribe-cpp/**/*.{dylib,so,so.*,dll}",
     ],
     // Thin builds ship without the VS Code runtime (it's downloaded on first
     // run from the emitted tabs-code-runtime-*.zip asset).
@@ -970,6 +972,16 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       // see when opening the DMG. Disabling it lets the ad-hoc bundle run
       // cleanly; the signed release path keeps it on (Apple requires it).
       hardenedRuntime: signed,
+      ...(signed
+        ? {
+            entitlements: "apps/desktop/resources/entitlements.mac.plist",
+            entitlementsInherit: "apps/desktop/resources/entitlements.mac.plist",
+          }
+        : {}),
+      extendInfo: {
+        NSMicrophoneUsageDescription:
+          "Tabs uses the microphone for voice input, and commands run by terminals and coding agents may use it too.",
+      },
       // Don't run Gatekeeper assessment during the build (the ad-hoc bundle
       // would fail it); the signed/notarized release passes it at runtime.
       gatekeeperAssess: false,
@@ -1471,7 +1483,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const externalServerDependencies = Object.fromEntries(
     Object.entries(serverDependencies).filter(
       ([name, spec]) =>
-        name !== "@pierre/diffs" && (typeof spec !== "string" || !spec.startsWith("workspace:")),
+        name !== "@pierre/diffs" &&
+        name !== "@muse-code/sdk" &&
+        (typeof spec !== "string" || !spec.startsWith("workspace:")),
     ),
   );
   const resolvedServerDependencies = yield* Effect.try({

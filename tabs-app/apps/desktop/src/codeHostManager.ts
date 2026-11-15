@@ -102,6 +102,8 @@ export const CODE_OSS_DESKTOP_WORKBENCH_RELATIVE_PATH = Path.join(
   "workbench",
   "workbench-dev.html",
 );
+/** Longest the editor view stays hidden waiting for the workbench to draw its UI. */
+const CODE_OSS_FIRST_RENDER_TIMEOUT_MS = 15_000;
 export const CODE_OSS_NLS_MESSAGES_RELATIVE_PATH = Path.join("out-build", "nls.messages.json");
 export const CODE_OSS_PRODUCT_CONFIGURATION_RELATIVE_PATH = "product.json";
 
@@ -225,6 +227,9 @@ type CodeSession = {
   lastFocusedPath: string | null;
   lastNavigationNonce: number;
   lastLoadedUrl: string | null;
+  /** True once the workbench's own UI exists, so the view can be shown without a blank frame. */
+  workbenchRendered: boolean;
+  workbenchRenderedPromise: Promise<void> | null;
   desktopLoadPending: boolean;
   entry: string | null;
   workspaceUri: string | null;
@@ -1463,6 +1468,8 @@ export class CodeHostManager {
       lastFocusedPath: null,
       lastNavigationNonce: 0,
       lastLoadedUrl: null,
+      workbenchRendered: false,
+      workbenchRenderedPromise: null,
       desktopLoadPending: true,
       entry: null,
       workspaceUri: null,
@@ -1527,11 +1534,26 @@ export class CodeHostManager {
 
     this.activeProjectId = session.projectId;
     session.lastActivatedAt = Date.now();
-    if (session.bounds && session.view) {
+    // While the workbench is still loading, keep its (blank) view off the window
+    // so the web layer's "building your editor" placeholder stays visible; the
+    // view is attached the moment the load resolves.
+    if (session.bounds && session.view && !this.isWorkbenchLoadPending(session)) {
       this.attachSession(session);
       session.view.setBounds(session.bounds);
     }
     await this.loadSessionWhenVisible(session);
+    // Keep the view off the window until the workbench has drawn something, so the
+    // web layer's placeholder shows instead of a blank rectangle.
+    await session.workbenchRenderedPromise;
+    if (
+      session.bounds &&
+      session.view &&
+      !session.view.webContents.isDestroyed() &&
+      this.activeProjectId === session.projectId
+    ) {
+      this.attachSession(session);
+      session.view.setBounds(session.bounds);
+    }
     if (
       this.sessions.get(input.projectId) !== session ||
       session.generation !== generation ||
@@ -1759,9 +1781,79 @@ export class CodeHostManager {
     }
 
     if (this.activeProjectId === input.projectId) {
-      this.attachSession(session);
+      if (!this.isWorkbenchLoadPending(session)) {
+        this.attachSession(session);
+      }
       session.view?.setBounds(session.bounds);
       void this.loadSessionWhenVisible(session);
+    }
+  }
+
+  /** True when this session will load (or is loading) its workbench for the first time. */
+  private isWorkbenchLoadPending(session: CodeSession): boolean {
+    if (!this.config.runtime) return false;
+    return (
+      this.loadPromiseByProjectId.has(session.projectId) ||
+      session.lastLoadedUrl === null ||
+      !session.workbenchRendered
+    );
+  }
+
+  /**
+   * Resolve once the workbench has built its own UI (the page "loads" long before
+   * that: the editor then pulls in thousands of modules). Bounded, so a workbench
+   * that never reports still gets shown.
+   */
+  private pollWorkbenchRendered(session: CodeSession): Promise<void> {
+    const startedAt = Date.now();
+    const probe = "!!document.querySelector('.monaco-workbench .part')";
+    return new Promise<void>((resolve) => {
+      const finish = (reason: string) => {
+        session.workbenchRendered = true;
+        writeCodeHostDiagnostic(`[code-oss:${session.projectId}] workbench rendered (${reason})`, {
+          afterMs: Date.now() - startedAt,
+        });
+        resolve();
+      };
+      const tick = () => {
+        const contents = session.view?.webContents;
+        if (!contents || contents.isDestroyed()) return finish("gone");
+        if (Date.now() - startedAt > CODE_OSS_FIRST_RENDER_TIMEOUT_MS) return finish("timeout");
+        contents
+          .executeJavaScript(probe)
+          .then((rendered) => (rendered ? finish("rendered") : setTimeout(tick, 80)))
+          .catch(() => setTimeout(tick, 150));
+      };
+      tick();
+    });
+  }
+
+  /**
+   * Load a session's workbench in the background, detached and unseen, so the
+   * Code tool opens onto an editor that is already running. Does nothing for
+   * the session being shown (its own path loads it) or one already loaded.
+   */
+  async prewarmSession(projectId: string): Promise<void> {
+    if (!this.config.state.available || !this.config.runtime) return;
+    const session = this.sessions.get(projectId);
+    const window = this.getWindow();
+    if (!session?.view || !window || window.isDestroyed()) return;
+    if (this.activeProjectId === projectId || session.lastLoadedUrl !== null) return;
+    if (this.loadPromiseByProjectId.has(projectId)) return;
+    if (!session.desktopLoadPending) return;
+    try {
+      if (!session.bounds) {
+        // Lay the workbench out at a real size; the true bounds replace this on activation.
+        const [width = 0, height = 0] = window.getContentSize();
+        session.view.setBounds({ x: 0, y: 0, width, height });
+      }
+      await this.loadSession(session);
+      writeCodeHostDiagnostic(`[code-oss:${projectId}] prewarmed`);
+    } catch (error) {
+      session.desktopLoadPending = true;
+      writeCodeHostDiagnostic(`[code-oss:${projectId}] prewarm failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -1964,6 +2056,8 @@ export class CodeHostManager {
           }
         }
         session.lastLoadedUrl = nextUrl;
+        session.workbenchRendered = false;
+        session.workbenchRenderedPromise = this.pollWorkbenchRendered(session);
         writeCodeHostDiagnostic(`[code-oss:${session.projectId}] workbench loadURL resolved`, {
           durationMs: Date.now() - loadStartedAt,
         });
@@ -2076,6 +2170,10 @@ export class CodeHostManager {
   private attachSession(session: CodeSession): void {
     const window = this.getWindow();
     if (!window || !session.view) return;
+    writeCodeHostDiagnostic(`[code-oss:${session.projectId}] attach`, {
+      bounds: session.bounds,
+      windowContent: window.getContentSize?.(),
+    });
     if (this.stackCoordinator) {
       this.stackCoordinator.attachToolView(session.view);
     } else if (!window.contentView.children.includes(session.view)) {
