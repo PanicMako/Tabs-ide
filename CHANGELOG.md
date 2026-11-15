@@ -2,6 +2,22 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.5.0] - 2026-11-15
+
+### More agents, pull request review guides, and richer wallpapers
+
+Tabs 2.5.0 adds new agent providers, a review guide for pull requests, a fuller pull request panel, and more control over wallpapers.
+
+### What changed
+
+- Add Kiro, Fx and Muse as agent providers alongside the ones you already use.
+- Open a generated review guide on a pull request to see what changed and where to look first.
+- Filter and group the pull request list, react to pull requests, and see link previews inline; pull requests from other code hosts get their own panel.
+- Tune your wallpaper with new Wallpaper Labs controls, and keep text readable over it.
+- Get guided through setup with a refreshed onboarding flow and a clearer usage view across providers.
+- On Windows, agent-supplied network share paths are no longer opened, so Tabs will not sign in to remote hosts on your behalf.
+- Connect features are now called Tabs Connect throughout the app and command line.
+
 ## [v2.4.1] - 2026-11-13
 
 ### The built-in editor is now VS Code 1.146
