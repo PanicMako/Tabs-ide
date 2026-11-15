@@ -1,5 +1,273 @@
 [
   {
+    "tag_name": "v2.5.0",
+    "prerelease": false,
+    "channel": "stable",
+    "name": "Tabs v2.5.0",
+    "published_at": "2026-11-15T11:21:38Z",
+    "body": "## More agents, pull request review guides, and richer wallpapers\n\nTabs 2.5.0 adds new agent providers, a review guide for pull requests, a fuller pull request panel, and more control over wallpapers.\n\n### What changed\n\n- Add Kiro, Fx and Muse as agent providers alongside the ones you already use.\n- Open a generated review guide on a pull request to see what changed and where to look first.\n- Filter and group the pull request list, react to pull requests, and see link previews inline; pull requests from other code hosts get their own panel.\n- Tune your wallpaper with new Wallpaper Labs controls, and keep text readable over it.\n- Get guided through setup with a refreshed onboarding flow and a clearer usage view across providers.\n- On Windows, agent-supplied network share paths are no longer opened, so Tabs will not sign in to remote hosts on your behalf.\n- Connect features are now called Tabs Connect throughout the app and command line.",
+    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.5.0",
+    "assets": [
+      {
+        "name": "beta-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/beta-linux.yml"
+      },
+      {
+        "name": "beta-mac.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/beta-mac.yml"
+      },
+      {
+        "name": "beta.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/beta.yml"
+      },
+      {
+        "name": "latest-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/latest-linux.yml"
+      },
+      {
+        "name": "latest.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/latest.yml"
+      },
+      {
+        "name": "Tabs-2.5.0-arm64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-arm64.dmg"
+      },
+      {
+        "name": "Tabs-2.5.0-arm64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-arm64.zip"
+      },
+      {
+        "name": "Tabs-2.5.0-x64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-x64.dmg"
+      },
+      {
+        "name": "Tabs-2.5.0-x64.exe",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-x64.exe"
+      },
+      {
+        "name": "Tabs-2.5.0-x64.exe.blockmap",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-x64.exe.blockmap"
+      },
+      {
+        "name": "Tabs-2.5.0-x64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-x64.zip"
+      },
+      {
+        "name": "Tabs-2.5.0-x86_64.AppImage",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/Tabs-2.5.0-x86_64.AppImage"
+      },
+      {
+        "name": "tabs-mac-preview-update.json",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/tabs-mac-preview-update.json"
+      },
+      {
+        "name": "tabs-mac-preview-update.json.sig",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.5.0/tabs-mac-preview-update.json.sig"
+      }
+    ]
+  },
+  {
+    "tag_name": "v2.4.1",
+    "prerelease": false,
+    "channel": "stable",
+    "name": "Tabs v2.4.1",
+    "published_at": "2026-11-13T19:57:32Z",
+    "body": "## The built-in editor is now VS Code 1.146\n\nTabs' Code tab now runs on the latest VS Code (1.146), so you get its newest editor, terminal and extension improvements while your Tabs layout and styling stay exactly as they were.\n\n### What changed\n\n- Work in the Code tab on VS Code 1.146, the current upstream editor, with its latest editing, terminal and extension updates.\n- Keep the Tabs look: the rounded sidebar, editor, terminal and chat cards, the activity rail and the Tabs theme colors carry over unchanged.\n- Keep Markdown Editor and Preview, notebooks, the integrated browser and the terminal working as before, now on the new editor.",
+    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.4.1",
+    "assets": [
+      {
+        "name": "beta-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/beta-linux.yml"
+      },
+      {
+        "name": "beta-mac.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/beta-mac.yml"
+      },
+      {
+        "name": "beta.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/beta.yml"
+      },
+      {
+        "name": "latest-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/latest-linux.yml"
+      },
+      {
+        "name": "latest.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/latest.yml"
+      },
+      {
+        "name": "Tabs-2.4.1-arm64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-arm64.dmg"
+      },
+      {
+        "name": "Tabs-2.4.1-arm64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-arm64.zip"
+      },
+      {
+        "name": "Tabs-2.4.1-x64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-x64.dmg"
+      },
+      {
+        "name": "Tabs-2.4.1-x64.exe",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-x64.exe"
+      },
+      {
+        "name": "Tabs-2.4.1-x64.exe.blockmap",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-x64.exe.blockmap"
+      },
+      {
+        "name": "Tabs-2.4.1-x64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-x64.zip"
+      },
+      {
+        "name": "Tabs-2.4.1-x86_64.AppImage",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/Tabs-2.4.1-x86_64.AppImage"
+      },
+      {
+        "name": "tabs-mac-preview-update.json",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/tabs-mac-preview-update.json"
+      },
+      {
+        "name": "tabs-mac-preview-update.json.sig",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.1/tabs-mac-preview-update.json.sig"
+      }
+    ]
+  },
+  {
+    "tag_name": "v2.4.0",
+    "prerelease": false,
+    "channel": "stable",
+    "name": "Tabs v2.4.0",
+    "published_at": "2026-11-12T05:27:55Z",
+    "body": "## Quick glances, a smoother browser preview, and extensions that can restyle Tabs\n\nCheck your limits, answer waiting agents and flip common settings straight from Quick Actions, without leaving the conversation you are in. The browser preview no longer blanks out or stretches under its menus, and extensions can now add themes, Command Palette entries and launcher shortcuts.\n\n### What changed\n\n- Open Usage & limits, Waiting for you, While you were away and Quick toggles from Quick Actions as panels inside the launcher, with the full pages one click away.\n- See every agent question and approval from all your projects in one list, and jump straight to the conversation that needs you.\n- Come back after a break to a short summary of what finished, what failed and what is waiting, project by project.\n- Send a page's console error to the agent from the browser toolbar, with the message, its source and the page attached.\n- See pages as they load instead of an empty frame: a progress line runs under the address bar and Reload becomes Stop while a page loads.\n- Keep the browser page on screen while its menus are open: no more \"Preview hidden\" notice, stretched snapshots or slow returns.\n- Pick device sizes from a redesigned View menu with device tiles, orientation, zoom steps, appearance and audio controls.\n- Watch the startup board finish every card, pause for a beat, then see your workspace rise from the bottom; the mascot now finishes under the TABS flag.\n- Install extensions that add color themes, Command Palette entries and Quick Actions shortcuts (extension API 1.9).\n- Extension tools now line up correctly when Tabs is zoomed, stay visible behind menus, and load reliably.\n- Try resting idle project browsers in Labs, after anything from 30 minutes to a week, to give back memory; pages return to where they were when you switch back.",
+    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.4.0",
+    "assets": [
+      {
+        "name": "beta-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/beta-linux.yml"
+      },
+      {
+        "name": "beta-mac.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/beta-mac.yml"
+      },
+      {
+        "name": "beta.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/beta.yml"
+      },
+      {
+        "name": "latest-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/latest-linux.yml"
+      },
+      {
+        "name": "latest.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/latest.yml"
+      },
+      {
+        "name": "Tabs-2.4.0-arm64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-arm64.dmg"
+      },
+      {
+        "name": "Tabs-2.4.0-arm64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-arm64.zip"
+      },
+      {
+        "name": "Tabs-2.4.0-x64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-x64.dmg"
+      },
+      {
+        "name": "Tabs-2.4.0-x64.exe",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-x64.exe"
+      },
+      {
+        "name": "Tabs-2.4.0-x64.exe.blockmap",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-x64.exe.blockmap"
+      },
+      {
+        "name": "Tabs-2.4.0-x64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-x64.zip"
+      },
+      {
+        "name": "Tabs-2.4.0-x86_64.AppImage",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/Tabs-2.4.0-x86_64.AppImage"
+      },
+      {
+        "name": "tabs-mac-preview-update.json",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/tabs-mac-preview-update.json"
+      },
+      {
+        "name": "tabs-mac-preview-update.json.sig",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.4.0/tabs-mac-preview-update.json.sig"
+      }
+    ]
+  },
+  {
+    "tag_name": "v2.3.2",
+    "prerelease": false,
+    "channel": "stable",
+    "name": "Tabs v2.3.2",
+    "published_at": "2026-11-11T16:47:22Z",
+    "body": "## Quick Actions Studio, Agent CLI surface, and faster startup\n\nOrganize and customize quick actions with an interactive arranger, switch between chat and agent CLI surfaces, and launch package scripts directly from Dock. Development startup is also noticeably quieter and faster.\n\n### What changed\n\n- Arrange and reorder Quick Actions with the new visual arranger, create custom actions, and configure sub-actions directly in Settings.\n- Switch between conversation chat and dedicated Agent CLI views within threads to monitor long-running terminal and tool activity.\n- Run detected package scripts and suggested commands directly from Dock Launchpad with clear execution feedback.\n- Enjoy an updated startup experience with the Tabs mascot animation and refined splash transitions.\n- Speed up development startup by building ESM-only during local development, eliminating duplicate CommonJS compilation and noisy warning outputs.\n- Direct external links to appropriate browser profiles and windows with refined link target routing.",
+    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.3.2",
+    "assets": [
+      {
+        "name": "beta-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/beta-linux.yml"
+      },
+      {
+        "name": "beta-mac.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/beta-mac.yml"
+      },
+      {
+        "name": "beta.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/beta.yml"
+      },
+      {
+        "name": "latest-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/latest-linux.yml"
+      },
+      {
+        "name": "latest.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/latest.yml"
+      },
+      {
+        "name": "Tabs-2.3.2-arm64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-arm64.dmg"
+      },
+      {
+        "name": "Tabs-2.3.2-arm64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-arm64.zip"
+      },
+      {
+        "name": "Tabs-2.3.2-x64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-x64.dmg"
+      },
+      {
+        "name": "Tabs-2.3.2-x64.exe",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-x64.exe"
+      },
+      {
+        "name": "Tabs-2.3.2-x64.exe.blockmap",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-x64.exe.blockmap"
+      },
+      {
+        "name": "Tabs-2.3.2-x64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-x64.zip"
+      },
+      {
+        "name": "Tabs-2.3.2-x86_64.AppImage",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/Tabs-2.3.2-x86_64.AppImage"
+      },
+      {
+        "name": "tabs-mac-preview-update.json",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/tabs-mac-preview-update.json"
+      },
+      {
+        "name": "tabs-mac-preview-update.json.sig",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.2/tabs-mac-preview-update.json.sig"
+      }
+    ]
+  },
+  {
     "tag_name": "v2.3.1",
     "prerelease": false,
     "channel": "stable",
@@ -63,274 +331,6 @@
       {
         "name": "tabs-mac-preview-update.json.sig",
         "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.1/tabs-mac-preview-update.json.sig"
-      }
-    ]
-  },
-  {
-    "tag_name": "v2.3.0",
-    "prerelease": false,
-    "channel": "stable",
-    "name": "Tabs v2.3.0",
-    "published_at": "2026-11-08T15:59:51Z",
-    "body": "## Guided workspace setup and a refreshed editor\n\nStart with a project and follow a hands-on tour of Tabs. The embedded editor now runs Code OSS 1.145.0 and restores Markdown editing and preview in the installed app.\n\n### What changed\n\n- Open or create a local project, or clone into the current tab using a Git URL or a supported host such as GitHub or GitLab.\n- Explore Code, Dock, Git, and Browser at your own pace. Minimize the tour while you work and click the Tabs mascot to resume.\n- Follow optional setup through saving a Browser tab, Terminal tab, or Dock preset. The tour also walks through Quick Actions and shows where to connect a coding agent.\n- Turn off Quick Actions without losing your layout or shortcuts. Longer labels wrap inside the action wheel.\n- Edit thread titles from the thread list or conversation header. Titles are trimmed and blank titles are rejected.\n- Switch between Text Editor, Markdown editing, and Preview. The embedded browser stays with its owning project when you switch tools.",
-    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.3.0",
-    "assets": [
-      {
-        "name": "beta-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/beta-linux.yml"
-      },
-      {
-        "name": "beta-mac.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/beta-mac.yml"
-      },
-      {
-        "name": "beta.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/beta.yml"
-      },
-      {
-        "name": "latest-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/latest-linux.yml"
-      },
-      {
-        "name": "latest.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/latest.yml"
-      },
-      {
-        "name": "Tabs-2.3.0-arm64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-arm64.dmg"
-      },
-      {
-        "name": "Tabs-2.3.0-arm64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-arm64.zip"
-      },
-      {
-        "name": "Tabs-2.3.0-x64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-x64.dmg"
-      },
-      {
-        "name": "Tabs-2.3.0-x64.exe",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-x64.exe"
-      },
-      {
-        "name": "Tabs-2.3.0-x64.exe.blockmap",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-x64.exe.blockmap"
-      },
-      {
-        "name": "Tabs-2.3.0-x64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-x64.zip"
-      },
-      {
-        "name": "Tabs-2.3.0-x86_64.AppImage",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/Tabs-2.3.0-x86_64.AppImage"
-      },
-      {
-        "name": "tabs-mac-preview-update.json",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/tabs-mac-preview-update.json"
-      },
-      {
-        "name": "tabs-mac-preview-update.json.sig",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.3.0/tabs-mac-preview-update.json.sig"
-      }
-    ]
-  },
-  {
-    "tag_name": "v2.2.2",
-    "prerelease": false,
-    "channel": "stable",
-    "name": "Tabs v2.2.2",
-    "published_at": "2026-11-03T10:42:22Z",
-    "body": "## Quick Actions refinements and smaller editor caches\n\nQuick Actions makes searching and temporary clipboard items easier to manage. This update also reduces accumulated editor caches and improves backup recovery.\n\n### What changed\n\n- Use the refreshed Quick Actions search panel, clearer action icons, and updated radial layouts.\n- Work with the updated temporary clipboard and manage kept browser and terminal tools from Workspace settings.\n- Get clearer backup and recovery controls, including separate feedback for refreshing snapshots and retrying startup.\n- Create backups when runtime sockets or temporary pipes are present in application data.\n- Reclaim legacy editor resource caches automatically and prevent the embedded editor from retaining separate resource and JavaScript disk caches for every project.\n- Improve Windows update extraction when packaged files are checked through virtual directories.",
-    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.2.2",
-    "assets": [
-      {
-        "name": "beta-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/beta-linux.yml"
-      },
-      {
-        "name": "beta-mac.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/beta-mac.yml"
-      },
-      {
-        "name": "beta.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/beta.yml"
-      },
-      {
-        "name": "latest-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/latest-linux.yml"
-      },
-      {
-        "name": "latest.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/latest.yml"
-      },
-      {
-        "name": "Tabs-2.2.2-arm64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-arm64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.2-arm64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-arm64.zip"
-      },
-      {
-        "name": "Tabs-2.2.2-x64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-x64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.2-x64.exe",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-x64.exe"
-      },
-      {
-        "name": "Tabs-2.2.2-x64.exe.blockmap",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-x64.exe.blockmap"
-      },
-      {
-        "name": "Tabs-2.2.2-x64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-x64.zip"
-      },
-      {
-        "name": "Tabs-2.2.2-x86_64.AppImage",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/Tabs-2.2.2-x86_64.AppImage"
-      },
-      {
-        "name": "tabs-mac-preview-update.json",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/tabs-mac-preview-update.json"
-      },
-      {
-        "name": "tabs-mac-preview-update.json.sig",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.2/tabs-mac-preview-update.json.sig"
-      }
-    ]
-  },
-  {
-    "tag_name": "v2.2.1",
-    "prerelease": false,
-    "channel": "stable",
-    "name": "Tabs v2.2.1",
-    "published_at": "2026-11-02T23:16:30Z",
-    "body": "## Quick actions and temporary workspace tools\n\nOpen frequent actions beside your pointer, keep scratch browsers and terminals organized, and manage worktrees and storage from Settings. This release also improves Windows installation and fixes logo selection on Windows.\n\n### What changed\n\n- Choose Halo Fade, Glass Dial, or Pie Sectors for Quick Actions, with configurable shortcuts beside each action and highlights that follow its color.\n- Open Quick Actions from the editor, browser, or terminal with Command-Option-K on macOS or Ctrl-Alt-K on Windows and Linux. The workspace remains visible beneath the blurred overlay.\n- Create temporary browser and terminal tabs, then rename, configure, keep, hide, or remove them from Workspace settings. Closing a tab asks for confirmation.\n- Paste text, links, and images into Clipboard, search recent items, and pin snippets to keep on your device.\n- Inspect Git worktrees and application storage, open isolated workspaces, and clean eligible logs with protection for checkouts that contain local work.\n- Open agent conversations in separate windows and return them to the workspace.\n- Use clearer settings navigation and a compact editor for configuring Quick Actions shortcuts.\n- Install and upgrade Windows with a smaller bundled editor payload and better handling of running app processes.\n- Apply the selected logo treatment to Windows window and taskbar icons and existing Tabs shortcuts.",
-    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.2.1",
-    "assets": [
-      {
-        "name": "beta-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/beta-linux.yml"
-      },
-      {
-        "name": "beta-mac.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/beta-mac.yml"
-      },
-      {
-        "name": "beta.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/beta.yml"
-      },
-      {
-        "name": "latest-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/latest-linux.yml"
-      },
-      {
-        "name": "latest.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/latest.yml"
-      },
-      {
-        "name": "Tabs-2.2.1-arm64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-arm64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.1-arm64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-arm64.zip"
-      },
-      {
-        "name": "Tabs-2.2.1-x64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-x64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.1-x64.exe",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-x64.exe"
-      },
-      {
-        "name": "Tabs-2.2.1-x64.exe.blockmap",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-x64.exe.blockmap"
-      },
-      {
-        "name": "Tabs-2.2.1-x64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-x64.zip"
-      },
-      {
-        "name": "Tabs-2.2.1-x86_64.AppImage",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/Tabs-2.2.1-x86_64.AppImage"
-      },
-      {
-        "name": "tabs-mac-preview-update.json",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/tabs-mac-preview-update.json"
-      },
-      {
-        "name": "tabs-mac-preview-update.json.sig",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.1/tabs-mac-preview-update.json.sig"
-      }
-    ]
-  },
-  {
-    "tag_name": "v2.2.0",
-    "prerelease": false,
-    "channel": "stable",
-    "name": "Tabs v2.2.0",
-    "published_at": "2026-11-01T14:12:18Z",
-    "body": "## Tabs 2.2.0: A refreshed workspace for code and agents\n\nTabs brings a more cohesive Code workspace together with richer agent controls, project scripts, local commit drafting, and data recovery. This release also refreshes theme and typography collections and reduces work during desktop startup.\n\n### What changed\n\n- Switch between Run, Git, and Agents in Workspace Actions, with remembered sections and a layout that adapts to your chat pane.\n- Follow agent relationships, fork work into another conversation, and bring results back into the parent thread.\n- Discover project scripts and inspect linked pull requests from the workspace, with clearer readiness and checkout behavior.\n- Work in the updated Code OSS 1.143 editor with a wider Go to file control, connected tabs, coordinated panel corners, and more restrained menus, tooltips, and notifications.\n- Draft commit messages with a local Ollama model and choose the model in settings.\n- Review saved Tabs data backups and restore compatible snapshots from the recovery settings.\n- Browse refreshed theme and typography collections and preview combinations before applying them.\n- Reach the workspace sooner as optional services and startup resources load when needed.\n- Explore the website's new interactive footer and updated product presentation.\n- See refreshed response rail animations, clearer branch menus, and updated Dock interaction styling.\n- Use keyboard shortcuts more reliably during startup and switch focus between embedded editor and chat inputs more consistently.\n\n### Upgrade notes\n\nLocal commit drafting requires Ollama and a downloaded model, such as `qwen3:1.7b`. Tabs data backups cover application data, not project source files outside Tabs.\n\nmacOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.",
-    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v2.2.0",
-    "assets": [
-      {
-        "name": "beta-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/beta-linux.yml"
-      },
-      {
-        "name": "beta-mac.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/beta-mac.yml"
-      },
-      {
-        "name": "beta.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/beta.yml"
-      },
-      {
-        "name": "latest-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/latest-linux.yml"
-      },
-      {
-        "name": "latest.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/latest.yml"
-      },
-      {
-        "name": "Tabs-2.2.0-arm64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-arm64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.0-arm64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-arm64.zip"
-      },
-      {
-        "name": "Tabs-2.2.0-x64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-x64.dmg"
-      },
-      {
-        "name": "Tabs-2.2.0-x64.exe",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-x64.exe"
-      },
-      {
-        "name": "Tabs-2.2.0-x64.exe.blockmap",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-x64.exe.blockmap"
-      },
-      {
-        "name": "Tabs-2.2.0-x64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-x64.zip"
-      },
-      {
-        "name": "Tabs-2.2.0-x86_64.AppImage",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/Tabs-2.2.0-x86_64.AppImage"
-      },
-      {
-        "name": "tabs-mac-preview-update.json",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/tabs-mac-preview-update.json"
-      },
-      {
-        "name": "tabs-mac-preview-update.json.sig",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v2.2.0/tabs-mac-preview-update.json.sig"
       }
     ]
   }
