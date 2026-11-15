@@ -1,0 +1,102 @@
+---
+/**
+ * Drawn stand-ins for tool chapters that have no product screenshot yet: a
+ * pinned website tab and an agent CLI tab. They keep the screenshot frame
+ * (toolbar on top, the tool below) so the stack reads as one product.
+ */
+interface Props {
+  kind: "sites" | "cli";
+  tone: "light" | "dark";
+}
+const { kind, tone } = Astro.props;
+const toolbar = ["Code", "Agents", "Dock", "Git", "Browser"];
+const custom = kind === "sites" ? ["Figma", "Linear"] : ["claude", "codex"];
+const active = custom[0];
+---
+<div class:list={["cm", `cm--${tone}`]} aria-hidden="true">
+  <div class="cm-bar">
+    <span class="cm-dots"><i></i><i></i><i></i></span>
+    <span class="cm-tabs">
+      {toolbar.map((t) => <span class="cm-tab">{t}</span>)}
+      <span class="cm-sep"></span>
+      {custom.map((t) => (
+        <span class:list={["cm-tab", "cm-tab--own", t === active && "on"]}>
+          {kind === "cli" ? <b class="cm-glyph">&gt;_</b> : <b class="cm-glyph cm-glyph--site"></b>}
+          {t}
+        </span>
+      ))}
+      <span class="cm-tab cm-add">+</span>
+    </span>
+  </div>
+  {kind === "sites" ? (
+    <div class="cm-site">
+      <div class="cm-url"><i class="cm-lock"></i>figma.com/design/studio-site — signed in</div>
+      <div class="cm-canvas">
+        <div class="cm-layers">
+          {["Homepage", "Hero", "Pricing", "Footer", "Mobile"].map((l, i) => <p class:list={[i === 1 && "on"]}>{l}</p>)}
+        </div>
+        <div class="cm-board">
+          <div class="cm-frame cm-frame--a"><span>Hero</span><i></i><i></i><b></b></div>
+          <div class="cm-frame cm-frame--b"><span>Pricing</span><i></i><i></i><i></i></div>
+          <div class="cm-frame cm-frame--c"><span>Mobile</span><i></i><b></b></div>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div class="cm-term">
+      <p class="cm-dim">~/studio-site <span class="cm-ok">main</span></p>
+      <p><span class="cm-prompt">$</span> claude</p>
+      <p class="cm-box">Claude Code · studio-site</p>
+      <p><span class="cm-prompt">&gt;</span> Fix the flaky billing test and explain the cause</p>
+      <p class="cm-dim">● Read tests/billing.spec.ts</p>
+      <p class="cm-dim">● Read src/billing/invoice.ts</p>
+      <p>● The test raced the clock: invoices dated "today" flipped at midnight UTC.</p>
+      <p class="cm-dim">● Edited src/billing/invoice.ts <span class="cm-add-n">+12</span> <span class="cm-del-n">−4</span></p>
+      <p class="cm-dim">● Ran bun test billing</p>
+      <p><span class="cm-ok">✓ 48 passed</span> <span class="cm-dim">in 2.1s</span></p>
+      <p><span class="cm-prompt">&gt;</span> <span class="cm-caret"></span></p>
+    </div>
+  )}
+</div>
+
+<style is:global>
+  .cm { --cm-bg: #fbfcfe; --cm-panel: #f1f2f7; --cm-ink: #0b0d1f; --cm-mute: rgba(11,13,31,.5); --cm-line: rgba(11,13,31,.1); --cm-ac: #0e2af3;
+    position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr; background: var(--cm-bg); color: var(--cm-ink); font: 500 clamp(9px, .85vw, 15px)/1.45 var(--sans); }
+  .cm--dark { --cm-bg: #0b0d1f; --cm-panel: #14172d; --cm-ink: #eef0f8; --cm-mute: rgba(238,240,248,.5); --cm-line: rgba(238,240,248,.1); --cm-ac: #7b8cff; }
+  .cm-bar { display: flex; align-items: center; gap: 1.6em; padding: .9em 1.2em; border-bottom: 1px solid var(--cm-line); }
+  .cm-dots { display: flex; gap: .45em; } .cm-dots i { width: .75em; height: .75em; border-radius: 50%; background: var(--cm-line); }
+  .cm-tabs { display: flex; align-items: center; gap: .35em; min-width: 0; overflow: hidden; }
+  .cm-tab { display: inline-flex; align-items: center; gap: .45em; padding: .4em .85em; border-radius: 999px; color: var(--cm-mute); white-space: nowrap; }
+  .cm-tab--own { color: var(--cm-ink); }
+  .cm-tab.on { background: var(--cm-ac); color: #fff; }
+  .cm-sep { width: 1px; height: 1.3em; margin: 0 .35em; background: var(--cm-line); }
+  .cm-add { padding: .4em .7em; border: 1px dashed var(--cm-line); }
+  .cm-glyph { font: 600 .8em var(--mono); }
+  .cm-glyph--site { width: .8em; height: .8em; border-radius: 50%; border: 1.5px solid currentColor; }
+  .cm-site { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .cm-url { display: flex; align-items: center; gap: .6em; margin: .8em 1.2em; padding: .45em .9em; border-radius: 999px; background: var(--cm-panel); color: var(--cm-mute); font-family: var(--mono); font-size: .85em; }
+  .cm-lock { width: .7em; height: .7em; border-radius: 2px; background: #18b47b; }
+  .cm-canvas { display: grid; grid-template-columns: 16% 1fr; min-height: 0; border-top: 1px solid var(--cm-line); }
+  .cm-layers { padding: 1em; border-right: 1px solid var(--cm-line); }
+  .cm-layers p { margin: 0 0 .5em; padding: .3em .5em; border-radius: .4em; color: var(--cm-mute); font-size: .9em; }
+  .cm-layers p.on { background: var(--cm-panel); color: var(--cm-ink); }
+  .cm-board { position: relative; background: var(--cm-panel); background-image: radial-gradient(var(--cm-line) 1px, transparent 1px); background-size: 1.6em 1.6em; }
+  .cm-frame { position: absolute; display: grid; align-content: start; gap: .6em; padding: 1em; border-radius: .6em; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-line), 0 1.2em 2.4em -1.6em rgba(11,13,31,.35); }
+  .cm-frame span { position: absolute; top: -1.6em; left: 0; color: var(--cm-mute); font-size: .8em; }
+  .cm-frame i { display: block; height: .7em; border-radius: .35em; background: var(--cm-line); }
+  .cm-frame i:first-of-type { width: 70%; height: 1.4em; background: var(--cm-ink); opacity: .85; }
+  .cm-frame b { display: block; width: 38%; height: 1.8em; border-radius: 999px; background: var(--cm-ac); }
+  .cm-frame--a { left: 7%; top: 16%; width: 44%; height: 52%; outline: 2px solid var(--cm-ac); outline-offset: 3px; }
+  .cm-frame--b { left: 57%; top: 16%; width: 34%; height: 40%; }
+  .cm-frame--c { left: 62%; top: 64%; width: 18%; height: 30%; }
+  .cm-term { padding: 1.4em 1.8em; font: 500 clamp(9px, .85vw, 15px)/1.75 var(--mono); }
+  .cm-term p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cm-dim { color: var(--cm-mute); }
+  .cm-prompt { color: var(--cm-ac); }
+  .cm-ok { color: #18b47b; }
+  .cm-add-n { color: #18b47b; } .cm-del-n { color: #ff5b2e; }
+  .cm-box { display: inline-block; margin: .6em 0; padding: .2em .9em; border: 1px solid var(--cm-line); border-radius: .5em; }
+  .cm-caret { display: inline-block; width: .6em; height: 1.1em; vertical-align: -.2em; background: var(--cm-ink); animation: cm-blink 1.1s steps(1) infinite; }
+  @keyframes cm-blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .cm-caret { animation: none; } }
+</style>

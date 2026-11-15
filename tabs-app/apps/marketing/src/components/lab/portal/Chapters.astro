@@ -1,5 +1,6 @@
 ---
 import { tools } from "../../../data/lab";
+import ChapterMock from "./ChapterMock.astro";
 // Soft tints keep the white theme; the accent marks each chapter.
 const look = [
   { tint: "#f3efe9", fg: "#0b0d1f", ac: "#0e2af3", shot: "light" },
@@ -8,7 +9,11 @@ const look = [
   { tint: "#0b0d1f", fg: "#fbfcfe", ac: "#7be0b4", shot: "dark" },
   { tint: "#c9d3ff", fg: "#0b0d1f", ac: "#0e2af3", shot: "light" },
 ];
-const chapters = tools.map((t, i) => ({ ...t, ...look[i % look.length]! }));
+// `look.shot` picks the light or dark screenshot; kept apart from the tool's own `shot` name.
+const chapters = tools.map((t, i) => {
+  const { shot: tone, ...colors } = look[i % look.length]!;
+  return { ...t, ...colors, look: tone, shot: "shot" in t ? t.shot : tone };
+});
 ---
 <section class="ch" id="tools" data-sec="Tool chapters" style={`--tint:${chapters[0]!.tint};--fg:${chapters[0]!.fg};--ac:${chapters[0]!.ac}`} data-tints={JSON.stringify(chapters.map((c) => [c.tint, c.ac, c.fg]))}>
   <div class="ch-stage">
@@ -26,7 +31,11 @@ const chapters = tools.map((t, i) => ({ ...t, ...look[i % look.length]! }));
     <div class="ch-stack">
       {chapters.map((c, i) => (
         <figure class="ch-card" data-i={i} style={`z-index:${i + 1}`}>
-          <img src={`/product/${tools[i]!.shot}-${c.shot}.png`} alt={`The ${c.name} tool in Tabs`} width="1920" height="1204" decoding="async" />
+          {"mock" in c ? (
+            <ChapterMock kind={c.mock} tone={c.look === "dark" ? "dark" : "light"} />
+          ) : (
+            <img src={`/product/${c.shot}-${c.look}.png`} alt={`The ${c.name} tool in Tabs`} width="1920" height="1204" decoding="async" />
+          )}
           <span class="ch-card__shade"></span>
         </figure>
       ))}

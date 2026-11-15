@@ -17,7 +17,7 @@ import { agents } from "../../../data/lab";
     </div>
     <div class="ag-head">
       <p class="v1-kicker">Your agents, your call</p>
-      <h2 data-split>Ten agents. <em>Bring the one you already pay for.</em></h2>
+      <h2 data-split>Fourteen agents. <em>Bring the one you already pay for.</em></h2>
     </div>
     <ul class="ag-grid">
       {agents.map((a, i) => (
@@ -48,10 +48,10 @@ import { agents } from "../../../data/lab";
   .ag-chip[data-pv="codex"] { --t: #eef0f4; } .ag-chip[data-pv="cursor"] { --t: #eef0f4; } .ag-chip[data-pv="grok"] { --t: #eef0f4; } .ag-chip[data-pv="opencode"] { --t: #eef0f4; } .ag-chip[data-pv="antigravity"] { --b: #3186ff; --t: #eaf2ff; }
   .ag-head { margin-top: 96px; }
   .ag h2 { max-width: 1000px; }
-  .ag-grid { display: grid; grid-template-columns: repeat(5, 1fr); margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(11,13,31,.12); border-left: 1px solid rgba(11,13,31,.12); }
+  .ag-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(11,13,31,.12); border-left: 1px solid rgba(11,13,31,.12); }
   .ag-grid li { position: relative; display: flex; flex-direction: column; gap: 22px; padding: 22px; border-right: 1px solid rgba(11,13,31,.12); border-bottom: 1px solid rgba(11,13,31,.12); overflow: hidden; isolation: isolate; color: var(--ink); transition: color .4s; }
   .ag-grid li { --b: #0b0d1f; --t: #f1f2f7; }
-  .ag-grid li[data-pv="claude"] { --b: #d97757; --t: #fbeee8; } .ag-grid li[data-pv="copilot"] { --b: #8534f3; --t: #f1e8ff; } .ag-grid li[data-pv="factory-droid"] { --b: #d15010; --t: #fcece3; } .ag-grid li[data-pv="openrouter"] { --b: #7624f4; --t: #efe6ff; } .ag-grid li[data-pv="kilo"] { --b: #b5ae00; --t: #fbfad6; } .ag-grid li[data-pv="antigravity"] { --b: #3186ff; --t: #eaf2ff; }
+  .ag-grid li[data-pv="claude"] { --b: #d97757; --t: #fbeee8; } .ag-grid li[data-pv="copilot"] { --b: #8534f3; --t: #f1e8ff; } .ag-grid li[data-pv="factory-droid"] { --b: #d15010; --t: #fcece3; } .ag-grid li[data-pv="openrouter"] { --b: #7624f4; --t: #efe6ff; } .ag-grid li[data-pv="kilo"] { --b: #b5ae00; --t: #fbfad6; } .ag-grid li[data-pv="antigravity"] { --b: #3186ff; --t: #eaf2ff; } .ag-grid li[data-pv="kiro"] { --b: #9046ff; --t: #f1e9ff; } .ag-grid li[data-pv="muse"] { --b: #0081fb; --t: #e6f2ff; }
   .ag-grid li::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--t); clip-path: circle(0 at var(--mx, 50%) var(--my, 50%)); transition: clip-path .6s cubic-bezier(.2,1,.3,1); }
   .ag-grid li::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--b); transform: scaleX(0); transform-origin: left; transition: transform .5s cubic-bezier(.2,1,.3,1); }
   .ag-grid li:hover::before { clip-path: circle(150% at var(--mx, 50%) var(--my, 50%)); }

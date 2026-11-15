@@ -34,8 +34,22 @@ export const tools = [
     id: "browser",
     name: "Browser",
     kicker: "Built-in browser",
-    line: "Preview localhost or pin Figma, docs and issue boards to the toolbar.",
+    line: "Preview localhost with devtools, and let your agents see and click the same page.",
     shot: "browser",
+  },
+  {
+    id: "sites",
+    name: "Sites",
+    kicker: "Any website as a tab",
+    line: "Pin Figma, Linear, ChatGPT or your staging app to the toolbar. Each one stays signed in, per project.",
+    mock: "sites",
+  },
+  {
+    id: "cli",
+    name: "CLI",
+    kicker: "Your own command line",
+    line: "Give Claude Code, Codex or any command its own tab. Or flip a thread from chat to the agent's CLI with ⌘⇧J.",
+    mock: "cli",
   },
 ] as const;
 
@@ -51,6 +65,10 @@ const providerColor: Record<string, string> = {
   kilo: "#ec4899",
   antigravity: "#f43f5e",
   openrouter: "#14b8a6",
+  kiro: "#9046ff",
+  muse: "#0081fb",
+  pi: "#0b0d1f",
+  fx: "#0b0d1f",
 };
 export const agents = agentProviders.map((a) => ({
   ...a,

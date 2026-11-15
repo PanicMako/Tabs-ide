@@ -9,4 +9,8 @@ export const agentProviders = [
   { id: "kilo", name: "Kilo" },
   { id: "factory-droid", name: "Factory Droid" },
   { id: "openrouter", name: "OpenRouter" },
+  { id: "kiro", name: "Kiro" },
+  { id: "muse", name: "Muse Code" },
+  { id: "pi", name: "Pi" },
+  { id: "fx", name: "fx" },
 ];
