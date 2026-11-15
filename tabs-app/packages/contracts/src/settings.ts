@@ -12,6 +12,8 @@ import {
   TrimmedNonEmptyString,
   TrimmedString,
 } from "./baseSchemas.ts";
+import { SecretProviderId, SecretProviderSlug } from "./secretReference.ts";
+import { SettingsSecretValue } from "./settingsSecretValue.ts";
 import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 export { ThreadEnvMode, WorktreeSubmodules };
@@ -40,6 +42,16 @@ import {
   type ProviderDriverKind,
 } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
+import {
+  CloudSpeechModelId,
+  CloudSpeechProvider,
+  SpeechAcceleration,
+  SpeechCorrectionCue,
+  SpeechCustomWords,
+  SpeechLanguage,
+  SpeechModelUnloadTimeout,
+  SpeechPostProcessingPromptSettings,
+} from "./speech.ts";
 
 // ── Client Settings (local-only) ───────────────────────────────
 
@@ -356,6 +368,82 @@ export type DefaultThemePreference = typeof DefaultThemePreference.Type;
  * client-local for the same reason: the Chromium guest being captured belongs
  * to the desktop app.
  */
+/** CSS custom properties a user theme may recolor. Each is set on :root. */
+export const USER_THEME_COLOR_ROLES = [
+  "background",
+  "foreground",
+  "card",
+  "card-foreground",
+  "popover",
+  "popover-foreground",
+  "primary",
+  "primary-foreground",
+  "secondary",
+  "secondary-foreground",
+  "muted",
+  "muted-foreground",
+  "accent",
+  "accent-foreground",
+  "border",
+  "input",
+  "ring",
+  "destructive",
+  "destructive-foreground",
+  "sidebar-background",
+  "sidebar-foreground",
+] as const;
+export const UserThemeColorRole = Schema.Literals(USER_THEME_COLOR_ROLES);
+export type UserThemeColorRole = typeof UserThemeColorRole.Type;
+
+export const USER_THEME_CSS_MAX_LENGTH = 20_000;
+
+/** `#rgb`, `#rrggbb` or `#rrggbbaa`. Anything else could smuggle CSS into a declaration. */
+export const UserThemeHexColor = Schema.String.check(
+  Schema.isPattern(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/),
+);
+
+/** A null role is unset: patches replace a theme whole, and null keeps old files decodable. */
+export const UserThemeColors = Schema.Struct(
+  Object.fromEntries(
+    USER_THEME_COLOR_ROLES.map((role) => [
+      role,
+      Schema.optionalKey(Schema.NullOr(UserThemeHexColor)),
+    ]),
+  ) as {
+    [Role in (typeof USER_THEME_COLOR_ROLES)[number]]: Schema.optionalKey<
+      Schema.NullOr<typeof UserThemeHexColor>
+    >;
+  },
+);
+export type UserThemeColors = typeof UserThemeColors.Type;
+
+/**
+ * The user's own restyle: palette overrides plus a CSS string. Clients apply it
+ * on top of whatever theme is active. `css` is re-checked by
+ * `sanitizeUserThemeCss` in `@tabs/shared/themeCss` before it is stored or applied.
+ */
+export const UserTheme = Schema.Struct({
+  colors: UserThemeColors.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  /** Applied only while the app is light / dark, over `colors`. */
+  light: UserThemeColors.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  dark: UserThemeColors.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  css: Schema.String.check(Schema.isMaxLength(USER_THEME_CSS_MAX_LENGTH)).pipe(
+    Schema.withDecodingDefault(Effect.succeed("")),
+  ),
+  /** ISO time of the last change, so a client can tell an edit from a re-send. */
+  updatedAt: Schema.String.check(Schema.isMaxLength(64)).pipe(
+    Schema.withDecodingDefault(Effect.succeed("")),
+  ),
+});
+export type UserTheme = typeof UserTheme.Type;
+export const EMPTY_USER_THEME: UserTheme = {
+  colors: {},
+  light: {},
+  dark: {},
+  css: "",
+  updatedAt: "",
+};
+
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
 export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
 export const BROWSER_RECORDING_FRAME_RATES = [30, 60] as const;
@@ -435,6 +523,15 @@ export const QuickActionsPreferences = Schema.Struct({
     ),
   ),
 });
+export const VoiceShortcutMode = Schema.Literals(["auto", "hold", "toggle"]);
+export type VoiceShortcutMode = typeof VoiceShortcutMode.Type;
+
+export const VoiceMicrophoneEntry = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("default") }),
+  Schema.Struct({ kind: Schema.Literal("device"), deviceId: Schema.String, label: Schema.String }),
+]);
+export type VoiceMicrophoneEntry = typeof VoiceMicrophoneEntry.Type;
+
 export const ClientSettingsSchema = Schema.Struct({
   quickActions: QuickActionsPreferences.pipe(
     Schema.withDecodingDefault(
@@ -686,6 +783,34 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
+  ),
+  // Labs: shows the composer microphone. Off until the user opts in.
+  voiceInputEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Where dictated audio is transcribed. "local" never leaves this machine.
+  voiceTranscriptionProvider: Schema.Union([Schema.Literal("local"), CloudSpeechProvider]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("local" as const)),
+  ),
+  // OpenRouter has no default transcription model, so the user picks one.
+  voiceCloudModel: Schema.NullOr(CloudSpeechModelId).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  // Device-local microphone order. Recording uses the first connected entry.
+  voiceMicrophones: Schema.Array(VoiceMicrophoneEntry).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  voiceShortcutMode: VoiceShortcutMode.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechLanguage: SpeechLanguage.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechTranslateToEnglish: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  speechCustomWords: SpeechCustomWords.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  speechSilenceFiltering: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechRemoveFillerWords: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechCorrectionWord: SpeechCorrectionCue.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  // Off by default: clean-up sends the transcript and nearby draft text to the writing model.
+  speechCleanupEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  speechPostProcessingPrompt: SpeechPostProcessingPromptSettings.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed({ mode: "default" as const, customInstructions: "" }),
+    ),
   ),
   snapShotEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   snapShotIncludeAccessibility: Schema.Boolean.pipe(
@@ -956,6 +1081,55 @@ export const GrokSettings = makeProviderSettingsSchema(
 );
 export type GrokSettings = typeof GrokSettings.Type;
 
+export const KiroSettings = makeProviderSettingsSchema(
+  {
+    // Off by default like Grok: users opt in from Settings.
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("kiro-cli").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description: "Path to the Kiro CLI binary.",
+        providerSettingsForm: { placeholder: "kiro-cli", clearWhenEmpty: "omit" },
+      }),
+    ),
+    customModels: Schema.Array(CustomModelSetting).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  {
+    order: ["binaryPath"],
+  },
+);
+export type KiroSettings = typeof KiroSettings.Type;
+
+export const FxSettings = makeProviderSettingsSchema(
+  {
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("fx").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description: "Path to the fx binary. All fx instances on this machine share its fx login.",
+        providerSettingsForm: { placeholder: "fx", clearWhenEmpty: "omit" },
+      }),
+    ),
+    customModels: Schema.Array(CustomModelSetting).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  {
+    order: ["binaryPath"],
+  },
+);
+export type FxSettings = typeof FxSettings.Type;
+
 /**
  * Antigravity ACP auth methods. Personal and Enterprise open a Google sign-in
  * in the browser. The API key and Agent Platform methods take credentials from
@@ -991,7 +1165,7 @@ export const AntigravitySettings = makeProviderSettingsSchema(
         },
       }),
     ),
-    apiKey: TrimmedString.pipe(
+    apiKey: SettingsSecretValue.pipe(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "API key",
@@ -1036,6 +1210,29 @@ export const AntigravitySettings = makeProviderSettingsSchema(
   { order: ["authMethod", "apiKey", "gcpProject", "gcpLocation", "binaryPath"] },
 );
 export type AntigravitySettings = typeof AntigravitySettings.Type;
+
+export const MuseSettings = makeProviderSettingsSchema(
+  {
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("muse").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description:
+          "Path to the Muse Code binary on this environment. Sign in with muse login on that host.",
+        providerSettingsForm: { placeholder: "muse", clearWhenEmpty: "omit" },
+      }),
+    ),
+    customModels: Schema.Array(CustomModelSetting).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  { order: ["binaryPath"] },
+);
+export type MuseSettings = typeof MuseSettings.Type;
 
 export const PiSettings = makeProviderSettingsSchema(
   {
@@ -1159,7 +1356,7 @@ export const OpenCodeSettings = makeProviderSettingsSchema(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "Server URL",
-        description: "Leave blank to let T3 Code spawn the server when needed.",
+        description: "Leave blank to let Tabs spawn the server when needed.",
         providerSettingsForm: {
           placeholder: "http://127.0.0.1:4096",
           clearWhenEmpty: "omit",
@@ -1314,7 +1511,7 @@ export const DroidSettings = makeProviderSettingsSchema(
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
     binaryPath: makeBinaryPathSetting("droid"),
-    apiKey: TrimmedString.pipe(
+    apiKey: SettingsSecretValue.pipe(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "Factory API key",
@@ -1365,7 +1562,7 @@ export const OpenRouterSettings = makeProviderSettingsSchema(
       Schema.withDecodingDefault(Effect.succeed(false)),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
-    apiKey: TrimmedString.pipe(
+    apiKey: SettingsSecretValue.pipe(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "API key",
@@ -1423,6 +1620,35 @@ export const BitbucketSettings = Schema.Struct({
   apiToken: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
 export type BitbucketSettings = typeof BitbucketSettings.Type;
+
+/**
+ * A git.cafe token for this environment, used before `CAFE_TOKEN` and the `cafe` login. It lives
+ * in the server's secret store; settings and clients only see a redaction marker when one is set.
+ */
+export const GitCafeSettings = Schema.Struct({
+  token: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+});
+export type GitCafeSettings = typeof GitCafeSettings.Type;
+
+export const SecretProviderKind = SecretProviderSlug.pipe(Schema.brand("SecretProviderKind"));
+export type SecretProviderKind = typeof SecretProviderKind.Type;
+
+export const SecretProviderLabel = TrimmedNonEmptyString.check(Schema.isMaxLength(64));
+
+/** Kinds decode their own config; unknown-kind envelopes round-trip verbatim across versions. */
+export const SecretProviderConfig = Schema.Struct({
+  kind: SecretProviderKind,
+  label: TrimmedNonEmptyString,
+  config: Schema.optionalKey(Schema.Unknown),
+});
+export type SecretProviderConfig = typeof SecretProviderConfig.Type;
+
+// Limits that may change later are enforced on writes only, never on the stored envelope. The
+// server also checks the kind and its config against the secret providers it has loaded.
+const SecretProviderConfigWrite = Schema.Struct({
+  ...SecretProviderConfig.fields,
+  label: SecretProviderLabel,
+});
 
 export const ObservabilitySettings = Schema.Struct({
   otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -1698,6 +1924,15 @@ export const ServerSettings = Schema.Struct({
    * between a desktop window and a phone attached to the same server.
    */
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechModelId: Schema.String.pipe(
+    Schema.withDecodingDefault(Effect.succeed("handy-computer/parakeet-unified-en-0.6b-gguf")),
+  ),
+  speechAcceleration: SpeechAcceleration.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechModelUnloadTimeout: SpeechModelUnloadTimeout.pipe(
+    Schema.withDecodingDefault(Effect.succeed("min_15")),
+  ),
+  // Vocabulary shared by everyone who dictates in a project; it lives with the project's environment.
+  speechProjectCustomWords: SpeechCustomWords.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   projectAgentBrowserAccessOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1783,6 +2018,8 @@ export const ServerSettings = Schema.Struct({
   defaultThemeSetAt: Schema.String.check(Schema.isMaxLength(64)).pipe(
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
+  /** The user's own palette overrides and CSS; see `UserTheme`. */
+  userTheme: UserTheme.pipe(Schema.withDecodingDefault(Effect.succeed(EMPTY_USER_THEME))),
   /**
    * The icon clients draw for this environment. Null means "use what the
    * server detected" (`environment.platform.machine`), falling back to a
@@ -1859,11 +2096,14 @@ export const ServerSettings = Schema.Struct({
     claudeAgent: ClaudeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     grok: GrokSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    kiro: KiroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    fx: FxSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     copilot: CopilotSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     droid: DroidSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: KiloSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     openrouter: OpenRouterSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    muse: MuseSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     antigravity: AntigravitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -1877,9 +2117,13 @@ export const ServerSettings = Schema.Struct({
   ),
   observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   bitbucket: BitbucketSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  gitcafe: GitCafeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   // Keyed by a user-chosen id so a source keeps its rows across edits. Entries
   // this build cannot decode round-trip untouched, as provider instances do.
   usageLimitSources: Schema.Record(UsageLimitSourceId, UsageLimitSourceConfig).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
+  secretProviders: Schema.Record(SecretProviderId, SecretProviderConfig).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   /** Allows this server to read the Cursor CLI's macOS Keychain login for account usage. */
@@ -1952,6 +2196,7 @@ export const ServerSettingsOperation = Schema.Literals([
   "normalize",
   "check-exists",
   "create-provider-instance",
+  "write-secret-provider",
   "read-file",
   "read-provider-history",
   "read-project-settings",
@@ -2079,12 +2324,30 @@ const GrokSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
+const KiroSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
+});
+
+const FxSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
+});
+
 const AntigravitySettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   authMethod: Schema.optionalKey(AntigravityAuthMethod),
-  apiKey: Schema.optionalKey(TrimmedString),
+  apiKey: Schema.optionalKey(SettingsSecretValue),
   gcpProject: Schema.optionalKey(TrimmedString),
   gcpLocation: Schema.optionalKey(TrimmedString),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
+});
+
+const MuseSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
   binaryPath: Schema.optionalKey(TrimmedString),
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
@@ -2117,7 +2380,7 @@ const CopilotSettingsPatch = Schema.Struct({
 const DroidSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   binaryPath: Schema.optionalKey(TrimmedString),
-  apiKey: Schema.optionalKey(TrimmedString),
+  apiKey: Schema.optionalKey(SettingsSecretValue),
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
@@ -2134,7 +2397,7 @@ const OpenRouterSettingsPatch = Schema.Struct({
   deepseekBinaryPath: Schema.optionalKey(TrimmedString),
   binaryPath: Schema.optionalKey(TrimmedString),
   enabled: Schema.optionalKey(Schema.Boolean),
-  apiKey: Schema.optionalKey(TrimmedString),
+  apiKey: Schema.optionalKey(SettingsSecretValue),
   baseUrl: Schema.optionalKey(TrimmedString),
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
@@ -2176,6 +2439,10 @@ export const ServerSettingsPatch = Schema.Struct({
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
+  speechModelId: Schema.optionalKey(Schema.String),
+  speechAcceleration: Schema.optionalKey(SpeechAcceleration),
+  speechModelUnloadTimeout: Schema.optionalKey(SpeechModelUnloadTimeout),
+  speechProjectCustomWords: Schema.optionalKey(SpeechCustomWords),
   projectAgentBrowserAccessOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
@@ -2219,6 +2486,8 @@ export const ServerSettingsPatch = Schema.Struct({
   automaticGitFetchInterval: Schema.optionalKey(Schema.DurationFromMillis),
   providerHealthRefreshInterval: Schema.optionalKey(Schema.DurationFromMillis),
   backgroundActivityProfile: Schema.optionalKey(BackgroundActivityProfile),
+  /** Replaces the whole user theme; send the full value. */
+  userTheme: Schema.optionalKey(UserTheme),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   defaultThreadEnvMode: Schema.optionalKey(Schema.NullOr(ThreadEnvMode)),
   newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
@@ -2255,17 +2524,22 @@ export const ServerSettingsPatch = Schema.Struct({
       apiToken: Schema.optionalKey(TrimmedString),
     }),
   ),
+  /** An empty token clears it; an omitted one keeps what the server has. */
+  gitcafe: Schema.optionalKey(Schema.Struct({ token: Schema.optionalKey(TrimmedString) })),
   providers: Schema.optionalKey(
     Schema.Struct({
       codex: Schema.optionalKey(CodexSettingsPatch),
       claudeAgent: Schema.optionalKey(ClaudeSettingsPatch),
       cursor: Schema.optionalKey(CursorSettingsPatch),
       grok: Schema.optionalKey(GrokSettingsPatch),
+      kiro: Schema.optionalKey(KiroSettingsPatch),
+      fx: Schema.optionalKey(FxSettingsPatch),
       copilot: Schema.optionalKey(CopilotSettingsPatch),
       droid: Schema.optionalKey(DroidSettingsPatch),
       kilo: Schema.optionalKey(KiloSettingsPatch),
       openrouter: Schema.optionalKey(OpenRouterSettingsPatch),
       pi: Schema.optionalKey(PiSettingsPatch),
+      muse: Schema.optionalKey(MuseSettingsPatch),
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
       antigravity: Schema.optionalKey(AntigravitySettingsPatch),
     }),
@@ -2278,6 +2552,10 @@ export const ServerSettingsPatch = Schema.Struct({
   // Per-entry, unlike `providerInstances`: a client only ever adds or removes
   // one source, and sending the whole map races another edit that has not
   // echoed back yet. `null` removes; the server merges into its current map.
+  // Merge per entry like usageLimitSources; null removes an entry.
+  secretProviders: Schema.optionalKey(
+    Schema.Record(SecretProviderId, Schema.NullOr(SecretProviderConfigWrite)),
+  ),
   usageLimitSources: Schema.optionalKey(
     Schema.Record(UsageLimitSourceId, Schema.NullOr(UsageLimitSourceConfig)),
   ),
@@ -2399,6 +2677,21 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   sidebarThreadPreviewCount: Schema.optionalKey(SidebarThreadPreviewCount),
   timestampFormat: Schema.optionalKey(TimestampFormat),
+  voiceInputEnabled: Schema.optionalKey(Schema.Boolean),
+  voiceTranscriptionProvider: Schema.optionalKey(
+    Schema.Union([Schema.Literal("local"), CloudSpeechProvider]),
+  ),
+  voiceCloudModel: Schema.optionalKey(Schema.NullOr(CloudSpeechModelId)),
+  voiceMicrophones: Schema.optionalKey(Schema.Array(VoiceMicrophoneEntry)),
+  voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),
+  speechLanguage: Schema.optionalKey(SpeechLanguage),
+  speechTranslateToEnglish: Schema.optionalKey(Schema.Boolean),
+  speechCustomWords: Schema.optionalKey(SpeechCustomWords),
+  speechSilenceFiltering: Schema.optionalKey(Schema.Boolean),
+  speechRemoveFillerWords: Schema.optionalKey(Schema.Boolean),
+  speechCorrectionWord: Schema.optionalKey(SpeechCorrectionCue),
+  speechCleanupEnabled: Schema.optionalKey(Schema.Boolean),
+  speechPostProcessingPrompt: Schema.optionalKey(SpeechPostProcessingPromptSettings),
   snapShotEnabled: Schema.optionalKey(Schema.Boolean),
   snapShotIncludeAccessibility: Schema.optionalKey(Schema.Boolean),
   snapShotShortcut: Schema.optionalKey(SnapShotShortcut),

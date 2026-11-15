@@ -284,10 +284,13 @@ export function applyServerSettingsPatch(
     worktreeCleanup: worktreeCleanupPatch,
     // Merged per entry below; its `null` removals must not reach deepMerge.
     usageLimitSources: usageLimitSourcesPatch,
+    secretProviders: secretProvidersPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
     // Entry replacement: deepMerge would keep keys the client meant to clear.
     projectSettingsOverrides: projectSettingsOverridesPatch,
+    // Replaced whole, so a reset or a removed color does not survive a merge.
+    userTheme: userThemePatch,
     // Already translated into `projectSettingsOverrides` above; the legacy
     // maps are derived views and must never be merged directly.
     projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
@@ -334,6 +337,7 @@ export function applyServerSettingsPatch(
   const next = deepMerge(current, patchForMerge);
   const nextWithReplacementsBase = {
     ...next,
+    ...(userThemePatch !== undefined ? { userTheme: userThemePatch } : {}),
     ...(defaultThreadEnvModePatch !== undefined
       ? { defaultThreadEnvMode: defaultThreadEnvModePatch ?? "local" }
       : {}),
@@ -401,6 +405,9 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
+      : {}),
+    ...(secretProvidersPatch !== undefined
+      ? { secretProviders: mergeSettingsEntries(current.secretProviders, secretProvidersPatch) }
       : {}),
     ...(usageLimitSourcesPatch !== undefined
       ? {

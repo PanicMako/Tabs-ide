@@ -16,6 +16,8 @@ import * as BitbucketApi from "./BitbucketApi.ts";
 import * as GitHubCli from "./GitHubCli.ts";
 import * as GitLabCli from "./GitLabCli.ts";
 import * as ForgejoCli from "./ForgejoCli.ts";
+import * as GitCafeApi from "./GitCafeApi.ts";
+import * as OriginCli from "./OriginCli.ts";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 
 const TEST_EPOCH = DateTime.makeUnsafe("1970-01-01T00:00:00.000Z");
@@ -97,6 +99,18 @@ function makeRegistry(input: {
         Layer.mock(GitHubCli.GitHubCli)(input.github ?? {}),
         Layer.mock(GitLabCli.GitLabCli)(input.gitlab ?? {}),
         Layer.mock(ForgejoCli.ForgejoCli)({ listLogins: () => Effect.succeed([]) }),
+        Layer.mock(GitCafeApi.GitCafeApi)({}),
+        Layer.mock(OriginCli.OriginCli)({
+          personalNamespace: () =>
+            Effect.fail(
+              new OriginCli.OriginCliError({
+                operation: "x",
+                cwd: "/",
+                reason: "failed",
+                detail: "x",
+              }),
+            ),
+        }),
         ServerConfig.layerTest(process.cwd(), {
           prefix: "t3-source-control-registry-test-",
         }).pipe(Layer.provide(NodeServices.layer)),

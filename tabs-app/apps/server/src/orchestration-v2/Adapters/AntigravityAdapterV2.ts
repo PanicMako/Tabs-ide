@@ -5,13 +5,21 @@ import {
   type OrchestrationV2ProviderCapabilities,
   type ProviderSetupError,
 } from "@tabs/contracts";
+import { buildAntigravityCapabilityPrompt } from "../../provider/acp/AntigravityAcpSupport.ts";
+import {
+  ANTIGRAVITY_SUBAGENT_BATCH_TITLE,
+  antigravitySubagentLaunches,
+  describeAntigravitySubagentLaunches,
+} from "../../provider/acp/AntigravityChildWork.ts";
+import { watchAntigravityPromptOutcome } from "../../provider/acp/AntigravityTurnOutcome.ts";
 import type { SelfInvocation } from "@tabs/shared/nodeRuntime";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
-import type * as FileSystem from "effect/FileSystem";
-import type * as Path from "effect/Path";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 import * as EffectAcpErrors from "effect-acp/errors";
 
 import type { ServerConfig } from "../../config.ts";
@@ -31,6 +39,7 @@ import {
   antigravitySubagentOutput,
   classifyAntigravitySubagentToolCall,
   extractAntigravityUserInputQuestion,
+  makeAntigravityReadRepair,
   makeAntigravityUserInputResponse,
   normalizeAntigravityToolCall,
 } from "../../provider/acp/AntigravityProtocol.ts";
@@ -86,6 +95,8 @@ export interface AntigravityAdapterV2Options {
     cwd: string,
   ) => Effect.Effect<void>;
   readonly onSessionEvent?: AcpAdapterV2Flavor["onSessionEvent"];
+  /** The instance's profile; its native session log tells why an ended prompt really failed. */
+  readonly profileDirectory?: string;
   readonly nativeLogging?: Parameters<typeof makeAcpAdapterV2>[0]["nativeLogging"];
   readonly continuationRequests?: Parameters<typeof makeAcpAdapterV2>[0]["continuationRequests"];
 }
@@ -103,14 +114,18 @@ const extractAntigravitySubagentUpdate: NonNullable<AcpAdapterV2Flavor["extractS
   }
   const status =
     toolCall.status === "failed" ? "failed" : toolCall.status === "pending" ? "pending" : "running";
+  // Only permission prompts carry the launch; NativeChildWorkQuery matches their ids by this text.
+  const launches = antigravitySubagentLaunches(toolCall.data.rawInput);
+  const launch = launches === undefined ? undefined : describeAntigravitySubagentLaunches(launches);
   return {
     nativeTaskId: toolCall.toolCallId,
     prompt:
+      launch?.prompt ??
       antigravitySubagentOutput(toolCall) ??
       toolCall.detail ??
       toolCall.title ??
-      "Antigravity subagent batch",
-    title: "Antigravity subagent batch",
+      ANTIGRAVITY_SUBAGENT_BATCH_TITLE,
+    title: launch?.title ?? ANTIGRAVITY_SUBAGENT_BATCH_TITLE,
     model: null,
     status,
     childSessionId: null,
@@ -143,8 +158,42 @@ export function makeAntigravityAcpAdapterFlavor(
           }),
         )
         .pipe(Effect.provideService(Scope.Scope, scope));
+      // Repair keeps state across updates, so each runtime must have one session-update handler.
+      const reads = makeAntigravityReadRepair();
+      // Served reads are reported from the read handler, so they take turns with agent updates.
+      const updates = yield* Semaphore.make(1);
+      let projectUpdate: Parameters<typeof runtime.handleSessionUpdate>[0] | undefined;
       return {
         ...runtime,
+        handleReadTextFile: (handler) =>
+          runtime.handleReadTextFile((request, context) =>
+            handler(request, context).pipe(
+              Effect.onExit((exit) => {
+                const served = reads.attempted(request.path, Exit.isSuccess(exit));
+                if (served === undefined || projectUpdate === undefined) return Effect.void;
+                return updates
+                  .withPermit(
+                    projectUpdate({
+                      sessionId: served.sessionId,
+                      update: {
+                        sessionUpdate: "tool_call_update",
+                        toolCallId: served.toolCallId,
+                        status: "completed",
+                      },
+                    }),
+                  )
+                  .pipe(Effect.ignore);
+              }),
+            ),
+          ),
+        prompt: (payload, promptOptions) =>
+          Effect.sync(reads.reset).pipe(Effect.andThen(runtime.prompt(payload, promptOptions))),
+        handleSessionUpdate: (handler) => {
+          projectUpdate = handler;
+          return runtime.handleSessionUpdate((notification) =>
+            updates.withPermit(handler(reads.repair(notification))),
+          );
+        },
         start: () =>
           runtime
             .start()
@@ -153,7 +202,7 @@ export function makeAntigravityAcpAdapterFlavor(
                 (started) => options.onSessionStarted?.(started, input.cwd) ?? Effect.void,
               ),
             ),
-      };
+      } satisfies typeof runtime;
     }).pipe(
       Effect.provideService(Crypto.Crypto, options.crypto),
       Effect.mapError(
@@ -222,8 +271,40 @@ export function makeAntigravityAcpAdapterFlavor(
     },
     normalizeToolCall: normalizeAntigravityToolCall,
     extractSubagentUpdate: extractAntigravitySubagentUpdate,
+    buildAttachmentPrompt: ({
+      text,
+      attachments,
+      resolveAttachmentPath,
+      promptCapabilities,
+      agentVersion,
+      currentModel,
+    }) =>
+      buildAntigravityCapabilityPrompt({
+        input: text,
+        attachments,
+        resolveAttachmentPath,
+        promptCapabilities,
+        agentVersion,
+        currentModel,
+      }).pipe(
+        // The turn text already travels in its own block.
+        Effect.map((blocks) => (text.trim() ? blocks.slice(1) : blocks)),
+        Effect.provideService(FileSystem.FileSystem, options.fileSystem),
+        Effect.provideService(Path.Path, options.path),
+      ),
     supportsImagePrompts: true,
     supportsCompaction: true,
+    // 1.4.5 returns the root trajectory's Gemini usageMetadata delta; 1.4.1 returns none.
+    reportsPerTurnPromptUsage: true,
+    geminiPromptUsage: true,
+    // Antigravity can leave a prompt open without updates; long tools and approvals pause this.
+    promptInactivityTimeout: "15 minutes",
+    ...(options.profileDirectory === undefined
+      ? {}
+      : {
+          watchPromptOutcome: (sessionId: string) =>
+            watchAntigravityPromptOutcome(options.profileDirectory!, sessionId),
+        }),
   };
 }
 

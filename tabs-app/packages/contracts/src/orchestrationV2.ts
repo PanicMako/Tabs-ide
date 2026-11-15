@@ -224,6 +224,8 @@ export const OrchestrationV2TurnCapabilities = Schema.Struct({
   supportsActiveSteering: Schema.Boolean,
   // Some native steering mechanisms cancel pending tools before consuming the message.
   activeSteeringInterruptsTools: Schema.optional(Schema.Boolean),
+  // False when native steering takes text only, so a message with images restarts the turn.
+  activeSteeringAcceptsAttachments: Schema.optional(Schema.Boolean),
   supportsSteeringByInterruptRestart: Schema.Boolean,
   supportsQueuedMessages: Schema.Boolean,
   terminalStatusQuality: Schema.Literals(["strong", "weak", "none"]),
@@ -303,7 +305,7 @@ export type OrchestrationV2CheckpointCapabilities =
 
 export const OrchestrationV2RuntimePolicyCapabilities = Schema.Struct({
   /**
-   * Where T3 runtime modes are actually enforced. "native" providers receive
+   * Where Tabs runtime modes are actually enforced. "native" providers receive
    * the approval and sandbox policy each turn and confine their own execution.
    * "client-boundary" providers only have policy applied where T3 mediates the
    * work (permission requests and client fs/terminal handlers); provider-owned
@@ -3107,6 +3109,16 @@ export const OrchestrationV2Command = Schema.Union([
     // Omitted behaves as "settled_only" (no wake while the parent has a live
     // run); producers that want fire-and-forget wakes must set "always".
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
+    /**
+     * Run the child in this checkout instead of inheriting the parent's. Set by
+     * server-side producers that provisioned an isolated worktree.
+     */
+    workspace: Schema.optional(
+      Schema.Struct({
+        worktreePath: TrimmedNonEmptyString,
+        branch: Schema.NullOr(TrimmedNonEmptyString),
+      }),
+    ),
     createdAt: Schema.optional(Schema.DateTimeUtc),
   }),
   Schema.Struct({
@@ -3239,6 +3251,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getOlderSettledThreads: "orchestration.getOlderSettledThreads",
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
+  getNativeChildWork: "orchestration.getNativeChildWork",
   getTurnItem: "orchestration.getTurnItem",
   launchThread: "orchestration.launchThread",
   subscribeArchivedShell: "orchestration.subscribeArchivedShell",
@@ -3709,6 +3722,53 @@ const WORKFLOW_SCRIPT_ERROR_MESSAGES = {
   "read-failed": "Script read failed.",
 } as const;
 
+/** Names a provider-native subagent's child thread. */
+export const OrchestrationV2GetNativeChildWorkInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2GetNativeChildWorkInput =
+  typeof OrchestrationV2GetNativeChildWorkInput.Type;
+
+export const OrchestrationV2NativeChildStep = Schema.Struct({
+  index: NonNegativeInt,
+  type: Schema.String,
+  status: Schema.NullOr(Schema.String),
+  text: Schema.NullOr(Schema.String),
+  toolCalls: Schema.Array(Schema.Struct({ name: Schema.String, input: Schema.String })),
+});
+export type OrchestrationV2NativeChildStep = typeof OrchestrationV2NativeChildStep.Type;
+
+/** Read-only: native children cannot take messages. */
+export const OrchestrationV2NativeChildWork = Schema.Struct({
+  conversationId: TrimmedNonEmptyString,
+  role: Schema.String,
+  prompt: Schema.String,
+  /** Null when the provider has no readable transcript for this child. */
+  steps: Schema.NullOr(Schema.Array(OrchestrationV2NativeChildStep)),
+  /** Earlier steps were left out to keep the read bounded. */
+  truncated: Schema.Boolean,
+});
+export type OrchestrationV2NativeChildWork = typeof OrchestrationV2NativeChildWork.Type;
+
+/** Empty when the provider's records do not prove which children the subagent launched. */
+export const OrchestrationV2GetNativeChildWorkResult = Schema.Struct({
+  children: Schema.Array(OrchestrationV2NativeChildWork),
+});
+export type OrchestrationV2GetNativeChildWorkResult =
+  typeof OrchestrationV2GetNativeChildWorkResult.Type;
+
+export class OrchestrationV2GetNativeChildWorkError extends Schema.TaggedError<OrchestrationV2GetNativeChildWorkError>()(
+  "OrchestrationV2GetNativeChildWorkError",
+  {
+    threadId: ThreadId,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return "Failed to read the subagent's work.";
+  }
+}
+
 export class OrchestrationGetWorkflowScriptError extends Schema.TaggedError<OrchestrationGetWorkflowScriptError>()(
   "OrchestrationGetWorkflowScriptError",
   {
@@ -3772,6 +3832,10 @@ export interface OrchestrationV2RpcSchemasShape {
     typeof OrchestrationV2GetWorkflowScriptInput,
     typeof OrchestrationV2GetWorkflowScriptResult
   >;
+  readonly getNativeChildWork: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetNativeChildWorkInput,
+    typeof OrchestrationV2GetNativeChildWorkResult
+  >;
   readonly getTurnItem: OrchestrationV2RpcSchemaDefinition<
     typeof OrchestrationV2GetTurnItemInput,
     typeof OrchestrationV2GetTurnItemResult
@@ -3834,6 +3898,10 @@ export const OrchestrationV2RpcSchemas: OrchestrationV2RpcSchemasShape = {
   getWorkflowScript: {
     input: OrchestrationV2GetWorkflowScriptInput,
     output: OrchestrationV2GetWorkflowScriptResult,
+  },
+  getNativeChildWork: {
+    input: OrchestrationV2GetNativeChildWorkInput,
+    output: OrchestrationV2GetNativeChildWorkResult,
   },
   getTurnItem: {
     input: OrchestrationV2GetTurnItemInput,

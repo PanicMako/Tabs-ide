@@ -14,24 +14,71 @@ import {
   getThreadWallpaper,
   saveThreadWallpaper,
   clearThreadWallpaper,
+  getProjectWallpaper,
+  saveProjectWallpaper,
+  clearProjectWallpaper,
+  type WallpaperScope,
   resolveWallpaperForThread,
-  getIsAgentWallpaperMinimized,
-  saveIsAgentWallpaperMinimized,
 } from "./onboarding/wallpapers";
-import { WallpaperTopBar } from "./onboarding/WallpaperTopBar";
+import {
+  type WallpaperPrintStrength,
+  type WallpaperPrintStyle,
+  getWallpaperPrintAnimate,
+  getWallpaperPrintStrength,
+  getWallpaperPrintStyle,
+} from "./onboarding/wallpaperPrint";
+import { WallpaperPrintLayer } from "./WallpaperPrintLayer";
+import { useWallpaperControlsStore } from "../stores/wallpaperControlsStore";
 import { WallpaperGalleryModal } from "./onboarding/WallpaperGalleryModal";
 
 const PARALLAX_SCALE = 1.05;
 const MAX_PARALLAX_PX = 10;
 
 /** A still print texture keeps the artwork present without moving across the text. */
-function WorkspacePrintTexture() {
+function WorkspacePrintTexture({
+  style,
+  strength,
+  wallpaperUrl,
+  isLight,
+  animate,
+}: {
+  readonly style: WallpaperPrintStyle;
+  readonly strength: WallpaperPrintStrength;
+  readonly wallpaperUrl: string;
+  readonly isLight: boolean;
+  readonly animate: boolean;
+}) {
+  // A wallpaper the browser cannot read back (another host) falls back to the CSS halftone.
+  const [unreadableUrl, setUnreadableUrl] = useState<string | null>(null);
+  if (style === "none") return null;
+  const generated = style !== "halftone" && unreadableUrl !== wallpaperUrl;
   return (
     <>
-      <div
-        aria-hidden="true"
-        className="agent-wallpaper-halftone pointer-events-none absolute inset-0 z-[2]"
-      />
+      {generated ? (
+        // The mask keeps the print to the open artwork and clears it from behind the text.
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[2]"
+          style={{
+            maskImage: "linear-gradient(180deg, #000 0%, #000 38%, transparent 86%)",
+            WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 38%, transparent 86%)",
+          }}
+        >
+          <WallpaperPrintLayer
+            url={wallpaperUrl}
+            style={style}
+            strength={strength}
+            ink={isLight ? "dark" : "light"}
+            animate={animate}
+            onUnavailable={() => setUnreadableUrl(wallpaperUrl)}
+          />
+        </div>
+      ) : (
+        <div
+          aria-hidden="true"
+          className="agent-wallpaper-halftone pointer-events-none absolute inset-0 z-[2]"
+        />
+      )}
       <div
         aria-hidden="true"
         className="agent-wallpaper-grain pointer-events-none absolute inset-0 z-[2]"
@@ -45,15 +92,16 @@ function WorkspacePrintTexture() {
 export interface AgentBackgroundProps {
   readonly enabled?: boolean;
   readonly threadId?: string | null;
+  /** The project this chat belongs to, so a wallpaper can be set per project. */
+  readonly projectId?: string | null;
   readonly children?: ReactNode;
-  readonly defaultMinimized?: boolean;
 }
 
 export function AgentBackground({
   enabled = true,
   threadId = null,
+  projectId = null,
   children,
-  defaultMinimized,
 }: AgentBackgroundProps) {
   const { resolvedTheme } = useTheme();
   const { reducedMotion } = usePanelAnimationSettings();
@@ -63,22 +111,17 @@ export function AgentBackground({
     () => enabled && getIsAgentWallpaperEnabled(),
   );
 
-  const [isMinimized, setIsMinimized] = useState<boolean>(() => {
-    if (defaultMinimized !== undefined) return defaultMinimized;
-    return getIsAgentWallpaperMinimized();
-  });
-
-  const handleToggleMinimize = (minimized: boolean) => {
-    setIsMinimized(minimized);
-    saveIsAgentWallpaperMinimized(minimized);
-  };
-
   const [wallpaper, setWallpaper] = useState<WallpaperOption>(() =>
-    resolveWallpaperForThread(threadId),
+    resolveWallpaperForThread(threadId, projectId),
   );
   const [prevWallpaper, setPrevWallpaper] = useState<WallpaperOption | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [printStyle, setPrintStyle] = useState<WallpaperPrintStyle>(() => getWallpaperPrintStyle());
+  const [printStrength, setPrintStrength] = useState<WallpaperPrintStrength>(() =>
+    getWallpaperPrintStrength(),
+  );
+  const [printAnimate, setPrintAnimate] = useState<boolean>(() => getWallpaperPrintAnimate());
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const parallaxRef = useRef<HTMLDivElement | null>(null);
@@ -88,16 +131,20 @@ export function AgentBackground({
 
   // Check if current wallpaper is specifically assigned to this thread
   const hasThreadSpecific = Boolean(threadId && getThreadWallpaper(threadId));
+  const hasProjectSpecific = Boolean(projectId && getProjectWallpaper(projectId));
 
   // Sync wallpaper when threadId changes or when storage / custom events fire
   useEffect(() => {
-    setWallpaper(resolveWallpaperForThread(threadId));
-  }, [threadId]);
+    setWallpaper(resolveWallpaperForThread(threadId, projectId));
+  }, [threadId, projectId]);
 
   useEffect(() => {
     const handleUpdate = () => {
       setIsWallpaperEnabled(enabled && getIsAgentWallpaperEnabled());
-      setWallpaper(resolveWallpaperForThread(threadId));
+      setWallpaper(resolveWallpaperForThread(threadId, projectId));
+      setPrintStyle(getWallpaperPrintStyle());
+      setPrintStrength(getWallpaperPrintStrength());
+      setPrintAnimate(getWallpaperPrintAnimate());
     };
     window.addEventListener(AGENT_WALLPAPER_CHANGE_EVENT, handleUpdate);
     window.addEventListener("storage", handleUpdate);
@@ -105,7 +152,7 @@ export function AgentBackground({
       window.removeEventListener(AGENT_WALLPAPER_CHANGE_EVENT, handleUpdate);
       window.removeEventListener("storage", handleUpdate);
     };
-  }, [threadId, enabled]);
+  }, [threadId, projectId, enabled]);
 
   // Parallax tracking relative to the chat area container
   useEffect(() => {
@@ -152,7 +199,7 @@ export function AgentBackground({
   }, [isWallpaperEnabled, reducedMotion]);
 
   const changeWallpaper = useCallback(
-    (next: WallpaperOption, targetScope: "global" | "thread" = "global") => {
+    (next: WallpaperOption, targetScope: WallpaperScope = "global") => {
       if (next.url === wallpaper.url && !targetScope) return;
       setPrevWallpaper(wallpaper);
       setIsTransitioning(true);
@@ -160,6 +207,8 @@ export function AgentBackground({
 
       if (targetScope === "thread" && threadId) {
         saveThreadWallpaper(threadId, next.url);
+      } else if (targetScope === "project" && projectId) {
+        saveProjectWallpaper(projectId, next.url);
       } else {
         saveAgentWallpaperPreference(next.url);
       }
@@ -169,19 +218,84 @@ export function AgentBackground({
         setIsTransitioning(false);
       }, 750);
     },
-    [wallpaper, threadId],
+    [wallpaper, threadId, projectId],
   );
 
   const handleClearThreadWallpaper = useCallback(() => {
     if (!threadId) return;
     clearThreadWallpaper(threadId);
-    setWallpaper(resolveWallpaperForThread(threadId));
-  }, [threadId]);
+    setWallpaper(resolveWallpaperForThread(threadId, projectId));
+  }, [threadId, projectId]);
+
+  const handleClearProjectWallpaper = useCallback(() => {
+    if (!projectId) return;
+    clearProjectWallpaper(projectId);
+    setWallpaper(resolveWallpaperForThread(threadId, projectId));
+  }, [threadId, projectId]);
+
+  /** The dock's reset button removes the narrowest override first: the thread's, then the project's. */
+  const handleClearOverride = useCallback(() => {
+    if (hasThreadSpecific) handleClearThreadWallpaper();
+    else handleClearProjectWallpaper();
+  }, [hasThreadSpecific, handleClearThreadWallpaper, handleClearProjectWallpaper]);
 
   const handleDisableWallpaper = useCallback(() => {
     saveIsAgentWallpaperEnabled(false);
     setIsWallpaperEnabled(false);
   }, []);
+
+  const stepWallpaper = useCallback(
+    (direction: 1 | -1) => {
+      const all = getAllAgentWallpapers();
+      const index = Math.max(
+        0,
+        all.findIndex((candidate) => candidate.url === wallpaper.url),
+      );
+      const next = all[(index + direction + all.length) % all.length];
+      if (next) {
+        changeWallpaper(next, hasThreadSpecific ? "thread" : projectId ? "project" : "global");
+      }
+    },
+    [wallpaper.url, changeWallpaper, hasThreadSpecific, projectId],
+  );
+
+  const shuffleWallpaper = useCallback(() => {
+    const others = getAllAgentWallpapers().filter((candidate) => candidate.url !== wallpaper.url);
+    const next = others[Math.floor(Math.random() * others.length)];
+    if (next) {
+      changeWallpaper(next, hasThreadSpecific ? "thread" : projectId ? "project" : "global");
+    }
+  }, [wallpaper.url, changeWallpaper, hasThreadSpecific, projectId]);
+
+  const publishControls = useWallpaperControlsStore((state) => state.publish);
+  useEffect(() => {
+    publishControls({
+      enabled: isWallpaperEnabled,
+      label: wallpaper.label,
+      url: wallpaper.url,
+      overridden: hasThreadSpecific || hasProjectSpecific,
+      openGallery: () => setIsGalleryOpen(true),
+      shuffle: shuffleWallpaper,
+      step: stepWallpaper,
+      resetOverride: handleClearOverride,
+      setEnabled: (next) => {
+        saveIsAgentWallpaperEnabled(next);
+        setIsWallpaperEnabled(next && enabled);
+      },
+    });
+  }, [
+    publishControls,
+    isWallpaperEnabled,
+    wallpaper.label,
+    wallpaper.url,
+    hasThreadSpecific,
+    hasProjectSpecific,
+    shuffleWallpaper,
+    stepWallpaper,
+    handleClearOverride,
+    enabled,
+  ]);
+  useEffect(() => () => publishControls(null), [publishControls]);
 
   // If wallpaper is turned off, render purely children with zero extra icons or pills
   if (!isWallpaperEnabled) {
@@ -238,7 +352,13 @@ export function AgentBackground({
       />
 
       {/* ── Layer 3: Still halftone and paper grain (z-2) ──── */}
-      <WorkspacePrintTexture />
+      <WorkspacePrintTexture
+        style={printStyle}
+        strength={printStrength}
+        wallpaperUrl={wallpaper.url}
+        isLight={isLight}
+        animate={printAnimate && !reducedMotion}
+      />
 
       {/* ── Layer 3.5: Subtle tone veil (z-[3]) ── */}
       <div
@@ -254,40 +374,21 @@ export function AgentBackground({
         {children}
       </div>
 
-      {/* ── Layer 5: Wallpaper Floating Controller (z-40) ────────── */}
-      {/* Positioned upwards in the right gutter, level with the composer upper bar */}
-      {/* Completely clear of the bottom toolbar and branch selector! */}
-      <div className="pointer-events-auto absolute bottom-24 right-4 sm:bottom-28 sm:right-6 z-40">
-        <WallpaperTopBar
-          activeWallpaperUrl={wallpaper.url}
-          onSelectWallpaper={(wp) => changeWallpaper(wp, hasThreadSpecific ? "thread" : "global")}
-          onOpenGallery={() => setIsGalleryOpen(true)}
-          onDisableWallpaper={handleDisableWallpaper}
-          onMinimize={() => handleToggleMinimize(true)}
-          isMinimized={isMinimized}
-          onExpand={() => handleToggleMinimize(false)}
-          isThreadSpecific={hasThreadSpecific}
-          onClearThreadWallpaper={handleClearThreadWallpaper}
-          theme={resolvedTheme}
-          wallpapers={allAvailableWallpapers}
-          dropDirection="left"
-          orientation="vertical"
-          showFilmstrip={false}
-        />
-      </div>
-
       {/* ── Full Wallpaper Gallery Modal (Portaled to document.body) ─────────── */}
       <WallpaperGalleryModal
         isOpen={isGalleryOpen}
         activeWallpaperUrl={wallpaper.url}
         threadId={threadId}
+        projectId={projectId}
         isThreadSpecific={hasThreadSpecific}
+        isProjectSpecific={hasProjectSpecific}
         theme={resolvedTheme}
         onSelectWallpaper={(wp, scope) => {
           changeWallpaper(wp, scope);
           setIsGalleryOpen(false);
         }}
         onClearThreadWallpaper={handleClearThreadWallpaper}
+        onClearProjectWallpaper={handleClearProjectWallpaper}
         onDisableWallpaper={handleDisableWallpaper}
         onClose={() => setIsGalleryOpen(false)}
         wallpapers={allAvailableWallpapers}

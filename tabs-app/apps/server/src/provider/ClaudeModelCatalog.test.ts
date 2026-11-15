@@ -1,4 +1,4 @@
-import { assert, describe, it } from "@effect/vitest";
+import { assert, describe, expect, it } from "@effect/vitest";
 import { ProviderInstanceId } from "@tabs/contracts";
 
 import { hasValidClaudeManifestAdapters } from "./ClaudeModelManifest.ts";
@@ -12,6 +12,7 @@ import {
   resolveClaudeModelCatalog,
   resolveClaudeModelsForVersion,
   resolveClaudeModelSlug,
+  resolveClaudeUpdateRequiredModels,
   scopeClaudeModelCatalog,
 } from "./ClaudeModelCatalog.ts";
 
@@ -241,5 +242,31 @@ describe("Claude model catalog", () => {
       resolveClaudeModelsForVersion(catalog, "3.2.0").map((model) => model.slug),
       ["claude-synthetic-next", "claude-custom-tuned"],
     );
+  });
+});
+
+describe("resolveClaudeUpdateRequiredModels", () => {
+  const entry = (slug: string, minVersion: string | undefined, isLegacy = false) =>
+    ({
+      model: { slug, name: slug, isCustom: false, isLegacy, capabilities: null },
+      compatibility: minVersion === undefined ? {} : { minVersion },
+    }) as never;
+  const catalog = {
+    models: [
+      entry("new-model", "2.5.0"),
+      entry("old-model", "1.0.0"),
+      entry("legacy", "9.0.0", true),
+    ],
+  } as never;
+
+  it("lists current models the installed Claude Code is too old for", () => {
+    expect(resolveClaudeUpdateRequiredModels(catalog, "2.0.0")).toEqual([
+      { slug: "new-model", name: "new-model", minVersion: "2.5.0" },
+    ]);
+  });
+
+  it("lists nothing once the version is high enough or unknown", () => {
+    expect(resolveClaudeUpdateRequiredModels(catalog, "2.5.0")).toEqual([]);
+    expect(resolveClaudeUpdateRequiredModels(catalog, null)).toEqual([]);
   });
 });

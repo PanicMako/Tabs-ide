@@ -34,6 +34,11 @@ import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
  * @module provider/Layers/ProviderInstanceRegistryLive
  */
 import {
+  resolveInstanceConfigSecrets,
+  resolveInstanceEnvironment,
+  unreadableSecretReason,
+} from "../ProviderInstanceSecrets.ts";
+import {
   defaultInstanceIdForDriver,
   ProviderInstanceId,
   type ProviderInstanceConfig,
@@ -158,6 +163,35 @@ const buildEntry = <R>(input: {
     }
 
     const typedConfig = decodeResult.success;
+    const resolvedConfig = yield* resolveInstanceConfigSecrets(driver.configSchema, typedConfig);
+    if (resolvedConfig.unreadable.length > 0) {
+      return {
+        kind: "unavailable" as const,
+        snapshot: yield* buildUnavailableProviderSnapshot({
+          driverKind: entry.driver,
+          instanceId,
+          displayName: entry.displayName,
+          accentColor: entry.accentColor,
+          reason: unreadableSecretReason({
+            unreadable: resolvedConfig.unreadable,
+            unreadableProviderLabel: resolvedConfig.unreadableProviderLabel,
+          }),
+        }),
+      };
+    }
+    const resolvedEnvironment = yield* resolveInstanceEnvironment(entry.environment);
+    if (resolvedEnvironment.unreadable.length > 0) {
+      return {
+        kind: "unavailable" as const,
+        snapshot: yield* buildUnavailableProviderSnapshot({
+          driverKind: entry.driver,
+          instanceId,
+          displayName: entry.displayName,
+          accentColor: entry.accentColor,
+          reason: unreadableSecretReason(resolvedEnvironment),
+        }),
+      };
+    }
     const childScope = yield* Scope.make();
     // Attach the child scope to the registry's parent scope: if the
     // registry scope closes, each surviving instance's child scope is
@@ -171,9 +205,9 @@ const buildEntry = <R>(input: {
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
-        environment: entry.environment ?? [],
+        environment: resolvedEnvironment.environment,
         enabled: entry.enabled ?? decodedConfigEnabled(typedConfig) ?? true,
-        config: typedConfig,
+        config: resolvedConfig.config,
       })
       .pipe(Effect.provideService(Scope.Scope, childScope), Effect.result);
     if (createResult._tag === "Failure") {
@@ -405,7 +439,11 @@ export const makeProviderInstanceRegistry = <R>(input: {
       },
     };
 
-    const mutator: ProviderInstanceRegistryMutatorShape = { reconcile };
+    // The legacy registry resolves secrets only when it builds an instance; it is not rebuilt for a changed secret.
+    const mutator: ProviderInstanceRegistryMutatorShape = {
+      reconcile,
+      refreshSecret: () => Effect.void,
+    };
 
     return { registry, mutator };
   }).pipe(Effect.provideService(ProviderRuntimeGeneration, "legacy"));

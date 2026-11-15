@@ -5,6 +5,8 @@ import type {
   PullRequestAction,
   PullRequestStackHead,
   PullRequestActor,
+  PullRequestReferenceCandidate,
+  PullRequestReferenceSigil,
   PullRequestBaseComparison,
   PullRequestCapabilities,
   PullRequestChecksState,
@@ -60,6 +62,11 @@ export class PullRequestProviderError extends Schema.TaggedError<PullRequestProv
       "failed",
     ]),
     detail: Schema.String,
+    /**
+     * What to change when the host will not return a repository, in the reader's terms; shown
+     * beside that repository in the list, where `detail` is about the failed call instead.
+     */
+    accessHint: Schema.optional(Schema.String),
     retryAt: Schema.optional(Schema.Number),
     cause: Schema.optional(Schema.Defect()),
   },
@@ -177,6 +184,12 @@ export interface ProviderChangeRequestPage {
    * as the only way to the rest — what every listing did before there were cursors.
    */
   readonly continues: boolean;
+  /**
+   * Where a host that can only page from the top carries on: an opaque position past the last
+   * row delivered, handed back as the cursor's `resumeAfter`. Unlike a count of rows it survives
+   * rows above it closing between reads.
+   */
+  readonly resumeAfter?: string | undefined;
 }
 
 /**
@@ -199,6 +212,8 @@ export interface ProviderListCursor {
    * count too when the provider reports a `cursorAdvance`.
    */
   readonly delivered: number;
+  /** The `resumeAfter` the previous page handed back, for a host that continues by position. */
+  readonly resumeAfter?: string | undefined;
 }
 
 /** One repository's row inside an answer that spans several of them. */
@@ -268,6 +283,11 @@ export interface ProviderChangeRequestActivity {
   readonly commits: ReadonlyArray<PullRequestCommit>;
   /** The change request's own reactions, from a host that has them. */
   readonly reactions?: ReadonlyArray<PullRequestReaction>;
+}
+
+export interface ProviderDiffFilePaths {
+  readonly files: ReadonlyArray<{ readonly oldPath: string; readonly newPath: string }>;
+  readonly nextCursor: string | null;
 }
 
 export interface ProviderDiffSlice {
@@ -511,6 +531,15 @@ export interface PullRequestProviderApi {
    * Full files at the exact revisions the host used for its patch. Optional where the provider
    * exposes no diff at all; the service refuses expansion there just as it refuses the patch.
    */
+  /** Exact changed path pairs, including renames, without fetching patch contents. */
+  readonly getDiffFilePaths?: (
+    input: ProviderRepositoryRef & {
+      readonly number: number;
+      readonly cursor?: string | undefined;
+      readonly commit?: string | undefined;
+    },
+  ) => Effect.Effect<ProviderDiffFilePaths, PullRequestProviderError>;
+
   readonly getDiffFileContents?: (
     input: ProviderRepositoryRef & {
       readonly number: number;
@@ -656,6 +685,34 @@ export interface PullRequestProviderApi {
   readonly listLabelCandidates?: (
     input: ProviderRepositoryRef & { readonly number: number },
   ) => Effect.Effect<PullRequestLabelCandidateList, PullRequestProviderError>;
+
+  /**
+   * People who could have opened a change request in the repository, for narrowing a listing by
+   * author. A host that can only search its whole user base answers from that.
+   */
+  readonly searchRepositoryAuthors?: (
+    input: ProviderRepositoryRef & { readonly query?: string | undefined },
+  ) => Effect.Effect<
+    { readonly items: ReadonlyArray<PullRequestActor>; readonly truncated: boolean },
+    PullRequestProviderError
+  >;
+
+  /**
+   * Issues and change requests a composer can reference, recently updated first. A numeric
+   * `query` also finds that number exactly; other text matches titles as far as the host can.
+   */
+  readonly searchRepositoryReferences?: (
+    input: ProviderRepositoryRef & {
+      readonly query?: string | undefined;
+      readonly sigil?: PullRequestReferenceSigil | undefined;
+    },
+  ) => Effect.Effect<
+    {
+      readonly items: ReadonlyArray<PullRequestReferenceCandidate>;
+      readonly truncated: boolean;
+    },
+    PullRequestProviderError
+  >;
 
   /** Puts labels on the change request, or takes them off. One call for both directions. */
   readonly setLabels?: (

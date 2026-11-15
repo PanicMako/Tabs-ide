@@ -2593,7 +2593,7 @@ it.layer(
                       homePath: `/tmp/${missingBinary}_home`,
                     },
                   },
-                } as unknown as ContractServerSettings["providerInstances"],
+                } as never,
               }),
             ),
           );
@@ -2830,7 +2830,7 @@ it.layer(
                     enabled: false,
                     config: { arbitrary: "payload" },
                   },
-                } as unknown as ContractServerSettings["providerInstances"],
+                } as never,
               }),
             ),
           );
@@ -2973,10 +2973,14 @@ it.layer(
               "copilot",
               "cursor",
               "droid",
+              "fx",
               "grok",
               "kilo",
+              "kiro",
+              "muse",
               "opencode",
               "openrouter",
+              "pi",
             ]);
             assert.strictEqual(cursorProvider?.enabled, false);
             assert.strictEqual(cursorProvider?.status, "disabled");
@@ -3006,7 +3010,7 @@ it.layer(
       Effect.gen(function* () {
         const status = yield* checkClaudeProviderStatus(
           defaultClaudeSettings,
-          claudeCapabilities(),
+          claudeCapabilities({ email: "user@example.com" }),
         );
         assert.strictEqual(status.status, "ready");
         assert.strictEqual(status.installed, true);
@@ -3022,6 +3026,48 @@ it.layer(
                 stderr: "",
                 code: 0,
               };
+            throw new Error(`Unexpected args: ${joined}`);
+          }),
+        ),
+      ),
+    );
+
+    it.effect("reports a signed-out Claude as unauthenticated with no selectable models", () =>
+      Effect.gen(function* () {
+        // The SDK initialization probe succeeds with no login, so it alone is not proof of one.
+        const status = yield* checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities({ tokenSource: "none" }),
+          {},
+        );
+        assert.strictEqual(status.status, "error");
+        assert.strictEqual(status.auth.status, "unauthenticated");
+        assert.strictEqual(status.models.length, 0);
+      }).pipe(
+        Effect.provide(
+          layerMockSpawner((args) => {
+            const joined = args.join(" ");
+            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+            throw new Error(`Unexpected args: ${joined}`);
+          }),
+        ),
+      ),
+    );
+
+    it.effect("treats credentials supplied through the environment as authenticated", () =>
+      Effect.gen(function* () {
+        const status = yield* checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities(),
+          { ANTHROPIC_API_KEY: "test-key" },
+        );
+        assert.strictEqual(status.status, "ready");
+        assert.strictEqual(status.auth.status, "authenticated");
+      }).pipe(
+        Effect.provide(
+          layerMockSpawner((args) => {
+            const joined = args.join(" ");
+            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
             throw new Error(`Unexpected args: ${joined}`);
           }),
         ),
@@ -3205,7 +3251,7 @@ it.layer(
             ...defaultClaudeSettings,
             homePath: claudeConfigDir,
           },
-          claudeCapabilities(),
+          claudeCapabilities({ email: "user@example.com" }),
         );
         assert.strictEqual(status.status, "ready");
         // The home is resolved through the host Path before it reaches the env.

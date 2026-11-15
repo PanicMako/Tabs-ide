@@ -124,7 +124,7 @@ export function createManagedRelaySession(input: ManagedRelaySessionInput): Mana
         try: () => readCachedClerkToken(nowMillis),
         catch: (cause) =>
           new ManagedRelaySessionError({
-            message: "Could not obtain the T3 Connect session token.",
+            message: "Could not obtain the Tabs Connect session token.",
             cause,
           }),
       });
@@ -182,7 +182,7 @@ function readSessionClerkToken(
         ? Effect.succeed(token)
         : Effect.fail(
             new ManagedRelaySessionError({
-              message: "The T3 Connect session token is unavailable.",
+              message: "The Tabs Connect session token is unavailable.",
             }),
           ),
     ),
@@ -229,7 +229,7 @@ export const deregisterManagedRelayEnvironment = Effect.fn(
   const session = registry.get(managedRelaySessionAtom);
   if (!session || session.accountId !== input.accountId) {
     return yield* new ManagedRelaySessionError({
-      message: "Sign in to T3 Connect before deregistering an environment.",
+      message: "Sign in to Tabs Connect before deregistering an environment.",
     });
   }
   const clerkToken = yield* readSessionClerkToken(session);
@@ -245,7 +245,7 @@ function requireClerkToken(
   if (!session || session.accountId !== accountId) {
     return Effect.fail(
       new ManagedRelaySessionError({
-        message: "Sign in to T3 Connect before loading relay data.",
+        message: "Sign in to Tabs Connect before loading relay data.",
       }),
     );
   }
@@ -320,7 +320,7 @@ export function readManagedRelaySnapshotState<A>(
         ? relayProtectedErrorMessage(cause.relayError)
         : cause instanceof Error
           ? cause.message
-          : "Could not load T3 Connect data.";
+          : "Could not load Tabs Connect data.";
     errorTraceId = findErrorTraceId(cause);
   }
   return {

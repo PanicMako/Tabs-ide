@@ -302,8 +302,11 @@ export function AutoTextarea({
   placeholder,
   className = "",
   minRows = 3,
+  plain = false,
   "aria-label": ariaLabel,
 }: {
+  /** Borderless and on the bare surface: opts out of the dialog field radius, which would clip it. */
+  plain?: boolean;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -329,6 +332,7 @@ export function AutoTextarea({
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       className={className}
+      {...(plain ? { "data-plain": "" } : {})}
       style={{ backgroundColor: "var(--bg-base)", resize: "none", overflow: "hidden" }}
     />
   );

@@ -269,7 +269,7 @@ export function WorkspaceTour({
         : agents
           ? () => onSelectTool(agents.id)
           : undefined,
-      hint: "Active is work in progress. Settled keeps completed work handy. Archive clears it from your working list. Workspace Actions keeps project tools such as Dock and Git close to your conversation.",
+      hint: "Open is work in progress. Done keeps finished work handy. Archive clears it from your working list. Workspace Actions keeps project tools such as Dock and Git close to your conversation.",
     };
   } else if (phase === "project_tabs") {
     stop = {

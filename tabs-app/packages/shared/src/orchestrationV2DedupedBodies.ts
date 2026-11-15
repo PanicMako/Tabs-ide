@@ -1,4 +1,4 @@
-// Adapted from T3 Code PR #24647 (MIT).
+// Adapted from Tabs PR #24647 (MIT).
 import {
   OrchestrationV2CheckpointFileSummary,
   type CheckpointId,

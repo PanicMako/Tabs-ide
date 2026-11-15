@@ -225,6 +225,11 @@ interface MetadataReadBudget {
   truncated: boolean;
 }
 
+/** A scan reads only literal values; a secret reference is not resolved here. */
+function resolvedEnvironmentValue(value: string | object | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 function selectMetadataTranscripts(transcripts: ReadonlyArray<TranscriptCandidate>) {
   const byInstance = new Map<ProviderInstanceId, TranscriptCandidate[]>();
   for (const transcript of transcripts) {
@@ -1119,8 +1124,9 @@ export const make = Effect.gen(function* () {
         for (const { instanceId, config: instance } of instances) {
           const homeVariable = source === "claudeAgent" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME";
           const environmentHome =
-            instance.environment?.findLast((variable) => variable.name === homeVariable)?.value ??
-            hostEnvironment[homeVariable];
+            resolvedEnvironmentValue(
+              instance.environment?.findLast((variable) => variable.name === homeVariable)?.value,
+            ) ?? hostEnvironment[homeVariable];
 
           let homePath: string;
           if (source === "claudeAgent") {

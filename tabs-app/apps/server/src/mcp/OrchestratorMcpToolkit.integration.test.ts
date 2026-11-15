@@ -1988,6 +1988,49 @@ describe("orchestrator MCP toolkit", () => {
             ).pipe(Effect.orDie);
             expect(cancelledStatus.status).toBe("interrupted");
 
+            // A worker that disappears mid-run (its thread is deleted) reads as a
+            // terminal, cancelled task, so Overmind settles it instead of leaving
+            // the plan busy.
+            const vanishingCall = yield* invoke("delegate_task", {
+              task: cancellationPrompt,
+              target: {
+                providerInstanceId: codexInstanceId,
+                model: codexModel,
+                options: { reasoning: "low" },
+              },
+              mode: "async",
+              clientRequestId: "delegate-vanish-1",
+            });
+            const vanishing = yield* decodeDelegateTaskResult(vanishingCall.structuredContent).pipe(
+              Effect.orDie,
+            );
+            yield* waitForProjection(orchestrator, vanishing.childThreadId, (projection) =>
+              projection.providerTurns.some((turn) => turn.status === "running"),
+            );
+            yield* orchestrator.dispatch({
+              type: "thread.delete",
+              commandId: CommandId.make("command:mcp-parent:delete-vanishing-child"),
+              threadId: vanishing.childThreadId,
+            });
+            const vanishedStatusCall = yield* invoke("task_status", { taskId: vanishing.taskId });
+            const vanishedStatus = yield* decodeDelegateTaskResult(
+              vanishedStatusCall.structuredContent,
+            ).pipe(Effect.orDie);
+            // Deleting the thread ends its run: the lead sees a terminal task, never a
+            // task that stays "running" forever.
+            expect(vanishedStatus).toMatchObject({
+              status: "cancelled",
+              workState: "result_available",
+              latestTerminalStatus: "cancelled",
+            });
+            // The vanished worker is terminal, so it wakes the lead exactly once.
+            for (let sample = 0; sample < 60; sample += 1) {
+              if ((yield* Ref.get(continuationOffers)).length > 0) break;
+              yield* Effect.sleep("50 millis");
+            }
+            expect(yield* Ref.get(continuationOffers)).toHaveLength(1);
+            yield* Ref.set(continuationOffers, []);
+
             // Explicit task_cancel disposes automatic delivery after the child
             // interrupt succeeds. The interrupted result remains readable,
             // but it cannot create a parent continuation.

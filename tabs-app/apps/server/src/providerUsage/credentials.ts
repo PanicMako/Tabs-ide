@@ -16,6 +16,8 @@ import { fetchJson } from "./http";
 const execFileAsync = promisify(execFile);
 
 const KEYCHAIN_TIMEOUT_MS = 5_000;
+const KEYCHAIN_HIT_TTL_MS = 5 * 60_000;
+const KEYCHAIN_MISS_TTL_MS = 10 * 60_000;
 const DEFAULT_OAUTH_REFRESH_TIMEOUT_MS = 15_000;
 
 /** Build a short, non-secret identity for cache partitioning without retaining credentials. */
@@ -189,9 +191,47 @@ export async function readKeychainPassword(input: {
   if (input.platform !== "darwin") {
     return null;
   }
-  const args = ["find-generic-password", "-s", input.service, "-w"];
-  if (input.account) {
-    args.push("-a", input.account);
+  // Every usage refresh resolves credentials more than once (cache key + fetch) for several
+  // providers. Without sharing, each lookup spawns `security` and macOS shows a separate
+  // access prompt. Share one read per item, and remember the outcome (including a denial or a
+  // missing item) so a refused prompt is not immediately asked again.
+  const key = `${input.service}\u0000${input.account ?? ""}`;
+  const now = Date.now();
+  const cached = keychainReadCache.get(key);
+  if (cached && cached.until > now) {
+    return cached.value;
+  }
+  const inFlight = keychainReadsInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+  const read = spawnKeychainRead(input.service, input.account)
+    .then((value) => {
+      keychainReadCache.set(key, {
+        value,
+        until: Date.now() + (value === null ? KEYCHAIN_MISS_TTL_MS : KEYCHAIN_HIT_TTL_MS),
+      });
+      return value;
+    })
+    .finally(() => {
+      keychainReadsInFlight.delete(key);
+    });
+  keychainReadsInFlight.set(key, read);
+  return read;
+}
+
+const keychainReadCache = new Map<string, { value: string | null; until: number }>();
+const keychainReadsInFlight = new Map<string, Promise<string | null>>();
+
+export function __resetKeychainReadCacheForTests(): void {
+  keychainReadCache.clear();
+  keychainReadsInFlight.clear();
+}
+
+async function spawnKeychainRead(service: string, account?: string): Promise<string | null> {
+  const args = ["find-generic-password", "-s", service, "-w"];
+  if (account) {
+    args.push("-a", account);
   }
   try {
     const { stdout } = await execFileAsync("security", args, { timeout: KEYCHAIN_TIMEOUT_MS });

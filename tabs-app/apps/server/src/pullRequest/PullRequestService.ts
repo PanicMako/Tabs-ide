@@ -1,3 +1,4 @@
+import { parseDiffFilePaths } from "./bitbucketDiffRevisions.ts";
 import {
   canonicalRepositoryKey,
   isSshRemoteUrl,
@@ -58,6 +59,11 @@ import {
   type PullRequestReviewVerdict,
   type PullRequestReviewerCandidateList,
   type PullRequestReviewerRequestInput,
+  type PullRequestAuthorCandidateList,
+  type PullRequestAuthorSearchInput,
+  type PullRequestReferenceCandidateList,
+  type PullRequestReferenceSearchInput,
+  type PullRequestRepositoryRef,
   type PullRequestLabelCandidateList,
   type PullRequestLabelChangeInput,
   type PullRequestSetFilesViewedInput,
@@ -205,7 +211,7 @@ export class PullRequestService extends Context.Service<
       input: PullRequestRoutingIdentityInput,
     ) => Effect.Effect<PullRequestRoutingIdentityResult, PullRequestError>;
     readonly withRoutingCredential: <A, E, R>(
-      input: PullRequestRef,
+      input: PullRequestRepositoryRef,
       operation: Effect.Effect<A, E, R>,
     ) => Effect.Effect<A, E | PullRequestError, R>;
     readonly summary: (
@@ -286,6 +292,14 @@ export class PullRequestService extends Context.Service<
     readonly labelCandidates: (
       input: PullRequestRef,
     ) => Effect.Effect<PullRequestLabelCandidateList, PullRequestError>;
+    /** Issues and change requests to offer when `#` is typed; empty where the host cannot search. */
+    readonly referenceCandidates: (
+      input: PullRequestReferenceSearchInput,
+    ) => Effect.Effect<PullRequestReferenceCandidateList, PullRequestError>;
+    /** People to offer when narrowing a listing by author; empty where the host cannot search. */
+    readonly authorCandidates: (
+      input: PullRequestAuthorSearchInput,
+    ) => Effect.Effect<PullRequestAuthorCandidateList, PullRequestError>;
     readonly setLabels: (
       input: PullRequestLabelChangeInput,
     ) => Effect.Effect<void, PullRequestError>;
@@ -398,7 +412,7 @@ interface ListCursor extends ProviderListCursor {
  * provider drop it into a filter without checking it again.
  */
 const LIST_CURSOR_PATTERN =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))\|(\d{1,9})\|(\d{1,9}(?:,\d{1,9})*)?$/;
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))\|(\d{1,9})\|(\d{1,9}(?:,\d{1,9})*)?(?:\|([\w.:~+-]{1,128}))?$/;
 
 function parseListCursor(raw: string): ListCursor | null {
   const match = LIST_CURSOR_PATTERN.exec(raw);
@@ -408,6 +422,7 @@ function parseListCursor(raw: string): ListCursor | null {
     updatedBefore: match[1]!,
     delivered: Number(match[2]),
     seenAt: seenAt === undefined ? [] : seenAt.split(",").map(Number),
+    ...(match[4] === undefined ? {} : { resumeAfter: match[4] }),
   };
 }
 
@@ -436,6 +451,8 @@ function nextListCursor(
   delivered: ReadonlyArray<ProviderChangeRequest>,
   /** A provider may consume malformed offset-paged rows that never appear in `delivered`. */
   cursorAdvance = delivered.length,
+  /** A host that continues by position says where; it is carried to the next read as given. */
+  resumeAfter?: string,
 ): string | null {
   // The host had nothing at all, so there is no row to carry on from — and repeating the cursor
   // that produced the empty slice would ask the same question forever.
@@ -445,7 +462,7 @@ function nextListCursor(
   // repository's boring afternoon — and reading "nothing new" as "nothing left" would end the
   // walk on the instant it was stuck on, with everything older unreachable for good.
   const oldest = fetched.reduce((left, right) => (right.updatedAt < left.updatedAt ? right : left));
-  return listCursorAt(previous, oldest.updatedAt, fetched, cursorAdvance);
+  return listCursorAt(previous, oldest.updatedAt, fetched, cursorAdvance, resumeAfter);
 }
 
 /**
@@ -461,12 +478,14 @@ function listCursorAt(
   /** This repository's own rows in the slice, before the ones already sent were dropped. */
   fetched: ReadonlyArray<ProviderChangeRequest>,
   deliveredCount: number,
+  resumeAfter?: string,
 ): string {
   const seenAt = [
     ...(previous?.updatedBefore === boundary ? previous.seenAt : []),
     ...fetched.filter((item) => item.updatedAt === boundary).map((item) => item.number),
   ];
-  return `${boundary}|${(previous?.delivered ?? 0) + deliveredCount}|${seenAt.join(",")}`;
+  const cursor = `${boundary}|${(previous?.delivered ?? 0) + deliveredCount}|${seenAt.join(",")}`;
+  return resumeAfter === undefined ? cursor : `${cursor}|${resumeAfter}`;
 }
 
 /** A host that cannot be read at all, as opposed to one request that failed. */
@@ -620,6 +639,9 @@ function withRateLimitBackoff(
         }),
     getViewerPermissions: interactive("getViewerPermissions", api.getViewerPermissions),
     getDiff: wrap("getDiff", api.getDiff),
+    ...(api.getDiffFilePaths === undefined
+      ? {}
+      : { getDiffFilePaths: wrap("getDiffFilePaths", api.getDiffFilePaths) }),
     ...(api.getDiffFileContents === undefined
       ? {}
       : { getDiffFileContents: wrap("getDiffFileContents", api.getDiffFileContents) }),
@@ -648,6 +670,22 @@ function withRateLimitBackoff(
     ...(api.listLabelCandidates === undefined
       ? {}
       : { listLabelCandidates: interactive("listLabelCandidates", api.listLabelCandidates) }),
+    ...(api.searchRepositoryReferences === undefined
+      ? {}
+      : {
+          searchRepositoryReferences: interactive(
+            "searchRepositoryReferences",
+            api.searchRepositoryReferences,
+          ),
+        }),
+    ...(api.searchRepositoryAuthors === undefined
+      ? {}
+      : {
+          searchRepositoryAuthors: interactive(
+            "searchRepositoryAuthors",
+            api.searchRepositoryAuthors,
+          ),
+        }),
     ...(api.setLabels === undefined ? {} : { setLabels: interactive("setLabels", api.setLabels) }),
     replyToThread: interactive("replyToThread", api.replyToThread),
     setReaction: interactive("setReaction", api.setReaction),
@@ -864,7 +902,9 @@ export const make = Effect.gen(function* () {
    * targeting can fall back to another checkout on the host. Azure derives its organization
    * from the checkout, so it requires a matching repository.
    */
-  const requireProject = (ref: PullRequestRef): Effect.Effect<SupportedProject, PullRequestError> =>
+  const requireProject = (
+    ref: PullRequestRepositoryRef,
+  ): Effect.Effect<SupportedProject, PullRequestError> =>
     listWorkspaceProjects({ projectId: ref.projectId }).pipe(
       Effect.flatMap(({ supported }): Effect.Effect<SupportedProject, PullRequestError> => {
         const own = supported[0];
@@ -1313,7 +1353,13 @@ export const make = Effect.gen(function* () {
               ...(cursor === undefined
                 ? {}
                 : {
-                    cursor: { updatedBefore: cursor.updatedBefore, delivered: cursor.delivered },
+                    cursor: {
+                      updatedBefore: cursor.updatedBefore,
+                      delivered: cursor.delivered,
+                      ...(cursor.resumeAfter === undefined
+                        ? {}
+                        : { resumeAfter: cursor.resumeAfter }),
+                    },
                   }),
             })
             .pipe(
@@ -1339,7 +1385,13 @@ export const make = Effect.gen(function* () {
                   truncated: page.truncated,
                   nextCursor:
                     page.continues && page.truncated
-                      ? nextListCursor(cursor, page.items, items, page.cursorAdvance)
+                      ? nextListCursor(
+                          cursor,
+                          page.items,
+                          items,
+                          page.cursorAdvance,
+                          page.resumeAfter,
+                        )
                       : null,
                 };
               }),
@@ -1395,7 +1447,13 @@ export const make = Effect.gen(function* () {
           filters: input.filters,
           ...(cursor === undefined
             ? {}
-            : { cursor: { updatedBefore: cursor.updatedBefore, delivered: cursor.delivered } }),
+            : {
+                cursor: {
+                  updatedBefore: cursor.updatedBefore,
+                  delivered: cursor.delivered,
+                  ...(cursor.resumeAfter === undefined ? {} : { resumeAfter: cursor.resumeAfter }),
+                },
+              }),
         }).pipe(
           observeRead,
           Effect.flatMap(({ value: page, observedAt }) =>
@@ -1885,7 +1943,65 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  const diffFileContents: PullRequestService["Service"]["diffFileContents"] = (input) =>
+  /** Pages walked looking for one file before giving up: a change request is never this large. */
+  const CHANGED_PATH_PAGES = 200;
+
+  /**
+   * Whether the change request changes this exact file. Read access to a pull request does not
+   * grant reading anywhere else in the repository with the project's credential, so file contents
+   * are only served for paths the change request touches.
+   */
+  const changesFile = (input: PullRequestDiffFileContentsInput) =>
+    requireProject(input).pipe(
+      Effect.flatMap((project) => {
+        const wanted = JSON.stringify([input.oldPath, input.newPath]);
+        const base = {
+          cwd: project.project.workspaceRoot,
+          repository: project.repository,
+          host: project.host,
+          number: input.number,
+          ...(input.commit === undefined ? {} : { commit: input.commit }),
+        };
+        const walk = (
+          cursor: string | undefined,
+          pages: number,
+        ): Effect.Effect<boolean, PullRequestError> => {
+          const paths = project.api.getDiffFilePaths;
+          const slice: Effect.Effect<
+            {
+              readonly files: ReadonlyArray<{ readonly oldPath: string; readonly newPath: string }>;
+              readonly nextCursor: string | null;
+            },
+            PullRequestError
+          > = paths
+            ? paths({ ...base, ...(cursor === undefined ? {} : { cursor }) }).pipe(
+                Effect.mapError(toPullRequestError("diffFileContents")),
+              )
+            : project.api.getDiff({ ...base, ...(cursor === undefined ? {} : { cursor }) }).pipe(
+                Effect.map((page) => ({
+                  files: parseDiffFilePaths(page.patch).map((file) => ({
+                    oldPath: file.oldPath ?? file.newPath ?? "",
+                    newPath: file.newPath ?? file.oldPath ?? "",
+                  })),
+                  nextCursor: page.nextCursor,
+                })),
+                Effect.mapError(toPullRequestError("diffFileContents")),
+              );
+          return slice.pipe(
+            Effect.flatMap((page) =>
+              page.files.some((file) => JSON.stringify([file.oldPath, file.newPath]) === wanted)
+                ? Effect.succeed(true)
+                : page.nextCursor === null || pages >= CHANGED_PATH_PAGES
+                  ? Effect.succeed(false)
+                  : walk(page.nextCursor, pages + 1),
+            ),
+          );
+        };
+        return walk(undefined, 0);
+      }),
+    );
+
+  const diffFileContentsUnchecked: PullRequestService["Service"]["diffFileContents"] = (input) =>
     requireProject(input).pipe(
       Effect.flatMap((project) => {
         const read = project.api.getDiffFileContents;
@@ -1907,6 +2023,21 @@ export const make = Effect.gen(function* () {
               }),
             );
       }),
+    );
+
+  const diffFileContents: PullRequestService["Service"]["diffFileContents"] = (input) =>
+    changesFile(input).pipe(
+      Effect.flatMap((changed) =>
+        changed
+          ? diffFileContentsUnchecked(input)
+          : Effect.fail(
+              new PullRequestOperationError({
+                operation: "diffFileContents",
+                detail: "This file is not part of the change request.",
+                reason: "not-found",
+              }),
+            ),
+      ),
     );
 
   const context = yield* Effect.context<never>();
@@ -2484,6 +2615,43 @@ export const make = Effect.gen(function* () {
                     number: input.number,
                   }).pipe(Effect.mapError(toPullRequestError("labelCandidates"))),
           ),
+        );
+      }),
+    );
+
+  const referenceCandidates: PullRequestService["Service"]["referenceCandidates"] = (input) =>
+    requireProject(input).pipe(
+      Effect.flatMap(
+        (project): Effect.Effect<PullRequestReferenceCandidateList, PullRequestError> => {
+          const search = project.api.searchRepositoryReferences;
+          if (search === undefined) return Effect.succeed({ candidates: [], truncated: false });
+          return search({
+            cwd: project.project.workspaceRoot,
+            repository: project.repository,
+            host: project.host,
+            query: input.query?.trim() || undefined,
+            sigil: input.sigil,
+          }).pipe(
+            Effect.map(({ items, truncated }) => ({ candidates: items, truncated })),
+            Effect.mapError(toPullRequestError("referenceCandidates")),
+          );
+        },
+      ),
+    );
+
+  const authorCandidates: PullRequestService["Service"]["authorCandidates"] = (input) =>
+    requireProject(input).pipe(
+      Effect.flatMap((project): Effect.Effect<PullRequestAuthorCandidateList, PullRequestError> => {
+        const search = project.api.searchRepositoryAuthors;
+        if (search === undefined) return Effect.succeed({ candidates: [], truncated: false });
+        return search({
+          cwd: project.project.workspaceRoot,
+          repository: project.repository,
+          host: project.host,
+          query: input.query?.trim() || undefined,
+        }).pipe(
+          Effect.map(({ items, truncated }) => ({ candidates: items, truncated })),
+          Effect.mapError(toPullRequestError("authorCandidates")),
         );
       }),
     );
@@ -3373,6 +3541,8 @@ export const make = Effect.gen(function* () {
     routing,
     routingIdentity,
     withRoutingCredential,
+    authorCandidates,
+    referenceCandidates,
     list,
     listStats: (input) =>
       Effect.forEach(input.refs, (ref) => canonicalRef(ref).pipe(Effect.option)).pipe(

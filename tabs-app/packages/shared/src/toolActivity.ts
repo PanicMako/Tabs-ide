@@ -184,18 +184,30 @@ export function mergeToolActivityData(
   if (!previousRecord) {
     return nextRecord;
   }
+  // ACP v2 clears a field by sending null for it.
+  if (nextRecord.rawInput === null) {
+    const { rawInput: _cleared, ...rest } = { ...previousRecord, ...nextRecord };
+    return dropNullFields(rest);
+  }
   const previousInput = asRecord(previousRecord.rawInput);
   const nextInput = asRecord(nextRecord.rawInput);
   const rawInput = recordHasKeys(nextInput)
     ? { ...previousInput, ...nextInput }
     : (previousInput ?? nextInput);
-  const merged = { ...previousRecord, ...nextRecord };
+  const merged = dropNullFields({ ...previousRecord, ...nextRecord });
   if (recordHasKeys(rawInput)) {
     merged.rawInput = rawInput;
   } else {
     delete merged.rawInput;
   }
   return merged;
+}
+
+function dropNullFields(record: Record<string, unknown>): Record<string, unknown> {
+  for (const [key, value] of Object.entries(record)) {
+    if (value === null) delete record[key];
+  }
+  return record;
 }
 
 function normalizeEquivalentValue(value: string | undefined): string | undefined {

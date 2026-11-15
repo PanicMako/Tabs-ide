@@ -88,50 +88,101 @@ export function splitBufferedAssistantText(text: string): { ready: string; rest:
   return { ready: text.slice(0, boundary), rest: text.slice(boundary) };
 }
 
-/** Respect explicit buffering modes; token delivery exposes the first provider text immediately. */
-export function makeAssistantStreamingFilter(mode: ResponseStreamingMode) {
+/**
+ * How long a held snapshot may sit before it is delivered whole. Long enough to ride out normal
+ * gaps between chunks; short enough that text written before a long tool call or background wait
+ * does not look lost.
+ */
+export const ASSISTANT_IDLE_FLUSH_MS = 1_200;
+
+/**
+ * Respect explicit buffering modes; token delivery exposes the first provider text immediately.
+ * A snapshot held back is delivered whole by `takeIdleFlushes` once its message has been idle.
+ */
+export function makeAssistantStreamingFilter(
+  mode: ResponseStreamingMode,
+  idleFlushMs = ASSISTANT_IDLE_FLUSH_MS,
+) {
   const delivered = new Map<string, { text: string; at: number }>();
-  return (event: ProviderAdapterV2Event, now: number): ProviderAdapterV2Event | null => {
+  const held = new Map<string, { event: ProviderAdapterV2Event; dueAt: number }>();
+  const filter = (event: ProviderAdapterV2Event, now: number): ProviderAdapterV2Event | null => {
     if (
       event.type === "node.updated" &&
       event.node.kind === "assistant_message" &&
       event.node.status === "running"
     )
       return null;
-    const message =
-      event.type === "message.updated" && event.message.role === "assistant"
-        ? event.message
-        : event.type === "turn_item.updated" &&
-            (event.turnItem.type === "assistant_message" || event.turnItem.type === "reasoning")
-          ? event.turnItem
-          : null;
+    const message = streamedMessage(event);
     if (!message) return event;
     const key = `${event.type}:${message.id}`;
     if (!message.streaming) {
       delivered.delete(key);
+      held.delete(key);
       return event;
     }
     if (mode === "turn") return null;
     const previous = delivered.get(key);
+    // Anything the provider wrote that has not been delivered waits here for its idle deadline.
+    const hold = (): null => {
+      if (message.text !== (previous?.text ?? "")) {
+        held.set(key, { event, dueAt: now + idleFlushMs });
+      }
+      return null;
+    };
     if (mode === "token") {
       if (!message.text || message.text === previous?.text) return null;
       // The first update is immediate; later cumulative updates are coalesced
       // without waiting for a paragraph boundary or the end of the turn.
-      if (previous && now - previous.at < 50) return null;
+      if (previous && now - previous.at < 50) return hold();
       delivered.set(key, { text: message.text, at: now });
+      held.delete(key);
       return event;
     }
-    if (previous && now - previous.at < 400) return null;
+    if (previous && now - previous.at < 400) return hold();
     const { ready } = splitBufferedAssistantText(message.text);
-    if (!ready || ready === previous?.text) return null;
+    // An idle delivery may already show more than the next boundary; never shrink it.
+    if (!ready || previous?.text.startsWith(ready)) return hold();
     delivered.set(key, { text: ready, at: now });
-    if (event.type === "message.updated")
-      return { ...event, message: { ...event.message, text: ready } };
-    if (
-      event.type === "turn_item.updated" &&
-      (event.turnItem.type === "assistant_message" || event.turnItem.type === "reasoning")
-    )
-      return { ...event, turnItem: { ...event.turnItem, text: ready } };
-    return event;
+    if (ready !== message.text) held.set(key, { event, dueAt: now + idleFlushMs });
+    else held.delete(key);
+    return withText(event, ready);
   };
+  return Object.assign(filter, {
+    /** The earliest time a held snapshot comes due, or null when nothing is held. */
+    nextIdleFlushAt: (): number | null => {
+      let next: number | null = null;
+      for (const { dueAt } of held.values()) if (next === null || dueAt < next) next = dueAt;
+      return next;
+    },
+    /** Returns the held snapshots due by `now` and counts them as delivered. */
+    takeIdleFlushes: (now: number): ReadonlyArray<ProviderAdapterV2Event> => {
+      const due: ProviderAdapterV2Event[] = [];
+      for (const [key, entry] of held) {
+        if (entry.dueAt > now) continue;
+        held.delete(key);
+        due.push(entry.event);
+        delivered.set(key, { text: streamedMessage(entry.event)?.text ?? "", at: now });
+      }
+      return due;
+    },
+  });
+}
+
+function streamedMessage(event: ProviderAdapterV2Event) {
+  return event.type === "message.updated" && event.message.role === "assistant"
+    ? event.message
+    : event.type === "turn_item.updated" &&
+        (event.turnItem.type === "assistant_message" || event.turnItem.type === "reasoning")
+      ? event.turnItem
+      : null;
+}
+
+function withText(event: ProviderAdapterV2Event, text: string): ProviderAdapterV2Event {
+  if (event.type === "message.updated") return { ...event, message: { ...event.message, text } };
+  if (
+    event.type === "turn_item.updated" &&
+    (event.turnItem.type === "assistant_message" || event.turnItem.type === "reasoning")
+  )
+    return { ...event, turnItem: { ...event.turnItem, text } };
+  return event;
 }

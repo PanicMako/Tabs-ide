@@ -25,6 +25,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
+import { isNetworkPath } from "@tabs/shared/path";
 import * as WorkspaceEntries from "./WorkspaceEntries.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
 
@@ -148,6 +149,21 @@ export const make = Effect.gen(function* () {
     input: ProjectReadFileInput,
   ) {
     const requestedPath = input.relativePath.trim();
+    // Touching a network path makes Windows sign in to its host with the user's NTLM
+    // credentials, so only the workspace's own location may sit on a share.
+    if (isNetworkPath(requestedPath)) {
+      const relativeToRoot = path.relative(path.resolve(input.cwd), path.resolve(requestedPath));
+      if (
+        relativeToRoot === ".." ||
+        relativeToRoot.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeToRoot)
+      ) {
+        return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+      }
+    }
     if (path.isAbsolute(requestedPath)) {
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(requestedPath),

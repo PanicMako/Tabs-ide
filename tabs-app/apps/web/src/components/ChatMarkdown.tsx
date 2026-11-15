@@ -21,6 +21,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import type { Components } from "react-markdown";
@@ -73,6 +74,11 @@ interface ChatMarkdownProps {
   text: string;
   cwd: string | undefined;
   isStreaming?: boolean;
+  /**
+   * Lets a surface that knows what a link points at wrap it, as the pull request page does to
+   * show a card on hover. Return the link itself, or a wrapper around it; null leaves it alone.
+   */
+  decorateLink?: ((href: string, link: ReactElement) => ReactElement | null) | undefined;
 }
 
 const CODE_FENCE_LANGUAGE_REGEX = /(?:^|\s)language-([^\s]+)/;
@@ -457,7 +463,7 @@ function SuspenseShikiCodeBlock({
   );
 }
 
-function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
+function ChatMarkdown({ text, cwd, isStreaming = false, decorateLink }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
   const markdownComponents = useMemo<Components>(
@@ -496,7 +502,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
       a({ node: _node, href, children, ...props }) {
         const targetPath = resolveMarkdownFileLinkTarget(href, cwd);
         if (!targetPath) {
-          return (
+          const link = (
             <a
               {...props}
               href={href}
@@ -512,6 +518,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
               {children}
             </a>
           );
+          return (href ? decorateLink?.(href, link) : null) ?? link;
         }
 
         const label =
@@ -582,7 +589,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         );
       },
     }),
-    [cwd, diffThemeName, isStreaming, resolvedTheme],
+    [cwd, decorateLink, diffThemeName, isStreaming, resolvedTheme],
   );
 
   const incrementalParsing = isStreaming === true && /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);

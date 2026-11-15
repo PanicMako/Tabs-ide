@@ -16,6 +16,8 @@ import * as BitbucketSourceControlProvider from "./BitbucketSourceControlProvide
 import * as GitHubSourceControlProvider from "./GitHubSourceControlProvider.ts";
 import * as GitLabSourceControlProvider from "./GitLabSourceControlProvider.ts";
 import * as ForgejoSourceControlProvider from "./ForgejoSourceControlProvider.ts";
+import * as GitCafeSourceControlProvider from "./GitCafeSourceControlProvider.ts";
+import * as OriginSourceControlProvider from "./OriginSourceControlProvider.ts";
 import * as SourceControlProvider from "./SourceControlProvider.ts";
 import {
   probeSourceControlProvider,
@@ -308,6 +310,10 @@ export const make = Effect.gen(function* () {
   const gitlab = yield* GitLabSourceControlProvider.make;
   const forgejo = yield* ForgejoSourceControlProvider.make;
   const forgejoDiscovery = yield* ForgejoSourceControlProvider.makeDiscovery;
+  const gitcafe = yield* GitCafeSourceControlProvider.make;
+  const gitcafeDiscovery = yield* GitCafeSourceControlProvider.makeDiscovery;
+  const origin = yield* OriginSourceControlProvider.make;
+  const originDiscovery = yield* OriginSourceControlProvider.makeDiscovery;
   const bitbucket = yield* BitbucketSourceControlProvider.make;
   const bitbucketDiscovery = yield* BitbucketSourceControlProvider.makeDiscovery;
   const azureDevOps = yield* AzureDevOpsSourceControlProvider.make;
@@ -333,6 +339,8 @@ export const make = Effect.gen(function* () {
       discovery: bitbucketDiscovery,
     },
     { kind: "forgejo", provider: forgejo, discovery: forgejoDiscovery },
+    { kind: "gitcafe", provider: gitcafe, discovery: gitcafeDiscovery },
+    { kind: "cursor-origin", provider: origin, discovery: originDiscovery },
   ]);
 });
 

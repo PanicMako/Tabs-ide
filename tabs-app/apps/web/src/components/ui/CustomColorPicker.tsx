@@ -9,6 +9,11 @@ interface CustomColorPickerProps {
   description: string;
   value: string;
   onChange: (hex: string) => void;
+  /**
+   * Renders only the popover, with this as its trigger, instead of the label row and hex pill.
+   * Lets a dense list (such as the agent theme colors) open the same picker from its own swatch.
+   */
+  trigger?: { readonly className: string; readonly children: React.ReactNode };
 }
 
 type ColorMode = "hex" | "rgb" | "hsl";
@@ -155,6 +160,7 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
   description,
   value,
   onChange,
+  trigger,
 }) => {
   const [showSwatches, setShowSwatches] = useState(false);
   const [colorMode, setColorMode] = useState<ColorMode>("hex");
@@ -260,195 +266,207 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
   const pureHueHex = hsvToHex(hsv.h, 100, 100);
   const visibleSwatches = showSwatches ? SWATCH_PALETTE : SWATCH_PALETTE.slice(0, 6);
 
+  const popoverTrigger = trigger ? (
+    <PopoverTrigger
+      aria-label={`Edit ${label.toLowerCase()} color, ${value.toUpperCase()}`}
+      className={trigger.className}
+    >
+      {trigger.children}
+    </PopoverTrigger>
+  ) : (
+    <PopoverTrigger
+      aria-label={`Edit ${label.toLowerCase()} color, ${value.toUpperCase()}`}
+      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <span
+        aria-hidden="true"
+        className="size-5 rounded-full border border-foreground/20"
+        style={{ backgroundColor: value }}
+      />
+      <span className="min-w-[8ch] text-left font-mono text-xs">{value.toUpperCase()}</span>
+    </PopoverTrigger>
+  );
+
+  const popover = (
+    <Popover>
+      {popoverTrigger}
+
+      <PopoverPopup align="end" className="w-76 max-w-(--available-width) select-none">
+        <div className="flex flex-wrap items-center justify-between gap-1 border-b border-border/60 pb-2.5">
+          <PopoverTitle>{label}</PopoverTitle>
+          <SegmentedControl
+            size="sm"
+            value={colorMode}
+            onValueChange={setColorMode}
+            options={[
+              { value: "hex", label: "HEX" },
+              { value: "rgb", label: "RGB" },
+              { value: "hsl", label: "HSL" },
+            ]}
+            className="p-0.5"
+            itemClassName="px-2 py-0.5 text-[10px] uppercase"
+            aria-label="Color mode"
+          />
+
+          <PopoverClose
+            aria-label="Close color picker"
+            className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </PopoverClose>
+        </div>
+
+        {/* 1. 2D Saturation / Value Canvas */}
+        <div className="pt-3">
+          <div
+            ref={satCanvasRef}
+            onMouseDown={(e) => {
+              isDraggingSat.current = true;
+              updateSatValFromMouse(e);
+            }}
+            className="relative h-32 w-full rounded-xl cursor-crosshair overflow-hidden border border-border/70 shadow-inner"
+            style={{
+              backgroundColor: pureHueHex,
+              backgroundImage:
+                "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)",
+            }}
+          >
+            <div
+              className="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-none ring-2 ring-black/40 transition-transform"
+              style={{
+                left: `${hsv.s}%`,
+                top: `${100 - hsv.v}%`,
+                backgroundColor: value,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* 2. Spectrum Hue Slider Rail */}
+        <div className="py-2.5">
+          <div
+            ref={hueSliderRef}
+            onMouseDown={(e) => {
+              isDraggingHue.current = true;
+              updateHueFromMouse(e);
+            }}
+            className="relative h-3.5 w-full rounded-full cursor-pointer border border-border/70 shadow-inner"
+            style={{
+              background:
+                "linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+            }}
+          >
+            <div
+              className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md pointer-events-none ring-2 ring-black/40"
+              style={{
+                left: `${(hsv.h / 360) * 100}%`,
+                backgroundColor: pureHueHex,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* 3. Collapsible Swatch Strip */}
+        <div className="py-2 border-t border-border/60">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Swatches
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSwatches(!showSwatches)}
+              className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <span>{showSwatches ? "Less" : "More"}</span>
+              {showSwatches ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </button>
+          </div>
+          <div className="grid grid-cols-6 gap-1.5">
+            {visibleSwatches.map((swatchHex) => {
+              const isSelected = value.toLowerCase() === swatchHex.toLowerCase();
+              return (
+                <button
+                  key={swatchHex}
+                  type="button"
+                  title={swatchHex}
+                  onClick={() => {
+                    onChange(swatchHex);
+                    setInputVal(formatColorString(swatchHex, colorMode));
+                    setHsv(hexToHsv(swatchHex));
+                  }}
+                  className={`size-7.5 rounded-lg border transition-all cursor-pointer relative shadow-xs ${
+                    isSelected
+                      ? "border-primary ring-2 ring-primary/50 scale-105 z-10"
+                      : "border-border/60 hover:scale-105 hover:border-foreground/40"
+                  }`}
+                  style={{ backgroundColor: swatchHex }}
+                >
+                  {isSelected && (
+                    <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
+                      <Check className="size-3 stroke-[3]" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 4. Format Input Field & Eyedropper */}
+        <div className="pt-2 border-t border-border/60">
+          <div className="flex items-center gap-1.5">
+            <div
+              className="size-8.5 rounded-xl border border-border/80 shrink-0 shadow-inner"
+              style={{ backgroundColor: value }}
+            />
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={inputVal}
+                onChange={handleInputChange}
+                aria-label={`${label} color value`}
+                placeholder="#000000"
+                className="w-full font-mono text-xs font-semibold h-8.5 px-2.5 rounded-xl bg-background border border-border/80 text-foreground uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {"EyeDropper" in window && (
+              <button
+                type="button"
+                onClick={handleEyedropper}
+                title="Pick Color from Screen"
+                className="flex size-8.5 items-center justify-center rounded-xl border border-border/80 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+              >
+                <Pipette className="size-3.5" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCopyValue}
+              title="Copy Color String"
+              className="flex size-8.5 items-center justify-center rounded-xl border border-border/80 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+            >
+              {copied ? (
+                <Check className="size-3.5 text-emerald-400" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
+      </PopoverPopup>
+    </Popover>
+  );
+
+  if (trigger) return popover;
   return (
     <div className="flex items-center justify-between gap-2 py-2">
       <div className="min-w-0">
         <span className="block text-sm font-medium">{label}</span>
         <span className="block text-xs text-muted-foreground">{description}</span>
       </div>
-      <Popover>
-        <PopoverTrigger
-          aria-label={`Edit ${label.toLowerCase()} color, ${value.toUpperCase()}`}
-          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <span
-            aria-hidden="true"
-            className="size-5 rounded-full border border-foreground/20"
-            style={{ backgroundColor: value }}
-          />
-          <span className="min-w-[8ch] text-left font-mono text-xs">{value.toUpperCase()}</span>
-        </PopoverTrigger>
-
-        <PopoverPopup align="end" className="w-76 max-w-(--available-width) select-none">
-          <div className="flex flex-wrap items-center justify-between gap-1 border-b border-border/60 pb-2.5">
-            <PopoverTitle>{label}</PopoverTitle>
-            <SegmentedControl
-              size="sm"
-              value={colorMode}
-              onValueChange={setColorMode}
-              options={[
-                { value: "hex", label: "HEX" },
-                { value: "rgb", label: "RGB" },
-                { value: "hsl", label: "HSL" },
-              ]}
-              className="p-0.5"
-              itemClassName="px-2 py-0.5 text-[10px] uppercase"
-              aria-label="Color mode"
-            />
-
-            <PopoverClose
-              aria-label="Close color picker"
-              className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </PopoverClose>
-          </div>
-
-          {/* 1. 2D Saturation / Value Canvas */}
-          <div className="pt-3">
-            <div
-              ref={satCanvasRef}
-              onMouseDown={(e) => {
-                isDraggingSat.current = true;
-                updateSatValFromMouse(e);
-              }}
-              className="relative h-32 w-full rounded-xl cursor-crosshair overflow-hidden border border-border/70 shadow-inner"
-              style={{
-                backgroundColor: pureHueHex,
-                backgroundImage:
-                  "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)",
-              }}
-            >
-              <div
-                className="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-none ring-2 ring-black/40 transition-transform"
-                style={{
-                  left: `${hsv.s}%`,
-                  top: `${100 - hsv.v}%`,
-                  backgroundColor: value,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* 2. Spectrum Hue Slider Rail */}
-          <div className="py-2.5">
-            <div
-              ref={hueSliderRef}
-              onMouseDown={(e) => {
-                isDraggingHue.current = true;
-                updateHueFromMouse(e);
-              }}
-              className="relative h-3.5 w-full rounded-full cursor-pointer border border-border/70 shadow-inner"
-              style={{
-                background:
-                  "linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
-              }}
-            >
-              <div
-                className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md pointer-events-none ring-2 ring-black/40"
-                style={{
-                  left: `${(hsv.h / 360) * 100}%`,
-                  backgroundColor: pureHueHex,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* 3. Collapsible Swatch Strip */}
-          <div className="py-2 border-t border-border/60">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Swatches
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowSwatches(!showSwatches)}
-                className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <span>{showSwatches ? "Less" : "More"}</span>
-                {showSwatches ? (
-                  <ChevronUp className="size-3" />
-                ) : (
-                  <ChevronDown className="size-3" />
-                )}
-              </button>
-            </div>
-            <div className="grid grid-cols-6 gap-1.5">
-              {visibleSwatches.map((swatchHex) => {
-                const isSelected = value.toLowerCase() === swatchHex.toLowerCase();
-                return (
-                  <button
-                    key={swatchHex}
-                    type="button"
-                    title={swatchHex}
-                    onClick={() => {
-                      onChange(swatchHex);
-                      setInputVal(formatColorString(swatchHex, colorMode));
-                      setHsv(hexToHsv(swatchHex));
-                    }}
-                    className={`size-7.5 rounded-lg border transition-all cursor-pointer relative shadow-xs ${
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/50 scale-105 z-10"
-                        : "border-border/60 hover:scale-105 hover:border-foreground/40"
-                    }`}
-                    style={{ backgroundColor: swatchHex }}
-                  >
-                    {isSelected && (
-                      <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
-                        <Check className="size-3 stroke-[3]" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 4. Format Input Field & Eyedropper */}
-          <div className="pt-2 border-t border-border/60">
-            <div className="flex items-center gap-1.5">
-              <div
-                className="size-8.5 rounded-xl border border-border/80 shrink-0 shadow-inner"
-                style={{ backgroundColor: value }}
-              />
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={inputVal}
-                  onChange={handleInputChange}
-                  aria-label={`${label} color value`}
-                  placeholder="#000000"
-                  className="w-full font-mono text-xs font-semibold h-8.5 px-2.5 rounded-xl bg-background border border-border/80 text-foreground uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {"EyeDropper" in window && (
-                <button
-                  type="button"
-                  onClick={handleEyedropper}
-                  title="Pick Color from Screen"
-                  className="flex size-8.5 items-center justify-center rounded-xl border border-border/80 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                >
-                  <Pipette className="size-3.5" />
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleCopyValue}
-                title="Copy Color String"
-                className="flex size-8.5 items-center justify-center rounded-xl border border-border/80 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-              >
-                {copied ? (
-                  <Check className="size-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="size-3.5" />
-                )}
-              </button>
-            </div>
-          </div>
-        </PopoverPopup>
-      </Popover>
+      {popover}
     </div>
   );
 };

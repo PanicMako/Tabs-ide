@@ -7,6 +7,7 @@ import {
   type ServerProvider,
   type ServerProviderModel,
 } from "@tabs/contracts";
+import { formatProviderUpdateRequiredNotice } from "@tabs/client-runtime/providerUpdateRequiredModels";
 import {
   applyClaudePromptEffortPrefix,
   buildProviderOptionSelectionsFromDescriptors,
@@ -302,6 +303,12 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         : activeCatalogStatus === "loading"
           ? "The model catalog is loading."
           : "No models are available for this provider account.";
+
+  const activeSnapshot =
+    activeTab === "pinned" ? undefined : getProviderSnapshot(props.providers, activeTab);
+  const updateRequiredNotice = activeSnapshot
+    ? formatProviderUpdateRequiredNotice(activeSnapshot, searchQuery)
+    : null;
 
   const activeModel = useMemo(() => {
     if (activeTab === "pinned") {
@@ -982,6 +989,11 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
               data-fused-model-list="true"
               className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-6 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-foreground/15 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full"
             >
+              {updateRequiredNotice ? (
+                <p className="mx-3 mb-2 border-b border-border/50 px-1 pb-2 text-[11px] leading-snug text-muted-foreground">
+                  {updateRequiredNotice}
+                </p>
+              ) : null}
               {activeTab === "pinned" && pinnedModels.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
                   <PinIcon className="size-8 text-muted-foreground/40 mb-2.5" />
@@ -1513,7 +1525,7 @@ const ModelRow = memo(function ModelRow(props: {
                 className={cn(
                   "shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-mono font-medium tracking-wide transition-all duration-150 cursor-pointer select-none",
                   isHighTier
-                    ? "bg-violet-500/15 border border-violet-500/30 text-violet-600 dark:text-violet-300 shadow-[0_0_8px_rgba(139,92,246,0.2)] hover:bg-violet-500/25"
+                    ? "bg-violet-500/15 border border-violet-500/30 text-violet-600 dark:text-violet-300 hover:bg-violet-500/25"
                     : "bg-foreground/[0.05] dark:bg-white/[0.07] border border-foreground/[0.08] dark:border-white/10 text-muted-foreground/85 dark:text-zinc-300 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.08] dark:hover:bg-white/[0.12]",
                   "hover:scale-[1.04] active:scale-[0.96]",
                 )}
@@ -1542,7 +1554,7 @@ const ModelRow = memo(function ModelRow(props: {
                 className={cn(
                   "shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-semibold tracking-wider uppercase transition-all duration-150 cursor-pointer select-none",
                   isTrue
-                    ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.2)] hover:bg-emerald-500/20"
+                    ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
                     : "bg-foreground/[0.04] dark:bg-white/[0.05] border border-foreground/[0.08] dark:border-white/10 text-muted-foreground/70 dark:text-zinc-500 hover:text-foreground dark:hover:text-zinc-300 hover:bg-foreground/[0.07]",
                   "hover:scale-[1.04] active:scale-[0.96]",
                 )}
@@ -1551,7 +1563,7 @@ const ModelRow = memo(function ModelRow(props: {
                   className={cn(
                     "size-1.5 rounded-full transition-all",
                     isTrue
-                      ? "bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_#10b981]"
+                      ? "bg-emerald-500 dark:bg-emerald-400"
                       : "bg-muted-foreground/30 dark:bg-zinc-600",
                   )}
                 />
@@ -1632,7 +1644,7 @@ const ModelRow = memo(function ModelRow(props: {
                   <img
                     src={nyanCatSliderWideGif}
                     alt="Nyan Cat"
-                    className="absolute right-0 top-1/2 -translate-y-1/2 h-[34px] max-w-none pointer-events-none select-none drop-shadow-[0_0_8px_rgba(255,105,180,0.5)]"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 h-[34px] max-w-none pointer-events-none select-none"
                   />
                 </div>
               ) : (
@@ -1682,9 +1694,7 @@ const ModelRow = memo(function ModelRow(props: {
                     isSupported ? "bg-foreground/30 dark:bg-zinc-600" : "opacity-0",
                     isDotActive &&
                       isSupported &&
-                      (props.ultra
-                        ? "bg-white/70 shadow-[0_0_6px_#fff]"
-                        : "bg-foreground/60 dark:bg-white/30"),
+                      (props.ultra ? "bg-white/70" : "bg-foreground/60 dark:bg-white/30"),
                     isUnderRainbow && "opacity-0",
                   )}
                 />
@@ -1849,9 +1859,7 @@ const PullCordToggle = memo(function PullCordToggle(props: {
         <span
           className={cn(
             "text-[9.5px] font-mono font-bold tracking-widest uppercase transition-colors duration-300",
-            isLightOn
-              ? "text-amber-500 dark:text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]"
-              : "text-muted-foreground/50",
+            isLightOn ? "text-amber-500 dark:text-amber-400" : "text-muted-foreground/50",
           )}
         >
           {isLightOn ? "⚡ FAST" : "FAST MODE"}
@@ -1894,7 +1902,7 @@ const PullCordToggle = memo(function PullCordToggle(props: {
           className={cn(
             "relative size-12 rounded-full transition-all duration-500 ease-out border",
             isLightOn
-              ? "border-amber-300/80 shadow-[0_0_35px_rgba(251,191,36,0.65),0_0_60px_rgba(245,158,11,0.35)]"
+              ? "border-amber-300/80"
               : "border-border/60 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]",
           )}
           style={{
@@ -1924,7 +1932,7 @@ const PullCordToggle = memo(function PullCordToggle(props: {
           className={cn(
             "size-4.5 rounded-full border border-zinc-400 dark:border-zinc-500 shadow-md flex items-center justify-center -mt-0.5",
             isLightOn
-              ? "bg-gradient-to-b from-amber-400 to-amber-600 border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.6)]"
+              ? "bg-gradient-to-b from-amber-400 to-amber-600 border-amber-300"
               : "bg-gradient-to-b from-zinc-300 to-zinc-500 dark:from-zinc-600 dark:to-zinc-800",
           )}
         >

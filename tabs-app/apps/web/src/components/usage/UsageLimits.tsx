@@ -33,7 +33,7 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { UsageLimitsPooled } from "./UsageLimitsPooled";
+import { UsageLimitsCompact, UsageLimitsPooled } from "./UsageLimitsPooled";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
 
 const PACE: Record<LimitPace, { readonly label: string; readonly icon: typeof GaugeIcon }> = {
@@ -327,8 +327,11 @@ export function ResetCredits({
  */
 export function UsageLimitsSection({
   selectedEnvironmentIds,
+  compact = false,
 }: {
   readonly selectedEnvironmentIds?: ReadonlySet<EnvironmentId> | null;
+  /** Stacked rows for a narrow card instead of the full-page layout. */
+  readonly compact?: boolean;
 } = {}) {
   const serverConfig = useServerConfig();
   // Anchored once per mount on purpose: countdowns must not tick (see above).
@@ -357,5 +360,9 @@ export function UsageLimitsSection({
     return map;
   }, [serverConfig, selectedEnvironmentIds]);
 
-  return <UsageLimitsPooled presentations={presentations} now={now} />;
+  return compact ? (
+    <UsageLimitsCompact presentations={presentations} now={now} />
+  ) : (
+    <UsageLimitsPooled presentations={presentations} now={now} />
+  );
 }

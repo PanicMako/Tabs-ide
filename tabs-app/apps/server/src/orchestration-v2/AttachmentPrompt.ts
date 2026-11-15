@@ -6,6 +6,7 @@ import {
   type SnapShotAccessibility,
   type SnapShotAccessibilityNode,
 } from "@tabs/contracts";
+import { extractedTextSidecarSync } from "../provider/documentTextPaths.ts";
 import * as Schema from "effect/Schema";
 
 import { resolveAttachmentPath } from "../attachmentStore.ts";
@@ -175,10 +176,11 @@ export function providerMessageTextWithAttachmentPaths(input: {
       attachmentsDir: input.attachmentsDir,
       attachment,
     });
+    const extracted = path === null ? undefined : extractedTextSidecarSync(path);
     appendContext(
       path === null
         ? undefined
-        : `[Attached ${attachment.type} "${attachment.name}" is saved at: ${path}]`,
+        : `[Attached ${attachment.type} "${attachment.name}" is saved at: ${path}${extracted ? ` (text extracted to: ${extracted})` : ""}]`,
     );
   }
 

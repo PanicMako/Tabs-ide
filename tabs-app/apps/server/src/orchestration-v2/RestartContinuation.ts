@@ -7,6 +7,7 @@ import {
   type RunId,
   type ThreadId,
 } from "@tabs/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import type { ProjectionRuntimeRecoveryState } from "./ProjectionStore.ts";
 
@@ -19,7 +20,12 @@ import {
   restartContinuationNote,
 } from "./RestartBackgroundNote.ts";
 
-const CONTINUE_PROMPT = "Continue where you left off.";
+export const CONTINUE_PROMPT =
+  "Continue where you left off. Your last turn was cut short, so a command or other action it started may have finished or may still be running. Before you repeat one that changes state, confirm it did not take effect and is not still running; if you cannot tell, say so instead of repeating it.";
+
+// A turn that keeps crashing the server would otherwise restart it forever.
+const MAX_CONTINUATION_CHAIN = 3;
+const CONTINUATION_LOOP_WINDOW_MS = 5 * 60 * 1_000;
 
 /**
  * Resume only an unfinished root turn. Leftover background work is cleaned up
@@ -125,6 +131,31 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
     )
       return;
     if (projection.thread.providerInstanceId !== source.providerInstanceId) return;
+    let chainLength = 0;
+    const sourceTime = source.completedAt ?? source.requestedAt;
+    const loopWindowStart =
+      sourceTime === undefined
+        ? Number.NEGATIVE_INFINITY
+        : DateTime.toEpochMillis(sourceTime) - CONTINUATION_LOOP_WINDOW_MS;
+    for (
+      let run: (typeof projection.runs)[number] | undefined = source;
+      run?.restartContinuationOfRunId !== undefined && chainLength < MAX_CONTINUATION_CHAIN;
+      run = projection.runs.find((candidate) => candidate.id === run?.restartContinuationOfRunId)
+    ) {
+      if (
+        run.requestedAt !== undefined &&
+        DateTime.toEpochMillis(run.requestedAt) < loopWindowStart
+      )
+        break;
+      chainLength += 1;
+    }
+    if (chainLength >= MAX_CONTINUATION_CHAIN) {
+      yield* Effect.logWarning("Not continuing a run restarted too many times in a row", {
+        threadId: input.threadId,
+        sourceRunId: input.sourceRunId,
+      });
+      return;
+    }
     const sourceRecords = yield* threads.getThreadRecords(
       input.threadId,
       ["messages", "turnItems"],

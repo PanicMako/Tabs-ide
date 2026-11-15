@@ -600,6 +600,42 @@ export function createWsNativeApi(options?: {
       removeWorktree: (cwd, path) =>
         transport.request("worktrees.remove", { cwd, path, force: false }),
     },
+    pullRequests: {
+      list: (input) => transport.request(WS_METHODS.pullRequestsList, input),
+      detail: (input) => transport.request(WS_METHODS.pullRequestsDetail, input),
+      activity: (input) => transport.request(WS_METHODS.pullRequestsActivity, input),
+      diff: (input) => transport.request(WS_METHODS.pullRequestsDiff, input),
+      runAction: (input) =>
+        transport.request(WS_METHODS.pullRequestsRunAction, input).then(() => undefined),
+      comment: (input) =>
+        transport.request(WS_METHODS.pullRequestsComment, input).then(() => undefined),
+      submitReview: (input) =>
+        transport.request(WS_METHODS.pullRequestsSubmitReview, input).then(() => undefined),
+      replyToThread: (input) =>
+        transport.request(WS_METHODS.pullRequestsReplyToThread, input).then(() => undefined),
+      setThreadResolution: (input) =>
+        transport.request(WS_METHODS.pullRequestsSetThreadResolution, input).then(() => undefined),
+      authorCandidates: (input) =>
+        transport.request(WS_METHODS.pullRequestsAuthorCandidates, input),
+      labelCandidates: (input) => transport.request(WS_METHODS.pullRequestsLabelCandidates, input),
+      reviewerCandidates: (input) =>
+        transport.request(WS_METHODS.pullRequestsReviewerCandidates, input),
+      referenceCandidates: (input) =>
+        transport.request(WS_METHODS.pullRequestsReferenceCandidates, input),
+      updateComment: (input) =>
+        transport.request(WS_METHODS.pullRequestsUpdateComment, input).then(() => undefined),
+      filesViewed: (input) => transport.request(WS_METHODS.pullRequestsFilesViewed, input),
+      setFilesViewed: (input) =>
+        transport.request(WS_METHODS.pullRequestsSetFilesViewed, input).then(() => undefined),
+      setReaction: (input) =>
+        transport.request(WS_METHODS.pullRequestsSetReaction, input).then(() => undefined),
+      preview: (input) => transport.request(WS_METHODS.pullRequestsPreview, input),
+      invalidate: (input) =>
+        transport.request(WS_METHODS.pullRequestsInvalidate, input).then(() => undefined),
+      reviewGuide: (input) => transport.request(WS_METHODS.pullRequestsReviewGuide, input),
+      generateReviewGuide: (input) =>
+        transport.request(WS_METHODS.pullRequestsGenerateReviewGuide, input),
+    },
     git: {
       fetch: (input) => transport.request(WS_METHODS.gitFetch, input),
       pull: (input) => transport.request(WS_METHODS.gitPull, input),
@@ -741,7 +777,14 @@ export function createWsNativeApi(options?: {
       removeKeybinding: (input) => transport.request(WS_METHODS.serverRemoveKeybinding, input),
       getSettings: () => transport.request(WS_METHODS.serverGetSettings),
       updateSettings: (patch) => transport.request(WS_METHODS.serverUpdateSettings, { patch }),
+      mutateProviderInstance: (providerInstanceMutation) =>
+        transport.request(WS_METHODS.serverUpdateSettings, {
+          patch: {},
+          providerInstanceMutation,
+        }),
       discoverSourceControl: () => transport.request(WS_METHODS.serverDiscoverSourceControl),
+      checkSecretSource: (source) =>
+        transport.request(WS_METHODS.serverCheckSecretSource, { source }),
       cloneRepository: (input) => transport.request(WS_METHODS.serverCloneRepository, input),
       lookupRepository: (input) => transport.request(WS_METHODS.serverLookupRepository, input),
       updateProvider: (input) => transport.request(WS_METHODS.serverUpdateProvider, input),
@@ -921,6 +964,8 @@ export function createWsNativeApi(options?: {
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
       getThreadFamily: (input) =>
         transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, input),
+      getNativeChildWork: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getNativeChildWork, input),
       getOlderSettledThreads: (input) =>
         transport.request(ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads, input),
       getThreadProjection: async (input) => {

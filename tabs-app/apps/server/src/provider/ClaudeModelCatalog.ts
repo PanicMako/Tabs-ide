@@ -4,6 +4,7 @@ import {
   type ModelSelection,
   ProviderDriverKind,
   type ServerProviderModel,
+  type ServerProviderUpdateRequiredModel,
 } from "@tabs/contracts";
 import * as Option from "effect/Option";
 import {
@@ -39,6 +40,51 @@ export interface ClaudeModelCatalog {
   readonly models: ReadonlyArray<ClaudeCatalogModel>;
 }
 
+// The manifest keeps Ultracode as an effort level because released servers read it from main.
+export function withUltracodeToggle(
+  capabilities: ModelCapabilities | null,
+): ModelCapabilities | null {
+  const descriptors = capabilities?.optionDescriptors ?? [];
+  const effortIndex = descriptors.findIndex(
+    (descriptor) =>
+      descriptor.id === "effort" &&
+      descriptor.type === "select" &&
+      descriptor.options.some((option) => option.id === "ultracode"),
+  );
+  const effort = descriptors[effortIndex];
+  if (effort?.type !== "select") return capabilities;
+  const ultracodeByDefault =
+    (effort.currentValue ?? effort.options.find((option) => option.isDefault)?.id) === "ultracode";
+  const hasXhigh = effort.options.some((option) => option.id === "xhigh");
+  // Ultracode ran at xhigh, so a model that offered it keeps xhigh, and its default moves there.
+  const options = effort.options.flatMap(({ isDefault, ...option }) => {
+    if (option.id === "ultracode") {
+      return hasXhigh
+        ? []
+        : [{ id: "xhigh", label: "Extra High", ...(isDefault ? { isDefault } : {}) }];
+    }
+    if (ultracodeByDefault && option.id === "xhigh") return [{ ...option, isDefault: true }];
+    return [isDefault && !ultracodeByDefault ? { ...option, isDefault } : option];
+  });
+  return {
+    optionDescriptors: descriptors.toSpliced(
+      effortIndex,
+      1,
+      {
+        ...effort,
+        ...(effort.currentValue === "ultracode" ? { currentValue: "xhigh" } : {}),
+        options,
+      },
+      {
+        id: "ultracode",
+        label: "Ultracode",
+        type: "boolean",
+        ...(ultracodeByDefault ? { currentValue: true } : {}),
+      },
+    ),
+  };
+}
+
 function tryResolveClaudeModelCatalog(manifest: ModelManifestData): ClaudeModelCatalog | null {
   const resolved = resolveProviderCatalog(manifest, CLAUDE);
   if (!resolved) return null;
@@ -49,7 +95,7 @@ function tryResolveClaudeModelCatalog(manifest: ModelManifestData): ClaudeModelC
     const adapter = decodeClaudeModelAdapter(entry.adapter ?? {});
     if (Option.isNone(profile) || Option.isNone(adapter)) return null;
     models.push({
-      model: entry.model,
+      model: { ...entry.model, capabilities: withUltracodeToggle(entry.model.capabilities) },
       runtime: profile.value.claudeCode ?? {},
       compatibility: adapter.value.claudeCode ?? {},
     });
@@ -108,7 +154,7 @@ export function scopeClaudeModelCatalog(
         slug: entry.slug,
         name: entry.name,
         isCustom: true,
-        capabilities: entry.capabilities,
+        capabilities: withUltracodeToggle(entry.capabilities),
       },
       runtime: {},
       compatibility: {},
@@ -165,6 +211,27 @@ export function resolveClaudeModelsForVersion(
   return catalog.models
     .filter((entry) => isVersionSupported(entry.compatibility, version))
     .map((entry) => entry.model);
+}
+
+export function resolveClaudeUpdateRequiredModels(
+  catalog: ClaudeModelCatalog,
+  version: string | null | undefined,
+): ReadonlyArray<ServerProviderUpdateRequiredModel> {
+  if (!version) return [];
+  return catalog.models.flatMap(({ model, compatibility }) => {
+    const minVersion = compatibility.minVersion;
+    if (model.isLegacy || !minVersion || compareSemverVersions(version, minVersion) >= 0) {
+      return [];
+    }
+    return [
+      {
+        slug: model.slug,
+        name: model.name,
+        ...(model.badge ? { badge: model.badge } : {}),
+        minVersion,
+      },
+    ];
+  });
 }
 
 export function formatClaudeVersionUpgradeMessage(

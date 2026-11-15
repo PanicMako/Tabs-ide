@@ -28,7 +28,7 @@
  *
  * @module provider/ProviderInstanceRegistryMutator
  */
-import type { ProviderInstanceConfigMap } from "@tabs/contracts";
+import type { ProviderInstanceConfigMap, SecretReference } from "@tabs/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
@@ -44,6 +44,11 @@ export interface ProviderInstanceRegistryMutatorShape {
    * erroring out on a single bad entry.
    */
   readonly reconcile: (configMap: ProviderInstanceConfigMap) => Effect.Effect<void>;
+  /**
+   * Rebuilds the instances whose environment reads `reference`, and retries any that could not
+   * start because a secret was unreadable. Called once a secret has been read again.
+   */
+  readonly refreshSecret: (reference: SecretReference) => Effect.Effect<void>;
 }
 
 export class ProviderInstanceRegistryMutator extends Context.Service<

@@ -1,4 +1,5 @@
 import type { GitHubAccount } from "@tabs/contracts";
+import { AccountAvatar } from "./AccountAvatar";
 import {
   AlertCircle,
   Check,
@@ -71,54 +72,6 @@ const STATUS_CONFIG: Record<
   },
 };
 
-function AccountAvatar({
-  login,
-  size = "md",
-  className,
-}: {
-  login: string | null;
-  size?: "sm" | "md" | "lg";
-  className?: string;
-}) {
-  const [hasError, setHasError] = useState(false);
-  useEffect(() => {
-    setHasError(false);
-  }, [login]);
-
-  const sizeClass = {
-    sm: "size-4.5 text-[9px]",
-    md: "size-5 text-[10px]",
-    lg: "size-9 text-xs",
-  }[size];
-
-  if (login && !hasError) {
-    return (
-      <img
-        src={`https://github.com/${login}.png?size=${size === "lg" ? 80 : 48}`}
-        alt={login}
-        onError={() => setHasError(true)}
-        className={cn(
-          "rounded-full object-cover shrink-0 ring-1 ring-border/70",
-          sizeClass,
-          className,
-        )}
-      />
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        "rounded-full bg-gradient-to-br from-indigo-500/20 via-primary/25 to-sky-500/20 border border-border/80 flex items-center justify-center font-mono font-bold text-foreground shrink-0 select-none",
-        sizeClass,
-        className,
-      )}
-    >
-      {login ? login[0]?.toUpperCase() : <GitHubIcon className="size-3 text-muted-foreground" />}
-    </div>
-  );
-}
-
 export function TopBar({
   repoName,
   branchLabel,
@@ -132,6 +85,7 @@ export function TopBar({
   onOpenSignIn,
 }: TopBarProps) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const activeAvatar = accounts.find((a) => a.login === activeAccountLogin)?.avatarUrl;
   const keybindings = useAtomValue(keybindingsAtom);
 
   const terminalShortcut = useMemo(() => {
@@ -184,7 +138,7 @@ export function TopBar({
             }
           >
             <div className="relative shrink-0 flex items-center justify-center">
-              <AccountAvatar login={activeAccountLogin} size="md" />
+              <AccountAvatar login={activeAccountLogin} src={activeAvatar} size="md" />
               {activeAccountLogin && (
                 <span
                   className={cn(
@@ -215,7 +169,7 @@ export function TopBar({
               <div className="p-3.5 border-b border-border/60 bg-muted/20">
                 <div className="flex items-center gap-3">
                   <div className="relative shrink-0">
-                    <AccountAvatar login={activeAccountLogin} size="lg" />
+                    <AccountAvatar login={activeAccountLogin} src={activeAvatar} size="lg" />
                     <span
                       className={cn(
                         "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-background shrink-0 shadow-xs",
@@ -294,7 +248,7 @@ export function TopBar({
                             : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        <AccountAvatar login={a.login} size="sm" />
+                        <AccountAvatar login={a.login} src={a.avatarUrl} size="sm" />
                         <div className="min-w-0 flex-1">
                           <span className="block text-xs font-mono font-medium truncate">
                             @{a.login}

@@ -5,7 +5,15 @@ import type {
 } from "@tabs/contracts";
 
 export interface ChangeRequestPresentation {
-  readonly icon: "github" | "gitlab" | "forgejo" | "azure-devops" | "bitbucket" | "change-request";
+  readonly icon:
+    | "github"
+    | "gitlab"
+    | "forgejo"
+    | "gitcafe"
+    | "cursor-origin"
+    | "azure-devops"
+    | "bitbucket"
+    | "change-request";
   readonly providerName: string;
   readonly shortName: string;
   readonly longName: string;
@@ -58,6 +66,28 @@ const FORGEJO_CHANGE_REQUEST_PRESENTATION: ChangeRequestPresentation = {
   urlExample: "https://codeberg.org/owner/repo/pulls/42",
 };
 
+const GITCAFE_CHANGE_REQUEST_PRESENTATION: ChangeRequestPresentation = {
+  icon: "gitcafe",
+  providerName: "GitCafe",
+  shortName: "PR",
+  longName: "pull request",
+  pluralLongName: "pull requests",
+  providerLongName: "GitCafe pull request",
+  checkoutCommandExample: "cafe pr checkout 123",
+  urlExample: "https://git.cafe/owner/repo/pulls/42",
+};
+
+const CURSOR_ORIGIN_CHANGE_REQUEST_PRESENTATION: ChangeRequestPresentation = {
+  icon: "cursor-origin",
+  providerName: "Cursor Origin",
+  shortName: "PR",
+  longName: "pull request",
+  pluralLongName: "pull requests",
+  providerLongName: "Cursor Origin pull request",
+  checkoutCommandExample: "origin pr checkout 123",
+  urlExample: "https://cursor.com/codebase/owner/repo/pull/42",
+};
+
 const AZURE_DEVOPS_CHANGE_REQUEST_PRESENTATION: ChangeRequestPresentation = {
   icon: "azure-devops",
   providerName: "Azure DevOps",
@@ -100,6 +130,10 @@ export function resolveChangeRequestPresentation(
       return GITLAB_CHANGE_REQUEST_PRESENTATION;
     case "forgejo":
       return FORGEJO_CHANGE_REQUEST_PRESENTATION;
+    case "gitcafe":
+      return GITCAFE_CHANGE_REQUEST_PRESENTATION;
+    case "cursor-origin":
+      return CURSOR_ORIGIN_CHANGE_REQUEST_PRESENTATION;
     case "azure-devops":
       return AZURE_DEVOPS_CHANGE_REQUEST_PRESENTATION;
     case "bitbucket":
@@ -217,6 +251,18 @@ export function detectSourceControlProviderFromRemoteUrl(
     return null;
   }
   const hostname = parseHostName(host);
+
+  if (hostname === "origin.cursor.com") {
+    return {
+      kind: "cursor-origin",
+      name: "Cursor Origin",
+      baseUrl: "https://cursor.com/codebase",
+    };
+  }
+
+  if (hostname === "git.cafe" || hostname === "staging.git.cafe") {
+    return { kind: "gitcafe", name: "GitCafe", baseUrl: `https://${hostname}` };
+  }
 
   if (
     hostname === "codeberg.org" ||

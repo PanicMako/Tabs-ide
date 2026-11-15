@@ -18,6 +18,7 @@ import {
 } from "./lib/startupSplashLifecycle";
 import { useStartupAnimation } from "./hooks/useStartupAnimation";
 import { markStartupStage } from "./lib/startupReadiness";
+import { prewarmCodeHost, readRememberedCodePrewarmProject } from "./lib/codeHostPrewarm";
 
 const DataRecoverySettings = lazy(() => import("./components/settings/DataRecoverySettings"));
 
@@ -40,6 +41,9 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
       task = setTimeout(() => {
         markStartupStage("splash-first-paint");
         window.desktopBridge?.notifyStartupPaint?.();
+        // The editor runs in its own process, so it can load while the workspace does.
+        const lastProject = readRememberedCodePrewarmProject();
+        if (lastProject) void prewarmCodeHost(lastProject);
         void loadApplication().then(
           (app) => {
             if (!cancelled) setApplication(app);
@@ -65,6 +69,14 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
     const frame = requestAnimationFrame(() => markStartupStage("shell-first-paint"));
     return () => cancelAnimationFrame(frame);
   }, [application]);
+
+  // Once the splash has gone the workspace is back in its normal place; anything that
+  // measured it while it was parked or rising (native views) re-measures now.
+  useEffect(() => {
+    if (visible) return;
+    const frame = requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
 
   const leaving = transition.ready && !!application;
 
@@ -107,7 +119,11 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
         </StartupCurtain>
       )}
       {/* Layout-neutral except while it carries the workspace up over the splash. */}
-      <div ref={workspaceRef} className={STARTUP_RISE_LAYER_CLASS}>
+      <div
+        ref={workspaceRef}
+        className={STARTUP_RISE_LAYER_CLASS}
+        data-staged={visible && !!application && transition.exitMs > 0 ? "true" : undefined}
+      >
         {application}
       </div>
     </>

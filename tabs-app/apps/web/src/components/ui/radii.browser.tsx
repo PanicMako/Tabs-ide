@@ -27,7 +27,7 @@ it("keeps controls, highlights and content surfaces consistent across theme skin
       <div data-slot="dialog-popup" className="rounded-none" data-testid="surface">
         Dialog
       </div>
-      <textarea aria-label="Message" data-testid="surface" />
+      <textarea aria-label="Message" data-testid="multiline" />
       <div className="rounded-md" data-testid="surface">
         Custom highlight
       </div>
@@ -43,6 +43,10 @@ it("keeps controls, highlights and content surfaces consistent across theme skin
       expect(getComputedStyle(view.container.querySelector("mark")!).borderRadius).toBe("36px");
       for (const surface of document.querySelectorAll('[data-testid="surface"]')) {
         expect(getComputedStyle(surface).borderRadius).toBe("36px");
+      }
+      // Multi-line fields use the joined radius so a tall box is not a blob.
+      for (const field of document.querySelectorAll('[data-testid="multiline"]')) {
+        expect(getComputedStyle(field).borderRadius).toBe("16px");
       }
     }
     const button = view.container.querySelector("button")!;

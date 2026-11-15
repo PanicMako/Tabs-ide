@@ -33,6 +33,7 @@ import {
 } from "@tabs/shared/imageDimensions";
 import { githubMediaFetchUrl, githubMediaFileName } from "@tabs/shared/githubMedia";
 import { PROJECT_FAVICON_FALLBACK_MARKER } from "@tabs/shared/projectFavicon";
+import { isNetworkPath } from "@tabs/shared/path";
 import { toolOutputImages } from "@tabs/shared/toolOutput";
 import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
@@ -325,6 +326,11 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
     readonly expiresAt: number;
   }) {
     const path = yield* Path.Path;
+    // Resolving a network path makes Windows sign in to its host with the user's NTLM
+    // credentials, so an agent-authored share path is treated as missing.
+    if (isNetworkPath(input.requestedPath)) {
+      return yield* new AssetWorkspaceAssetNotFoundError({ resource: input.resource });
+    }
     const canonicalFile = yield* resolveCanonicalFile(input.requestedPath).pipe(
       Effect.mapError(
         (cause) => new AssetWorkspaceAssetInspectionError({ resource: input.resource, cause }),

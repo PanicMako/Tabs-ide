@@ -74,6 +74,10 @@ export function totalTokens(totals: UsageTokenTotals): number {
 export function mightCarryUsage(line: string, provider: UsageProviderKind): boolean {
   if (provider === "claude") return line.includes('"usage"');
   if (provider === "grok") return line.includes('"turn_completed"');
+  if (provider === "pi") return line.includes('"usage"') || line.includes('"session"');
+  if (provider === "muse") {
+    return line.includes('"model_completed"') || line.includes('"automated_review_completed"');
+  }
   return line.includes('"token_count"');
 }
 
@@ -95,7 +99,7 @@ function grokCostTicksToUsd(ticks: unknown): number | null {
 /**
  * Parses one line of a Claude Code transcript.
  *
- * T3 Code writes one record per assistant *content block*, and every one of
+ * Tabs writes one record per assistant *content block*, and every one of
  * those records repeats the same complete `usage` object for the parent
  * message. Summing them overcounts by roughly 2.4x on a real workload, so the
  * caller must drop repeats by `dedupeKey` and keep the first.

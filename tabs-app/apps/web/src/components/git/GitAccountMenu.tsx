@@ -3,7 +3,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   DownloadIcon,
-  GithubIcon,
   LogOutIcon,
   UserPlusIcon,
 } from "lucide-react";
@@ -15,6 +14,7 @@ import {
 } from "../../lib/gitReactQuery";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { AccountAvatar } from "./AccountAvatar";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
@@ -43,9 +43,16 @@ export function GitAccountMenu(props: {
   const accounts = gitHub?.accounts ?? [];
   const activeLogin = gitHub?.activeLogin ?? null;
 
-  const handleSwitch = (account: { host: string; login: string }) => {
+  // `gh auth switch --user` takes the credential's own label, which differs from the profile
+  // login after a rename, so that is what is sent.
+  const cliAccount = (account: { host: string; login: string; authLogin?: string | undefined }) => ({
+    host: account.host,
+    login: account.authLogin ?? account.login,
+  });
+
+  const handleSwitch = (account: { host: string; login: string; authLogin?: string | undefined }) => {
     if (account.login === activeLogin) return;
-    switchMutation.mutate(account, {
+    switchMutation.mutate(cliAccount(account), {
       onSuccess: () => toastManager.add({ type: "success", title: `Switched to ${account.login}` }),
       onError: (error) =>
         toastManager.add({
@@ -56,8 +63,8 @@ export function GitAccountMenu(props: {
     });
   };
 
-  const handleLogout = (account: { host: string; login: string }) => {
-    logoutMutation.mutate(account, {
+  const handleLogout = (account: { host: string; login: string; authLogin?: string | undefined }) => {
+    logoutMutation.mutate(cliAccount(account), {
       onSuccess: () => toastManager.add({ type: "success", title: `Signed ${account.login} out` }),
       onError: (error) =>
         toastManager.add({
@@ -99,7 +106,15 @@ export function GitAccountMenu(props: {
           />
         }
       >
-        {busy ? <Spinner className="size-3.5" /> : <GithubIcon className="size-3.5 shrink-0" />}
+        {busy ? (
+          <Spinner className="size-3.5" />
+        ) : (
+          <AccountAvatar
+            login={triggerLabel ?? null}
+            src={accounts.find((a) => a.login === triggerLabel)?.avatarUrl}
+            size="sm"
+          />
+        )}
         <span className="truncate">
           {triggerLabel ?? (environmentQuery.isLoading ? "Checking…" : "Sign in")}
         </span>
@@ -123,17 +138,11 @@ export function GitAccountMenu(props: {
                 onClick={() => handleSwitch(account)}
                 disabled={busy}
               >
-                <span
-                  className={cn(
-                    "flex size-4 items-center justify-center shrink-0",
-                    isActive ? "text-foreground" : "text-transparent",
-                  )}
-                >
-                  <CheckIcon className="size-4" />
-                </span>
+                <AccountAvatar login={account.login} src={account.avatarUrl} size="md" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground">
+                  <span className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
                     {account.login}
+                    {isActive ? <CheckIcon className="size-3.5 shrink-0" /> : null}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {account.host}

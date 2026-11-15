@@ -6,7 +6,12 @@ import type {
 import type { Project } from "../../types";
 import { environmentApi } from "../../connection/environmentApiRegistry";
 import { newCommandId } from "../../lib/utils";
-import { commandForProjectScript, nextProjectScriptId } from "../../projectScripts";
+import {
+  buildProjectScript,
+  commandForProjectScript,
+  nextProjectScriptId,
+  releaseClaimedRoles,
+} from "../../projectScripts";
 import { keybindingValueForCommand } from "../../lib/projectScriptKeybindings";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScriptsControl";
 import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
@@ -18,7 +23,9 @@ export function WorkspaceProjectScripts({
   keybindings,
   fileScripts,
   onRunScript,
+  displayMode = "panel",
 }: {
+  displayMode?: "panel" | "list";
   project: Project;
   cwd?: string | undefined;
   keybindings: ResolvedKeybindingsConfig;
@@ -50,7 +57,7 @@ export function WorkspaceProjectScripts({
   };
   return (
     <ProjectScriptsControl
-      displayMode="panel"
+      displayMode={displayMode}
       scripts={[...project.scripts]}
       fileScripts={effectiveFileScripts}
       keybindings={keybindings}
@@ -60,13 +67,20 @@ export function WorkspaceProjectScripts({
           input.name,
           project.scripts.map((script) => script.id),
         );
-        const { keybinding: _keybinding, ...script } = input;
-        await save([...project.scripts, { ...script, id }], id, input);
+        await save(
+          [
+            ...project.scripts.map((script) => releaseClaimedRoles(script, input)),
+            buildProjectScript(id, input),
+          ],
+          id,
+          input,
+        );
       }}
       onUpdateScript={async (id, input) => {
-        const { keybinding: _keybinding, ...script } = input;
         await save(
-          project.scripts.map((current) => (current.id === id ? { ...script, id } : current)),
+          project.scripts.map((current) =>
+            current.id === id ? buildProjectScript(id, input) : releaseClaimedRoles(current, input),
+          ),
           id,
           input,
         );

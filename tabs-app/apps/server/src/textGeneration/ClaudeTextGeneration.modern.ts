@@ -142,7 +142,11 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
       resolvedEffort,
       resolvedModelSelection.model,
     );
-    const ultracode = isClaudeCatalogUltracodeEffort(resolvedEffort);
+    const ultracodeToggle = findDescriptor("ultracode");
+    const ultracode =
+      ultracodeToggle?.type === "boolean"
+        ? ultracodeToggle.currentValue === true
+        : isClaudeCatalogUltracodeEffort(resolvedEffort);
     const thinkingDescriptor = findDescriptor("thinking");
     const fastModeDescriptor = findDescriptor("fastMode");
     const thinking =

@@ -4,6 +4,7 @@ import {
   type ProviderInstanceId,
   type ServerProviderModel,
 } from "@tabs/contracts";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import { resolveSelfInvocation } from "@tabs/shared/nodeRuntime";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -122,7 +123,7 @@ export const makeDeepSeekOpenRouterAdapterV2 = (options: {
                       input.runtimePolicy.interactionMode === "plan"
                         ? "read-only"
                         : "workspace-write",
-                    OPENROUTER_API_KEY: options.settings.apiKey,
+                    OPENROUTER_API_KEY: settingsSecretLiteral(options.settings.apiKey),
                   },
                 },
               }).pipe(

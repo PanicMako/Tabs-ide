@@ -237,3 +237,62 @@ it("reads repository actions from the active worktree on its owning machine", as
     await view.unmount();
   }
 });
+
+it("lists actions with their roles and edits one without dropping its preview", async () => {
+  const view = await render(
+    <WorkspaceProjectScripts
+      displayMode="list"
+      project={{
+        id: ProjectId.make("project"),
+        environmentId: EnvironmentId.make("local"),
+        name: "Project",
+        cwd: "/repo",
+        defaultModelSelection: null,
+        expanded: true,
+        scripts: [
+          {
+            id: "dev",
+            name: "Dev server",
+            command: "bun dev",
+            icon: "play",
+            runOnWorktreeCreate: false,
+            stopOnSettle: true,
+            previewUrl: "http://localhost:3000",
+            autoOpenPreview: true,
+          },
+          {
+            id: "clean",
+            name: "Clean",
+            command: "rm -rf dist",
+            icon: "build",
+            runOnWorktreeCreate: false,
+            runOnSettle: true,
+          },
+        ],
+      }}
+      keybindings={[]}
+      onRunScript={vi.fn()}
+    />,
+  );
+  try {
+    await expect.element(page.getByText("Stops on settle")).toBeVisible();
+    await expect.element(page.getByText("Opens preview")).toBeVisible();
+    await expect.element(page.getByText("On settle", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Edit Dev server" }).click();
+    await page.getByRole("textbox", { name: "Command", exact: true }).fill("bun run dev");
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect.poll(() => calls.dispatch.mock.calls.length).toBe(1);
+    expect(calls.dispatch.mock.calls[0]?.[0].scripts[0]).toEqual({
+      id: "dev",
+      name: "Dev server",
+      command: "bun run dev",
+      icon: "play",
+      runOnWorktreeCreate: false,
+      stopOnSettle: true,
+      previewUrl: "http://localhost:3000",
+      autoOpenPreview: true,
+    });
+  } finally {
+    await view.unmount();
+  }
+});

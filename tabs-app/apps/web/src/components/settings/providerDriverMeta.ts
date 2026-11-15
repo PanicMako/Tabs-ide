@@ -4,6 +4,8 @@ import {
   CodexSettings,
   CursorSettings,
   GrokSettings,
+  FxSettings,
+  KiroSettings,
   OpenCodeSettings,
   ProviderDriverKind,
 } from "@tabs/contracts";
@@ -13,6 +15,8 @@ import {
   ClaudeAI,
   CursorIcon,
   GrokIcon,
+  FxIcon,
+  KiroIcon,
   type Icon,
   OpenAI,
   OpenCodeIcon,
@@ -62,6 +66,19 @@ const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = [
     icon: GrokIcon,
     badgeLabel: "Early Access",
     settingsSchema: GrokSettings as unknown as ProviderSettingsSchema,
+  },
+  {
+    value: ProviderDriverKind.make("fx"),
+    label: "fx",
+    icon: FxIcon,
+    settingsSchema: FxSettings as unknown as ProviderSettingsSchema,
+  },
+  {
+    value: ProviderDriverKind.make("kiro"),
+    label: "Kiro",
+    icon: KiroIcon,
+    badgeLabel: "Early Access",
+    settingsSchema: KiroSettings as unknown as ProviderSettingsSchema,
   },
   {
     value: ProviderDriverKind.make("opencode"),

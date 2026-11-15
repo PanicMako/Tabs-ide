@@ -72,6 +72,7 @@ const dependencies = Layer.mergeAll(
       Effect.succeed({ cwd: "/synthetic", interactionMode: "default", runtimeMode: "full-access" }),
   }),
   Layer.mock(Run.RunExecutionServiceV2)({
+    beginBaselineCapture: () => Effect.forkDetach(Effect.void),
     startRootRun: (input) =>
       Effect.gen(function* () {
         liveRuns.push(input);

@@ -105,9 +105,14 @@
   background: var(--muted);
 }
 
-.wallpaper-gallery-tile:hover > img,
-.wallpaper-gallery-tile[aria-pressed="true"] > img {
+.wallpaper-gallery-tile:hover > img {
   border-color: var(--foreground);
+}
+
+.wallpaper-gallery-tile[aria-pressed="true"] > img {
+  border-color: transparent;
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
 }
 
 .wallpaper-gallery-tile > span {

@@ -111,6 +111,10 @@ export function changeRequestUrlFor(
       }
       return `https://${host}/${repository}/pulls/${number}`;
     }
+    case "cursor-origin":
+      return `https://cursor.com/codebase/${repository}/pull/${number}`;
+    case "gitcafe":
+      return `https://${host}/${repository}/pulls/${number}`;
     case "gitlab":
       return `https://${host}/${repository}/-/merge_requests/${number}`;
     case "bitbucket":

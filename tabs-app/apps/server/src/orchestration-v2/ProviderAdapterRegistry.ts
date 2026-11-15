@@ -6,6 +6,7 @@ import {
   type ProviderInstanceConfig,
   type ProviderInstanceConfigMap,
 } from "@tabs/contracts";
+import { resolveInstanceEnvironment } from "../provider/ProviderInstanceSecrets.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -271,7 +272,7 @@ const createAdapterEntryFromConfigEntry = Effect.fn(
       instanceId: input.instanceId,
       displayName: input.entry.displayName,
       accentColor: input.entry.accentColor,
-      environment: input.entry.environment ?? [],
+      environment: (yield* resolveInstanceEnvironment(input.entry.environment)).environment,
       enabled: input.entry.enabled ?? decodedConfigEnabled(typedConfig) ?? true,
       config: typedConfig,
     })

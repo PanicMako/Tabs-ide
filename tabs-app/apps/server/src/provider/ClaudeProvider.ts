@@ -49,6 +49,7 @@ import {
   type ClaudeModelCatalog,
   formatClaudeVersionUpgradeMessage,
   resolveClaudeModelsForVersion,
+  resolveClaudeUpdateRequiredModels,
 } from "./ClaudeModelCatalog.ts";
 
 const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabilities({
@@ -448,6 +449,40 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
   };
 });
 
+const CLAUDE_CREDENTIAL_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
+] as const;
+
+const CLAUDE_NOT_AUTHENTICATED_MESSAGE =
+  "Claude is not authenticated. Run `claude auth login --claudeai`, then retry.";
+
+/**
+ * Whether a probe result shows Claude can actually authenticate: an account identity, a real
+ * token source, a cloud API provider, or credentials supplied through the environment. The SDK
+ * initialization probe succeeds with no login at all, so it proves nothing by itself.
+ */
+export function hasClaudeCredentialEvidence(
+  capabilities: {
+    readonly email?: string | undefined;
+    readonly subscriptionType?: string | undefined;
+    readonly tokenSource?: string | undefined;
+    readonly apiProvider?: string | undefined;
+  },
+  environment: NodeJS.ProcessEnv,
+): boolean {
+  if (capabilities.email || capabilities.subscriptionType) return true;
+  const tokenSource = capabilities.tokenSource?.trim().toLowerCase();
+  if (tokenSource && tokenSource !== "none") return true;
+  const apiProvider = capabilities.apiProvider?.trim().toLowerCase();
+  if (apiProvider && apiProvider !== "firstparty") return true;
+  return CLAUDE_CREDENTIAL_ENV_KEYS.some((key) => (environment[key] ?? "").trim().length > 0);
+}
+
 export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(function* (
   claudeSettings: ClaudeSettings,
   resolveCapabilities?: (
@@ -562,6 +597,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     claudeSettings.customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   );
+  const updateRequiredModels = resolveClaudeUpdateRequiredModels(modelCatalog, parsedVersion);
   const versionUpgradeMessage = formatClaudeVersionUpgradeMessage(modelCatalog, parsedVersion);
 
   const capabilities = resolveCapabilities
@@ -577,6 +613,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       enabled: claudeSettings.enabled,
       checkedAt,
       models,
+      updateRequiredModels,
       slashCommands: dedupedSlashCommands,
       skills,
       probe: {
@@ -585,6 +622,28 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
         status: "warning",
         auth: { status: "unknown" },
         message: "Could not verify Claude authentication status from initialization result.",
+      },
+    });
+  }
+
+  // Signed out: no model should be selectable. The probe above succeeds even with no login.
+  if (
+    !hasClaudeCredentialEvidence(
+      capabilities,
+      yield* makeClaudeEnvironment(claudeSettings, resolvedEnvironment),
+    )
+  ) {
+    return buildServerProvider({
+      presentation: CLAUDE_PRESENTATION,
+      enabled: claudeSettings.enabled,
+      checkedAt,
+      models: [],
+      probe: {
+        installed: true,
+        version: parsedVersion,
+        status: "error",
+        auth: { status: "unauthenticated" },
+        message: CLAUDE_NOT_AUTHENTICATED_MESSAGE,
       },
     });
   }
@@ -614,6 +673,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     enabled: claudeSettings.enabled,
     checkedAt,
     models,
+    updateRequiredModels,
     slashCommands: dedupedSlashCommands,
     skills,
     probe: {

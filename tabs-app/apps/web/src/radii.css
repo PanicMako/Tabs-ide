@@ -45,10 +45,14 @@ html :is(.rounded-full, [data-slot="badge"], kbd, mark) {
   border-radius: var(--radius-control) !important;
 }
 
+/* Multi-line fields use the joined radius: the full surface radius turns a tall box into a blob. */
+html :where(textarea) {
+  border-radius: var(--radius-joined) !important;
+}
+
 /* Content-bearing controls need room for wrapped text. */
 html
   :where(
-    textarea,
     [data-slot="input-group"],
     [data-slot="card"],
     [data-slot="dialog-popup"],

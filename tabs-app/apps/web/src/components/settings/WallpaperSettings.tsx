@@ -27,10 +27,64 @@ import {
   clearThreadWallpaper,
   AGENT_WALLPAPER_CHANGE_EVENT,
 } from "../onboarding/wallpapers";
+import {
+  WALLPAPER_PRINT_STYLES,
+  type WallpaperPrintStrength,
+  type WallpaperPrintStyle,
+  getWallpaperPrintAnimate,
+  getWallpaperPrintStrength,
+  getWallpaperPrintStyle,
+  saveWallpaperPrintAnimate,
+  saveWallpaperPrintStrength,
+  saveWallpaperPrintStyle,
+} from "../onboarding/wallpaperPrint";
+import { WallpaperPrintLayer } from "../WallpaperPrintLayer";
 import { WallpaperGalleryModal } from "../onboarding/WallpaperGalleryModal";
 import { WallpaperImportDialog } from "../onboarding/WallpaperImportDialog";
 
 import { useSettingsStudyAppearance } from "./SettingsEditorialFrame";
+
+const STRENGTH_OPTIONS: ReadonlyArray<{ value: WallpaperPrintStrength; label: string }> = [
+  { value: 1, label: "Subtle" },
+  { value: 2, label: "Balanced" },
+  { value: 3, label: "Bold" },
+];
+
+/** One style drawn over the current wallpaper, using the same renderer as the workspace. */
+function PrintStylePreview({
+  style,
+  wallpaperUrl,
+  strength,
+}: {
+  readonly style: WallpaperPrintStyle;
+  readonly wallpaperUrl: string;
+  readonly strength: WallpaperPrintStrength;
+}) {
+  const [unreadable, setUnreadable] = useState(false);
+  const generated = style !== "halftone" && style !== "none" && !unreadable;
+  return (
+    <div
+      aria-hidden="true"
+      className="relative aspect-video w-full overflow-hidden rounded-lg bg-neutral-900 bg-cover bg-center"
+      style={{ backgroundImage: `url(${wallpaperUrl})` }}
+    >
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,12,.1),rgba(5,7,12,.6))]" />
+      {style === "none" ? null : generated ? (
+        <div className="absolute inset-0">
+          <WallpaperPrintLayer
+            url={wallpaperUrl}
+            style={style}
+            strength={strength}
+            ink="light"
+            onUnavailable={() => setUnreadable(true)}
+          />
+        </div>
+      ) : (
+        <div className="agent-wallpaper-halftone absolute inset-0" />
+      )}
+    </div>
+  );
+}
 
 export default function WallpaperSettings({ onBack }: { onBack?: () => void } = {}) {
   const { resolvedTheme: workspaceTheme } = useTheme();
@@ -47,6 +101,11 @@ export default function WallpaperSettings({ onBack }: { onBack?: () => void } = 
   const [threadAssignments, setThreadAssignments] = useState<Record<string, string>>(() =>
     getAllThreadWallpaperAssignments(),
   );
+  const [printStyle, setPrintStyle] = useState<WallpaperPrintStyle>(() => getWallpaperPrintStyle());
+  const [printStrength, setPrintStrength] = useState<WallpaperPrintStrength>(() =>
+    getWallpaperPrintStrength(),
+  );
+  const [printAnimate, setPrintAnimate] = useState<boolean>(() => getWallpaperPrintAnimate());
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showAddCustom, setShowAddCustom] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
@@ -57,6 +116,9 @@ export default function WallpaperSettings({ onBack }: { onBack?: () => void } = 
     setActiveWallpaper(getInitialAgentWallpaper());
     setCustomWallpapers(getCustomWallpapers());
     setThreadAssignments(getAllThreadWallpaperAssignments());
+    setPrintStyle(getWallpaperPrintStyle());
+    setPrintStrength(getWallpaperPrintStrength());
+    setPrintAnimate(getWallpaperPrintAnimate());
   }, []);
 
   useEffect(() => {
@@ -163,6 +225,91 @@ export default function WallpaperSettings({ onBack }: { onBack?: () => void } = 
       </section>
 
       <SettingsSection
+        title="Print style"
+        description="Draw the wallpaper as text, lines or pixels. It is rendered once, so it costs nothing while you work."
+      >
+        <div className="grid gap-4 p-4 sm:p-5">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),1fr))] gap-3">
+            {WALLPAPER_PRINT_STYLES.map((option) => {
+              const selected = option.id === printStyle;
+              return (
+                <li key={option.id} className="min-w-0">
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setPrintStyle(option.id);
+                      saveWallpaperPrintStyle(option.id);
+                    }}
+                    className={cn(
+                      "grid w-full cursor-pointer gap-2 rounded-xl p-1.5 text-left outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring",
+                      selected ? "ring-2 ring-ring" : "hover:bg-accent/60",
+                    )}
+                  >
+                    <PrintStylePreview
+                      style={option.id}
+                      wallpaperUrl={activeWallpaper.url}
+                      strength={printStrength}
+                    />
+                    <span className="px-0.5">
+                      <span className="block text-sm font-medium text-foreground">
+                        {option.label}
+                      </span>
+                      <span className="block text-xs leading-snug text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div
+            role="radiogroup"
+            aria-label="Print strength"
+            className="inline-flex w-fit rounded-full border border-border p-0.5"
+          >
+            {STRENGTH_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={printStrength === option.value}
+                onClick={() => {
+                  setPrintStrength(option.value);
+                  saveWallpaperPrintStrength(option.value);
+                }}
+                className={cn(
+                  "cursor-pointer rounded-full px-3.5 py-1 text-xs font-medium transition-colors",
+                  printStrength === option.value
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center justify-between gap-3 border-t border-border pt-3">
+            <span className="grid gap-0.5">
+              <span className="text-sm">Animate the print</span>
+              <span className="text-xs text-muted-foreground">
+                The print's characters and dots flow and shift. Paused when Reduce motion is on; off
+                by default on Windows and Linux.
+              </span>
+            </span>
+            <Switch
+              checked={printAnimate}
+              onCheckedChange={(checked) => {
+                setPrintAnimate(checked);
+                saveWallpaperPrintAnimate(checked);
+              }}
+            />
+          </label>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
         title="Custom Wallpapers"
         description="Use an image from your computer or add one by URL."
         headerAction={
@@ -255,7 +402,7 @@ export default function WallpaperSettings({ onBack }: { onBack?: () => void } = 
                 return (
                   <div
                     key={threadId}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/40 p-3 hover:border-border transition-colors"
+                    className="flex items-center justify-between gap-3 border border-border/70 bg-card/40 p-3 hover:border-border transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative aspect-video w-16 overflow-hidden rounded-lg border border-border shrink-0 bg-neutral-900">

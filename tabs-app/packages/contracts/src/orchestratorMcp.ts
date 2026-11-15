@@ -286,7 +286,7 @@ export type OrchestratorMcpThreadStatus = typeof OrchestratorMcpThreadStatus.Typ
 const OrchestratorMcpProjectTarget = Schema.optional(
   ProjectId.annotate({
     description:
-      "Project to act on. Omit for the calling thread's project; required when the caller is not a T3 thread.",
+      "Project to act on. Omit for the calling thread's project; required when the caller is not a Tabs thread.",
   }),
 );
 
@@ -327,7 +327,7 @@ export type OrchestratorMcpThreadListItem = typeof OrchestratorMcpThreadListItem
 
 export const OrchestratorMcpThreadListResult = Schema.Struct({
   projectId: ProjectId,
-  /** The calling thread, or null when the caller is not a T3 thread. */
+  /** The calling thread, or null when the caller is not a Tabs thread. */
   currentThreadId: Schema.NullOr(ThreadId),
   threads: Schema.Array(OrchestratorMcpThreadListItem),
   nextCursor: Schema.NullOr(NonNegativeInt),
@@ -514,9 +514,9 @@ export const OrchestratorMcpProviderCapability = Schema.Struct({
 export type OrchestratorMcpProviderCapability = typeof OrchestratorMcpProviderCapability.Type;
 
 export const OrchestratorMcpCapabilitiesResult = Schema.Struct({
-  /** The calling thread, or null when the caller is not a T3 thread. */
+  /** The calling thread, or null when the caller is not a Tabs thread. */
   parentThreadId: Schema.NullOr(ThreadId),
-  /** The calling thread's selection, or null when the caller is not a T3 thread. */
+  /** The calling thread's selection, or null when the caller is not a Tabs thread. */
   inheritedProviderInstanceId: Schema.NullOr(ProviderInstanceId),
   inheritedModel: Schema.NullOr(Schema.String),
   runtimeMode: RuntimeMode,
@@ -581,10 +581,10 @@ export const OrchestratorMcpScheduledTask = Schema.Struct({
   schedule: ScheduledTaskSchedule,
   nextRunAt: Schema.NullOr(IsoDateTime),
   lastRunStatus: ScheduledTaskRunStatus,
-  /** For webhook tasks: the public T3 Connect URL. Absent when this environment has no managed tunnel. */
+  /** For webhook tasks: the public Tabs Connect URL. Absent when this environment has no managed tunnel. */
   webhookUrl: Schema.optional(Schema.String).annotate({
     description:
-      "Public URL to give the sender. Absent when this environment has no T3 Connect managed tunnel; the user must enable T3 Connect remote access first.",
+      "Public URL to give the sender. Absent when this environment has no Tabs Connect managed tunnel; the user must enable Tabs Connect remote access first.",
   }),
   webhookSignature: Schema.optional(Schema.Literals(["none", "set"])).annotate({
     description: "Whether requests must carry a valid signature.",
@@ -599,7 +599,7 @@ export const OrchestratorMcpListScheduledTasksInput = Schema.Struct({
   projectId: Schema.optional(
     ProjectId.annotate({
       description:
-        "Only list this project's tasks. Omit for the calling thread's project, or for every project when the caller is not a T3 thread.",
+        "Only list this project's tasks. Omit for the calling thread's project, or for every project when the caller is not a Tabs thread.",
     }),
   ),
 });
@@ -673,6 +673,77 @@ export const OrchestratorMcpDeleteScheduledTaskResult = Schema.Struct({
 });
 export type OrchestratorMcpDeleteScheduledTaskResult =
   typeof OrchestratorMcpDeleteScheduledTaskResult.Type;
+
+const OvermindId = TrimmedNonEmptyString.check(Schema.isMaxLength(32));
+
+export const OrchestratorMcpOvermindTask = Schema.Struct({
+  id: OvermindId.annotate({ description: "Short unique task id, e.g. 'api' or 'ui-1'." }),
+  title: OrchestratorMcpTitle,
+  prompt: OrchestratorMcpPrompt.annotate({
+    description:
+      "Self-contained instructions; the sub-thread sees nothing else of this conversation.",
+  }),
+  dependsOn: Schema.optional(Schema.Array(OvermindId).check(Schema.isMaxLength(24))),
+  files: Schema.optional(
+    Schema.Array(TrimmedNonEmptyString.check(Schema.isMaxLength(512))).check(
+      Schema.isMaxLength(64),
+    ),
+  ),
+  role: Schema.optional(OrchestratorMcpTaskRole),
+  model: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(128))),
+  providerInstanceId: Schema.optional(
+    ProviderInstanceId.annotate({
+      description:
+        "Provider instance to run this task on, so cheap sub-tasks can use a different provider than the lead. Pair it with model.",
+    }),
+  ),
+});
+export type OrchestratorMcpOvermindTask = typeof OrchestratorMcpOvermindTask.Type;
+
+export const OrchestratorMcpOvermindLimits = Schema.Struct({
+  maxParallel: Schema.optional(PositiveInt),
+  maxTasks: Schema.optional(PositiveInt),
+  maxAttempts: Schema.optional(PositiveInt),
+  taskTimeoutMs: Schema.optional(PositiveInt),
+  maxTotalTokens: Schema.optional(PositiveInt),
+});
+
+export const OrchestratorMcpOvermindAdvanceInput = Schema.Struct({
+  planId: OvermindId,
+  goal: Schema.optional(OrchestratorMcpPrompt),
+  tasks: Schema.optional(Schema.Array(OrchestratorMcpOvermindTask).check(Schema.isMaxLength(24))),
+  limits: Schema.optional(OrchestratorMcpOvermindLimits),
+  isolate: Schema.optional(Schema.Boolean),
+  cancel: Schema.optional(Schema.Boolean),
+});
+export type OrchestratorMcpOvermindAdvanceInput = typeof OrchestratorMcpOvermindAdvanceInput.Type;
+
+export const OrchestratorMcpOvermindTaskView = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  phase: Schema.Literals(["pending", "running", "completed", "failed", "cancelled", "blocked"]),
+  dependsOn: Schema.Array(Schema.String),
+  isolation: Schema.Literals(["worktree", "shared"]),
+  tokens: NonNegativeInt,
+  attempt: NonNegativeInt,
+  taskId: Schema.NullOr(NodeId),
+  summary: Schema.NullOr(Schema.String),
+  error: Schema.NullOr(Schema.String),
+  needsAttention: Schema.optional(Schema.Boolean),
+});
+
+export const OrchestratorMcpOvermindAdvanceResult = Schema.Struct({
+  planId: Schema.String,
+  outcome: Schema.Literals(["in_progress", "succeeded", "partial", "failed"]),
+  settled: Schema.Boolean,
+  tasks: Schema.Array(OrchestratorMcpOvermindTaskView),
+  started: Schema.Array(Schema.String),
+  totalTokens: NonNegativeInt,
+  maxTotalTokens: NonNegativeInt,
+  notes: Schema.Array(Schema.String),
+  next: Schema.String,
+});
+export type OrchestratorMcpOvermindAdvanceResult = typeof OrchestratorMcpOvermindAdvanceResult.Type;
 
 export class OrchestratorMcpFailure extends Schema.TaggedError<OrchestratorMcpFailure>()(
   "OrchestratorMcpFailure",

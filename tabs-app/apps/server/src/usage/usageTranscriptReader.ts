@@ -15,6 +15,15 @@
  *
  * @module usageTranscriptReader
  */
+import {
+  initialPiScanState,
+  MUSE_USAGE_FIELDS,
+  parseMuseLine,
+  parseMuseRecord,
+  parsePiLine,
+  parsePiRecord,
+  PI_USAGE_FIELDS,
+} from "./usagePiMuse.ts";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeStringDecoder from "node:string_decoder";
@@ -93,7 +102,9 @@ type SelectedFields = { readonly [key: string]: true | SelectedFields };
 
 // Keep the fields consumed by usageTranscripts, including reducer state and
 // dedupe/cost metadata. A selected subtree (usage) keeps future token fields.
-const USAGE_FIELDS: Record<"claude" | "codex" | "grok", SelectedFields> = {
+const USAGE_FIELDS: Record<"claude" | "codex" | "grok" | "pi" | "muse", SelectedFields> = {
+  pi: PI_USAGE_FIELDS,
+  muse: MUSE_USAGE_FIELDS,
   claude: {
     type: true,
     timestamp: true,
@@ -127,7 +138,12 @@ const USAGE_FIELDS: Record<"claude" | "codex" | "grok", SelectedFields> = {
 };
 
 function selectUsageFields(provider: UsageProviderKind) {
-  const fields = USAGE_FIELDS[provider === "codex" || provider === "grok" ? provider : "claude"];
+  const fields =
+    USAGE_FIELDS[
+      provider === "codex" || provider === "grok" || provider === "pi" || provider === "muse"
+        ? provider
+        : "claude"
+    ];
   return (path: ReadonlyArray<string | number | null>): boolean => {
     let selected: true | SelectedFields = fields;
     for (const key of path) {
@@ -278,6 +294,8 @@ export async function readTranscriptRecords(
 
   try {
     let codexState = initialCodexScanState();
+    // Pi names its session once, on the first line; a resumed scan falls back to the file name.
+    const piState = initialPiScanState(NodePath.basename(filePath).replace(/\.jsonl$/u, ""));
     let resumed = false;
     let start = 0;
     if (
@@ -306,6 +324,14 @@ export async function readTranscriptRecords(
         return;
       }
       if (!mightCarryUsage(line, provider)) return;
+      if (provider === "pi") {
+        for (const piRecord of parsePiLine(line, piState)) out.push(piRecord);
+        return;
+      }
+      if (provider === "muse") {
+        for (const museRecord of parseMuseLine(line)) out.push(museRecord);
+        return;
+      }
       if (provider === "grok") {
         for (const grokRecord of parseGrokLine(line)) out.push(grokRecord);
         return;
@@ -354,7 +380,11 @@ export async function readTranscriptRecords(
       if (streaming) {
         streaming.write(decoder!.end());
         const projected = streaming.finish();
-        if (provider === "grok") {
+        if (provider === "pi") {
+          out.push(...parsePiRecord(projected, piState));
+        } else if (provider === "muse") {
+          out.push(...parseMuseRecord(projected));
+        } else if (provider === "grok") {
           out.push(...parseGrokRecord(projected));
         } else {
           const record =

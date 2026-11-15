@@ -35,6 +35,8 @@ import {
 
 const CAPABILITIES: PullRequestCapabilities = {
   diff: true,
+  mentions: true,
+  referenceSigils: ["#"],
   viewedFiles: "environment",
   comment: true,
   actions: ["merge", "close", "reopen", "update-branch"],
@@ -534,6 +536,79 @@ export const make = Effect.gen(function* () {
             }),
           truncated: users.truncated,
         };
+      },
+    ),
+    searchRepositoryReferences: Effect.fn("ForgejoPullRequestProvider.searchRepositoryReferences")(
+      function* (input) {
+        const query = input.query?.trim() ?? "";
+        const exact = /^\d+$/u.test(query) ? query : null;
+        const rows = yield* readArray(
+          {
+            ...input,
+            path: `${repoPath(input)}/issues?${new URLSearchParams({
+              type: "all",
+              state: "all",
+              limit: "20",
+              ...(query.length > 0 ? { q: query } : {}),
+            })}`,
+          },
+          Schema.Struct({
+            number: Schema.Int.check(Schema.isGreaterThan(0)),
+            title: Schema.String,
+            state: Schema.String,
+            pull_request: Schema.optional(
+              Schema.NullOr(
+                Schema.Struct({ merged: Schema.optional(Schema.NullOr(Schema.Boolean)) }),
+              ),
+            ),
+          }),
+        );
+        const items = rows
+          .filter(
+            (row) =>
+              exact === null || String(row.number).startsWith(exact) || row.title.includes(query),
+          )
+          .map((row) => ({
+            reference: `#${row.number}`,
+            kind: row.pull_request ? ("change-request" as const) : ("issue" as const),
+            number: row.number,
+            title: row.title,
+            state:
+              row.pull_request?.merged === true
+                ? ("merged" as const)
+                : row.state === "closed"
+                  ? ("closed" as const)
+                  : ("open" as const),
+          }));
+        return { items, truncated: rows.length >= 20 };
+      },
+    ),
+    searchRepositoryAuthors: Effect.fn("ForgejoPullRequestProvider.searchRepositoryAuthors")(
+      function* (input) {
+        const query = input.query?.trim() ?? "";
+        const actors = (users: ReadonlyArray<typeof ForgejoUser.Type>) =>
+          users.flatMap((user) => {
+            const actor = forgejoActor(user);
+            return actor ? [actor] : [];
+          });
+        // Before anything is typed the repository's own people stand in; a search reaches
+        // contributors from forks, who are never assignable.
+        if (query.length === 0) {
+          const users = yield* readArray(
+            { ...input, path: `${repoPath(input)}/assignees` },
+            ForgejoUser,
+          );
+          return { items: actors(users), truncated: false };
+        }
+        const found = yield* read(
+          {
+            ...input,
+            path: `users/search?${new URLSearchParams({ q: query, limit: "50" })}`,
+          },
+          Schema.Struct({ data: Schema.optional(Schema.NullOr(Schema.Array(ForgejoUser))) }),
+        );
+        const users = found.data ?? [];
+        return { items: actors(users), truncated: users.length >= 50 };
       },
     ),
     setReviewerRequest: (input) =>

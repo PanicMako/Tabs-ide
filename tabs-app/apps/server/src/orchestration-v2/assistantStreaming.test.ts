@@ -73,6 +73,28 @@ describe("V2 assistant streaming", () => {
     const final = message("First\n\nSecond\n\nThird", false);
     expect(filter(final, 420)).toBe(final);
   });
+  it("delivers held text whole once the message goes quiet", () => {
+    const filter = makeAssistantStreamingFilter("paragraph", 1_000);
+    expect(filter(message("First\n\nSecond, no boundary yet"), 0)).toMatchObject({
+      message: { text: "First\n\n" },
+    });
+    expect(filter.nextIdleFlushAt()).toBe(1_000);
+    expect(filter.takeIdleFlushes(999)).toEqual([]);
+    const due = filter.takeIdleFlushes(1_000);
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({ message: { text: "First\n\nSecond, no boundary yet" } });
+    expect(filter.nextIdleFlushAt()).toBeNull();
+    // Later text never shrinks what the idle flush already showed.
+    expect(filter(message("First\n\nSecond, no boundary yet, and more"), 2_000)).toBeNull();
+  });
+  it("drops held text when the final update arrives", () => {
+    const filter = makeAssistantStreamingFilter("token", 1_000);
+    filter(message("a"), 0);
+    filter(message("ab"), 10);
+    expect(filter.nextIdleFlushAt()).toBe(1_010);
+    filter(message("abc", false), 20);
+    expect(filter.nextIdleFlushAt()).toBeNull();
+  });
   it("keeps code fences intact", () => {
     expect(splitBufferedAssistantText("Intro\n\n```ts\nx()\n\n")).toEqual({
       ready: "Intro\n\n",

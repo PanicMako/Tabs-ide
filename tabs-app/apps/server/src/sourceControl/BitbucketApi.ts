@@ -29,6 +29,8 @@ import {
   type NormalizedBitbucketPullRequestRecord,
 } from "./bitbucketPullRequests.ts";
 import { collectUint8StreamText } from "../stream/collectUint8StreamText.ts";
+import { parseStoredReference } from "@tabs/shared/secretProviders/storedReference";
+import { SecretResolver } from "../secrets/SecretResolverCore.ts";
 import * as SourceControlProvider from "./SourceControlProvider.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
@@ -657,6 +659,7 @@ export const make = Effect.gen(function* () {
   const config = yield* BitbucketApiEnvConfig;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const httpClient = yield* HttpClient.HttpClient;
+  const secretResolver = yield* Effect.serviceOption(SecretResolver);
   const fileSystem = yield* FileSystem.FileSystem;
   const git = yield* GitVcsDriver.GitVcsDriver;
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
@@ -664,8 +667,25 @@ export const make = Effect.gen(function* () {
   const apiUrl = (path: string) => `${config.baseUrl.replace(/\/+$/u, "")}${path}`;
 
   // Read on every request so credentials saved in settings apply without a restart.
+  // A token saved as a secret-provider reference is read from its provider on each request.
+  const resolveTokens = (stored: BitbucketSettings) =>
+    Effect.gen(function* () {
+      const read = (value: string) => {
+        const reference = parseStoredReference(value);
+        if (reference === null) return Effect.succeed(value);
+        return secretResolver._tag === "Some"
+          ? secretResolver.value.read([reference]).pipe(Effect.map(([secret]) => secret ?? ""))
+          : Effect.succeed("");
+      };
+      return {
+        ...stored,
+        accessToken: yield* read(stored.accessToken),
+        apiToken: yield* read(stored.apiToken),
+      };
+    });
   const currentCredential = serverSettings.getSettings.pipe(
-    Effect.map((settings) => resolveCredential(settings.bitbucket, config)),
+    Effect.flatMap((settings) => resolveTokens(settings.bitbucket)),
+    Effect.map((bitbucket) => resolveCredential(bitbucket, config)),
     Effect.catch((error) =>
       // No cause: a settings decode error can quote a hand-edited token.
       Effect.logWarning("failed to read Bitbucket credentials from settings", {

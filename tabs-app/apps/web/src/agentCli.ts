@@ -41,6 +41,8 @@ const AGENT_CLIS: Readonly<Record<string, AgentCliDefinition>> = {
   cursor: { binary: "cursor-agent" },
   copilot: { binary: "copilot" },
   grok: { binary: "grok" },
+  kiro: { binary: "kiro-cli" },
+  fx: { binary: "fx" },
   opencode: { binary: "opencode" },
   droid: { binary: "droid" },
   pi: { binary: "pi" },

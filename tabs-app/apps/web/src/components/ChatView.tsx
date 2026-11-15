@@ -1,4 +1,6 @@
+import { buildOvermindStartMessage } from "@tabs/shared/overmind";
 import { WorkspaceAgents, type WorkspaceAgentContext } from "./chat/WorkspaceAgents";
+import { NativeChildWorkDialog } from "./chat/NativeChildWorkDialog";
 import { ensureDraftThreadExists, type DraftThreadCreation } from "../stores/ensureDraftThread";
 import { AgentCliSurface } from "./chat/AgentCliSurface";
 import {
@@ -145,6 +147,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { useConfirm } from "~/hooks/useConfirm";
 import { WorkspaceProjectScripts } from "./chat/WorkspaceProjectScripts";
+import { ComposerDictationButton } from "./chat/ComposerDictationButton";
 import type { Project } from "../types";
 import { workspaceShellActions } from "../state/workspaceShell";
 import BranchToolbar from "./BranchToolbar";
@@ -193,6 +196,7 @@ import { isSettled } from "../state/threadLifecycle";
 import {
   projectScriptCwd,
   projectScriptRuntimeEnv,
+  projectScriptTerminalInput,
   projectScriptIdFromCommand,
   setupProjectScript,
 } from "~/projectScripts";
@@ -2546,6 +2550,25 @@ export default function ChatView({
     },
     [activeThread, composerCursor, composerTerminalContexts, insertComposerDraftTerminalContext],
   );
+  const readDictationDraft = useCallback(() => {
+    const snapshot = composerEditorRef.current?.readSnapshot();
+    const text = snapshot?.value ?? promptRef.current;
+    const cursor =
+      snapshot?.expandedCursor ?? expandCollapsedComposerCursor(promptRef.current, composerCursor);
+    return { text, selection: { start: cursor, end: cursor } };
+  }, [composerCursor]);
+  const commitDictationDraft = useCallback(
+    (text: string, selection: { readonly start: number; readonly end: number }) => {
+      const nextCollapsedCursor = collapseExpandedComposerCursor(text, selection.end);
+      promptRef.current = text;
+      setPrompt(text);
+      setComposerCursor(nextCollapsedCursor);
+      window.requestAnimationFrame(() => {
+        composerEditorRef.current?.focusAt(nextCollapsedCursor);
+      });
+    },
+    [setPrompt],
+  );
   const setTerminalOpen = useCallback(
     (open: boolean) => {
       if (!activeThreadId) return;
@@ -2639,7 +2662,9 @@ export default function ChatView({
         terminalState.terminalIds[0] ||
         DEFAULT_THREAD_TERMINAL_ID;
       const isBaseTerminalBusy = terminalState.runningTerminalIds.includes(baseTerminalId);
-      const wantsNewTerminal = Boolean(options?.preferNewTerminal) || isBaseTerminalBusy;
+      // A stop-on-settle action owns its terminal, so settling never closes a shared shell.
+      const wantsNewTerminal =
+        Boolean(options?.preferNewTerminal) || isBaseTerminalBusy || script.stopOnSettle === true;
       const shouldCreateNewTerminal = wantsNewTerminal;
       const targetTerminalId = shouldCreateNewTerminal
         ? `terminal-${randomUUID()}`
@@ -2668,6 +2693,7 @@ export default function ChatView({
             env: runtimeEnv,
             cols: SCRIPT_TERMINAL_COLS,
             rows: SCRIPT_TERMINAL_ROWS,
+            stopOnSettle: script.stopOnSettle ?? false,
           }
         : {
             threadId: activeThreadId,
@@ -2681,7 +2707,7 @@ export default function ChatView({
         await api.terminal.write({
           threadId: activeThreadId,
           terminalId: targetTerminalId,
-          data: `${script.command}\r`,
+          data: projectScriptTerminalInput(script.command),
         });
       } catch (error) {
         setThreadError(
@@ -3449,7 +3475,7 @@ export default function ChatView({
               type: "error",
               title: activeThreadIsSettled
                 ? "Could not unsettle thread"
-                : "Could not settle thread",
+                : "Could not mark the thread done",
               description: error instanceof Error ? error.message : "The thread action failed.",
             });
           });
@@ -5609,10 +5635,10 @@ export default function ChatView({
             <div
               className="flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-card/95 py-1.5 pl-2.5 pr-1.5 text-xs shadow-sm backdrop-blur"
               role="status"
-              aria-label="This thread is settled. Sending a message will return it to Unsettled."
+              aria-label="This thread is done. Sending a message will reopen it."
             >
               <CircleCheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-foreground" />
-              <span className="truncate font-medium text-foreground">Thread settled</span>
+              <span className="truncate font-medium text-foreground">Thread done</span>
               <span aria-hidden="true" className="hidden text-muted-foreground sm:inline">
                 Send a message to resume
               </span>
@@ -5632,7 +5658,7 @@ export default function ChatView({
                   });
                 }}
               >
-                Unsettle
+                Reopen
               </Button>
             </div>
           </div>
@@ -6155,6 +6181,22 @@ export default function ChatView({
 
               {/* Bottom Right Floating Send / Action Button */}
               <div className="absolute bottom-3 right-3 sm:bottom-3.5 sm:right-3.5 flex items-center gap-2">
+                <ComposerDictationButton
+                  ownerKey={threadId}
+                  draftText={prompt}
+                  projectName={activeProject?.name ?? null}
+                  disabled={
+                    isSendBusy ||
+                    isConnecting ||
+                    threadDetailLoading ||
+                    isComposerApprovalState ||
+                    pendingUserInputs.length > 0
+                  }
+                  keybindings={keybindings}
+                  terminalOpen={Boolean(terminalState.terminalOpen)}
+                  readDraft={readDictationDraft}
+                  commitDraft={commitDictationDraft}
+                />
                 {activePendingApproval ? (
                   <ComposerPendingApprovalActions
                     requestId={activePendingApproval.requestId}
@@ -6265,7 +6307,7 @@ export default function ChatView({
                             } catch {
                               toastManager.add({
                                 type: "error",
-                                title: "Could not settle thread",
+                                title: "Could not mark the thread done",
                                 description: "Please try again from the thread menu.",
                               });
                             }
@@ -6470,6 +6512,14 @@ export default function ChatView({
             workspaceActionsContainer={workspaceActionsContainer}
             onWorkspaceActionsOpenChange={setWorkspaceActionsOpen}
             pullRequestLinks={activeThread.pullRequests}
+            contextUsage={activeContextWindow}
+            onCompactContext={onCompactContext}
+            compactDisabled={compactDisabled}
+            compactDisabledReason={compactDisabledReason}
+            onStartOvermind={(goal) => {
+              setPrompt(buildOvermindStartMessage(goal));
+              window.requestAnimationFrame(() => composerEditorRef.current?.focusAtEnd());
+            }}
             agentWorkflow={
               loadedProjectionKey === projectionKey &&
               workspaceAgentContext?.thread.id === activeThread.id ? (
@@ -6708,6 +6758,17 @@ export default function ChatView({
                         Provider sub-agent · read only. Reply to questions and approvals in the
                         parent conversation.
                       </p>
+                      {providerStatuses.some(
+                        (provider) =>
+                          provider.driver === "antigravity" &&
+                          provider.instanceId ===
+                            workspaceAgentContext.thread.modelSelection.instanceId,
+                      ) && (
+                        <NativeChildWorkDialog
+                          environmentId={resolvedEnvironmentId}
+                          threadId={workspaceAgentContext.thread.id}
+                        />
+                      )}
                       {workspaceAgentContext.thread.lineage.parentThreadId && (
                         <button
                           type="button"

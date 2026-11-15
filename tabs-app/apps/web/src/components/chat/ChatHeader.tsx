@@ -23,6 +23,8 @@ import {
 import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   SquareMenuIcon,
+  GaugeIcon,
+  ImageIcon,
   GitBranchIcon,
   DiffIcon,
   Maximize2Icon,
@@ -77,6 +79,13 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
+import { WorkspaceAgentsEmpty } from "./WorkspaceAgentsEmpty";
+import { WorkspaceUsagePane } from "./WorkspaceUsagePane";
+import { WorkspaceDetailsMenu } from "./WorkspaceDetailsMenu";
+import { WorkspaceContextUsage } from "./WorkspaceContextUsage";
+import { useDetailShown } from "./workspaceDetails";
+import { WorkspaceLookPane } from "./WorkspaceLookPane";
+import type { ContextWindowSnapshot } from "~/lib/contextWindow";
 import { toastManager } from "~/components/ui/toast";
 import { environmentApi } from "~/connection/environmentApiRegistry";
 import { gitWorkspaceScopeKey } from "~/components/git/gitApiContext";
@@ -93,6 +102,13 @@ interface ChatHeaderProps {
   onWorkspaceActionsOpenChange?: ((open: boolean) => void) | undefined;
   workspaceControls?: ReactNode;
   agentWorkflow?: ReactNode;
+  /** Latest context-window snapshot for the conversation, shown in the Agents pane. */
+  contextUsage?: ContextWindowSnapshot | null | undefined;
+  onCompactContext?: (() => void) | undefined;
+  compactDisabled?: boolean | undefined;
+  compactDisabledReason?: string | null | undefined;
+  /** Seeds the composer with an Overmind goal before the conversation exists. */
+  onStartOvermind?: ((goal: string) => void) | undefined;
   scriptManagement?: ReactNode;
   scripts?: ReadonlyArray<ProjectScript> | undefined;
   onRunScript?: ((script: ProjectScript) => void) | undefined;
@@ -803,6 +819,11 @@ export const ChatHeader = memo(function ChatHeader({
   onWorkspaceActionsOpenChange,
   workspaceControls,
   agentWorkflow,
+  contextUsage,
+  onCompactContext,
+  compactDisabled,
+  compactDisabledReason,
+  onStartOvermind,
   scriptManagement,
   scripts,
   onRunScript,
@@ -855,10 +876,23 @@ export const ChatHeader = memo(function ChatHeader({
     (state) => state.entries[workspaceKey]?.open ?? state.entries[legacyWorkspaceKey]?.open,
   );
   const workspaceOpen = savedOpen ?? (typeof window !== "undefined" && window.innerWidth >= 1440);
-  const section =
-    useWorkspaceActionsState(
-      (state) => state.entries[workspaceKey]?.section ?? state.entries[legacyWorkspaceKey]?.section,
-    ) ?? (isGitRepo ? "git" : "run");
+  const showUsage = useDetailShown("usage");
+  const showContext = useDetailShown("context");
+  const showEnvironment = useDetailShown("environment");
+  const showEditor = useDetailShown("editor");
+  const showScripts = useDetailShown("scripts");
+  const showBranch = useDetailShown("branch");
+  const showGitActions = useDetailShown("git-actions");
+  const showChanges = useDetailShown("changes");
+  const tabOrder: WorkspaceActionSection[] = showUsage
+    ? ["git", "run", "agents", "usage", "look"]
+    : ["git", "run", "agents", "look"];
+  const savedSection = useWorkspaceActionsState(
+    (state) => state.entries[workspaceKey]?.section ?? state.entries[legacyWorkspaceKey]?.section,
+  );
+  // A saved tab can be gone (hidden, or removed in an update); fall back to the default.
+  const section: WorkspaceActionSection =
+    savedSection && tabOrder.includes(savedSection) ? savedSection : isGitRepo ? "git" : "run";
   const setWorkspaceOpen = useCallback(
     (value: boolean | ((old: boolean) => boolean)) =>
       useWorkspaceActionsState
@@ -1023,6 +1057,7 @@ export const ChatHeader = memo(function ChatHeader({
             <FolderOpenIcon className="size-4" />
           </button>
         )}
+        <WorkspaceDetailsMenu />
         <button
           type="button"
           aria-label="Close workspace card"
@@ -1045,38 +1080,42 @@ export const ChatHeader = memo(function ChatHeader({
             { id: "git", label: "Git", Icon: GitCompanionIcon },
             { id: "run", label: "Run", Icon: DockUfoIcon },
             { id: "agents", label: "Agents", Icon: AssistantBubbleIcon },
+            { id: "usage", label: "Usage", Icon: GaugeIcon },
+            { id: "look", label: "Look", Icon: ImageIcon },
           ] as const
-        ).map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`workspace-tab-${activeThreadId}-${id}`}
-            aria-label={label}
-            title={label}
-            aria-selected={section === id}
-            aria-controls={`workspace-pane-${activeThreadId}-${id}`}
-            onClick={() => setSection(id)}
-            onKeyDown={(event) => {
-              const order: WorkspaceActionSection[] = ["git", "run", "agents"];
-              const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-              if (!offset && event.key !== "Home" && event.key !== "End") return;
-              event.preventDefault();
-              const next =
-                event.key === "Home"
-                  ? "git"
-                  : event.key === "End"
-                    ? "agents"
-                    : order[(order.indexOf(id) + offset + 3) % 3]!;
-              setSection(next);
-              document.getElementById(`workspace-tab-${activeThreadId}-${next}`)?.focus();
-            }}
-            tabIndex={section === id ? 0 : -1}
-          >
-            <Icon className="size-4 shrink-0" />
-            <span>{label}</span>
-          </button>
-        ))}
+        )
+          .filter(({ id }) => id !== "usage" || showUsage)
+          .map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`workspace-tab-${activeThreadId}-${id}`}
+              aria-label={label}
+              title={label}
+              aria-selected={section === id}
+              aria-controls={`workspace-pane-${activeThreadId}-${id}`}
+              onClick={() => setSection(id)}
+              onKeyDown={(event) => {
+                const order = tabOrder;
+                const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+                if (!offset && event.key !== "Home" && event.key !== "End") return;
+                event.preventDefault();
+                const next =
+                  event.key === "Home"
+                    ? order[0]!
+                    : event.key === "End"
+                      ? order[order.length - 1]!
+                      : order[(order.indexOf(id) + offset + order.length) % order.length]!;
+                setSection(next);
+                document.getElementById(`workspace-tab-${activeThreadId}-${next}`)?.focus();
+              }}
+              tabIndex={section === id ? 0 : -1}
+            >
+              <Icon className="size-4 shrink-0" />
+              <span>{label}</span>
+            </button>
+          ))}
       </div>
       <div
         hidden={section !== "run"}
@@ -1090,21 +1129,23 @@ export const ChatHeader = memo(function ChatHeader({
           aria-label="Workspace context"
           className="workspace-context space-y-1 pb-3"
         >
-          {workspaceControls}
-          <OpenInPicker
-            keybindings={keybindings}
-            availableEditors={availableEditors}
-            openInCwd={openInCwd}
-            showEditorName
-            displayMode="panel"
-          />
+          {showEnvironment && workspaceControls}
+          {showEditor && (
+            <OpenInPicker
+              keybindings={keybindings}
+              availableEditors={availableEditors}
+              openInCwd={openInCwd}
+              showEditorName
+              displayMode="panel"
+            />
+          )}
         </div>
-        {scriptManagement && (
+        {showScripts && scriptManagement && (
           <div className="pb-3" aria-label="Manage project scripts">
             {scriptManagement}
           </div>
         )}
-        {!!scripts?.length && onRunScript && (
+        {showScripts && !!scripts?.length && onRunScript && (
           <div
             role="group"
             aria-label="Project scripts"
@@ -1136,20 +1177,22 @@ export const ChatHeader = memo(function ChatHeader({
       >
         <div role="group" aria-label="Version control" className="workspace-git space-y-2">
           {/* Branch selector + pull + divergence */}
-          <BranchSelectorControl
-            projectId={projectId}
-            threadId={activeThreadId}
-            gitCwd={gitCwd}
-            environmentId={environmentId}
-            currentBranch={vcs.status?.branch ?? null}
-            isGitRepo={isGitRepo}
-            aheadCount={vcs.status?.aheadCount}
-            behindCount={vcs.status?.behindCount}
-            hasUpstream={vcs.status?.hasUpstream}
-            onOpenDivergence={handleOpenGitDivergence}
-          />
+          {showBranch && (
+            <BranchSelectorControl
+              projectId={projectId}
+              threadId={activeThreadId}
+              gitCwd={gitCwd}
+              environmentId={environmentId}
+              currentBranch={vcs.status?.branch ?? null}
+              isGitRepo={isGitRepo}
+              aheadCount={vcs.status?.aheadCount}
+              behindCount={vcs.status?.behindCount}
+              hasUpstream={vcs.status?.hasUpstream}
+              onOpenDivergence={handleOpenGitDivergence}
+            />
+          )}
 
-          {(checkoutPr || pullRequestLinks.length > 0) && (
+          {showBranch && (checkoutPr || pullRequestLinks.length > 0) && (
             <WorkspacePullRequests
               links={pullRequestLinks}
               cwd={isGitRepo ? gitCwd : null}
@@ -1161,30 +1204,32 @@ export const ChatHeader = memo(function ChatHeader({
           )}
 
           {/* Changed files */}
-          <button
-            type="button"
-            disabled={!isGitRepo}
-            className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
-            onClick={() => {
-              if (!diffOpen) onToggleDiff();
-            }}
-          >
-            <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
-            <span className="flex-1 text-left">Changes</span>
-            {vcs.status && (
-              <span className="flex gap-2 font-mono tabular-nums text-[11px]">
-                <span className="text-emerald-500 font-medium">
-                  +{vcs.status.workingTree.insertions}
+          {showChanges && (
+            <button
+              type="button"
+              disabled={!isGitRepo}
+              className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+              onClick={() => {
+                if (!diffOpen) onToggleDiff();
+              }}
+            >
+              <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+              <span className="flex-1 text-left">Changes</span>
+              {vcs.status && (
+                <span className="flex gap-2 font-mono tabular-nums text-[11px]">
+                  <span className="text-emerald-500 font-medium">
+                    +{vcs.status.workingTree.insertions}
+                  </span>
+                  <span className="text-red-400 font-medium">
+                    −{vcs.status.workingTree.deletions}
+                  </span>
                 </span>
-                <span className="text-red-400 font-medium">
-                  −{vcs.status.workingTree.deletions}
-                </span>
-              </span>
-            )}
-          </button>
+              )}
+            </button>
+          )}
 
           {/* Divergence Space shortcut link */}
-          {isGitRepo && (
+          {showChanges && isGitRepo && (
             <button
               type="button"
               onClick={handleOpenGitDivergence}
@@ -1200,13 +1245,15 @@ export const ChatHeader = memo(function ChatHeader({
             </button>
           )}
           {/* Commit & Push */}
-          <div className="flex w-full">
-            <GitActionsControl
-              gitCwd={gitCwd}
-              activeThreadId={activeThreadId}
-              environmentId={environmentId}
-            />
-          </div>
+          {showGitActions && (
+            <div className="flex w-full">
+              <GitActionsControl
+                gitCwd={gitCwd}
+                activeThreadId={activeThreadId}
+                environmentId={environmentId}
+              />
+            </div>
+          )}
         </div>
       </div>
       <div
@@ -1216,11 +1263,36 @@ export const ChatHeader = memo(function ChatHeader({
         aria-labelledby={`workspace-tab-${activeThreadId}-agents`}
         className="workspace-action-pane workspace-action-agents"
       >
-        {agentWorkflow ?? (
-          <p className="p-3 text-xs text-muted-foreground">
-            Open a conversation to manage its agents and automations.
-          </p>
-        )}
+        {showContext ? (
+          <WorkspaceContextUsage
+            context={contextUsage}
+            onCompact={onCompactContext}
+            compactDisabled={compactDisabled}
+            compactDisabledReason={compactDisabledReason}
+          />
+        ) : null}
+        {agentWorkflow ?? <WorkspaceAgentsEmpty onStartOvermind={onStartOvermind} />}
+      </div>
+
+      {showUsage && (
+        <div
+          hidden={section !== "usage"}
+          role="tabpanel"
+          id={`workspace-pane-${activeThreadId}-usage`}
+          aria-labelledby={`workspace-tab-${activeThreadId}-usage`}
+          className="workspace-action-pane workspace-action-usage"
+        >
+          <WorkspaceUsagePane />
+        </div>
+      )}
+      <div
+        hidden={section !== "look"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-look`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-look`}
+        className="workspace-action-pane workspace-action-look"
+      >
+        <WorkspaceLookPane />
       </div>
 
       {vcs.error && (
@@ -1240,7 +1312,7 @@ export const ChatHeader = memo(function ChatHeader({
             <span
               className={cn(
                 "size-2 shrink-0 rounded-full transition-colors",
-                isActivePane ? "bg-primary shadow-xs shadow-primary/40" : "bg-muted-foreground/30",
+                isActivePane ? "bg-primary shadow-xs" : "bg-muted-foreground/30",
               )}
               title={isActivePane ? "Active thread pane" : "Inactive pane — click to activate"}
             />
@@ -1302,7 +1374,7 @@ export const ChatHeader = memo(function ChatHeader({
                     "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
                     editingTitle.trim().length === 0
                       ? "opacity-30 cursor-not-allowed text-muted-foreground"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs shadow-primary/30",
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
                   )}
                 >
                   <CheckIcon className="size-3 stroke-[2.5]" />

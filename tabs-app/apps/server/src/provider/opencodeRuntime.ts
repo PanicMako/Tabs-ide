@@ -234,6 +234,42 @@ export interface ParsedOpenCodeModelSlug {
   readonly modelID: string;
 }
 
+export type OpenCodeVariantCache = Map<string, ReadonlySet<string> | undefined>;
+
+/** Drops a thinking variant the model's catalog no longer offers; keeps it if the catalog can't be read. */
+export const resolveOpenCodeVariant = Effect.fnUntraced(function* (
+  client: OpencodeClient,
+  model: ParsedOpenCodeModelSlug | undefined,
+  variant: string | undefined,
+  abortSignal?: AbortSignal,
+  cache?: OpenCodeVariantCache,
+) {
+  if (!variant || !model) return variant;
+
+  const key = `${model.providerID}/${model.modelID}`;
+  if (cache?.has(key)) {
+    const cached = cache.get(key);
+    return cached !== undefined && !cached.has(variant) ? undefined : variant;
+  }
+
+  const response = yield* runOpenCodeSdk("provider.list", (signal) =>
+    client.provider.list(undefined, {
+      signal: abortSignal ? AbortSignal.any([signal, abortSignal]) : signal,
+    }),
+  ).pipe(
+    Effect.timeout("10 seconds"),
+    Effect.orElseSucceed(() => undefined),
+  );
+  if (response?.data === undefined) return variant;
+
+  const catalogModel = response.data.all.find((provider) => provider.id === model.providerID)
+    ?.models[model.modelID];
+  const variants = catalogModel ? new Set(Object.keys(catalogModel.variants ?? {})) : undefined;
+  // Keep only this model's names; provider.list can return several megabytes.
+  cache?.set(key, variants);
+  return variants !== undefined && !variants.has(variant) ? undefined : variant;
+});
+
 export interface OpenCodeSkill {
   readonly name?: string | null;
   readonly description?: string | null;

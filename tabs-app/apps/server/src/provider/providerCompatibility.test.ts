@@ -62,6 +62,10 @@ describe("provider compatibility", () => {
       "grok",
       "opencode",
       "antigravity",
+      "kiro",
+      "pi",
+      "muse",
+      "fx",
     ]);
     for (const builtIn of BUILT_IN_DRIVERS) {
       if (!reviewedHarnesses.has(builtIn.driverKind)) {

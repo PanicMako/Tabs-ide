@@ -3389,6 +3389,138 @@ it.effect("hands a label change to the host, and reads the labels back for the m
   }),
 );
 
+it.effect("offers the host's people for the author filter, and none where it cannot search", () =>
+  Effect.gen(function* () {
+    let asked: string | undefined;
+    const searching = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakeProvider("github", {
+          searchRepositoryAuthors: (input) => {
+            asked = input.query;
+            return Effect.succeed({
+              items: [{ login: "maria", name: null, avatarUrl: null }],
+              truncated: false,
+            });
+          },
+        }),
+      ],
+    });
+    const found = yield* searching.authorCandidates({
+      projectId: "p1" as ProjectId,
+      repository: "acme/web",
+      query: " mar ",
+    });
+    assert.deepStrictEqual(
+      found.candidates.map((actor) => actor.login),
+      ["maria"],
+    );
+    assert.strictEqual(asked, "mar");
+
+    const silent = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [fakeProvider("github")],
+    });
+    const none = yield* silent.authorCandidates({
+      projectId: "p1" as ProjectId,
+      repository: "acme/web",
+    });
+    assert.deepStrictEqual(none, { candidates: [], truncated: false });
+  }),
+);
+
+it.effect("offers issues and change requests for a typed `#`, and none where the host cannot", () =>
+  Effect.gen(function* () {
+    let asked: { query?: string | undefined; sigil?: string | undefined } | null = null;
+    const searching = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakeProvider("github", {
+          searchRepositoryReferences: (input) => {
+            asked = { query: input.query, sigil: input.sigil };
+            return Effect.succeed({
+              items: [
+                {
+                  reference: "#12",
+                  kind: "issue" as const,
+                  number: 12,
+                  title: "Crash on start",
+                  state: "open" as const,
+                },
+              ],
+              truncated: false,
+            });
+          },
+        }),
+      ],
+    });
+    const found = yield* searching.referenceCandidates({
+      projectId: "p1" as ProjectId,
+      repository: "acme/web",
+      query: " cra ",
+      sigil: "#",
+    });
+    assert.deepStrictEqual(
+      found.candidates.map((candidate) => candidate.reference),
+      ["#12"],
+    );
+    assert.deepStrictEqual(asked, { query: "cra", sigil: "#" });
+
+    const silent = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [fakeProvider("github")],
+    });
+    const none = yield* silent.referenceCandidates({
+      projectId: "p1" as ProjectId,
+      repository: "acme/web",
+    });
+    assert.deepStrictEqual(none, { candidates: [], truncated: false });
+  }),
+);
+
+it.effect("serves file contents only for paths the change request changes", () =>
+  Effect.gen(function* () {
+    const served: Array<string> = [];
+    const service = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakeProvider("github", {
+          getDiffFilePaths: (input) =>
+            input.cursor === undefined
+              ? Effect.succeed({
+                  files: [{ oldPath: "src/a.ts", newPath: "src/a.ts" }],
+                  nextCursor: "page-2",
+                })
+              : Effect.succeed({
+                  files: [{ oldPath: "old/b.ts", newPath: "new/b.ts" }],
+                  nextCursor: null,
+                }),
+          getDiffFileContents: (input) => {
+            served.push(input.newPath);
+            return Effect.succeed({ oldContents: "", newContents: "" } as never);
+          },
+        }),
+      ],
+    });
+    const ref = { projectId: "p1" as ProjectId, repository: "acme/web", number: 7 };
+
+    // A path on the second page of changed paths is found by walking the pages.
+    yield* service.diffFileContents({
+      ...ref,
+      changeType: "rename-changed",
+      oldPath: "old/b.ts",
+      newPath: "new/b.ts",
+    });
+    assert.deepStrictEqual(served, ["new/b.ts"]);
+
+    const refused = yield* service
+      .diffFileContents({ ...ref, changeType: "change", oldPath: ".env", newPath: ".env" })
+      .pipe(Effect.flip);
+    assert.include(refused.message, "not part of the change request");
+    assert.deepStrictEqual(served, ["new/b.ts"]);
+  }),
+);
+
 it.effect("answers a repeated listing from cache, and concurrent readers share one request", () =>
   Effect.gen(function* () {
     let hostCalls = 0;
@@ -4121,6 +4253,39 @@ it.effect("carries a slice on without sending the rows it already sent", () =>
     );
     assert.deepStrictEqual(result.nextCursors, {
       "github.com acme/web": "2026-07-02T00:00:00Z|2|3,3,4",
+    });
+  }),
+);
+it.effect("carries a host's resume position from one page's cursor into the next read", () =>
+  Effect.gen(function* () {
+    const cursors: Array<unknown> = [];
+    const service = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakeProvider("github", {
+          listChangeRequests: (input) => {
+            cursors.push(input.cursor);
+            return Effect.succeed({
+              items: [changeRequest(1, "2026-07-02T00:00:00Z")],
+              truncated: true,
+              continues: true,
+              resumeAfter: "2026-07-02T00:00:00Z~1",
+            });
+          },
+        }),
+      ],
+    });
+
+    const first = yield* service.list({ state: "open" });
+    const cursor = first.nextCursors["github.com acme/web"];
+    assert.isDefined(cursor);
+    assert.isTrue(cursor!.endsWith("|2026-07-02T00:00:00Z~1"));
+
+    yield* service.list({ state: "open", cursors: { "github.com acme/web": cursor! } });
+    assert.deepStrictEqual(cursors[1], {
+      updatedBefore: "2026-07-02T00:00:00Z",
+      delivered: 1,
+      resumeAfter: "2026-07-02T00:00:00Z~1",
     });
   }),
 );

@@ -1,4 +1,5 @@
 import { withAgentDeviceEnvironment } from "../../mcp/McpProviderSession.ts";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import { AntigravitySettings, ProviderDriverKind, ProviderSetupError } from "@tabs/contracts";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
 import { resolveSelfInvocation } from "@tabs/shared/nodeRuntime";
@@ -108,7 +109,7 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
       const settings = { ...config, enabled } satisfies AntigravitySettings;
       const auth: AntigravityAuthConfig = {
         authMethod: settings.authMethod,
-        apiKey: settings.apiKey,
+        apiKey: settingsSecretLiteral(settings.apiKey),
         gcpProject: settings.gcpProject,
         gcpLocation: settings.gcpLocation,
       };
@@ -437,6 +438,7 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
         makeRuntime,
         withProcess: authFlow.withProcess,
         defaultModel,
+        profileDirectory,
         onSessionStarted: provider.onSessionStarted,
         onSessionEvent: (event) => {
           if (event._tag === "ConfigOptionsUpdated") {

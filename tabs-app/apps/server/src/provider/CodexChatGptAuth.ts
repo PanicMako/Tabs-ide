@@ -106,6 +106,8 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
   readonly defaultReturnUrl?: string;
   readonly reconnectProfile?: ChatGptReconnectProfile | null;
   readonly telemetryFlow?: "direct" | "primary_handoff";
+  /** Refuses tokens of any other sign-in than the one a running child was launched with. */
+  readonly expectedProfileKey?: string;
 }) {
   const analytics = yield* Effect.serviceOption(AnalyticsService.AnalyticsService);
   const settings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
@@ -718,6 +720,12 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       ),
     );
   });
+  // ID tokens survive renewal but change on sign-in. Bind active children to the
+  // launch profile without putting an identity token or subject in their argv.
+  const profileKey = (record: CodexChatGptCredentials) =>
+    NodeCrypto.createHash("sha256")
+      .update(JSON.stringify([record.clientId, record.subject, record.idToken ?? null]))
+      .digest("hex");
   const access = lock.withPermit(
     withSessionLock(
       Effect.uninterruptible(
@@ -726,6 +734,11 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
           if (Option.isNone(saved))
             return yield* failure("access", "Sign in with ChatGPT to use managed Codex.");
           let record = saved.value;
+          if (
+            options.expectedProfileKey !== undefined &&
+            profileKey(record) !== options.expectedProfileKey
+          )
+            return yield* failure("access", "The ChatGPT connection changed. Start a new session.");
           if (!record.scopes.includes(REQUIRED_SCOPE))
             return yield* failure(
               "sharing",
@@ -984,6 +997,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
     controller: { ...controller, reconnectProfile, importProfile },
     read,
     access,
+    profileKey: (record: CodexChatGptCredentials) => Effect.sync(() => profileKey(record)),
     exportProfile,
     revoke: lock.withPermit(withSessionLock(remove)),
   };

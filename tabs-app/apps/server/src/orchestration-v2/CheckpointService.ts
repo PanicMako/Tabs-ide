@@ -38,6 +38,10 @@ export class CheckpointRootScopePrepareError extends Schema.TaggedError<Checkpoi
   }
 }
 
+// The provider turn waits on the baseline, so a workspace too slow for this starts without one.
+// It bounds only the snapshot: waiting on the lock lets an in-flight capture finish the same ref.
+const BASELINE_CAPTURE_BUDGET = "5 seconds";
+
 export class CheckpointScopeEnsureError extends Schema.TaggedError<CheckpointScopeEnsureError>()(
   "CheckpointScopeEnsureError",
   {
@@ -277,10 +281,12 @@ export const layer: Layer.Layer<
             return;
           }
 
-          yield* checkpointStore.captureCheckpoint({
-            cwd: input.scope.cwd,
-            checkpointRef,
-          });
+          yield* checkpointStore
+            .captureCheckpoint({
+              cwd: input.scope.cwd,
+              checkpointRef,
+            })
+            .pipe(Effect.timeout(BASELINE_CAPTURE_BUDGET));
         }),
       ).pipe(
         Effect.mapError(

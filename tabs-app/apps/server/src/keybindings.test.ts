@@ -298,7 +298,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     );
   }
 
-  it("ships lifecycle and reference shortcuts from the T3 thread workflow", () => {
+  it("ships lifecycle and reference shortcuts from the Tabs thread workflow", () => {
     const defaultsByCommand = new Map(
       DEFAULT_KEYBINDINGS.map((binding) => [binding.command, binding.key] as const),
     );

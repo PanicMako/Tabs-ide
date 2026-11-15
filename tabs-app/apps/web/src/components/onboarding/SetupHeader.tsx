@@ -26,7 +26,7 @@ export function SetupHeader({
     <header
       aria-label="Setup controls"
       className={cn(
-        "setup-typography setup-surface relative z-40 mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-3 rounded-lg border border-white/15 bg-black/60 px-3 py-3 text-white backdrop-blur-xl sm:px-5 transition-all duration-700 ease-in-out",
+        "setup-typography setup-surface relative z-40 mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-3 rounded-lg border border-white/15 bg-black/75 px-3 py-3 text-white sm:px-5 transition-[transform,opacity] duration-700 ease-in-out",
         className,
       )}
     >

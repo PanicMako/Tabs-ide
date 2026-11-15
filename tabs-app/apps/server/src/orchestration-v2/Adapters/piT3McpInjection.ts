@@ -31,7 +31,7 @@ const RESERVED_PI_LAUNCH_ARGUMENTS = new Set([
   "-v",
 ]);
 
-const PI_ARGUMENTS_WITH_VALUES = new Set([
+export const PI_ARGUMENTS_WITH_VALUES = new Set([
   "--api-key",
   "--append-system-prompt",
   "--exclude-tools",
@@ -118,7 +118,7 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
     if (reserved !== undefined) {
       return {
         ok: false,
-        message: `Pi launch argument '${reserved}' is controlled by T3 Code and cannot be overridden.`,
+        message: `Pi launch argument '${reserved}' is controlled by Tabs and cannot be overridden.`,
       };
     }
     if (arg === "--") {
@@ -153,7 +153,7 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
       continue;
     }
     if (arg.startsWith("-")) {
-      return { ok: false, message: `Pi launch argument '${arg}' is not supported by T3 Code.` };
+      return { ok: false, message: `Pi launch argument '${arg}' is not supported by Tabs.` };
     }
     return {
       ok: false,

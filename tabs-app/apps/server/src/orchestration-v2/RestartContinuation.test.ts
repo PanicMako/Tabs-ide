@@ -16,7 +16,11 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ServerSettings from "../serverSettings.ts";
-import { restartContinuationRun, continueRestartedRun } from "./RestartContinuation.ts";
+import {
+  CONTINUE_PROMPT,
+  restartContinuationRun,
+  continueRestartedRun,
+} from "./RestartContinuation.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
@@ -667,7 +671,7 @@ it.effect("continues a cut run past queued follow-ups, which stay held", () =>
       ...cut,
       runs: [...cut.runs, queuedFollowUp],
     } as unknown as OrchestrationV2ThreadProjection);
-    assert.deepEqual(texts, ["Continue where you left off."]);
+    assert.deepEqual(texts, [CONTINUE_PROMPT]);
   }),
 );
 
@@ -696,7 +700,7 @@ it.effect("continues a resumed queued run that ran after an earlier continuation
       ...cut,
       runs: [...cut.runs, finishedContinuation],
     } as unknown as OrchestrationV2ThreadProjection);
-    assert.deepEqual(texts, ["Continue where you left off."]);
+    assert.deepEqual(texts, [CONTINUE_PROMPT]);
   }),
 );
 
@@ -736,7 +740,7 @@ it.effect("tells a turn cut mid-way about the background work it lost", () =>
     );
     assert.lengthOf(texts, 1);
     assert.include(texts[0]!, "Background reviewer");
-    assert.isTrue(texts[0]!.endsWith("Continue where you left off."));
+    assert.isTrue(texts[0]!.endsWith(CONTINUE_PROMPT));
   }),
 );
 
@@ -814,5 +818,48 @@ it.effect("prepares later threads' continuations when one thread fails", () =>
       writes.map((write) => write.effects[0]?.request),
       [{ type: "provider-runtime.continue", sourceRunId: runId }],
     );
+  }),
+);
+
+it.effect("stops continuing a run the server keeps crashing on", () =>
+  Effect.gen(function* () {
+    const cut = cutMidTurn();
+    const [source] = cut.runs;
+    const chained = [
+      { ...source!, restartContinuationOfRunId: RunId.make("run:crash-1") },
+      {
+        ...source!,
+        id: RunId.make("run:crash-1"),
+        ordinal: 0,
+        restartContinuationOfRunId: RunId.make("run:crash-2"),
+      },
+      {
+        ...source!,
+        id: RunId.make("run:crash-2"),
+        ordinal: -1,
+        restartContinuationOfRunId: RunId.make("run:crash-3"),
+      },
+      {
+        ...source!,
+        id: RunId.make("run:crash-3"),
+        ordinal: -2,
+        restartContinuationOfRunId: undefined,
+      },
+    ];
+    const texts = yield* continuationTexts({
+      ...cut,
+      runs: chained,
+    } as unknown as OrchestrationV2ThreadProjection);
+    assert.deepEqual(texts, []);
+    // The same shape with a shorter chain still continues, so the empty result is the guard.
+    const shortChain = yield* continuationTexts({
+      ...cut,
+      runs: chained
+        .slice(0, 2)
+        .map((run, index) =>
+          index === 1 ? { ...run, restartContinuationOfRunId: undefined } : run,
+        ),
+    } as unknown as OrchestrationV2ThreadProjection);
+    assert.deepEqual(shortChain, [CONTINUE_PROMPT]);
   }),
 );

@@ -1,7 +1,7 @@
 import {
   ProviderDriverKind,
   ProviderInstanceId,
-  type ProviderInstanceEnvironment,
+  type ResolvedProviderInstanceEnvironment,
 } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import type * as Effect from "effect/Effect";
@@ -27,7 +27,7 @@ export interface ProviderAdapterDriverCreateInput<Config> {
   readonly instanceId: ProviderInstanceId;
   readonly displayName: string | undefined;
   readonly accentColor?: string | undefined;
-  readonly environment: ProviderInstanceEnvironment;
+  readonly environment: ResolvedProviderInstanceEnvironment;
   readonly enabled: boolean;
   readonly config: Config;
 }

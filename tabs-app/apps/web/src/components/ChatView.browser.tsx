@@ -1180,7 +1180,7 @@ describe("ChatView browser behavior (full app)", () => {
           expect(writeRequest).toMatchObject({
             _tag: WS_METHODS.terminalWrite,
             threadId: THREAD_ID,
-            data: "bun run lint\r",
+            data: " bun run lint\r",
           });
         },
         { timeout: 8_000, interval: 16 },

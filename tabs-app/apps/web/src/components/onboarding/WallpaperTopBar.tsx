@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
+import { WallpaperGlassDock } from "./WallpaperGlassDock";
 import {
   WALLPAPERS,
   WALLPAPER_CATEGORIES,
@@ -157,6 +158,25 @@ export function WallpaperTopBar({
     });
   };
 
+  // In the agent chat the controls are one frosted-glass capsule (see WallpaperGlassDock).
+  if (orientation === "vertical") {
+    return (
+      <WallpaperGlassDock
+        activeWallpaper={activeWallpaper}
+        isMinimized={isMinimized}
+        isOverridden={isThreadSpecific}
+        disabled={disabled}
+        onOpenGallery={onOpenGallery}
+        onShuffle={handleRandom}
+        onReset={onClearThreadWallpaper}
+        onDisable={onDisableWallpaper}
+        onMinimize={onMinimize}
+        onExpand={onExpand}
+        onPlaySound={onPlaySound}
+      />
+    );
+  }
+
   if (isMinimized) {
     return (
       <div className="relative">
@@ -168,23 +188,15 @@ export function WallpaperTopBar({
           }}
           aria-label="Expand wallpaper controls"
           className={cn(
-            "group relative flex size-10 items-center justify-center rounded-full backdrop-blur-2xl shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer border select-none animate-in fade-in zoom-in-95 duration-200",
+            "group relative flex size-10 items-center justify-center rounded-full backdrop-blur-md shadow-md transition-colors duration-200 active:scale-95 cursor-pointer border select-none",
             isLight
               ? "border-slate-200/90 bg-white/90 shadow-slate-900/10 hover:border-slate-300 hover:bg-white"
               : "border-white/20 bg-black/75 shadow-black/50 hover:border-white/35 hover:bg-black/90",
           )}
-          style={{
-            boxShadow: isLight
-              ? `0 8px 24px -2px rgba(0, 0, 0, 0.15), 0 0 16px ${activeWallpaper.accentColor}30`
-              : `0 8px 24px -2px rgba(0, 0, 0, 0.6), 0 0 18px ${activeWallpaper.accentColor}40`,
-          }}
           title={`Wallpaper: ${activeWallpaper.label} (Click to open controls)`}
         >
           {/* Circular Lens */}
-          <div
-            className="size-7.5 overflow-hidden rounded-full border shadow-inner transition-transform duration-300 group-hover:scale-105"
-            style={{ borderColor: activeWallpaper.accentColor }}
-          >
+          <div className="size-7.5 overflow-hidden rounded-full border border-black/15 dark:border-white/20">
             <img src={activeWallpaper.url} alt="" className="size-full object-cover" />
           </div>
 
@@ -194,157 +206,6 @@ export function WallpaperTopBar({
             <span className="text-[10px] text-white/50">Click to change</span>
           </div>
         </button>
-      </div>
-    );
-  }
-
-  if (orientation === "vertical") {
-    return (
-      <div className="relative">
-        <div
-          className={cn(
-            "relative flex flex-col items-center gap-1.5 rounded-2xl p-1.5 backdrop-blur-2xl shadow-2xl transition-all duration-300 border select-none group/dock animate-in fade-in zoom-in-95 duration-200",
-            isLight
-              ? "border-slate-200/90 bg-white/90 text-slate-800 shadow-slate-900/15"
-              : "border-white/15 bg-black/75 text-white shadow-black/60",
-          )}
-          style={{
-            boxShadow: isLight
-              ? `0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 15px ${activeWallpaper.accentColor}25`
-              : `0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 20px ${activeWallpaper.accentColor}35`,
-          }}
-        >
-          {/* Active Wallpaper Thumbnail Lens */}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              onPlaySound?.();
-              onOpenGallery();
-            }}
-            className="group/lens relative h-6 w-9 overflow-hidden rounded-lg border shadow-xs transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-            style={{ borderColor: activeWallpaper.accentColor }}
-            title="Browse all wallpapers in gallery"
-            aria-label="Browse all wallpapers in gallery"
-          >
-            <img src={activeWallpaper.url} alt="" className="size-full object-cover" />
-
-            {/* Slide-out title tag on hover to the left */}
-            <div className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-3 flex items-center gap-2 rounded-xl border border-white/20 bg-neutral-950/95 px-3 py-1.5 backdrop-blur-2xl shadow-2xl opacity-0 -translate-x-1 transition-all duration-200 group-hover/lens:opacity-100 group-hover/lens:translate-x-0 whitespace-nowrap z-50">
-              <span className="text-xs font-semibold text-white">{activeWallpaper.label}</span>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-mono text-white/70">
-                {activeWallpaper.category}
-              </span>
-              {isThreadSpecific && (
-                <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-medium text-sky-300 border border-sky-400/30">
-                  Thread
-                </span>
-              )}
-            </div>
-          </button>
-
-          <div className={cn("h-px w-5 my-0.5", isLight ? "bg-slate-200" : "bg-white/15")} />
-
-          {/* Surprise Me / Shuffle Button */}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleRandom}
-            className={cn(
-              "group/dice relative flex size-8 items-center justify-center rounded-xl transition-all active:scale-90 disabled:opacity-40 cursor-pointer",
-              isLight
-                ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                : "text-amber-400/90 hover:bg-amber-400/20 hover:text-amber-300",
-            )}
-            title="Surprise me with a random wallpaper"
-            aria-label="Surprise me with a random wallpaper"
-          >
-            <DicesIcon className="size-4 transition-transform duration-300 group-hover/dice:rotate-45" />
-            <div className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-3 rounded-xl border border-white/15 bg-neutral-950/95 px-2.5 py-1 text-xs font-medium text-white shadow-xl opacity-0 -translate-x-1 transition-all duration-200 group-hover/dice:opacity-100 group-hover/dice:translate-x-0 whitespace-nowrap z-50">
-              Surprise Me
-            </div>
-          </button>
-
-          {/* Full Gallery Grid Button */}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              onPlaySound?.();
-              onOpenGallery();
-            }}
-            className={cn(
-              "group/grid relative flex size-8 items-center justify-center rounded-xl transition-all active:scale-90 disabled:opacity-40 cursor-pointer",
-              isLight
-                ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                : "text-white/70 hover:bg-white/15 hover:text-white",
-            )}
-            title="Browse all wallpapers in gallery"
-            aria-label="Browse all wallpapers in gallery"
-          >
-            <LayoutGridIcon className="size-4" />
-            <div className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-3 rounded-xl border border-white/15 bg-neutral-950/95 px-2.5 py-1 text-xs font-medium text-white shadow-xl opacity-0 -translate-x-1 transition-all duration-200 group-hover/grid:opacity-100 group-hover/grid:translate-x-0 whitespace-nowrap z-50">
-              Full Gallery
-            </div>
-          </button>
-
-          {/* Reset Thread Override Button (if thread-specific) */}
-          {isThreadSpecific && onClearThreadWallpaper && (
-            <button
-              type="button"
-              onClick={onClearThreadWallpaper}
-              className="flex size-7 items-center justify-center rounded-xl text-sky-400 hover:bg-sky-500/20 cursor-pointer transition-all"
-              title="Reset to global workspace wallpaper"
-              aria-label="Reset to global workspace wallpaper"
-            >
-              <RotateCcwIcon className="size-3.5" />
-            </button>
-          )}
-
-          {/* Disable / Turn Off Wallpaper Button */}
-          {onDisableWallpaper && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onPlaySound?.();
-                onDisableWallpaper();
-              }}
-              className={cn(
-                "flex size-7 items-center justify-center rounded-xl transition-all active:scale-90 disabled:opacity-40 cursor-pointer",
-                isLight
-                  ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
-                  : "text-white/35 hover:bg-red-500/20 hover:text-red-400",
-              )}
-              title="Turn off wallpaper (Hide this icon & switch to default IDE look)"
-              aria-label="Turn off wallpaper (Hide this icon & switch to default IDE look)"
-            >
-              <PowerOffIcon className="size-3" />
-            </button>
-          )}
-
-          {/* Minimize / Collapse Button */}
-          {onMinimize && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onPlaySound?.();
-                onMinimize();
-              }}
-              className={cn(
-                "flex size-7 items-center justify-center rounded-xl transition-all active:scale-90 disabled:opacity-40 cursor-pointer",
-                isLight
-                  ? "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  : "text-white/40 hover:bg-white/15 hover:text-white",
-              )}
-              title="Minimize wallpaper controls"
-              aria-label="Minimize wallpaper controls"
-            >
-              <ChevronDownIcon className="size-3.5" />
-            </button>
-          )}
-        </div>
       </div>
     );
   }
@@ -417,8 +278,8 @@ export function WallpaperTopBar({
                   className={cn(
                     "rounded px-1 py-0.2 text-[8px] font-medium leading-none shrink-0",
                     isLight
-                      ? "bg-sky-100 text-sky-800 border border-sky-200"
-                      : "bg-sky-500/20 text-sky-300 border border-sky-400/30",
+                      ? "bg-slate-100 text-slate-800 border border-slate-200"
+                      : "bg-white/10 text-white/80 border border-white/25",
                   )}
                   title="Specific to this thread"
                 >
@@ -454,8 +315,8 @@ export function WallpaperTopBar({
             className={cn(
               "flex size-6 items-center justify-center rounded-full transition-all active:scale-95 cursor-pointer",
               isLight
-                ? "text-sky-600 hover:bg-sky-100 hover:text-sky-800"
-                : "text-sky-300 hover:bg-sky-500/20 hover:text-sky-200",
+                ? "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
             )}
             title="Reset to global workspace wallpaper"
           >
@@ -530,8 +391,8 @@ export function WallpaperTopBar({
               "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
               isFilmstripOpen
                 ? isLight
-                  ? "bg-sky-100 text-sky-800 ring-1 ring-sky-700/40"
-                  : "bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/40"
+                  ? "bg-slate-100 text-slate-800 ring-1 ring-slate-400/50"
+                  : "bg-white/10 text-white ring-1 ring-white/30"
                 : isLight
                   ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   : "text-white/60 hover:bg-white/10 hover:text-white",
@@ -626,7 +487,7 @@ export function WallpaperTopBar({
                 setIsFilmstripOpen(false);
                 onOpenGallery();
               }}
-              className="flex items-center gap-1 text-[11px] font-medium text-sky-400 hover:text-sky-300 shrink-0 cursor-pointer"
+              className="flex items-center gap-1 text-[11px] font-medium text-white/80 hover:text-white shrink-0 cursor-pointer"
             >
               <LayoutGridIcon className="size-3" />
               <span>Full Grid</span>
@@ -664,7 +525,7 @@ export function WallpaperTopBar({
                     className={cn(
                       "group/card relative flex flex-col shrink-0 w-28 overflow-hidden rounded-xl border text-left transition-all duration-200 cursor-pointer select-none",
                       isSelected
-                        ? "border-sky-400 ring-2 ring-sky-400/50 scale-105 shadow-md shadow-sky-500/20"
+                        ? "border-white ring-2 ring-white/60"
                         : "border-white/15 bg-white/5 hover:border-white/40 hover:scale-[1.02]",
                     )}
                   >

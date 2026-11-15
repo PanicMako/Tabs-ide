@@ -7,11 +7,14 @@ export function UserMessageLayout({
   actions,
   scrollContainer = null,
   attachments,
+  receipt,
   children,
 }: {
   actions: ReactNode;
   scrollContainer?: HTMLDivElement | null;
   attachments?: ReactNode;
+  /** Read receipt shown inside the prompt when a wallpaper is on. */
+  receipt?: ReactNode;
   children?: ReactNode;
 }) {
   const content = useRef<HTMLDivElement>(null);
@@ -26,6 +29,7 @@ export function UserMessageLayout({
           <div ref={content} className="user-message-content" dir="auto">
             <div ref={beam} className="user-message-rail-beam" aria-hidden="true" />
             {children}
+            {receipt}
           </div>
         )}
       </div>

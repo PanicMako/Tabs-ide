@@ -125,7 +125,7 @@ describe("themeImportExport", () => {
     expect(config.fonts.uiFont).toBe("Outfit");
   });
 
-  it("parses T3 Code theme palette format", () => {
+  it("parses Tabs theme palette format", () => {
     const t3Json = {
       label: "Amber Glow",
       appearance: "dark",

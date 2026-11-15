@@ -317,7 +317,7 @@ export function parseNativeTheme(
     };
   }
 
-  // Case 2: T3 Code theme palette format ({ appearance, colors: { canvas, accent, ... } })
+  // Case 2: Tabs theme palette format ({ appearance, colors: { canvas, accent, ... } })
   if (isRecord(value.colors) && (value.appearance === "dark" || value.appearance === "light")) {
     const rawColors = value.colors as Record<string, string>;
     const baseVariant: "dark" | "light" = value.appearance === "light" ? "light" : "dark";

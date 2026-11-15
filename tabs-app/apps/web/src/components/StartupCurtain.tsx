@@ -10,7 +10,9 @@ export const STARTUP_EXIT_GRACE_MS = 1_500;
 
 /** The layer `riseRef` points at: layout-neutral until it carries content up. */
 export const STARTUP_RISE_LAYER_CLASS =
-  "contents data-[rising]:fixed data-[rising]:inset-0 data-[rising]:z-[10000] data-[rising]:block data-[rising]:bg-background data-[rising]:shadow-[0_-24px_48px_-12px_rgb(0_0_0/0.35)] data-[rising]:will-change-transform";
+  // `data-staged` parks the layer fixed and off-screen while the splash plays, so the
+  // workspace is laid out and rasterised once, early, and the rise only moves it.
+  "contents data-[staged]:pointer-events-none data-[staged]:fixed data-[staged]:inset-0 data-[staged]:block data-[staged]:[transform:translate3d(0,100%,0)] data-[staged]:will-change-transform  data-[rising]:fixed data-[rising]:inset-0 data-[rising]:z-[10000] data-[rising]:block data-[rising]:bg-background data-[rising]:shadow-[0_-24px_48px_-12px_rgb(0_0_0/0.35)] data-[rising]:will-change-transform";
 
 /**
  * Full-screen startup splash. It either lifts straight up off the workspace,

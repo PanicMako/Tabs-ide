@@ -1240,6 +1240,61 @@ layer("GitLabPullRequestCli.layer", (it) => {
     }),
   );
 
+  it.effect("searches the project's people and its issues and merge requests for a composer", () =>
+    Effect.gen(function* () {
+      mockedExecute
+        .mockReturnValueOnce(
+          Effect.succeed(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            output(JSON.stringify([{ id: 9, username: "hubot", name: "Hub Bot" }])),
+          ),
+        )
+        .mockReturnValueOnce(
+          Effect.succeed(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            output(JSON.stringify([{ iid: 12, title: "Crash on start", state: "opened" }])),
+          ),
+        )
+        .mockReturnValueOnce(
+          Effect.succeed(
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            output(JSON.stringify([{ iid: 3, title: "Add feature", state: "merged" }])),
+          ),
+        );
+      const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
+
+      const people = yield* cli.searchRepositoryAuthors({
+        cwd: "/w",
+        repository: "acme/web",
+        query: "hub",
+      });
+      expect(argsOfCall(0)[1]).toContain("projects/acme%2Fweb/users?");
+      expect(argsOfCall(0)[1]).toContain("search=hub");
+      expect(people.items.map((actor) => actor.login)).toEqual(["hubot"]);
+
+      const issues = yield* cli.searchRepositoryReferences({
+        cwd: "/w",
+        repository: "acme/web",
+        query: "crash",
+        sigil: "#",
+      });
+      expect(argsOfCall(1)[1]).toContain("projects/acme%2Fweb/issues?");
+      expect(issues.items.map((item) => [item.reference, item.kind, item.state])).toEqual([
+        ["#12", "issue", "open"],
+      ]);
+
+      const merges = yield* cli.searchRepositoryReferences({
+        cwd: "/w",
+        repository: "acme/web",
+        sigil: "!",
+      });
+      expect(argsOfCall(2)[1]).toContain("projects/acme%2Fweb/merge_requests?");
+      expect(merges.items.map((item) => [item.reference, item.kind, item.state])).toEqual([
+        ["!3", "change-request", "merged"],
+      ]);
+    }),
+  );
+
   it.effect("writes the reviewer set back with the one being asked added to it", () =>
     Effect.gen(function* () {
       mockedExecute

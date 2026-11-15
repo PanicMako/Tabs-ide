@@ -26,6 +26,8 @@ import {
   commandForProjectScript,
   nextProjectScriptId,
   primaryProjectScript,
+  projectScriptMenuLabel,
+  type ProjectScriptInput,
 } from "~/projectScripts";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { isMacPlatform } from "~/lib/utils";
@@ -89,16 +91,50 @@ function ScriptIcon({
   return <PlayIcon className={className} />;
 }
 
-export interface NewProjectScriptInput {
-  name: string;
-  command: string;
-  icon: ProjectScriptIcon;
-  runOnWorktreeCreate: boolean;
-  keybinding: string | null;
+function ScriptOptionSwitch(props: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 px-3 py-2">
+      <span className="min-w-0">
+        <span className="block">{props.label}</span>
+        {props.description && (
+          <span className="block text-xs text-muted-foreground">{props.description}</span>
+        )}
+      </span>
+      <Switch
+        checked={props.checked}
+        onCheckedChange={(checked) => props.onCheckedChange(Boolean(checked))}
+      />
+    </label>
+  );
+}
+
+export interface NewProjectScriptInput extends ProjectScriptInput {
+  readonly keybinding: string | null;
+}
+
+function fileScriptInput(fileScript: T3ProjectFileScript): NewProjectScriptInput {
+  return {
+    name: fileScript.name,
+    command: fileScript.command,
+    icon: fileScript.icon ?? "play",
+    runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
+    waitForSetup: fileScript.async === false,
+    runOnSettle: fileScript.runOnSettle ?? false,
+    stopOnSettle: fileScript.stopOnSettle ?? false,
+    previewUrl: fileScript.previewUrl ?? null,
+    autoOpenPreview: fileScript.autoOpenPreview ?? false,
+    keybinding: null,
+  };
 }
 
 interface ProjectScriptsControlProps {
-  displayMode?: "toolbar" | "panel";
+  /** "list" renders a settings-style list with an Edit button per action. */
+  displayMode?: "toolbar" | "panel" | "list";
   scripts: ProjectScript[];
   fileScripts?: ReadonlyArray<T3ProjectFileScript>;
   keybindings: ResolvedKeybindingsConfig;
@@ -179,6 +215,11 @@ export default function ProjectScriptsControl({
   const [icon, setIcon] = useState<ProjectScriptIcon>("play");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [runOnWorktreeCreate, setRunOnWorktreeCreate] = useState(false);
+  const [waitForSetup, setWaitForSetup] = useState(false);
+  const [runOnSettle, setRunOnSettle] = useState(false);
+  const [stopOnSettle, setStopOnSettle] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [autoOpenPreview, setAutoOpenPreview] = useState(false);
   const [keybinding, setKeybinding] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -249,6 +290,11 @@ export default function ProjectScriptsControl({
         command: trimmedCommand,
         icon,
         runOnWorktreeCreate,
+        waitForSetup,
+        runOnSettle,
+        stopOnSettle,
+        previewUrl: previewUrl.trim() === "" ? null : previewUrl.trim(),
+        autoOpenPreview,
         keybinding: keybindingRule?.key ?? null,
       } satisfies NewProjectScriptInput;
       if (editingScriptId) {
@@ -270,6 +316,11 @@ export default function ProjectScriptsControl({
     setIcon("play");
     setIconPickerOpen(false);
     setRunOnWorktreeCreate(false);
+    setWaitForSetup(false);
+    setRunOnSettle(false);
+    setStopOnSettle(false);
+    setPreviewUrl("");
+    setAutoOpenPreview(false);
     setKeybinding("");
     setValidationError(null);
     setDialogOpen(true);
@@ -282,6 +333,11 @@ export default function ProjectScriptsControl({
     setIcon(script.icon);
     setIconPickerOpen(false);
     setRunOnWorktreeCreate(script.runOnWorktreeCreate);
+    setWaitForSetup(script.async === false);
+    setRunOnSettle(script.runOnSettle ?? false);
+    setStopOnSettle(script.stopOnSettle ?? false);
+    setPreviewUrl(script.previewUrl ?? "");
+    setAutoOpenPreview(script.autoOpenPreview ?? false);
     setKeybinding(keybindingValueForCommand(keybindings, commandForProjectScript(script.id)) ?? "");
     setValidationError(null);
     setDialogOpen(true);
@@ -299,9 +355,73 @@ export default function ProjectScriptsControl({
       });
   }, [editingScriptId, onDeleteScript]);
 
+  const roleLabels = (script: ProjectScript) => [
+    ...(script.runOnWorktreeCreate
+      ? [script.async === false ? "Setup · holds agent" : "Setup"]
+      : []),
+    ...(script.runOnSettle ? ["When done"] : []),
+    ...(script.stopOnSettle ? ["Stops when done"] : []),
+    ...(script.previewUrl ? [script.autoOpenPreview ? "Opens preview" : "Preview"] : []),
+  ];
+
   return (
     <>
-      {primaryScript ? (
+      {displayMode === "list" ? (
+        <div className="divide-y divide-border/70">
+          {scripts.length === 0 && (
+            <p className="px-4 py-3 text-sm text-muted-foreground sm:px-5">
+              No actions yet. Actions are commands you run from the chat header, at worktree setup,
+              or when a thread settles.
+            </p>
+          )}
+          {scripts.map((script) => {
+            const shortcutLabel = shortcutLabelForCommand(
+              keybindings,
+              commandForProjectScript(script.id),
+            );
+            return (
+              <div key={script.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground">
+                  <ScriptIcon icon={script.icon} className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-medium">{script.name}</span>
+                    {roleLabels(script).map((label) => (
+                      <span
+                        key={label}
+                        className="rounded-full border border-border/70 px-1.5 text-[10.5px] leading-4 text-muted-foreground"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <code className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                    {script.command}
+                  </code>
+                </div>
+                {shortcutLabel && (
+                  <span className="shrink-0 text-xs text-muted-foreground">{shortcutLabel}</span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label={`Edit ${script.name}`}
+                  onClick={() => openEditDialog(script)}
+                >
+                  Edit
+                </Button>
+              </div>
+            );
+          })}
+          <div className="px-4 py-3 sm:px-5">
+            <Button size="sm" variant="outline" onClick={openAddDialog}>
+              <PlusIcon className="size-3.5" />
+              Add action
+            </Button>
+          </div>
+        </div>
+      ) : primaryScript ? (
         <Group aria-label="Project scripts" className={displayMode === "panel" ? "w-full" : ""}>
           <Button
             size="xs"
@@ -341,9 +461,7 @@ export default function ProjectScriptsControl({
                     onClick={() => onRunScript(script)}
                   >
                     <ScriptIcon icon={script.icon} className="size-4" />
-                    <span className="truncate">
-                      {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
-                    </span>
+                    <span className="truncate">{projectScriptMenuLabel(script)}</span>
                     <span className="relative ms-auto flex h-6 min-w-6 items-center justify-end">
                       {shortcutLabel && (
                         <MenuShortcut className="ms-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0">
@@ -385,13 +503,7 @@ export default function ProjectScriptsControl({
                         className={`group ${dropdownItemClassName}`}
                         onClick={async () => {
                           try {
-                            await onAddScript({
-                              name: fileScript.name,
-                              command: fileScript.command,
-                              icon: fileScript.icon ?? "play",
-                              runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
-                              keybinding: null,
-                            });
+                            await onAddScript(fileScriptInput(fileScript));
                           } catch (error) {
                             setValidationError(
                               error instanceof Error ? error.message : "Failed to import action.",
@@ -447,13 +559,7 @@ export default function ProjectScriptsControl({
                     className={`group ${dropdownItemClassName}`}
                     onClick={async () => {
                       try {
-                        await onAddScript({
-                          name: fileScript.name,
-                          command: fileScript.command,
-                          icon: fileScript.icon ?? "play",
-                          runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
-                          keybinding: null,
-                        });
+                        await onAddScript(fileScriptInput(fileScript));
                       } catch (error) {
                         setValidationError(
                           error instanceof Error ? error.message : "Failed to import action.",
@@ -600,13 +706,49 @@ export default function ProjectScriptsControl({
                   onChange={(event) => setCommand(event.target.value)}
                 />
               </div>
-              <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm">
-                <span>Run automatically on worktree creation</span>
-                <Switch
-                  checked={runOnWorktreeCreate}
-                  onCheckedChange={(checked) => setRunOnWorktreeCreate(Boolean(checked))}
+              <div className="space-y-1.5">
+                <Label htmlFor="script-preview-url">Preview URL</Label>
+                <Input
+                  id="script-preview-url"
+                  placeholder="http://localhost:3000"
+                  value={previewUrl}
+                  onChange={(event) => setPreviewUrl(event.target.value)}
                 />
-              </label>
+              </div>
+              <div className="divide-y divide-border/70 rounded-md border border-border/70 text-sm">
+                <ScriptOptionSwitch
+                  label="Run automatically on worktree creation"
+                  checked={runOnWorktreeCreate}
+                  onCheckedChange={setRunOnWorktreeCreate}
+                />
+                {runOnWorktreeCreate && (
+                  <ScriptOptionSwitch
+                    label="Hold the agent until setup finishes"
+                    description="Otherwise the agent starts while setup is still running."
+                    checked={waitForSetup}
+                    onCheckedChange={setWaitForSetup}
+                  />
+                )}
+                <ScriptOptionSwitch
+                  label="Run when the thread is marked done"
+                  description="Runs in the thread's own worktree, for cleanup like deleting build output."
+                  checked={runOnSettle}
+                  onCheckedChange={setRunOnSettle}
+                />
+                <ScriptOptionSwitch
+                  label="Stop when the thread is marked done"
+                  description="Closes this action's terminal and its processes, such as a dev server."
+                  checked={stopOnSettle}
+                  onCheckedChange={setStopOnSettle}
+                />
+                {previewUrl.trim() !== "" && (
+                  <ScriptOptionSwitch
+                    label="Open the preview when the action starts"
+                    checked={autoOpenPreview}
+                    onCheckedChange={setAutoOpenPreview}
+                  />
+                )}
+              </div>
               {validationError && <p className="text-sm text-destructive">{validationError}</p>}
             </form>
           </DialogPanel>

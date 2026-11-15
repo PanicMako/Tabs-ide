@@ -14,6 +14,7 @@ import { makeDrainableWorker } from "@tabs/shared/DrainableWorker";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -27,6 +28,7 @@ import * as ProjectStore from "./ProjectStore.ts";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import { forkParked } from "../serverActivation.ts";
+import { makeNoPullRequestRechecks } from "./noPullRequestRechecks.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 
 class ThreadPullRequestServiceV2 extends Context.Service<
@@ -106,6 +108,7 @@ export const make = Effect.gen(function* () {
   const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;
   const pendingBackfill = new Map<ThreadId, number>();
+  const noPullRequestRechecks = makeNoPullRequestRechecks();
 
   const finishBackfill = (threads: ReadonlyArray<Pick<OrchestrationV2ThreadShell, "id">>) => {
     for (const thread of threads) pendingBackfill.delete(thread.id);
@@ -147,6 +150,7 @@ export const make = Effect.gen(function* () {
       projectStore.listShells(),
     ]);
     const projects = new Map(projectShells.map((project) => [project.id, project]));
+    const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
     if (request.backfill) {
       for (const thread of threadSnapshot.threads) {
         if (
@@ -183,13 +187,36 @@ export const make = Effect.gen(function* () {
       groups.set(key, list);
     }
 
+    // A thread's own events and a backfill read at once; only scheduled sweeps wait. A branch
+    // without a pull request is reread less often the longer its threads sit idle, so a sweep's
+    // git work does not grow with the number of idle threads.
+    const scheduled = new Map(
+      request.threadId !== null
+        ? []
+        : [...groups].filter(
+            ([, group]) =>
+              group[0]!.branch !== null &&
+              group.every(
+                (thread) => thread.branchPullRequest == null && !pendingBackfill.has(thread.id),
+              ),
+          ),
+    );
+    const scheduledLookups = noPullRequestRechecks.select(
+      nowMs,
+      Array.from(scheduled, ([key, group]) => ({
+        key,
+        activityAtMs: Math.max(...group.map((thread) => DateTime.toEpochMillis(thread.updatedAt))),
+      })),
+    );
+
     yield* Effect.forEach(
-      groups.values(),
-      (group) =>
+      groups,
+      ([key, group]) =>
         Effect.gen(function* () {
           const first = group[0]!;
           const project = projects.get(first.projectId);
           if (project === undefined) return finishBackfill(group);
+          if (scheduled.has(key) && !scheduledLookups.has(key)) return;
           const { project: resolvedProject, repository } =
             yield* resolveProjectForPullRequestDiscovery(project, repositoryIdentities, {
               refresh: request.refresh,
@@ -208,6 +235,7 @@ export const make = Effect.gen(function* () {
                   { cwd, branch: first.branch },
                   { refresh: request.refresh },
                 );
+          if (first.branch !== null) noPullRequestRechecks.record(key, nowMs, detected !== null);
           if (detected !== null && !pullRequestMatchesProject(detected, resolvedProject)) {
             return finishBackfill(group);
           }
@@ -353,6 +381,7 @@ export const make = Effect.gen(function* () {
       // GraphQL document, instead of one `gh pr list` per branch.
       { concurrency: 32, discard: true },
     );
+    if (request.threadId === null) noPullRequestRechecks.retain(groups);
   });
 
   const worker = yield* makeDrainableWorker((request: RefreshRequest) =>

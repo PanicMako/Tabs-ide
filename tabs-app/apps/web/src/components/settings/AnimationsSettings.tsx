@@ -619,7 +619,7 @@ export function AnimationsSettings() {
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
                     activeFontComboId === "app-default"
-                      ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
+                      ? "border-primary bg-primary/10 text-foreground"
                       : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
                   )}
                 >
@@ -654,7 +654,7 @@ export function AnimationsSettings() {
                       className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
                         isActive
-                          ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
+                          ? "border-primary bg-primary/10 text-foreground"
                           : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
                       )}
                       style={{
@@ -802,12 +802,12 @@ export function AnimationsSettings() {
                       className={cn(
                         "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
                         isActive
-                          ? "border-primary bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_4px_20px_hsl(var(--primary)/0.15)]"
+                          ? "border-primary bg-primary/5"
                           : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",
                       )}
                     >
                       {isActive && (
-                        <div className="absolute top-2.5 right-2.5 size-4 rounded-full bg-primary flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                        <div className="absolute top-2.5 right-2.5 size-4 rounded-full bg-primary flex items-center justify-center">
                           <svg
                             className="size-2.5 text-primary-foreground"
                             viewBox="0 0 12 12"

@@ -48,6 +48,14 @@
  *
  * @module provider/ProviderInstanceRegistry
  */
+import { secretReferencesInSettings } from "@tabs/contracts";
+import {
+  resolveInstanceConfigSecrets,
+  resolveInstanceEnvironment,
+  secretReferencesIn,
+  sameSecretReference,
+  unreadableSecretReason,
+} from "./ProviderInstanceSecrets.ts";
 import {
   providerInstanceConfigEnabledFlag,
   ProviderInstanceId,
@@ -150,6 +158,8 @@ interface RegistryState {
   readonly entries: Ref.Ref<ReadonlyMap<ProviderInstanceId, LiveEntry>>;
   readonly unavailable: Ref.Ref<ReadonlyMap<ProviderInstanceId, ServerProvider>>;
   readonly changes: PubSub.PubSub<void>;
+  /** The config map `reconcile` last applied, so a changed secret can rebuild what reads it. */
+  readonly lastConfigMap: Ref.Ref<ProviderInstanceConfigMap>;
 }
 
 /**
@@ -234,6 +244,36 @@ const buildEntry = <R>(input: {
     }
 
     const typedConfig = decodeResult.success;
+    // Secrets the environment points at are read now; a driver only ever sees plain values.
+    const resolvedConfig = yield* resolveInstanceConfigSecrets(driver.configSchema, typedConfig);
+    if (resolvedConfig.unreadable.length > 0) {
+      return {
+        kind: "unavailable" as const,
+        snapshot: yield* buildUnavailableProviderSnapshot({
+          driverKind: entry.driver,
+          instanceId,
+          displayName: entry.displayName,
+          accentColor: entry.accentColor,
+          reason: unreadableSecretReason({
+            unreadable: resolvedConfig.unreadable,
+            unreadableProviderLabel: resolvedConfig.unreadableProviderLabel,
+          }),
+        }),
+      };
+    }
+    const resolvedEnvironment = yield* resolveInstanceEnvironment(entry.environment);
+    if (resolvedEnvironment.unreadable.length > 0) {
+      return {
+        kind: "unavailable" as const,
+        snapshot: yield* buildUnavailableProviderSnapshot({
+          driverKind: entry.driver,
+          instanceId,
+          displayName: entry.displayName,
+          accentColor: entry.accentColor,
+          reason: unreadableSecretReason(resolvedEnvironment),
+        }),
+      };
+    }
     const childScope = yield* Scope.make();
     // Attach the child scope to the registry's parent scope: if the
     // registry scope closes, each surviving instance's child scope is
@@ -247,9 +287,9 @@ const buildEntry = <R>(input: {
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
-        environment: entry.environment ?? [],
+        environment: resolvedEnvironment.environment,
         enabled: resolveEntryEnabled(entry, typedConfig),
-        config: typedConfig,
+        config: resolvedConfig.config,
       })
       .pipe(Effect.provideService(Scope.Scope, childScope), Effect.result);
     if (createResult._tag === "Failure") {
@@ -289,10 +329,14 @@ const makeReconcile = <R>(input: {
   readonly state: RegistryState;
   readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
   readonly parentScope: Scope.Scope;
-}): ((configMap: ProviderInstanceConfigMap) => Effect.Effect<void, never, R>) => {
+}): ((
+  configMap: ProviderInstanceConfigMap,
+  options?: { readonly rebuild?: (entry: ProviderInstanceConfig) => boolean },
+) => Effect.Effect<void, never, R>) => {
   const { state, driversById, parentScope } = input;
-  return (configMap: ProviderInstanceConfigMap) =>
+  return (configMap: ProviderInstanceConfigMap, options) =>
     Effect.gen(function* () {
+      yield* Ref.set(state.lastConfigMap, configMap);
       const previousEntries = yield* Ref.get(state.entries);
       const previousUnavailable = yield* Ref.get(state.unavailable);
       // Retired direct Gemini API entries stay in stored settings but are not instantiated or advertised.
@@ -312,7 +356,10 @@ const makeReconcile = <R>(input: {
           continue;
         }
         const nextEntry = configMap[instanceId];
-        if (nextEntry !== undefined && !entryEqual(live.entry, nextEntry)) {
+        if (
+          nextEntry !== undefined &&
+          (!entryEqual(live.entry, nextEntry) || options?.rebuild?.(nextEntry) === true)
+        ) {
           replacedIds.add(instanceId);
         }
       }
@@ -438,10 +485,33 @@ export const makeProviderInstanceRegistry = <R>(input: {
     const changes = yield* PubSub.unbounded<void>();
     yield* Effect.addFinalizer(() => PubSub.shutdown(changes));
 
-    const state: RegistryState = { entries, unavailable, changes };
+    const lastConfigMap = yield* Ref.make<ProviderInstanceConfigMap>({});
+    const state: RegistryState = { entries, unavailable, changes, lastConfigMap };
     const reconcileWithR = makeReconcile({ state, driversById, parentScope });
     const reconcile: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape["reconcile"] =
       (configMap) => reconcileWithR(configMap).pipe(Effect.provideContext(driverContext));
+    const refreshSecret: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape["refreshSecret"] =
+      (reference) =>
+        Ref.get(lastConfigMap).pipe(
+          Effect.flatMap((configMap) =>
+            reconcileWithR(configMap, {
+              // Instances that never started because a secret was unreadable retry on every reconcile.
+              rebuild: (entry) => {
+                const driver = driversById.get(entry.driver);
+                const configReferences =
+                  driver === undefined
+                    ? []
+                    : secretReferencesInSettings(driver.configSchema, entry.config).map(
+                        (slot) => slot.reference,
+                      );
+                return [...secretReferencesIn(entry.environment), ...configReferences].some(
+                  (candidate) => sameSecretReference(candidate, reference),
+                );
+              },
+            }),
+          ),
+          Effect.provideContext(driverContext),
+        );
 
     // Hydrate the initial configMap synchronously so callers can read
     // `listInstances` immediately after this effect completes.
@@ -477,6 +547,7 @@ export const makeProviderInstanceRegistry = <R>(input: {
 
     const mutator: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape = {
       reconcile,
+      refreshSecret,
     };
 
     return { registry, mutator };

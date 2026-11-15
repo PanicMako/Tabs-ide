@@ -1,4 +1,5 @@
 import { type DroidSettings, ProviderDriverKind } from "@tabs/contracts";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
@@ -38,7 +39,8 @@ export function buildDroidEnvironment(
   const env: NodeJS.ProcessEnv = { ...(baseEnv ?? process.env) };
 
   // Explicit token injection from the OS credential store (no settings-file or parent leakage).
-  const configuredToken = secureToken?.trim() || droidSettings?.apiKey?.trim();
+  const configuredToken =
+    secureToken?.trim() || settingsSecretLiteral(droidSettings?.apiKey).trim();
   if (configuredToken) {
     env.FACTORY_API_KEY = configuredToken;
   } else {

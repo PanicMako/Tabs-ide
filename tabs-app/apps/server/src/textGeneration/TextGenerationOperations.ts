@@ -9,7 +9,12 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { type ChatAttachment, type ModelSelection, TextGenerationError } from "@tabs/contracts";
+import {
+  type ChatAttachment,
+  type ModelSelection,
+  PullRequestReviewGuideStop,
+  TextGenerationError,
+} from "@tabs/contracts";
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@tabs/shared/git";
 import { extractJsonObject } from "@tabs/shared/schemaJson";
 
@@ -18,6 +23,7 @@ import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildPrContentPrompt,
+  buildReviewGuidePrompt,
   buildThreadTitlePrompt,
 } from "./TextGenerationPrompts.ts";
 import {
@@ -25,6 +31,9 @@ import {
   sanitizePrTitle,
   sanitizeThreadTitle,
 } from "./TextGenerationUtils.ts";
+
+/** What a model is asked to return for a review guide. */
+const ReviewGuideOutput = Schema.Struct({ stops: Schema.Array(PullRequestReviewGuideStop) });
 
 export type Operation = keyof TextGeneration.TextGeneration["Service"];
 
@@ -144,6 +153,32 @@ export function fromRunner(name: string, run: Runner): TextGeneration.TextGenera
       };
     });
 
+  const generateTranscriptionPostProcessing: NonNullable<
+    TextGeneration.TextGeneration["Service"]["generateTranscriptionPostProcessing"]
+  > = Effect.fn(`${name}.generateTranscriptionPostProcessing`)(function* (input) {
+    const generated = yield* run({
+      operation: "generateTranscriptionPostProcessing",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt: `${input.prompt}\n\nReply with a JSON object: {"transcription": "<cleaned transcript>"}.`,
+      outputSchema: Schema.Struct({ transcription: Schema.String }),
+    });
+    return { transcription: generated.transcription };
+  });
+
+  const generateReviewGuide: NonNullable<
+    TextGeneration.TextGeneration["Service"]["generateReviewGuide"]
+  > = Effect.fn(`${name}.generateReviewGuide`)(function* (input) {
+    const generated = yield* run({
+      operation: "generateReviewGuide",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt: buildReviewGuidePrompt(input),
+      outputSchema: ReviewGuideOutput,
+    });
+    return { stops: generated.stops };
+  });
+
   const unsupported = (operation: string) =>
     Effect.fail(
       new TextGenerationError({
@@ -157,6 +192,8 @@ export function fromRunner(name: string, run: Runner): TextGeneration.TextGenera
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
+    generateTranscriptionPostProcessing,
+    generateReviewGuide,
     generateDiffSummary: () => unsupported("generateDiffSummary"),
     generateStructuredTesting: () => unsupported("generateStructuredTesting"),
   } satisfies TextGeneration.TextGeneration["Service"];

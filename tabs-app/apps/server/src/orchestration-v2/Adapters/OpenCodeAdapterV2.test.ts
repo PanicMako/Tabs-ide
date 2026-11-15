@@ -149,14 +149,18 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
   suffix: string,
   nativeSessionId: string,
   client: object,
+  selection?: {
+    readonly model: string;
+    readonly options: ReadonlyArray<{ readonly id: string; readonly value: string }>;
+  },
 ) {
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const instanceId = ProviderInstanceId.make(`opencode-${suffix}`);
   const threadId = ThreadId.make(`thread-opencode-${suffix}`);
   const modelSelection = {
     instanceId,
-    model: "anthropic/claude-sonnet",
-    options: [],
+    model: selection?.model ?? "anthropic/claude-sonnet",
+    options: selection?.options ?? [],
   };
   const policy = runtimePolicy("full-access", { cwd: "/workspace" });
   const adapter = makeOpenCodeAdapterV2({
@@ -240,6 +244,338 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
 });
 
 describe("OpenCodeAdapterV2", () => {
+  it.effect.each([
+    ["empty", "prompt"],
+    ["unsupported", "command"],
+    ["supported", "command"],
+    ["unknown", "prompt"],
+    ["failure", "prompt"],
+    ["unset", "prompt"],
+  ] as const)("normalizes reasoning variants for %s inventory at %s dispatch", ([kind, request]) =>
+    Effect.gen(function* () {
+      const suffix = `variant-${kind}-${request}`;
+      const nativeEvents = asyncEventStream();
+      const inputs: Array<Record<string, unknown>> = [];
+      let inventoryCalls = 0;
+      const receive = async (input: Record<string, unknown>) => {
+        inputs.push(input);
+        return { data: true };
+      };
+      const harness = yield* makeOpenCodeRuntimeHarness(
+        suffix,
+        suffix,
+        {
+          event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+          provider: {
+            list: async () => {
+              inventoryCalls++;
+              if (kind === "failure") throw new Error("inventory unavailable");
+              const variants =
+                kind === "supported" ? { medium: {} } : kind === "unsupported" ? { high: {} } : {};
+              return {
+                data: {
+                  all: [
+                    {
+                      id: "opencode",
+                      models:
+                        kind === "unknown" ? {} : { "big-pickle": { id: "big-pickle", variants } },
+                    },
+                  ],
+                },
+              };
+            },
+          },
+          command: { list: async () => ({ data: [{ name: "review" }] }) },
+          session: {
+            create: async () => ({ data: { id: suffix, time: { created: 1, updated: 1 } } }),
+            promptAsync: receive,
+            command: receive,
+          },
+        },
+        {
+          model: "opencode/big-pickle",
+          options: kind === "unset" ? [] : [{ id: "variant", value: "medium" }],
+        },
+      );
+      yield* harness.startTurn(request === "command" ? "/review staged changes" : "hello");
+      assert.equal(inputs.length, 1);
+      const payload = inputs[0]!;
+      if (kind === "supported" || kind === "unknown" || kind === "failure") {
+        assert.equal(payload.variant, "medium");
+      } else {
+        assert.equal(Object.hasOwn(payload, "variant"), false);
+      }
+      if (kind === "unset") assert.equal(inventoryCalls, 0);
+    }).pipe(Effect.provide(IdAllocator.layer), Effect.scoped),
+  );
+
+  it.effect("ends a turn OpenCode keeps retrying because of a usage limit", () =>
+    Effect.gen(function* () {
+      const nativeEvents = asyncEventStream();
+      let promptId = "";
+      const aborted: string[] = [];
+      const harness = yield* makeOpenCodeRuntimeHarness("retry-limit", "root", {
+        event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+        session: {
+          create: async () => ({ data: { id: "root", time: { created: 1, updated: 1 } } }),
+          promptAsync: async (input: { messageID: string }) => {
+            promptId = input.messageID;
+            return { data: true };
+          },
+          abort: async (input: { sessionID: string }) => {
+            aborted.push(input.sessionID);
+            return { data: true };
+          },
+        },
+      });
+      yield* harness.startTurn();
+      const received = yield* harness.runtime.events.pipe(
+        Stream.takeUntil((event) => event.type === "turn.terminal"),
+        Stream.runCollect,
+        Effect.forkScoped,
+      );
+      const push = (event: unknown) => Effect.promise(() => nativeEvents.push(event));
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: { id: promptId, role: "user", time: { created: 1 } },
+        },
+      });
+      yield* push({
+        type: "session.status",
+        properties: {
+          sessionID: "root",
+          status: {
+            type: "retry",
+            attempt: 1,
+            message: "Free usage exceeded, subscribe to Go",
+            action: {
+              reason: "free_tier_limit",
+              title: "Free limit reached",
+              message: "Subscribe to OpenCode Go for reliable access.",
+              link: "https://opencode.ai/go",
+            },
+            next: 1,
+          },
+        },
+      });
+
+      const events = Array.from(yield* Fiber.join(received));
+      const terminal = events.find((event) => event.type === "turn.terminal");
+      assert.equal(terminal?.status, "failed");
+      assert.equal(terminal?.failure?.class, "usage_limit");
+      assert.equal(
+        terminal?.failure?.message,
+        "Free usage exceeded, subscribe to Go. Subscribe to OpenCode Go for reliable access. https://opencode.ai/go",
+      );
+      assert.deepEqual(aborted, ["root"]);
+    }).pipe(Effect.provide(IdAllocator.layer), Effect.scoped),
+  );
+
+  it.effect("shows a transient OpenCode retry and settles it when the turn completes", () =>
+    Effect.gen(function* () {
+      const nativeEvents = asyncEventStream();
+      let promptId = "";
+      const harness = yield* makeOpenCodeRuntimeHarness("retry-transient", "root", {
+        event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+        session: {
+          create: async () => ({ data: { id: "root", time: { created: 1, updated: 1 } } }),
+          promptAsync: async (input: { messageID: string }) => {
+            promptId = input.messageID;
+            return { data: true };
+          },
+        },
+      });
+      yield* harness.startTurn();
+      const received = yield* harness.runtime.events.pipe(
+        Stream.takeUntil((event) => event.type === "turn.terminal"),
+        Stream.runCollect,
+        Effect.forkScoped,
+      );
+      const push = (event: unknown) => Effect.promise(() => nativeEvents.push(event));
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: { id: promptId, role: "user", time: { created: 1 } },
+        },
+      });
+      yield* push({
+        type: "session.status",
+        properties: {
+          sessionID: "root",
+          status: { type: "retry", attempt: 1, message: "Overloaded", next: 1 },
+        },
+      });
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: {
+            id: "assistant",
+            sessionID: "root",
+            role: "assistant",
+            time: { created: 2, completed: 3 },
+            parentID: promptId,
+          },
+        },
+      });
+      yield* push({
+        type: "session.status",
+        properties: { sessionID: "root", status: { type: "idle" } },
+      });
+
+      const events = Array.from(yield* Fiber.join(received));
+      const retryRows = events.flatMap((event) =>
+        event.type === "turn_item.updated" && event.turnItem.type === "error"
+          ? [event.turnItem]
+          : [],
+      );
+      assert.deepEqual(
+        retryRows.map((row) => row.status),
+        ["running", "completed"],
+      );
+      assert.equal(events.find((event) => event.type === "turn.terminal")?.status, "completed");
+    }).pipe(Effect.provide(IdAllocator.layer), Effect.scoped),
+  );
+
+  it.effect("keeps a turn alive while OpenCode auto-compacts after a context overflow", () =>
+    Effect.gen(function* () {
+      const nativeEvents = asyncEventStream();
+      let promptId = "";
+      const harness = yield* makeOpenCodeRuntimeHarness("overflow-compacts", "root", {
+        event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+        session: {
+          create: async () => ({ data: { id: "root", time: { created: 1, updated: 1 } } }),
+          promptAsync: async (input: { messageID: string }) => {
+            promptId = input.messageID;
+            return { data: true };
+          },
+        },
+      });
+      yield* harness.startTurn();
+      const received = yield* harness.runtime.events.pipe(
+        Stream.takeUntil((event) => event.type === "turn.terminal"),
+        Stream.runCollect,
+        Effect.forkScoped,
+      );
+      const push = (event: unknown) => Effect.promise(() => nativeEvents.push(event));
+      const status = (type: "busy" | "idle") => ({
+        type: "session.status",
+        properties: { sessionID: "root", status: { type } },
+      });
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: { id: promptId, role: "user", time: { created: 1 } },
+        },
+      });
+      yield* push(status("busy"));
+      yield* push({
+        type: "session.error",
+        properties: {
+          sessionID: "root",
+          error: { name: "ContextOverflowError", data: { message: "context length exceeded" } },
+        },
+      });
+      yield* push({ type: "session.compacted", properties: { sessionID: "root" } });
+      yield* push({
+        type: "message.part.updated",
+        properties: {
+          sessionID: "root",
+          part: {
+            id: "after-text",
+            sessionID: "root",
+            messageID: "after",
+            type: "text",
+            text: "Post-compaction step",
+            time: { start: 2 },
+          },
+        },
+      });
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: {
+            id: "after",
+            sessionID: "root",
+            role: "assistant",
+            time: { created: 2, completed: 3 },
+            parentID: promptId,
+          },
+        },
+      });
+      yield* push(status("idle"));
+
+      const events = Array.from(yield* Fiber.join(received));
+      const terminal = events.find((event) => event.type === "turn.terminal");
+      assert.equal(terminal?.status, "completed");
+      assert.isTrue(
+        events.some(
+          (event) =>
+            event.type === "turn_item.updated" &&
+            event.turnItem.type === "assistant_message" &&
+            event.turnItem.text === "Post-compaction step",
+        ),
+      );
+    }).pipe(Effect.provide(IdAllocator.layer), Effect.scoped),
+  );
+
+  it.effect("fails a turn that idles after a context overflow without compacting", () =>
+    Effect.gen(function* () {
+      const nativeEvents = asyncEventStream();
+      let promptId = "";
+      const harness = yield* makeOpenCodeRuntimeHarness("overflow-fails", "root", {
+        event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+        session: {
+          create: async () => ({ data: { id: "root", time: { created: 1, updated: 1 } } }),
+          promptAsync: async (input: { messageID: string }) => {
+            promptId = input.messageID;
+            return { data: true };
+          },
+        },
+      });
+      yield* harness.startTurn();
+      const received = yield* harness.runtime.events.pipe(
+        Stream.takeUntil((event) => event.type === "turn.terminal"),
+        Stream.runCollect,
+        Effect.forkScoped,
+      );
+      const push = (event: unknown) => Effect.promise(() => nativeEvents.push(event));
+      yield* push({
+        type: "message.updated",
+        properties: {
+          sessionID: "root",
+          info: { id: promptId, role: "user", time: { created: 1 } },
+        },
+      });
+      yield* push({
+        type: "session.status",
+        properties: { sessionID: "root", status: { type: "busy" } },
+      });
+      yield* push({
+        type: "session.error",
+        properties: {
+          sessionID: "root",
+          error: { name: "ContextOverflowError", data: { message: "context length exceeded" } },
+        },
+      });
+      yield* push({
+        type: "session.status",
+        properties: { sessionID: "root", status: { type: "idle" } },
+      });
+
+      const terminal = Array.from(yield* Fiber.join(received)).find(
+        (event) => event.type === "turn.terminal",
+      );
+      assert.equal(terminal?.status, "failed");
+      assert.equal(terminal?.failure?.message, "context length exceeded");
+    }).pipe(Effect.provide(IdAllocator.layer), Effect.scoped),
+  );
+
   it.effect.each(["completed", "failed", "unresolved", "unavailable", "reconnect"] as const)(
     "normalizes OpenCode step usage for %s turns",
     (ending) =>

@@ -137,7 +137,9 @@
   background: var(--accent);
   color: var(--foreground);
 }
-.workspace-action-pane:not(.workspace-action-run):not(.workspace-action-agents) {
+.workspace-action-pane:not(.workspace-action-run):not(.workspace-action-agents):not(
+    .workspace-action-usage
+  ):not(.workspace-action-tools):not(.workspace-action-look) {
   padding: 0;
   border: 0;
   background: transparent;

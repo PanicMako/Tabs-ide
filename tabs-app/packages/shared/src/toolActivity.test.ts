@@ -123,6 +123,15 @@ describe("toolActivity", () => {
     ).toEqual({ rawInput: { path: "src/a.ts", startLine: 4 } });
   });
 
+  it("clears a field the provider sends as null", () => {
+    expect(
+      mergeToolActivityData(
+        { rawInput: { path: "src/a.ts" }, kind: "read", title: "Read" },
+        { rawInput: null, title: null },
+      ),
+    ).toEqual({ kind: "read" });
+  });
+
   it("titles Claude skill calls with the skill they load", () => {
     expect(dynamicToolTitle("Skill", { skill: "full-send" })).toBe("Skill: full-send");
     expect(claudeSkillInvocation("Skill", { skill: "claude-api", args: " pricing " })).toEqual({

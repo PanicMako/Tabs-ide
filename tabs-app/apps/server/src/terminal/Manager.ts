@@ -6,6 +6,7 @@
  *
  * @module TerminalManager
  */
+import { resolveInstanceEnvironment } from "../provider/ProviderInstanceSecrets.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import {
   DEFAULT_TERMINAL_ID,
@@ -212,6 +213,14 @@ export class TerminalManager extends Context.Service<
      * terminal is considered. Used when a thread settles and when a setup
      * script finishes.
      */
+    readonly closeOnSettle: (input: { readonly threadId: string }) => Effect.Effect<void>;
+
+    /** Fails with TerminalNotRunningError unless the terminal's shell is running. */
+    readonly getShell: (input: {
+      readonly threadId: string;
+      readonly terminalId: string;
+    }) => Effect.Effect<string, TerminalError>;
+
     readonly closeIdle: (input: {
       readonly threadId: string;
       readonly terminalId?: string;
@@ -307,6 +316,10 @@ interface TerminalSessionState {
   /** Normalized child command name when `hasRunningSubprocess`; cleared when idle. */
   childCommandLabel: string | null;
   runtimeEnv: Record<string, string> | null;
+  /** Spawned shell command while running; null before start and after exit. */
+  shell: string | null;
+  /** Close this terminal (and its children) when its thread settles. */
+  stopOnSettle: boolean;
 }
 
 interface PersistHistoryRequest {
@@ -1408,7 +1421,10 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
     return yield* new TerminalProviderInstanceNotFoundError({ providerInstanceId });
   }
 
-  let resolved = mergeProviderInstanceEnvironment(instance.environment, input.env ?? {});
+  let resolved = mergeProviderInstanceEnvironment(
+    (yield* resolveInstanceEnvironment(instance.environment)).environment,
+    input.env ?? {},
+  );
   if (instance.driver === "codex") {
     const config = decodeCodexSettings(instance.config ?? {});
     if (Option.isSome(config)) {
@@ -2059,6 +2075,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         const process = session.process;
         cleanupProcessHandles(session);
         session.process = null;
+        session.shell = null;
+        session.shell = null;
         session.pid = null;
         session.hasRunningSubprocess = false;
         session.childCommandLabel = null;
@@ -2131,6 +2149,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     yield* modifyManagerState((state) => {
       cleanupProcessHandles(session);
       session.process = null;
+      session.shell = null;
       session.pid = null;
       session.hasRunningSubprocess = false;
       session.childCommandLabel = null;
@@ -2159,7 +2178,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     index = 0,
     lastError: PtyAdapter.PtySpawnError | null = null,
   ): Effect.fn.Return<
-    { process: PtyAdapter.PtyProcess; shellLabel: string },
+    { process: PtyAdapter.PtyProcess; shellLabel: string; shell: string },
     PtyAdapter.PtySpawnError
   > {
     if (index >= shellCandidates.length) {
@@ -2196,6 +2215,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       return {
         process: attempt.success,
         shellLabel: formatShellCandidate(candidate),
+        shell: candidate.shell,
       };
     }
 
@@ -2293,6 +2313,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             };
             yield* modifyManagerState((state) => {
               session.process = ptyProcess;
+              session.shell = spawnResult.shell;
               session.pid = processPid;
               session.status = "running";
               // onExit may replay an exit immediately; accept it before subscribing.
@@ -2342,6 +2363,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         session.status = "error";
         session.pid = null;
         session.process = null;
+        session.shell = null;
+        session.shell = null;
         session.hasRunningSubprocess = false;
         session.childCommandLabel = null;
         session.pendingProcessEvents = [];
@@ -2614,6 +2637,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         hasRunningSubprocess: false,
         childCommandLabel: null,
         runtimeEnv: normalizedRuntimeEnv(input.env),
+        shell: null,
+        stopOnSettle: input.stopOnSettle ?? false,
       };
 
       const createdSession = session;
@@ -2641,6 +2666,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
 
     const liveSession = existing.value;
+    if (input.stopOnSettle !== undefined) liveSession.stopOnSettle = input.stopOnSettle;
     const nextRuntimeEnv = normalizedRuntimeEnv(input.env);
     const currentRuntimeEnv = liveSession.runtimeEnv;
     const targetCols = input.cols ?? liveSession.cols;
@@ -2738,6 +2764,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         }
 
         const session = existing.value;
+        if (input.stopOnSettle !== undefined) session.stopOnSettle = input.stopOnSettle;
         const targetCols = input.cols ?? session.cols;
         const targetRows = input.rows ?? session.rows;
 
@@ -3037,6 +3064,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           hasRunningSubprocess: false,
           childCommandLabel: null,
           runtimeEnv: normalizedRuntimeEnv(input.env),
+          shell: null,
+          stopOnSettle: false,
         };
         const createdSession = session;
         yield* modifyManagerState((state) => {
@@ -3159,6 +3188,33 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       ),
     );
 
+  const closeOnSettle: TerminalManager["Service"]["closeOnSettle"] = Effect.fn(
+    "terminal.closeOnSettle",
+  )(function* (input) {
+    yield* withThreadLock(
+      input.threadId,
+      Effect.gen(function* () {
+        const sessions = yield* sessionsForThread(input.threadId);
+        yield* Effect.forEach(
+          sessions.filter((session) => session.stopOnSettle),
+          (session) => closeSession(input.threadId, session.terminalId, false),
+          { discard: true },
+        );
+      }),
+    ).pipe(Effect.ignore({ log: true }));
+    yield* closeIdle(input);
+  });
+
+  const getShell: TerminalManager["Service"]["getShell"] = Effect.fn("terminal.getShell")(
+    function* (input) {
+      const session = yield* requireSession(input.threadId, input.terminalId);
+      if (session.status !== "running" || session.shell === null) {
+        return yield* new TerminalNotRunningError(input);
+      }
+      return session.shell;
+    },
+  );
+
   const list = () =>
     readManagerState.pipe(Effect.map((state) => [...state.sessions.values()].map(snapshot)));
 
@@ -3172,6 +3228,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     restart,
     close,
     closeIdle,
+    closeOnSettle,
+    getShell,
     subscribe,
     subscribeMetadata,
   });

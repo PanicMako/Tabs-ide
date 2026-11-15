@@ -17,6 +17,8 @@ import {
 const CAPABILITIES: PullRequestCapabilities = {
   diff: true,
   comment: true,
+  mentions: true,
+  referenceSigils: ["#", "!"],
   actions: [
     "merge",
     "ready",
@@ -253,6 +255,25 @@ export const make = Effect.gen(function* () {
           number: input.number,
         })
         .pipe(Effect.mapError(fail("listReviewerCandidates"))),
+
+    searchRepositoryAuthors: (input) =>
+      cli
+        .searchRepositoryAuthors({
+          cwd: input.cwd,
+          repository: input.repository,
+          query: input.query,
+        })
+        .pipe(Effect.mapError(fail("searchRepositoryAuthors"))),
+
+    searchRepositoryReferences: (input) =>
+      cli
+        .searchRepositoryReferences({
+          cwd: input.cwd,
+          repository: input.repository,
+          query: input.query,
+          sigil: input.sigil,
+        })
+        .pipe(Effect.mapError(fail("searchRepositoryReferences"))),
 
     setReviewerRequest: (input) =>
       cli

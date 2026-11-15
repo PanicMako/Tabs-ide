@@ -1,4 +1,5 @@
 import { makeFreeStructuredModelSelector } from "./OpenRouterFreeModels";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -48,7 +49,7 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
 ) {
   const selectFreeModel = makeFreeStructuredModelSelector(
     (openRouterSettings.baseUrl?.trim() || "https://openrouter.ai/api/v1").replace(/\/+$/, ""),
-    openRouterSettings.apiKey?.trim() || "",
+    settingsSecretLiteral(openRouterSettings.apiKey).trim(),
   );
   const runOpenRouterJson = Effect.fn("runOpenRouterJson")(function* <S extends Schema.Top>({
     operation,
@@ -67,7 +68,7 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
     outputSchemaJson: S;
     modelSelection: ModelSelection;
   }): Effect.fn.Return<S["Type"], TextGenerationError, S["DecodingServices"]> {
-    const apiKey = openRouterSettings.apiKey?.trim();
+    const apiKey = settingsSecretLiteral(openRouterSettings.apiKey).trim();
     if (!apiKey) {
       return yield* mapOpenRouterError(
         operation,

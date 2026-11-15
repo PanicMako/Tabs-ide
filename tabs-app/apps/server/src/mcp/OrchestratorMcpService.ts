@@ -122,7 +122,19 @@ export interface OrchestratorMcpServiceShape {
   readonly delegateTask: (
     scope: McpInvocationScope,
     input: OrchestratorMcpDelegateTaskInput,
+    /** Server-side callers only (Overmind): run the child in this checkout. */
+    options?: {
+      readonly workspace?: { readonly worktreePath: string; readonly branch: string | null };
+    },
   ) => Effect.Effect<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure>;
+  /**
+   * Tokens a delegated task's thread has used so far (input + output across its
+   * provider turns), or null when its provider reports none.
+   */
+  readonly taskTokenUsage: (
+    scope: McpInvocationScope,
+    taskId: NodeId,
+  ) => Effect.Effect<number | null, OrchestratorMcpFailure>;
   readonly taskStatus: (
     scope: McpInvocationScope,
     taskId: NodeId,
@@ -937,7 +949,7 @@ const make = Effect.gen(function* () {
         : Effect.fail(
             failure(
               "target_required",
-              "Pass projectId: this MCP client is not running inside a T3 thread.",
+              "Pass projectId: this MCP client is not running inside a Tabs thread.",
             ),
           );
 
@@ -1235,6 +1247,13 @@ const make = Effect.gen(function* () {
         (yield* threadManagement
           .delegatedTaskResultPending(task.childThreadId)
           .pipe(Effect.mapError(threadManagementFailure)));
+      const childNeedsPerson =
+        task.result === null &&
+        taskStatusForRun(childRun) === "waiting" &&
+        (yield* threadManagement.getThreadShell(task.childThreadId).pipe(
+          Effect.map((shell) => shell?.pendingRuntimeRequest != null),
+          Effect.orElseSucceed(() => false),
+        ));
       const workState =
         task.result !== null ? "result_available" : heldForRestart ? "working" : progress.state;
       const status =
@@ -1251,7 +1270,13 @@ const make = Effect.gen(function* () {
             ? taskStatusForRun(progress.resultRun ?? childRun)
             : taskStatusForRun(childRun) === "queued"
               ? "queued"
-              : "running";
+              : // A child blocked on an approval or a question must not read as
+                // "running": the lead has to see it needs a person. A bare
+                // waiting run is routine (it passes through briefly), so only
+                // a pending runtime request counts.
+                taskStatusForRun(childRun) === "waiting" && !heldForRestart && childNeedsPerson
+                ? "waiting"
+                : "running";
       const derivedResult =
         task.result !== null
           ? task.result
@@ -1347,7 +1372,9 @@ const make = Effect.gen(function* () {
         .getThreadEventSequence(scope.thread.threadId)
         .pipe(Effect.mapError(streamError));
       const initial = yield* readTask(scope, taskId, false, true);
-      if (isTerminalTaskStatus(initial.status)) return Option.some(initial);
+      if (isTerminalTaskStatus(initial.status) || initial.status === "waiting") {
+        return Option.some(initial);
+      }
       // One stream per event type, so transcript events never fill a buffer.
       return yield* Stream.mergeAll(
         TASK_WAKE_EVENTS.map(({ thread, eventType }) =>
@@ -1361,7 +1388,11 @@ const make = Effect.gen(function* () {
       ).pipe(
         Stream.mapError(streamError),
         Stream.mapEffect(() => readTask(scope, taskId, false, true)),
-        Stream.filter((result) => isTerminalTaskStatus(result.status)),
+        // A blocked child ends the wait too: holding the lead's turn for an
+        // approval only a person can give is a deadlock for any provider.
+        Stream.filter(
+          (result) => isTerminalTaskStatus(result.status) || result.status === "waiting",
+        ),
         Stream.runHead,
       );
     }).pipe(Effect.timeoutOption(Duration.millis(timeoutMs)), Effect.map(Option.flatten));
@@ -1413,7 +1444,7 @@ const make = Effect.gen(function* () {
           return yield* failure(
             "invalid_request",
             parent === undefined
-              ? "bindToCurrentThread needs an agent running inside a T3 thread."
+              ? "bindToCurrentThread needs an agent running inside a Tabs thread."
               : "bindToCurrentThread binds to this thread, which belongs to a different project.",
           );
         }
@@ -1485,7 +1516,7 @@ const make = Effect.gen(function* () {
           return yield* failure(
             "invalid_request",
             parent === undefined
-              ? "bindToCurrentThread needs an agent running inside a T3 thread."
+              ? "bindToCurrentThread needs an agent running inside a Tabs thread."
               : "bindToCurrentThread binds to this thread, which belongs to a different project.",
           );
         }
@@ -1729,7 +1760,7 @@ const make = Effect.gen(function* () {
           },
         };
       }),
-    delegateTask: (callerScope, input) =>
+    delegateTask: (callerScope, input, options) =>
       Effect.gen(function* () {
         const { scope, parent } = yield* loadThreadCaller(callerScope, "delegate_task");
         const parentRun = parent.runs
@@ -1780,6 +1811,7 @@ const make = Effect.gen(function* () {
             // delegations deliver through the blocking tool call, so a wake is
             // only needed if the parent settled first (timeout, disconnect).
             completionWake: input.mode === "wait" ? "settled_only" : "always",
+            ...(options?.workspace === undefined ? {} : { workspace: options.workspace }),
           })
           .pipe(
             Effect.mapError((error) =>
@@ -1809,7 +1841,7 @@ const make = Effect.gen(function* () {
           Math.max(1, input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS),
         );
         const waited = yield* waitForTask(scope, taskId, timeoutMs);
-        if (Option.isSome(waited)) {
+        if (Option.isSome(waited) && isTerminalTaskStatus(waited.value.status)) {
           return waited.value;
         }
         // The blocking wait timed out, so it no longer owns delivery: upgrade
@@ -1851,12 +1883,45 @@ const make = Effect.gen(function* () {
               }),
             ),
           );
-        return yield* readTask(scope, taskId, true, true);
+        return yield* readTask(scope, taskId, Option.isNone(waited), true);
       }),
     taskStatus: (callerScope, taskId) =>
       Effect.gen(function* () {
         const scope = yield* requireThreadScope(callerScope, "task_status");
         return yield* readTask(scope, taskId, false, true);
+      }),
+    taskTokenUsage: (callerScope, taskId) =>
+      Effect.gen(function* () {
+        const scope = yield* requireThreadScope(callerScope, "task_status");
+        yield* requireCapability(scope);
+        const parentProjection = yield* loadProjection(scope.thread.threadId);
+        const task = parentProjection.subagents.find(
+          (candidate) =>
+            candidate.id === taskId &&
+            candidate.origin === "app_owned" &&
+            candidate.threadId === scope.thread.threadId,
+        );
+        if (task === undefined || task.childThreadId === null) {
+          return yield* failure(
+            "task_not_found",
+            `Delegated task ${taskId} does not belong to thread ${scope.thread.threadId}.`,
+          );
+        }
+        const records = yield* threadManagement
+          .getThreadRecords(task.childThreadId, ["providerTurns"])
+          .pipe(Effect.mapError(threadManagementFailure));
+        let total = 0;
+        let reported = false;
+        for (const turn of records.providerTurns) {
+          const usage = turn.tokenUsage;
+          if (usage === undefined) continue;
+          reported = true;
+          total +=
+            usage.inputTokens !== undefined || usage.outputTokens !== undefined
+              ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
+              : usage.usedTokens;
+        }
+        return reported ? total : null;
       }),
     cancelTask: (callerScope, input) =>
       Effect.gen(function* () {

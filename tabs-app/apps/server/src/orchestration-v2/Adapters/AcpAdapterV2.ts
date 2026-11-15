@@ -15,6 +15,7 @@ import {
   type OrchestrationV2ProviderThread,
   type OrchestrationV2ProviderThreadNativeMetadata,
   type OrchestrationV2ProviderTurn,
+  type TurnTokenUsage,
   type OrchestrationV2RuntimeRequest,
   type OrchestrationV2Subagent,
   type OrchestrationV2TurnItem,
@@ -39,7 +40,8 @@ import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
-import type * as Duration from "effect/Duration";
+import * as Clock from "effect/Clock";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
@@ -127,6 +129,24 @@ export const ACP_PROTOCOL = "acp.ndjson-jsonrpc" as const;
  * the hydrated tool frame; two seconds split that tail into a second synthetic
  * wake. Longer floors (4–20s) only prolonged Working. No per-model carveouts.
  */
+/** Updates that show the agent is working; anything else (usage, mode) does not count. */
+const ACP_PROMPT_ACTIVITY_UPDATES: ReadonlySet<string> = new Set([
+  "agent_message",
+  "agent_message_chunk",
+  "agent_thought",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+  "tool_call_content_chunk",
+  "terminal_output_chunk",
+  "terminal_update",
+  "plan",
+  "plan_update",
+  "plan_removed",
+  "compaction_update",
+  "compaction_summary_chunk",
+]);
+const ACP_STEER_DELIVERY_BOUND: Duration.Input = "2 seconds";
 const ACP_DEFERRED_FINALIZE_DEBOUNCE: Duration.Input = "3000 millis";
 
 export interface AcpAdapterV2RuntimeInput {
@@ -217,10 +237,17 @@ export interface AcpAdapterV2Flavor {
   readonly promptFailure?: (cause: unknown) => OrchestrationV2ProviderFailure;
   readonly driver: ProviderDriverKind;
   readonly capabilities: OrchestrationV2ProviderCapabilities;
-  readonly clientCapabilitiesMeta?: Record<string, boolean>;
+  readonly clientCapabilitiesMeta?: NonNullable<
+    EffectAcpSchema.InitializeRequest["clientCapabilities"]
+  >["_meta"];
   readonly normalizeSessionUpdate?: (
     notification: EffectAcpSchema.SessionNotification,
   ) => EffectAcpSchema.SessionNotification;
+  /**
+   * Agent updates that belong to no turn (Kiro's own cloud-config fetch). They
+   * are dropped before anything reads them.
+   */
+  readonly ignoreSessionUpdate?: (notification: EffectAcpSchema.SessionNotification) => boolean;
   readonly onAvailableCommandsUpdate?: (
     commands: ReadonlyArray<EffectAcpSchema.AvailableCommand>,
   ) => Effect.Effect<void>;
@@ -242,6 +269,25 @@ export interface AcpAdapterV2Flavor {
     Crypto.Crypto | Scope.Scope
   >;
   readonly resolveModelId?: (selection: ModelSelection) => string | undefined;
+  /**
+   * The agent advertises its model option only after `session/new` returns
+   * (Kiro sends it in a `config_option_update`), so in-session model switching
+   * is not inferred from the setup result.
+   */
+  readonly modelOptionArrivesLate?: boolean;
+  /**
+   * Model-selection option ids `applyModelSelection` sets itself under a
+   * native id, which the generic option loop then skips.
+   */
+  readonly ownedModelOptionIds?: ReadonlyArray<string>;
+  /**
+   * Native select-option values to apply for a runtime policy (e.g. Kiro's
+   * `autopilot`), set on every session configure. A value the session does
+   * not advertise is skipped.
+   */
+  readonly sessionConfigForPolicy?: (
+    policy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+  ) => ReadonlyArray<{ readonly id: string; readonly value: string }>;
   /**
    * Replaces the default model application on session setup. Returns the model
    * the session now runs on. Antigravity resolves its provider-default alias
@@ -311,6 +357,95 @@ export interface AcpAdapterV2Flavor {
   /** Batch launches without child completion signals become idle when the root turn ends. */
   readonly subagentsIdleOnTurnCompletion?: boolean;
   readonly supportsCompaction?: boolean;
+  /**
+   * The agent's PromptResponse.usage counters read per-turn. The ACP spec
+   * leaves usage semantics open, so this stays unset until proven live.
+   */
+  readonly reportsPerTurnPromptUsage?: boolean;
+  /** Gemini-style usage: inputTokens leaves out cachedReadTokens, outputTokens leaves out thoughtTokens. */
+  readonly geminiPromptUsage?: boolean;
+  /**
+   * Builds the attachment content blocks (after the text block) for agents that take more than
+   * images, gated on what the agent advertised. Replaces the default image handling.
+   */
+  readonly buildAttachmentPrompt?: (input: {
+    readonly text: string;
+    readonly attachments: ReadonlyArray<ChatAttachment>;
+    readonly resolveAttachmentPath: (attachment: ChatAttachment) => string | null;
+    readonly promptCapabilities: EffectAcpSchema.AgentCapabilities["promptCapabilities"];
+    readonly agentVersion: string | undefined;
+    /** The session's model after selection, with its display name when the agent lists it. */
+    readonly currentModel: { readonly id: string; readonly name: string | undefined } | undefined;
+  }) => Effect.Effect<ReadonlyArray<EffectAcpSchema.ContentBlock>, EffectAcpErrors.AcpError>;
+  /**
+   * Fails a dispatched prompt after this long with no update for its session while no
+   * agent request, tool or subagent is open, and replaces the agent before the next turn.
+   */
+  readonly promptInactivityTimeout?: Duration.Input;
+  /**
+   * Runs before `session/prompt`. The returned check sees a prompt the agent ended
+   * without an error or cancel, and reports a failure its stop reason hid. A reported
+   * failure restarts the runtime before the next turn.
+   */
+  readonly watchPromptOutcome?: (
+    sessionId: string,
+  ) => Effect.Effect<
+    (
+      result: EffectAcpSchema.PromptResponse,
+    ) => Effect.Effect<OrchestrationV2ProviderFailure | undefined>
+  >;
+  /**
+   * Native steering: `send` queues a message into the running turn and returns the
+   * agent's id for it, which `injectedSteerId` reads from the update that delivers it.
+   */
+  readonly steering?: {
+    readonly send: (
+      runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
+      sessionId: string,
+      text: string,
+    ) => Effect.Effect<string, EffectAcpErrors.AcpError>;
+    readonly injectedSteerId: (
+      notification: EffectAcpSchema.SessionNotification,
+    ) => string | undefined;
+  };
+  /**
+   * Native fork from an earlier turn. `nativeTurnId` reads the agent's id for a running
+   * turn's prompt, which the turn keeps as its native ref; forking from that turn sends
+   * `forkMeta(id)` as the `session/fork` `_meta`.
+   */
+  readonly forkFromTurn?: {
+    readonly supported: (
+      initializeResult: AcpSessionRuntime.AcpSessionRuntimeStartResult["initializeResult"],
+    ) => boolean;
+    readonly nativeTurnId: (
+      notification: EffectAcpSchema.SessionNotification,
+    ) => string | undefined;
+    readonly forkMeta: (
+      nativeTurnId: string,
+    ) => NonNullable<EffectAcpSchema.ForkSessionRequest["_meta"]>;
+  };
+  /**
+   * Hold `session/cancel` until an update after `session/prompt` matches `isStart`,
+   * or `bound` has passed; skip it if the prompt settles first. Kiro 2.27.1 can
+   * drop a cancel sent just after the prompt and run the turn to completion.
+   */
+  readonly cancelAfterPromptStarts?: {
+    readonly isStart: (update: EffectAcpSchema.SessionUpdate) => boolean;
+    readonly bound: Duration.Input;
+  };
+  /**
+   * Compacts with the agent's own request, for agents that answer a `/compact` prompt as chat.
+   * Compaction is refused when `supported` rejects the running agent's `initialize` result.
+   */
+  readonly compactSession?: {
+    readonly supported: (
+      initializeResult: AcpSessionRuntime.AcpSessionRuntimeStartResult["initializeResult"],
+    ) => boolean;
+    readonly compact: (
+      runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
+      sessionId: string,
+    ) => Effect.Effect<void, EffectAcpErrors.AcpError>;
+  };
   readonly runtimeHarness?: string;
   readonly registerExtensions?: (
     context: AcpAdapterV2ExtensionContext,
@@ -514,6 +649,8 @@ export interface AcpAdapterV2Options {
      */
     readonly onDeferredFinalizeScheduled?: (debounce: Duration.Input) => Effect.Effect<void>;
     readonly afterPromptSettledWithBackgroundWork?: () => Effect.Effect<void>;
+    /** `cancelAfterPromptStarts`: Stop is holding `session/cancel` until the prompt starts. */
+    readonly onCancelHeld?: () => Effect.Effect<void>;
     readonly afterNativeResponseTransportClosed?: () => Effect.Effect<void>;
     readonly afterHardTeardownTransportDrained?: () => Effect.Effect<void>;
     readonly beforeNativeResponseAdmissionCheck?: (
@@ -636,14 +773,93 @@ export const AcpProviderCapabilitiesV2 = {
   },
 } satisfies OrchestrationV2ProviderCapabilities;
 
+/**
+ * `session/fork` `_meta` for a fork from `providerTurnId`: none for the session head,
+ * the flavor's meta for a turn the agent named, or `null` when the agent can't fork there.
+ */
+function forkFromTurnMetaFor(input: {
+  readonly driver: ProviderDriverKind;
+  readonly flavor: Pick<AcpAdapterV2Flavor, "forkFromTurn">;
+  readonly canForkFromTurn: boolean;
+  readonly forkInput: ProviderAdapter.ProviderAdapterV2ForkThreadInput;
+}): NonNullable<EffectAcpSchema.ForkSessionRequest["_meta"]> | undefined | null {
+  const { forkInput } = input;
+  if (forkInput.providerTurnId === undefined) return undefined;
+  const turns = (forkInput.sourceProviderTurns ?? []).filter(
+    (turn) => turn.providerThreadId === forkInput.sourceProviderThread.id,
+  );
+  const target = turns.find((turn) => turn.id === forkInput.providerTurnId);
+  if (target === undefined) return null;
+  if (turns.every((turn) => turn.ordinal <= target.ordinal)) return undefined;
+  const ref = target.nativeTurnRef;
+  if (
+    input.flavor.forkFromTurn === undefined ||
+    !input.canForkFromTurn ||
+    ref === null ||
+    ref.driver !== input.driver ||
+    ref.strength !== "strong" ||
+    ref.nativeId === null
+  ) {
+    return null;
+  }
+  return input.flavor.forkFromTurn.forkMeta(ref.nativeId);
+}
+
+/**
+ * Maps one per-turn usage sample (flavors with reportsPerTurnPromptUsage)
+ * directly onto TurnTokenUsage: the response's counters already cover exactly
+ * this prompt.
+ */
+export function acpPerTurnPromptUsage(
+  usage: EffectAcpSchema.Usage | null | undefined,
+  hasSubagents: boolean,
+  terminalStatus: OrchestrationV2ProviderTurn["status"],
+  geminiUsage = false,
+): TurnTokenUsage {
+  if (usage == null) {
+    return { usageScope: "main_agent", usageStatus: "unavailable", hasSubagents };
+  }
+  const inputTokens = geminiUsage
+    ? usage.inputTokens + (usage.cachedReadTokens ?? 0)
+    : usage.inputTokens;
+  const outputTokens = geminiUsage
+    ? usage.outputTokens + (usage.thoughtTokens ?? 0)
+    : usage.outputTokens;
+  // TurnTokenUsage contract: input includes cache read + write and reasoning
+  // is a subset of output, so clamp counters that exceed their parent and
+  // drop the ones the agent left unset. Cache writes are capped at whatever
+  // cache reads leave of input, so the pair cannot exceed it.
+  const clampSubset = (value: number | null | undefined, parent: number) =>
+    value == null ? undefined : Math.min(value, parent);
+  const cachedInputTokens = clampSubset(usage.cachedReadTokens, inputTokens);
+  const cacheCreationTokens = clampSubset(
+    usage.cachedWriteTokens,
+    inputTokens - (cachedInputTokens ?? 0),
+  );
+  const reasoningTokens = clampSubset(usage.thoughtTokens, outputTokens);
+  return {
+    usageScope: "main_agent",
+    usageStatus: terminalStatus === "completed" ? "complete" : "partial",
+    hasSubagents,
+    inputTokens,
+    outputTokens,
+    ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }),
+    ...(cacheCreationTokens === undefined ? {} : { cacheCreationTokens }),
+    ...(reasoningTokens === undefined ? {} : { reasoningTokens }),
+  };
+}
+
 function negotiatedCapabilities(
   base: OrchestrationV2ProviderCapabilities,
   started: AcpSessionRuntime.AcpSessionRuntimeStartResult,
+  modelOptionArrivesLate = false,
+  forksFromTurn = false,
 ): OrchestrationV2ProviderCapabilities {
   const agent = started.initializeResult.agentCapabilities ?? {};
   const session = agent.sessionCapabilities;
   const setup = started.sessionSetupResult;
   const hasModelConfig =
+    modelOptionArrivesLate ||
     setup.configOptions?.some((option) => option.category === "model") === true;
   const canLoad = agent.loadSession === true;
   const canFork = session?.fork != null;
@@ -657,7 +873,7 @@ function negotiatedCapabilities(
       ...base.threads,
       canReadThreadSnapshot: canLoad,
       canForkThread: canFork,
-      canForkFromTurn: false,
+      canForkFromTurn: canFork && forksFromTurn,
     },
     tools: {
       ...base.tools,
@@ -1212,6 +1428,17 @@ interface ActiveAcpTurn {
    * complete this; settled-soft classification ORs it with `promptSettled`.
    */
   readonly promptWireSettled: Deferred.Deferred<void, never>;
+  /** Completed when an update after dispatch matches `cancelAfterPromptStarts.isStart`. */
+  readonly promptStarted: Deferred.Deferred<void, never>;
+  /** When `session/prompt` was sent; unset until then. */
+  promptSentAt?: number;
+  /** Clock millis of the prompt's last progress, for `promptInactivityTimeout`. */
+  lastProgressAt: number;
+  /** The prompt response's usage counters, captured only for `reportsPerTurnPromptUsage` flavors. */
+  promptUsage: EffectAcpSchema.Usage | undefined;
+  inactivityWatchdog: Fiber.Fiber<void> | undefined;
+  /** The agent's own id for this turn's prompt, from `forkFromTurn.nativeTurnId`. */
+  nativePromptId?: string;
   backgroundFinalizeGeneration: number;
 }
 
@@ -1648,7 +1875,7 @@ export function makeAcpAdapterV2(
               agentTerminalsById.get(sessionScopedId(sessionId, terminalId))?.command;
             return command === undefined ? [] : [command];
           });
-        // Client terminals (Devin) run with the T3 server's privileges, so they
+        // Client terminals (Devin) run with the Tabs server's privileges, so they
         // are policy-checked against the active turn policy; a command the user
         // already approved satisfies an "ask" disposition.
         const clientPolicyGrants = makeAcpClientPolicyGrants();
@@ -1656,6 +1883,15 @@ export function makeAcpAdapterV2(
           input.runtimePolicy;
         const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
         const activeTurn = yield* Ref.make<ActiveAcpTurn | null>(null);
+        // Keyed by the agent's steer id; an injection can arrive before its send returns.
+        const steerInjections = new Map<string, Deferred.Deferred<void>>();
+        const steerInjection = (steerId: string) => {
+          const existing = steerInjections.get(steerId);
+          if (existing !== undefined) return existing;
+          const created = Deferred.makeUnsafe<void>();
+          steerInjections.set(steerId, created);
+          return created;
+        };
         const activeSessionId = yield* Ref.make<string | null>(null);
         const contextUsageBySessionId = yield* Ref.make(
           new Map<string, ThreadTokenUsageSnapshot>(),
@@ -2059,6 +2295,40 @@ export function makeAcpAdapterV2(
           Effect.void;
 
         const nativeLogging = options.nativeLogging?.(input.threadId);
+        const promptInactivityTimeoutMillis =
+          flavor.promptInactivityTimeout === undefined
+            ? undefined
+            : Duration.toMillis(flavor.promptInactivityTimeout);
+        // Each runtime owns its unanswered agent requests, so a dead process's leftovers
+        // and late callbacks never reach its replacement.
+        let openAgentRequests = new Set<string>();
+        const notePromptProgress =
+          /* Provider events include streaming deltas; avoid a span for each update. */
+          Effect.fnUntraced(function* (notification?: EffectAcpSchema.SessionNotification) {
+            if (promptInactivityTimeoutMillis === undefined) return;
+            if (
+              notification !== undefined &&
+              !ACP_PROMPT_ACTIVITY_UPDATES.has(notification.update.sessionUpdate)
+            ) {
+              return;
+            }
+            const context = yield* Ref.get(activeTurn);
+            if (
+              context === null ||
+              (notification !== undefined &&
+                notification.sessionId !== context.nativeThreadId &&
+                !context.subagentsBySessionId.has(notification.sessionId))
+            ) {
+              return;
+            }
+            context.lastProgressAt = yield* Clock.currentTimeMillis;
+          });
+        const closeAgentRequest = (agentRequests: Set<string>, requestId: string) =>
+          Effect.suspend(() =>
+            agentRequests.delete(requestId) && agentRequests === openAgentRequests
+              ? notePromptProgress()
+              : Effect.void,
+          );
         const handleRuntimeTerminationAtGeneration = (runtimeGeneration: number) =>
           runRuntimeCallbackAtGeneration(
             runtimeGeneration,
@@ -2072,6 +2342,8 @@ export function makeAcpAdapterV2(
             handleRuntimeTerminationAtGeneration(runtimeGeneration),
         ): AcpAdapterV2RuntimeInput => {
           const mcpContext = acpMcpContext(threadId, self);
+          const agentRequests = new Set<string>();
+          openAgentRequests = agentRequests;
           return {
             cwd: input.runtimePolicy.cwd ?? process.cwd(),
             runtimePolicy: input.runtimePolicy,
@@ -2092,7 +2364,16 @@ export function makeAcpAdapterV2(
               ...(flavor.clientCapabilitiesMeta ? { _meta: flavor.clientCapabilitiesMeta } : {}),
             },
             clientInfo: { name: "t3-code", version: "0.0.0" },
-            onTermination,
+            onTermination: (error) =>
+              Effect.sync(() => agentRequests.clear()).pipe(Effect.andThen(onTermination(error))),
+            ...(promptInactivityTimeoutMillis === undefined
+              ? {}
+              : {
+                  onIncomingRequest: (requestId: string) =>
+                    Effect.sync(() => {
+                      agentRequests.add(requestId);
+                    }),
+                }),
             onOutgoingResponseFailure: (requestId, error) =>
               Ref.modify(nativeResponseAcknowledgements, (current) => {
                 const entry = current.get(requestId);
@@ -2121,7 +2402,7 @@ export function makeAcpAdapterV2(
                   ),
                   updated,
                 ] as const;
-              }).pipe(Effect.flatten),
+              }).pipe(Effect.flatten, Effect.andThen(closeAgentRequest(agentRequests, requestId))),
             onOutgoingResponse: (requestId) =>
               Ref.modify(nativeResponseAcknowledgements, (current) => {
                 const entry = current.get(requestId);
@@ -2150,7 +2431,7 @@ export function makeAcpAdapterV2(
                   ),
                   updated,
                 ] as const;
-              }).pipe(Effect.flatten),
+              }).pipe(Effect.flatten, Effect.andThen(closeAgentRequest(agentRequests, requestId))),
             ...(nativeLogging?.requestLogger === undefined
               ? {}
               : { requestLogger: nativeLogging.requestLogger }),
@@ -3281,7 +3562,7 @@ export function makeAcpAdapterV2(
           const projectAsCommandExecution = inputVariant === "monitor" || outputIsBashResult;
           // ACP has no typed MCP item, so recover MCP identity from the
           // agent-specific shape and project the same branded dynamic_tool
-          // item native providers produce (e.g. the T3 orchestration tools).
+          // item native providers produce (e.g. the Tabs orchestration tools).
           const mcpIdentity = extractMcpToolCallIdentity(toolCall, {
             embeddedTerminalCommands: embeddedTerminalCommands(
               context.nativeThreadId,
@@ -5415,10 +5696,64 @@ export function makeAcpAdapterV2(
           }
         });
 
+        // Only the flavor's own start marker counts: agents also send late
+        // updates for the previous prompt and echoes that arrive before they
+        // would honor a cancel.
+        const markPromptStarted = Effect.fnUntraced(function* (
+          notification: EffectAcpSchema.SessionNotification,
+        ) {
+          const promptStarts = flavor.cancelAfterPromptStarts?.isStart;
+          if (promptStarts === undefined) return;
+          const context = yield* Ref.get(activeTurn);
+          if (context === null || context.nativeThreadId !== notification.sessionId) return;
+          if (context.promptSentAt === undefined) return;
+          if (!promptStarts(notification.update)) return;
+          yield* Deferred.succeed(context.promptStarted, undefined);
+        });
+
+        /**
+         * `cancelAfterPromptStarts`: waits until the agent started the prompt or the
+         * bound passed since `session/prompt`. False when the prompt settled first,
+         * so there is nothing to cancel.
+         */
+        const promptStillRunsAfterHold = Effect.fnUntraced(function* (context: ActiveAcpTurn) {
+          const hold = flavor.cancelAfterPromptStarts;
+          if (hold === undefined) return true;
+          if (yield* Deferred.isDone(context.promptStarted)) return true;
+          yield* options.testHooks?.onCancelHeld?.() ?? Effect.void;
+          const boundPassed = Effect.gen(function* () {
+            const now = yield* Clock.currentTimeMillis;
+            const elapsed = now - (context.promptSentAt ?? now);
+            yield* Effect.sleep(
+              Duration.millis(Math.max(0, Duration.toMillis(hold.bound) - elapsed)),
+            );
+          });
+          return yield* Effect.raceFirst(
+            Effect.raceFirst(Deferred.await(context.promptStarted), boundPassed).pipe(
+              Effect.as(true),
+            ),
+            Deferred.await(context.completed).pipe(Effect.as(false)),
+          );
+        });
+
         const projectAcpRuntimeSessionUpdateEffect = (
           rawNotification: EffectAcpSchema.SessionNotification,
         ) =>
           Effect.gen(function* () {
+            if (flavor.ignoreSessionUpdate?.(rawNotification) === true) return;
+            yield* notePromptProgress(rawNotification);
+            const nativePromptId = flavor.forkFromTurn?.nativeTurnId(rawNotification);
+            if (nativePromptId !== undefined) {
+              const turn = yield* Ref.get(activeTurn);
+              if (turn !== null && turn.nativeThreadId === rawNotification.sessionId) {
+                turn.nativePromptId ??= nativePromptId;
+              }
+            }
+            const injectedSteerId = flavor.steering?.injectedSteerId(rawNotification);
+            if (injectedSteerId !== undefined) {
+              yield* Deferred.succeed(steerInjection(injectedSteerId), undefined);
+            }
+            yield* markPromptStarted(rawNotification);
             if (clientTerminals !== undefined) {
               const embedded = embeddedTerminalIdsFromSessionUpdate(rawNotification);
               if (embedded !== undefined) {
@@ -5489,8 +5824,8 @@ export function makeAcpAdapterV2(
               Effect.fail(
                 EffectAcpErrors.AcpRequestError.internalError(
                   disposition === "ask"
-                    ? `The active T3 runtime policy requires approval for ${operation}. Request permission with session/request_permission before retrying.`
-                    : `The active T3 runtime policy does not allow ${operation}.`,
+                    ? `The active Tabs runtime policy requires approval for ${operation}. Request permission with session/request_permission before retrying.`
+                    : `The active Tabs runtime policy does not allow ${operation}.`,
                 ),
               ),
             ),
@@ -6184,7 +6519,12 @@ export function makeAcpAdapterV2(
         yield* Ref.set(activeSessionId, started.sessionId);
         yield* Ref.set(activeSessionSetup, started);
         rememberTerminalEnvironment(started.sessionId, input.threadId);
-        const capabilities = negotiatedCapabilities(flavor.capabilities, started);
+        const capabilities = negotiatedCapabilities(
+          flavor.capabilities,
+          started,
+          flavor.modelOptionArrivesLate === true,
+          flavor.forkFromTurn?.supported(started.initializeResult) === true,
+        );
         const canLoadSession = started.initializeResult.agentCapabilities?.loadSession === true;
         const canResumeSession =
           started.initializeResult.agentCapabilities?.sessionCapabilities?.resume != null;
@@ -6267,7 +6607,9 @@ export function makeAcpAdapterV2(
               };
             });
           }
-          const optionSelections = modelSelection.options ?? [];
+          const optionSelections = (modelSelection.options ?? []).filter(
+            (selection) => flavor.ownedModelOptionIds?.includes(selection.id) !== true,
+          );
           const configOptions = yield* runtime.getConfigOptions;
           const availableConfigIds = new Set(configOptions.map((option) => option.id));
           const hasNativeConfigWithSyntheticModeId = availableConfigIds.has(
@@ -6328,6 +6670,17 @@ export function makeAcpAdapterV2(
                   }),
               }),
             );
+          }
+          for (const selection of flavor.sessionConfigForPolicy?.(runtimePolicy) ?? []) {
+            const option = (yield* runtime.getConfigOptions).find(
+              (candidate) => candidate.id === selection.id,
+            );
+            if (option?.type !== "select" || option.currentValue === selection.value) continue;
+            const advertisedValues = option.options.flatMap((entry) =>
+              "value" in entry ? [entry.value] : entry.options.map((choice) => choice.value),
+            );
+            if (!advertisedValues.includes(selection.value)) continue;
+            yield* runtime.setConfigOption(selection.id, selection.value);
           }
           const policyMode = flavor.sessionModeForPolicy?.(runtimePolicy);
           if (policyMode !== undefined) {
@@ -6447,15 +6800,26 @@ export function makeAcpAdapterV2(
           providerThreadId: context.input.providerThread.id,
           nodeId: context.input.rootNodeId,
           runAttemptId: context.input.attemptId,
-          nativeTurnRef: {
-            driver,
-            nativeId: context.nativeTurnId,
-            strength: "weak",
-          },
+          nativeTurnRef:
+            context.nativePromptId === undefined
+              ? { driver, nativeId: context.nativeTurnId, strength: "weak" }
+              : { driver, nativeId: context.nativePromptId, strength: "strong" },
           ordinal: context.input.providerTurnOrdinal,
           status,
           startedAt: context.startedAt,
           completedAt,
+          ...(status === "running" ||
+          status === "pending" ||
+          flavor.reportsPerTurnPromptUsage !== true
+            ? {}
+            : {
+                turnTokenUsage: acpPerTurnPromptUsage(
+                  context.promptUsage,
+                  context.subagents.size > 0,
+                  status,
+                  flavor.geminiPromptUsage,
+                ),
+              }),
         });
 
         const terminalizeOpenRunOwnedItems = Effect.fnUntraced(function* (
@@ -6488,10 +6852,11 @@ export function makeAcpAdapterV2(
 
         const terminalizeOpenForegroundTools = Effect.fnUntraced(function* (
           context: ActiveAcpTurn,
+          status: "completed" | "failed" = "completed",
         ) {
           for (const tool of context.tools.values()) {
             if (!acpCompletedTurnShouldTerminalizeTool(tool, flavor)) continue;
-            yield* emitTool(context, tool, "completed");
+            yield* emitTool(context, tool, status);
           }
         });
 
@@ -6520,6 +6885,11 @@ export function makeAcpAdapterV2(
           const settledStatus = context.interrupted ? "interrupted" : status;
           context.finalizedStatus = settledStatus;
           context.finalized = true;
+          const watchdog = context.inactivityWatchdog;
+          context.inactivityWatchdog = undefined;
+          if (watchdog !== undefined) {
+            yield* Fiber.interrupt(watchdog).pipe(Effect.forkDetach, Effect.asVoid);
+          }
           const directStopQuarantine = yield* Ref.get(stoppedRunQuarantine);
           if (flavor.subagentsIdleOnTurnCompletion === true) {
             for (const subagent of context.subagents.values()) {
@@ -6550,7 +6920,7 @@ export function makeAcpAdapterV2(
           }
           const now = yield* DateTime.now;
           if (
-            flavor.supportsCompaction === true &&
+            (flavor.supportsCompaction === true || flavor.compactSession !== undefined) &&
             context.input.message.text.trim() === "/compact" &&
             context.input.message.attachments.length === 0 &&
             settledStatus === "completed"
@@ -6743,9 +7113,49 @@ export function makeAcpAdapterV2(
           if (text.length > 0) {
             prompt.push({ type: "text", text });
           }
-          const imageAttachments = turnInput.message.attachments.filter(
-            isProviderNativeImageAttachment,
-          );
+          const imageAttachments = flavor.buildAttachmentPrompt
+            ? []
+            : turnInput.message.attachments.filter(isProviderNativeImageAttachment);
+          if (flavor.buildAttachmentPrompt) {
+            const setup = yield* Ref.get(activeSessionSetup);
+            const modelOption = (yield* runtime.getConfigOptions).find(
+              (option) => option.category === "model" && option.type === "select",
+            );
+            const currentModelId =
+              modelOption?.type === "select" ? modelOption.currentValue : undefined;
+            const blocks = yield* flavor
+              .buildAttachmentPrompt({
+                text: messageText,
+                attachments: turnInput.message.attachments,
+                resolveAttachmentPath: (attachment) =>
+                  resolveAttachmentPath({
+                    attachmentsDir: serverConfig.attachmentsDir,
+                    attachment,
+                  }),
+                promptCapabilities: setup?.initializeResult.agentCapabilities?.promptCapabilities,
+                agentVersion: setup?.initializeResult.agentInfo?.version,
+                currentModel:
+                  modelOption?.type !== "select" || typeof currentModelId !== "string"
+                    ? undefined
+                    : {
+                        id: currentModelId,
+                        name: modelOption.options
+                          .flatMap((entry) => ("value" in entry ? [entry] : entry.options))
+                          .find((choice) => choice.value === currentModelId)?.name,
+                      },
+              })
+              .pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new ProviderAdapter.ProviderAdapterProtocolError({
+                      driver,
+                      detail: "Failed to build ACP attachment prompt",
+                      payload: cause,
+                    }),
+                ),
+              );
+            prompt.push(...blocks);
+          }
           if (imageAttachments.length > 0 && !supportsImagePrompts) {
             return yield* new ProviderAdapter.ProviderAdapterProtocolError({
               driver,
@@ -6814,6 +7224,96 @@ export function makeAcpAdapterV2(
             loadingIndex: 0,
           });
           return true;
+        });
+
+        const promptInactivityPaused = Effect.fn("AcpAdapterV2.promptInactivityPaused")(function* (
+          context: ActiveAcpTurn,
+        ) {
+          if (openAgentRequests.size > 0) return true;
+          if ((yield* Ref.get(pendingRuntimeRequests)).size > 0) return true;
+          for (const tool of context.tools.values()) {
+            const status = toolStatus(tool.status);
+            if (status === "pending" || status === "running" || status === "waiting") return true;
+          }
+          for (const subagent of context.subagents.values()) {
+            if (acpSubagentStatusBlocksTurnSettlement(subagent.task.status)) return true;
+          }
+          return false;
+        });
+
+        /**
+         * Holds the transition permit from the deadline check through process teardown,
+         * so Stop and the next turn see either a running prompt or a replaced runtime.
+         */
+        const retireInactivePrompt = Effect.fn("AcpAdapterV2.retireInactivePrompt")(function* (
+          context: ActiveAcpTurn,
+          generation: number,
+          timeoutMillis: number,
+        ) {
+          const retired = yield* runRuntimeCallbackAtGeneration(
+            generation,
+            Effect.gen(function* () {
+              if (context.finalized || context.interrupted) return "done" as const;
+              if ((yield* Ref.get(activeTurn)) !== context) return "done" as const;
+              if (yield* Deferred.isDone(context.promptWireSettled)) return "done" as const;
+              const now = yield* Clock.currentTimeMillis;
+              if (context.lastProgressAt + timeoutMillis > now) return "rearm" as const;
+              if (yield* promptInactivityPaused(context)) {
+                context.lastProgressAt = now;
+                return "rearm" as const;
+              }
+              context.inactivityWatchdog = undefined;
+              openAgentRequests.clear();
+              yield* quarantineNativeTransportAtGeneration(generation);
+              yield* advanceRuntimeCallbackGeneration;
+              yield* Ref.set(runtimeRestartRequired, true);
+              yield* cancelPendingRuntimeRequests();
+              yield* terminalizeOpenForegroundTools(context, "failed");
+              const minutes = Math.max(1, Math.round(timeoutMillis / 60_000));
+              yield* finalizeTurn(
+                context,
+                "failed",
+                makeProviderFailure({
+                  class: "provider_error",
+                  message: `${flavor.runtimeHarness ?? driver} sent nothing for ${minutes} ${minutes === 1 ? "minute" : "minutes"}, so Tabs stopped the turn and restarted the agent. Send a message to continue.`,
+                }),
+              );
+              return "retired" as const;
+            }),
+          );
+          if (Option.isNone(retired) || retired.value !== "retired") {
+            return Option.getOrElse(retired, () => "done" as const);
+          }
+          yield* Effect.logWarning("orchestration-v2.acp-prompt-inactive", {
+            driver,
+            providerSessionId: input.providerSessionId,
+            providerTurnId: context.providerTurnId,
+            timeoutMillis,
+          });
+          if (runtimeScope !== undefined) {
+            yield* Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore);
+          }
+          return "retired" as const;
+        });
+
+        const watchPromptInactivity = Effect.fn("AcpAdapterV2.watchPromptInactivity")(function* (
+          context: ActiveAcpTurn,
+          generation: number,
+          timeoutMillis: number,
+        ) {
+          context.lastProgressAt = yield* Clock.currentTimeMillis;
+          while (true) {
+            const remaining =
+              context.lastProgressAt + timeoutMillis - (yield* Clock.currentTimeMillis);
+            if (remaining > 0) {
+              yield* Effect.sleep(Duration.millis(remaining));
+              continue;
+            }
+            const outcome = yield* runtimeTransitionPermit.withPermit(
+              retireInactivePrompt(context, generation, timeoutMillis),
+            );
+            if (outcome !== "rearm") return;
+          }
         });
 
         const startTurnUnlocked = Effect.fn("AcpAdapterV2.startTurn")(
@@ -6913,6 +7413,24 @@ export function makeAcpAdapterV2(
                 return wasRequested;
               }),
             );
+            const compactSession =
+              !isContinuationTurn &&
+              flavor.compactSession !== undefined &&
+              turnInput.message.text.trim() === "/compact" &&
+              turnInput.message.attachments.length === 0
+                ? flavor.compactSession
+                : undefined;
+            if (compactSession !== undefined) {
+              const compactionSetup = yield* Ref.get(activeSessionSetup);
+              if (
+                compactionSetup === null ||
+                !compactSession.supported(compactionSetup.initializeResult)
+              ) {
+                return yield* Effect.fail(
+                  new Error(`${driver} does not support compacting this session.`),
+                );
+              }
+            }
             const promptParts = isContinuationTurn
               ? null
               : yield* resolvePromptParts(turnInput, requestedSessionId);
@@ -6969,6 +7487,10 @@ export function makeAcpAdapterV2(
               promptSettled: false,
               promptSettledStatus: null,
               promptWireSettled,
+              promptStarted: yield* Deferred.make<void, never>(),
+              lastProgressAt: 0,
+              promptUsage: undefined,
+              inactivityWatchdog: undefined,
               backgroundFinalizeGeneration: 0,
             };
             const carryover = yield* Ref.getAndSet(carryoverSubagents, null);
@@ -7098,10 +7620,37 @@ export function makeAcpAdapterV2(
               }
               return;
             }
+            const checkPromptOutcome =
+              flavor.watchPromptOutcome === undefined
+                ? undefined
+                : yield* flavor.watchPromptOutcome(requestedSessionId);
             const promptGeneration = yield* Ref.get(runtimeCallbackGeneration);
-            yield* runtime.prompt({ prompt: promptParts!.prompt }).pipe(
+            context.promptSentAt = yield* Clock.currentTimeMillis;
+            if (promptInactivityTimeoutMillis !== undefined) {
+              context.inactivityWatchdog = yield* watchPromptInactivity(
+                context,
+                promptGeneration,
+                promptInactivityTimeoutMillis,
+              ).pipe(Effect.forkIn(sessionScope));
+            }
+            yield* (
+              compactSession === undefined
+                ? runtime.prompt({ prompt: promptParts!.prompt })
+                : compactSession.compact(runtime, requestedSessionId).pipe(
+                    Effect.as({
+                      stopReason: "end_turn",
+                    } satisfies EffectAcpSchema.PromptResponse),
+                  )
+            ).pipe(
               Effect.tap(() =>
                 Ref.update(promptInstructionStates, (current) => {
+                  // Native compaction sends no prompt, and the compacted session needs
+                  // its instructions again, so forget what was delivered.
+                  if (compactSession !== undefined) {
+                    const updated = new Map(current);
+                    updated.delete(requestedSessionId);
+                    return updated;
+                  }
                   if (promptParts?.instructionState === undefined) return current;
                   const updated = new Map(current);
                   updated.set(requestedSessionId, promptParts.instructionState);
@@ -7111,14 +7660,34 @@ export function makeAcpAdapterV2(
               // Wire settlement precedes the completion callback's permit request so
               // settled-soft classification can observe the native return even when
               // the completion fiber has not yet set promptSettled under the permit.
-              Effect.tap(() =>
-                Deferred.succeed(context.promptWireSettled, undefined).pipe(Effect.asVoid),
+              Effect.tap((result) =>
+                Effect.sync(() => {
+                  // Capture usage only before finalize: a late response must not flip a settled turn.
+                  if (flavor.reportsPerTurnPromptUsage === true && !context.finalized) {
+                    context.promptUsage = result.usage ?? undefined;
+                  }
+                }).pipe(
+                  Effect.andThen(
+                    Deferred.succeed(context.promptWireSettled, undefined).pipe(Effect.asVoid),
+                  ),
+                ),
               ),
               Effect.flatMap((result) =>
                 runRuntimeCallbackAtGeneration(
                   promptGeneration,
                   Effect.gen(function* () {
                     if (context.finalized) return;
+                    const hiddenFailure =
+                      checkPromptOutcome === undefined ||
+                      context.interrupted ||
+                      result.stopReason === "cancelled"
+                        ? undefined
+                        : yield* checkPromptOutcome(result);
+                    if (hiddenFailure !== undefined) {
+                      yield* Ref.set(runtimeRestartRequired, true);
+                      yield* finalizeTurn(context, "failed", hiddenFailure);
+                      return;
+                    }
                     const status =
                       result.stopReason === "cancelled"
                         ? context.interrupted
@@ -7390,7 +7959,7 @@ export function makeAcpAdapterV2(
               ),
           ),
           startTurn,
-          ...(flavor.supportsCompaction === true
+          ...(flavor.supportsCompaction === true || flavor.compactSession !== undefined
             ? {
                 compactThread: (turnInput: ProviderAdapter.ProviderAdapterV2TurnInput) =>
                   startTurn({
@@ -7399,13 +7968,69 @@ export function makeAcpAdapterV2(
                   }),
               }
             : {}),
-          steerTurn: (turnInput) =>
-            Effect.fail(
-              new ProviderAdapter.ProviderAdapterSteerRunUnsupportedError({
-                driver,
-                providerThreadId: turnInput.providerThread.id,
-              }),
-            ),
+          steerTurn: Effect.fn("AcpAdapterV2.steerTurn")(
+            function* (turnInput) {
+              const steering = flavor.steering;
+              // The agent takes text only, so a steer with attachments waits for the next turn.
+              if (steering === undefined || turnInput.message.attachments.length > 0) {
+                return yield* new ProviderAdapter.ProviderAdapterSteerRunUnsupportedError({
+                  driver,
+                  providerThreadId: turnInput.providerThread.id,
+                });
+              }
+              const context = yield* Ref.get(activeTurn);
+              if (
+                context === null ||
+                context.finalized ||
+                context.providerTurnId !== turnInput.providerTurnId
+              ) {
+                return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver,
+                  detail: `Provider turn ${turnInput.providerTurnId} is not active and cannot be steered.`,
+                });
+              }
+              // An agent that drops an early cancel drops an early steer too.
+              const startHold = flavor.cancelAfterPromptStarts;
+              if (startHold !== undefined) {
+                yield* Deferred.await(context.promptStarted).pipe(
+                  Effect.timeoutOption(startHold.bound),
+                );
+              }
+              const steerId = yield* steering.send(
+                runtime,
+                context.nativeThreadId,
+                turnInput.message.text,
+              );
+              const injected = steerInjection(steerId);
+              // The agent reads a steer at its next step. One that lands after the last
+              // step is dropped, and the turn settles right after; the orchestrator then
+              // sends it as a follow-up. The bound keeps Stop from queueing behind a tool.
+              const outcome = yield* Effect.raceFirst(
+                Deferred.await(injected).pipe(Effect.as("injected" as const)),
+                Deferred.await(context.promptWireSettled).pipe(Effect.as("settled" as const)),
+              ).pipe(Effect.timeoutOption(ACP_STEER_DELIVERY_BOUND));
+              steerInjections.delete(steerId);
+              if (Option.contains(outcome, "settled") && !(yield* Deferred.isDone(injected))) {
+                return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver,
+                  detail: `Provider turn ${turnInput.providerTurnId} ended before it read the steering message.`,
+                });
+              }
+            },
+            (effect, turnInput) =>
+              effect.pipe(
+                Effect.mapError((cause) =>
+                  cause._tag === "ProviderAdapterSteerRunUnsupportedError"
+                    ? cause
+                    : new ProviderAdapter.ProviderAdapterSteerRunError({
+                        driver,
+                        providerThreadId: turnInput.providerThread.id,
+                        providerTurnId: turnInput.providerTurnId,
+                        cause,
+                      }),
+                ),
+              ),
+          ),
           interruptTurn: Effect.fn("AcpAdapterV2.interruptTurn")(
             function* (turnInput: ProviderAdapter.ProviderAdapterV2InterruptInput) {
               return yield* Effect.uninterruptibleMask((restore) =>
@@ -7651,7 +8276,7 @@ export function makeAcpAdapterV2(
                         // acknowledge and would only threaten still-running
                         // background subagents. Skip it and leave the runtime
                         // untouched for the replacement turn.
-                        if (!settledSoftInterrupt) {
+                        if (!settledSoftInterrupt && (yield* promptStillRunsAfterHold(context))) {
                           yield* runtime.cancel;
                         }
                         if (restartRuntime && flavor.restartRuntimeAfterInterrupt === true) {
@@ -7929,7 +8554,13 @@ export function makeAcpAdapterV2(
                       detail: "ACP driver did not negotiate session/fork",
                     });
                   }
-                  if (forkInput.providerTurnId !== undefined) {
+                  const forkMeta = forkFromTurnMetaFor({
+                    driver,
+                    flavor,
+                    canForkFromTurn: capabilities.threads.canForkFromTurn,
+                    forkInput,
+                  });
+                  if (forkMeta === null) {
                     return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                       driver,
                       detail: "ACP session/fork can only fork the current session head",
@@ -7943,6 +8574,7 @@ export function makeAcpAdapterV2(
                   const forked = yield* runtime.forkSession(
                     sourceSessionId,
                     acpMcpActivation(forkInput.targetThreadId, self),
+                    forkMeta,
                   );
                   rememberTerminalEnvironment(forked.sessionId, forkInput.targetThreadId);
                   yield* Ref.set(activeSessionId, forked.sessionId);

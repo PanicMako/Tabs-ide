@@ -1,4 +1,7 @@
-import { useState } from "react";
+import type { PullRequestRef } from "@tabs/contracts";
+import type { ReactElement } from "react";
+import { PullRequestReactionBar } from "./PullRequestReactionBar";
+import { useId, useState } from "react";
 import type {
   GitPullRequestActor,
   GitPullRequestReview,
@@ -19,6 +22,8 @@ export function PullRequestReviewersSection({
   onRemoveReviewer,
   isPending,
   isOpen = true,
+  suggestions,
+  onRequestSuggestions,
 }: {
   reviewers: ReadonlyArray<GitPullRequestActor>;
   reviews?: ReadonlyArray<GitPullRequestReview>;
@@ -27,9 +32,14 @@ export function PullRequestReviewersSection({
   onRemoveReviewer: (idOrLogin: string) => Promise<boolean | void>;
   isPending: boolean;
   isOpen?: boolean;
+  /** Logins the host offers as reviewers; typing is never limited to them. */
+  suggestions?: ReadonlyArray<string> | undefined;
+  /** Asked once the field is first focused, so the host is only read when somebody adds one. */
+  onRequestSuggestions?: (() => void) | undefined;
 }) {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const listId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,9 +141,18 @@ export function PullRequestReviewersSection({
               onChange={(e) => setInput(e.target.value)}
               placeholder="Add reviewer by username…"
               aria-label="Reviewer username"
+              list={suggestions && suggestions.length > 0 ? listId : undefined}
+              onFocus={() => onRequestSuggestions?.()}
               className="w-full rounded-md border border-border bg-background pl-8 pr-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={isPending || submitting}
             />
+            {suggestions && suggestions.length > 0 ? (
+              <datalist id={listId}>
+                {suggestions.map((login) => (
+                  <option key={login} value={login} />
+                ))}
+              </datalist>
+            ) : null}
           </div>
           <Button
             type="submit"
@@ -157,6 +176,8 @@ export function PullRequestLabelsSection({
   onRemoveLabel,
   isPending,
   isOpen = true,
+  suggestions,
+  onRequestSuggestions,
 }: {
   labels: ReadonlyArray<{
     readonly name: string;
@@ -168,9 +189,14 @@ export function PullRequestLabelsSection({
   onRemoveLabel: (name: string) => Promise<boolean | void>;
   isPending: boolean;
   isOpen?: boolean;
+  /** Labels the repository defines that this pull request does not wear yet. */
+  suggestions?: ReadonlyArray<string> | undefined;
+  /** Asked once the field is first focused, so the host is only read when somebody adds one. */
+  onRequestSuggestions?: (() => void) | undefined;
 }) {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const listId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,9 +263,18 @@ export function PullRequestLabelsSection({
               onChange={(e) => setInput(e.target.value)}
               placeholder="Add label name…"
               aria-label="Label name"
+              list={suggestions && suggestions.length > 0 ? listId : undefined}
+              onFocus={() => onRequestSuggestions?.()}
               className="w-full rounded-md border border-border bg-background pl-8 pr-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={isPending || submitting}
             />
+            {suggestions && suggestions.length > 0 ? (
+              <datalist id={listId}>
+                {suggestions.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            ) : null}
           </div>
           <Button
             type="submit"
@@ -256,14 +291,139 @@ export function PullRequestLabelsSection({
   );
 }
 
+type ChatMarkdownDecorateLink = (href: string, link: ReactElement) => ReactElement | null;
+
+function EditableComment({
+  comment,
+  cwd,
+  onEdit,
+  reactionRef,
+  onReactionSaved,
+  decorateLink,
+}: {
+  comment: GitPullRequestComment;
+  cwd?: string | null | undefined;
+  onEdit?: ((comment: GitPullRequestComment, body: string) => Promise<boolean | void>) | undefined;
+  reactionRef?: PullRequestRef | null | undefined;
+  onReactionSaved?: (() => void) | undefined;
+  decorateLink?: ChatMarkdownDecorateLink | undefined;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const body = draft?.trim() ?? "";
+    if (!onEdit || body.length === 0) return;
+    setSaving(true);
+    try {
+      const ok = await onEdit(comment, body);
+      if (ok !== false) setDraft(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-foreground">
+            {comment.author?.login?.slice(0, 1).toUpperCase() ?? "?"}
+          </span>
+          <span className="text-xs font-semibold text-foreground">
+            @{comment.author?.login ?? "Unknown"}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {new Date(comment.createdAt).toLocaleString()}
+          </span>
+        </div>
+        {onEdit && draft === null ? (
+          <button
+            type="button"
+            aria-label={`Edit comment by ${comment.author?.login ?? "unknown"}`}
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setDraft(comment.body)}
+          >
+            Edit
+          </button>
+        ) : null}
+      </div>
+      {draft === null ? (
+        <div className="pl-7">
+          <div className="text-xs text-foreground/90">
+            <ChatMarkdown
+              text={comment.body}
+              cwd={cwd ?? undefined}
+              decorateLink={decorateLink}
+            />
+          </div>
+          {comment.reactions !== undefined ? (
+            <PullRequestReactionBar
+              className="mt-2"
+              reactions={comment.reactions}
+              canReact
+              subjectId={comment.id}
+              reference={reactionRef ?? null}
+              onSaved={onReactionSaved ?? (() => undefined)}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-2 pl-7">
+          <textarea
+            aria-label="Edit comment"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={4}
+            disabled={saving}
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2.5"
+              disabled={saving || draft.trim().length === 0 || draft === comment.body}
+              onClick={() => void save()}
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs px-2.5"
+              disabled={saving}
+              onClick={() => setDraft(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PullRequestActivityView({
   reviews = [],
   comments = [],
   cwd,
+  onEditComment,
+  reactionRef,
+  onReactionSaved,
+  decorateLink,
 }: {
+  /** Lets pull request links in the text show a hover card. */
+  decorateLink?: ChatMarkdownDecorateLink | undefined;
+  /** Where reactions are saved; absent leaves them read-only. */
+  reactionRef?: PullRequestRef | null | undefined;
+  onReactionSaved?: (() => void) | undefined;
   reviews?: ReadonlyArray<GitPullRequestReview>;
   comments?: ReadonlyArray<GitPullRequestComment>;
   cwd?: string | null;
+  /** Present when this host can rewrite a conversation comment; the host refuses other people's. */
+  onEditComment?:
+    | ((comment: GitPullRequestComment, body: string) => Promise<boolean | void>)
+    | undefined;
 }) {
   const hasContent = reviews.length > 0 || comments.length > 0;
 
@@ -325,8 +485,18 @@ export function PullRequestActivityView({
                   </div>
                   {review.body ? (
                     <div className="text-xs text-foreground/90 pl-7">
-                      <ChatMarkdown text={review.body} cwd={cwd ?? undefined} />
+                      <ChatMarkdown text={review.body} cwd={cwd ?? undefined} decorateLink={decorateLink} />
                     </div>
+                  ) : null}
+                  {review.reactions !== undefined ? (
+                    <PullRequestReactionBar
+                      className="pl-7"
+                      reactions={review.reactions}
+                      canReact
+                      subjectId={review.id}
+                      reference={reactionRef ?? null}
+                      onSaved={onReactionSaved ?? (() => undefined)}
+                    />
                   ) : null}
                 </div>
               );
@@ -343,27 +513,15 @@ export function PullRequestActivityView({
           </h4>
           <div className="space-y-2">
             {comments.map((comment) => (
-              <div
+              <EditableComment
                 key={comment.id}
-                className="rounded-lg border border-border/70 bg-card p-3 space-y-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-foreground">
-                      {comment.author?.login?.slice(0, 1).toUpperCase() ?? "?"}
-                    </span>
-                    <span className="text-xs font-semibold text-foreground">
-                      @{comment.author?.login ?? "Unknown"}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-xs text-foreground/90 pl-7">
-                  <ChatMarkdown text={comment.body} cwd={cwd ?? undefined} />
-                </div>
-              </div>
+                comment={comment}
+                cwd={cwd}
+                onEdit={onEditComment}
+                reactionRef={reactionRef}
+                onReactionSaved={onReactionSaved}
+                decorateLink={decorateLink}
+              />
             ))}
           </div>
         </div>

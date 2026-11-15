@@ -702,9 +702,11 @@ export function CreatePRModal({
           </div>
 
           {/* Right Main Editor Panel */}
-          <div className="flex-1 flex flex-col p-6 bg-background relative">
-            {/* Top Auto-fill & Clear Actions */}
-            <div className="flex justify-end items-center gap-2 mb-4 pr-10">
+          <div className="flex-1 flex flex-col px-6 pt-3 pb-6 bg-background relative">
+            {/* Top Auto-fill & Clear Actions. The dialog's close button is a 32px circle 12px
+                from the corner, so this row is 32px tall, 12px down, and stops short of it: the
+                actions and the close button then read as one line. */}
+            <div className="flex h-8 justify-end items-center gap-2 mb-5 pr-11">
               {(title.trim() || body.trim()) && (
                 <Button
                   type="button"
@@ -730,25 +732,31 @@ export function CreatePRModal({
               </Button>
             </div>
 
-            {/* PR Title Input */}
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Pull request title…"
-              className="w-full bg-transparent border-none text-2xl font-semibold text-foreground placeholder:text-muted-foreground/40 outline-none mb-3 pr-10 truncate"
-            />
+            {/* The fields sit in a box 6px wider than the column on each side and carry that
+                padding themselves. A bare text field clips what it draws at its own edge, which
+                cut the caret and the first glyph of the title and description at x = 0. */}
+            <div className="-mx-1.5 flex min-h-0 flex-1 flex-col">
+              {/* PR Title Input */}
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Pull request title…"
+                className="w-full bg-transparent border-none px-1.5 py-0.5 text-2xl font-semibold text-foreground placeholder:text-muted-foreground/40 outline-none mb-3 pr-10 truncate"
+              />
 
-            <div className="w-10 h-0.5 bg-border rounded-full mb-4 opacity-80" />
+              <div className="mx-1.5 w-10 h-0.5 bg-border rounded-full mb-4 opacity-80" />
 
-            {/* PR Description Textarea */}
-            <AutoTextarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Add detailed description, context, motivation, or review notes (optional)…"
-              minRows={10}
-              className="w-full flex-1 bg-transparent border-none text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground/40 outline-none resize-none p-0 focus:border-none focus:ring-0"
-            />
+              {/* PR Description Textarea */}
+              <AutoTextarea
+                plain
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Add detailed description, context, motivation, or review notes (optional)…"
+                minRows={10}
+                className="w-full flex-1 bg-transparent border-none text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground/40 outline-none resize-none px-1.5 py-0 focus:border-none focus:ring-0"
+              />
+            </div>
           </div>
         </div>
       </DialogPopup>

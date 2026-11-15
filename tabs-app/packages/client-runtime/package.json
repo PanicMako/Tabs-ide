@@ -55,6 +55,10 @@
       "types": "./src/platform/index.ts",
       "default": "./src/platform/index.ts"
     },
+    "./providerUpdateRequiredModels": {
+      "types": "./src/providerUpdateRequiredModels.ts",
+      "default": "./src/providerUpdateRequiredModels.ts"
+    },
     "./providerSkills": {
       "types": "./src/providerSkills.ts",
       "default": "./src/providerSkills.ts"
@@ -206,6 +210,10 @@
     "./state/orchestration-v2": {
       "types": "./src/state/orchestrationV2Projection.ts",
       "default": "./src/state/orchestrationV2Projection.ts"
+    },
+    "./voice-input": {
+      "types": "./src/voice-input/index.ts",
+      "default": "./src/voice-input/index.ts"
     }
   },
   "scripts": {

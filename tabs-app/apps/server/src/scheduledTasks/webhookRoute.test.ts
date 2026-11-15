@@ -38,7 +38,7 @@ const mintKeys = NodeCrypto.generateKeyPairSync("ed25519", {
   privateKeyEncoding: { format: "pem", type: "pkcs8" },
   publicKeyEncoding: { format: "pem", type: "spki" },
 });
-/** The secrets a T3 Connect-linked environment holds, keyed by name. */
+/** The secrets a Tabs Connect-linked environment holds, keyed by name. */
 const linkedSecrets: ReadonlyMap<string, string> = new Map([
   [CLOUD_MINT_PUBLIC_KEY, mintKeys.publicKey],
   [RELAY_ISSUER_SECRET, relayIssuer],
@@ -208,7 +208,7 @@ describe("webhook route", () => {
   );
 
   // Live clock: the server checks proofs against real time.
-  it.live("trusts no relay headers on an environment not linked to T3 Connect", () =>
+  it.live("trusts no relay headers on an environment not linked to Tabs Connect", () =>
     Effect.gen(function* () {
       const received: Array<WebhookTriggerRequest> = [];
       const { handler, dispose } = handlerFor((request) => {

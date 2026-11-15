@@ -4,6 +4,8 @@ import * as Effect from "effect/Effect";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
+import { resolveOvermindDeps } from "../../OvermindHandlerDeps.ts";
+import { advanceOvermind } from "../../OvermindMcp.ts";
 import * as ThreadMetadataMcpService from "../../ThreadMetadataMcpService.ts";
 
 const handlers = {
@@ -18,6 +20,13 @@ const handlers = {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
       return yield* service.delegateTask(scope, input);
+    }),
+  overmind_advance: (input) =>
+    Effect.gen(function* () {
+      const scope = yield* McpInvocationContext.McpInvocationContext;
+      const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const deps = yield* resolveOvermindDeps(scope);
+      return yield* advanceOvermind(service, scope, input, Date.now(), deps);
     }),
   task_status: ({ taskId }) =>
     Effect.gen(function* () {

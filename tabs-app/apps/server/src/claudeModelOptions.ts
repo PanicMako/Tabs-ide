@@ -30,7 +30,10 @@ export function compileClaudeModelSelection(
   catalog: ClaudeModelCatalog = BUNDLED_CLAUDE_MODEL_CATALOG,
 ): CompiledClaudeModelSelection {
   const capabilities = getClaudeCatalogModelCapabilities(catalog, selection.model);
-  const descriptors = getProviderOptionDescriptors({ caps: capabilities });
+  const descriptors = getProviderOptionDescriptors({
+    caps: capabilities,
+    selections: selection.options,
+  });
   const supportsBoolean = (id: string) =>
     descriptors.some((descriptor) => descriptor.type === "boolean" && descriptor.id === id);
   const rawEffort = getModelSelectionStringOptionValue(selection, "effort");
@@ -47,10 +50,17 @@ export function compileClaudeModelSelection(
   const thinking = supportsBoolean("thinking")
     ? getModelSelectionBooleanOptionValue(selection, "thinking")
     : undefined;
+  const ultracodeToggle = descriptors.find((descriptor) => descriptor.id === "ultracode");
+  const ultracode =
+    ultracodeToggle?.type === "boolean"
+      ? ultracodeToggle.currentValue
+      : isClaudeCatalogUltracodeEffort(resolvedEffort)
+        ? true
+        : undefined;
   const settings = {
     ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
     ...(typeof fastMode === "boolean" ? { fastMode } : {}),
-    ...(isClaudeCatalogUltracodeEffort(resolvedEffort) ? { ultracode: true } : {}),
+    ...(typeof ultracode === "boolean" ? { ultracode } : {}),
   };
   const apiModelId = resolveClaudeCatalogApiModelId(catalog, selection);
   return {

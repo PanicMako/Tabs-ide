@@ -1838,7 +1838,7 @@ function isClaudeBackgroundTasksChangedMessage(message: SDKMessage): boolean {
   );
 }
 
-// Claude opens every turn it runs with a root `init` frame. Outside a T3 turn
+// Claude opens every turn it runs with a root `init` frame. Outside a Tabs turn
 // that turn is a wake, and `init` comes 20-110 ms after the notification that
 // caused it but seconds before its first output (model thinking time).
 function isClaudeTurnStartMessage(message: SDKMessage): boolean {

@@ -1,4 +1,5 @@
 import { resolveToolbarStyle } from "../lib/toolbarStyles";
+import { buildThreadTree } from "../lib/threadTree";
 import {
   WorkspaceToolActions,
   KeepWorkspaceToolDialog,
@@ -399,6 +400,11 @@ import { useKeybindings } from "../state/settings";
 import { projectsAtom, threadsAtom, threadsHydratedAtom } from "../state/threads";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
+import { useCodeHostPrewarm } from "../hooks/useCodeHostPrewarm";
+import { isUnderStartupTransform } from "../lib/startupStaging";
+
+/** Horizontal step per nesting level in the thread list; the tree guides are drawn against it. */
+const THREAD_TREE_INDENT_PX = 20;
 
 const GIT_WORKSPACE_MODE_STORAGE_KEY = "tabs:git-workspace-mode";
 
@@ -1495,6 +1501,28 @@ function AgentsThreadList(props: {
   const [showSettledView, setShowSettledView] = useState(false);
   const [showSnoozedView, setShowSnoozedView] = useState(false);
   const [threadSearch, setThreadSearch] = useState("");
+  const [collapsedParents, setCollapsedParents] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem("tabs:collapsed-thread-parents:v1");
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleParentCollapsed = useCallback((id: string) => {
+    setCollapsedParents((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        window.localStorage.setItem("tabs:collapsed-thread-parents:v1", JSON.stringify([...next]));
+      } catch {
+        // Collapse state is a convenience; it still works for this session.
+      }
+      return next;
+    });
+  }, []);
   const olderHistory = useOlderSettledThreads(
     props.project.environmentId,
     props.project.id,
@@ -1859,13 +1887,18 @@ function AgentsThreadList(props: {
     showSnoozedView,
     view,
   ]);
-  const visibleThreads = threadSections.flatMap((section) =>
-    section.threads.map((thread, index) => ({
-      thread,
-      section: section.name,
-      first: index === 0,
-    })),
-  );
+  const visibleThreads = useMemo(() => {
+    const seenSections = new Set<string>();
+    return buildThreadTree(
+      threadSections,
+      view === "archived" ? searchedArchivedThreads : searchedActiveThreads,
+      collapsedParents,
+    ).map((entry) => {
+      const first = !seenSections.has(entry.section);
+      seenSections.add(entry.section);
+      return { ...entry, first };
+    });
+  }, [threadSections, view, searchedArchivedThreads, searchedActiveThreads, collapsedParents]);
   const loadedSettledCount = activeThreads.filter((thread) =>
     isSettled(thread, thread.updatedAt ?? thread.createdAt),
   ).length;
@@ -2058,7 +2091,7 @@ function AgentsThreadList(props: {
                   )}
                 >
                   <span className="relative inline-flex items-center">
-                    <span>Settled</span>
+                    <span>Wrapped</span>
                     {view === "current" && showSettledView && !showSnoozedView && (
                       <span className="absolute -bottom-2 -left-2 -right-2 -mb-px h-0.5 rounded-full bg-foreground" />
                     )}
@@ -2078,7 +2111,7 @@ function AgentsThreadList(props: {
                         id="tab-archive"
                         aria-label={
                           view === "archived"
-                            ? "Return to active threads"
+                            ? "Back to open threads"
                             : `Archive (${archivedThreads.length})`
                         }
                         aria-selected={view === "archived"}
@@ -2182,7 +2215,7 @@ function AgentsThreadList(props: {
                   <p>
                     No tasks match “{threadSearch.trim()}” in{" "}
                     <span className="font-medium text-foreground">
-                      {view === "archived" ? "Archive" : showSettledView ? "Settled" : "Active"}
+                      {view === "archived" ? "Archive" : showSettledView ? "Wrapped" : "Active"}
                     </span>
                     .
                   </p>
@@ -2197,7 +2230,7 @@ function AgentsThreadList(props: {
                         }}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
                       >
-                        <span>View {searchedActionableCount} matching in Active</span>
+                        <span>View {searchedActionableCount} matching in Open</span>
                         <ArrowRightIcon className="size-3 text-muted-foreground" />
                       </button>
                     </div>
@@ -2213,7 +2246,7 @@ function AgentsThreadList(props: {
                         }}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
                       >
-                        <span>View {searchedSettledCount} matching in Settled</span>
+                        <span>View {searchedSettledCount} matching in Done</span>
                         <ArrowRightIcon className="size-3 text-muted-foreground" />
                       </button>
                     </div>
@@ -2251,8 +2284,8 @@ function AgentsThreadList(props: {
                     : showSnoozedView
                       ? "No snoozed threads."
                       : showSettledView
-                        ? "No settled threads yet."
-                        : "No active threads. Create a new one above."}
+                        ? "Nothing is done yet."
+                        : "Nothing open. Start a new thread above."}
                 </div>
               )}
 
@@ -2262,7 +2295,26 @@ function AgentsThreadList(props: {
                   Searching older tasks…
                 </p>
               )}
-            {visibleThreads.map(({ thread, section, first }) => {
+            {visibleThreads.map((entry) => {
+              const { thread, section, first, depth } = entry;
+              if (entry.kind === "summary") {
+                return (
+                  <button
+                    key={`${thread.id}:nested`}
+                    type="button"
+                    onClick={() => toggleParentCollapsed(thread.id)}
+                    aria-label={`Show ${entry.count} nested under ${thread.title}`}
+                    style={{
+                      marginLeft: `${depth * THREAD_TREE_INDENT_PX}px`,
+                      width: `calc(100% - ${depth * THREAD_TREE_INDENT_PX}px)`,
+                    }}
+                    className="relative flex h-7 items-center rounded-lg px-2.5 text-left text-sm text-muted-foreground/70 hover:bg-accent/30 hover:text-foreground before:pointer-events-none before:absolute before:-top-0.5 before:-left-[9px] before:h-[calc(0.875rem+2px)] before:w-[9px] before:rounded-bl-md before:border-b before:border-l before:border-foreground/25"
+                  >
+                    {entry.count} nested
+                  </button>
+                );
+              }
+              const lastChild = entry.lastChild;
               const active = props.activeThreadId === thread.id;
               const isArchived = thread.archivedAt !== null;
               const isRenaming = renamingThreadId === thread.id;
@@ -2431,14 +2483,27 @@ function AgentsThreadList(props: {
                       event.preventDefault();
                       void dropPinnedThread(thread.id);
                     }}
+                    style={
+                      depth > 0 && !collapsed
+                        ? { marginLeft: `${depth * THREAD_TREE_INDENT_PX}px` }
+                        : undefined
+                    }
                     className={cn(
                       "group relative flex items-center rounded-lg transition-all duration-150",
                       collapsed ? "justify-center" : "",
+                      // Tree guide: an elbow into the title's centre, and a line down to the next sibling.
+                      depth > 0 &&
+                        !collapsed &&
+                        "before:pointer-events-none before:absolute before:-top-0.5 before:-left-[9px] before:h-[calc(1.125rem+2px)] before:w-[9px] before:rounded-bl-md before:border-b before:border-l before:border-foreground/25",
+                      depth > 0 &&
+                        !collapsed &&
+                        !lastChild &&
+                        "after:pointer-events-none after:absolute after:top-[1.125rem] after:-left-[9px] after:h-[calc(100%-1.125rem+2px)] after:border-l after:border-foreground/25",
                       "bg-transparent hover:bg-accent/30",
                       !collapsed && section === "settled" && "opacity-75",
                     )}
                   >
-                    {/* Single tall left accent line for active thread (expanded) */}
+                    {/* Single tall left line marks the open thread; the row itself stays unfilled. */}
                     {active && !collapsed && (
                       <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-foreground" />
                     )}
@@ -2466,7 +2531,6 @@ function AgentsThreadList(props: {
                             />
                           }
                         >
-                          {/* Single tall left accent line for active thread (collapsed) */}
                           {active && (
                             <span className="absolute -left-1 top-1.5 bottom-1.5 w-0.5 rounded-full bg-foreground" />
                           )}
@@ -2519,7 +2583,7 @@ function AgentsThreadList(props: {
                             )}
                             onClick={(event) => event.stopPropagation()}
                           >
-                            <div className="group/rename-capsule relative flex items-center w-full rounded-lg border border-primary/40 bg-zinc-900/90 shadow-sm shadow-primary/10 ring-1 ring-primary/30 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 pl-2 pr-1 py-0.5 gap-1.5">
+                            <div className="group/rename-capsule relative flex items-center w-full rounded-lg border border-primary/40 bg-zinc-900/90 shadow-sm ring-1 ring-primary/30 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 pl-2 pr-1 py-0.5 gap-1.5">
                               {section === "pinned" && (
                                 <PinIcon
                                   aria-hidden="true"
@@ -2586,7 +2650,7 @@ function AgentsThreadList(props: {
                                     "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
                                     renamingTitle.trim().length === 0
                                       ? "opacity-30 cursor-not-allowed text-muted-foreground"
-                                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs shadow-primary/30",
+                                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
                                   )}
                                 >
                                   <CheckIcon className="size-3 stroke-[2.5]" />
@@ -2674,6 +2738,18 @@ function AgentsThreadList(props: {
                                 >
                                   {thread.title}
                                 </div>
+                                {entry.childCount > 0 && (
+                                  <span
+                                    aria-hidden="true"
+                                    className="shrink-0 text-muted-foreground/50 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                                  >
+                                    {entry.collapsed ? (
+                                      <ChevronRightIcon className="size-3.5" />
+                                    ) : (
+                                      <ChevronDownIcon className="size-3.5" />
+                                    )}
+                                  </span>
+                                )}
                                 {section === "settled" && (
                                   <span className="shrink-0 text-[11px] font-normal text-muted-foreground/45 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
                                     {(() => {
@@ -2774,7 +2850,7 @@ function AgentsThreadList(props: {
                                 </p>
                                 <p className="text-muted-foreground/70">
                                   {section === "settled"
-                                    ? "Settled"
+                                    ? "Wrapped"
                                     : threadIsSnoozed
                                       ? "Snoozed"
                                       : lifecycleEntry.pinnedAt
@@ -2801,6 +2877,26 @@ function AgentsThreadList(props: {
                                 : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
                           )}
                         >
+                          {entry.childCount > 0 && (
+                            <button
+                              type="button"
+                              aria-expanded={!entry.collapsed}
+                              aria-label={
+                                entry.collapsed
+                                  ? `Show nested under ${thread.title}`
+                                  : `Hide nested under ${thread.title}`
+                              }
+                              title={entry.collapsed ? "Show nested" : "Hide nested"}
+                              onClick={() => toggleParentCollapsed(thread.id)}
+                              className="flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                            >
+                              {entry.collapsed ? (
+                                <ChevronRightIcon aria-hidden="true" className="size-3.5" />
+                              ) : (
+                                <ChevronDownIcon aria-hidden="true" className="size-3.5" />
+                              )}
+                            </button>
+                          )}
                           {!isArchived && (
                             <>
                               <Tooltip>
@@ -2833,9 +2929,7 @@ function AgentsThreadList(props: {
                                     <button
                                       type="button"
                                       aria-label={
-                                        section === "settled"
-                                          ? "Return thread to active"
-                                          : "Settle thread"
+                                        section === "settled" ? "Reopen thread" : "Mark thread done"
                                       }
                                       className="flex h-full items-center gap-1.5 px-2 text-[11px] font-semibold text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
                                       onClick={() => void dispatchLifecycle(thread, "settle")}
@@ -2843,10 +2937,10 @@ function AgentsThreadList(props: {
                                   }
                                 >
                                   <CircleCheckIcon className="size-3.5 shrink-0" />
-                                  <span>{section === "settled" ? "Unsettle" : "Settle"}</span>
+                                  <span>{section === "settled" ? "Reopen" : "Mark done"}</span>
                                 </TooltipTrigger>
                                 <TooltipPopup side="top">
-                                  {section === "settled" ? "Return to active" : "Settle thread"}
+                                  {section === "settled" ? "Reopen" : "Mark as done"}
                                 </TooltipPopup>
                               </Tooltip>
                               <Tooltip>
@@ -2937,14 +3031,14 @@ function AgentsThreadList(props: {
                                       onClick={() => void dispatchLifecycle(thread, "settle")}
                                     >
                                       <CircleCheckIcon className="size-3.5" />
-                                      Return to active
+                                      Reopen
                                     </MenuItem>
                                   ) : (
                                     <MenuItem
                                       onClick={() => void dispatchLifecycle(thread, "settle")}
                                     >
                                       <CircleCheckIcon className="size-3.5" />
-                                      Settle thread
+                                      Mark as done
                                     </MenuItem>
                                   )}
                                   {threadIsSnoozed ? (
@@ -3106,7 +3200,9 @@ function AgentsThreadList(props: {
         data-wallpaper-shell="chat-area"
         className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
       >
-        <AgentBackground threadId={props.activeThreadId}>{props.children}</AgentBackground>
+        <AgentBackground threadId={props.activeThreadId} projectId={props.project.id}>
+          {props.children}
+        </AgentBackground>
       </div>
 
       {/* ── Delete confirmation dialog ── */}
@@ -3649,6 +3745,50 @@ function FallbackCodeTool(props: { project: Project }) {
   );
 }
 
+/** What the editor region shows while the Code workbench is being brought up. */
+function CodeWorkbenchSkeleton(props: { error: string | null }) {
+  const rows = [72, 55, 88, 40, 64, 30, 78, 52, 66, 36, 58];
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none absolute inset-0 z-30 flex overflow-hidden bg-background"
+    >
+      <div className="hidden w-56 shrink-0 flex-col gap-2 border-r border-border/60 p-3 sm:flex">
+        {[60, 80, 48, 70, 54, 66].map((width, index) => (
+          <div
+            key={index}
+            className="h-2.5 animate-pulse rounded bg-muted"
+            style={{ width: `${width}%`, animationDelay: `${index * 90}ms` }}
+          />
+        ))}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 px-3">
+          <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-20 animate-pulse rounded bg-muted/60" />
+        </div>
+        <div className="relative flex-1 p-5">
+          <div className="flex flex-col gap-2.5">
+            {rows.map((width, index) => (
+              <div
+                key={index}
+                className="h-2.5 animate-pulse rounded bg-muted/70"
+                style={{ width: `${width}%`, animationDelay: `${index * 70}ms` }}
+              />
+            ))}
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="rounded-2xl border border-border/70 bg-background/90 px-5 py-4 text-sm text-muted-foreground shadow-lg backdrop-blur-sm">
+              {props.error ?? "Building your editor…"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 let cachedDesktopCodeHostState: DesktopCodeHostState | null = null;
 
 function DesktopCodeTool(props: { project: Project }) {
@@ -3930,14 +4070,16 @@ function DesktopCodeTool(props: { project: Project }) {
         }
         const cssZoom = parseFloat(document.documentElement.style.zoom) || 1;
         const rect = hostNode.getBoundingClientRect();
-        await bridge.setCodeBounds({
-          projectId: props.project.id,
-          x: rect.x * cssZoom,
-          y: rect.y * cssZoom,
-          width: rect.width * cssZoom,
-          height: rect.height * cssZoom,
-          visible: rect.width > 0 && rect.height > 0,
-        });
+        // Still parked behind the splash: the real bounds are sent when it clears.
+        if (!isUnderStartupTransform(hostNode))
+          await bridge.setCodeBounds({
+            projectId: props.project.id,
+            x: rect.x * cssZoom,
+            y: rect.y * cssZoom,
+            width: rect.width * cssZoom,
+            height: rect.height * cssZoom,
+            visible: rect.width > 0 && rect.height > 0,
+          });
         await bridge.activateCodeSession({
           projectId: props.project.id,
         });
@@ -4006,6 +4148,7 @@ function DesktopCodeTool(props: { project: Project }) {
     let lastSignature = "";
     const publishBounds = () => {
       frameId = 0;
+      if (isUnderStartupTransform(hostNode)) return;
       const cssZoom =
         (typeof document !== "undefined" && parseFloat(document.documentElement.style.zoom)) || 1.0;
       const rect = hostNode.getBoundingClientRect();
@@ -4165,17 +4308,7 @@ function DesktopCodeTool(props: { project: Project }) {
               className="pointer-events-none absolute inset-0 size-full select-none"
             />
           ) : null}
-          {!hostReady ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-background/64 text-sm text-muted-foreground"
-            >
-              <div className="rounded-2xl border border-border/70 bg-background/86 px-5 py-4 shadow-lg backdrop-blur-sm">
-                {hostError ?? "Opening Code workspace…"}
-              </div>
-            </div>
-          ) : null}
+          {!hostReady ? <CodeWorkbenchSkeleton error={hostError} /> : null}
         </div>
         {sideChatOpen && aiProvider === "tabs" ? (
           <aside
@@ -11538,6 +11671,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         />
       ) : undefined,
   }));
+  useCodeHostPrewarm(
+    activeProject,
+    resolvedTools.some((tool) => tool.kind === "code"),
+    workspaceState.session.openProjectIds,
+  );
 
   useEffect(() => {
     const bridge = window.desktopBridge;

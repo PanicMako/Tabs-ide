@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildProjectScript,
   commandForProjectScript,
   nextProjectScriptId,
   primaryProjectScript,
   projectScriptCwd,
   projectScriptRuntimeEnv,
   projectScriptIdFromCommand,
+  releaseClaimedRoles,
+  settleProjectScript,
   setupProjectScript,
 } from "./projectScripts";
 
@@ -85,5 +88,89 @@ describe("projectScripts helpers", () => {
         worktreePath: null,
       }),
     ).toBe("/repo");
+  });
+
+  it("keeps settle actions out of the one-click run", () => {
+    const scripts = [
+      {
+        id: "setup",
+        name: "Setup",
+        command: "bun i",
+        icon: "configure" as const,
+        runOnWorktreeCreate: true,
+      },
+      {
+        id: "clean",
+        name: "Clean",
+        command: "cargo clean",
+        icon: "build" as const,
+        runOnWorktreeCreate: false,
+        runOnSettle: true,
+      },
+      {
+        id: "test",
+        name: "Test",
+        command: "bun test",
+        icon: "test" as const,
+        runOnWorktreeCreate: false,
+      },
+    ];
+    expect(primaryProjectScript(scripts)?.id).toBe("test");
+    expect(settleProjectScript(scripts)?.id).toBe("clean");
+    expect(primaryProjectScript(scripts.filter((script) => script.id === "clean"))).toBeNull();
+  });
+
+  it("moves the setup and settle roles to the action that claims them", () => {
+    const input = {
+      name: "Next",
+      command: "true",
+      icon: "play",
+      waitForSetup: false,
+      previewUrl: null,
+      autoOpenPreview: false,
+    } as const;
+    const holder = {
+      id: "holder",
+      name: "Holder",
+      command: "true",
+      icon: "play" as const,
+      runOnWorktreeCreate: true,
+      runOnSettle: true,
+    };
+    expect(
+      releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnSettle: true }),
+    ).toMatchObject({ runOnWorktreeCreate: true, runOnSettle: false });
+    expect(
+      releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: true, runOnSettle: false }),
+    ).toMatchObject({ runOnWorktreeCreate: false, runOnSettle: true });
+    expect(
+      releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnSettle: false }),
+    ).toBe(holder);
+  });
+
+  it("keeps preview and wait-for-setup settings when an action is saved", () => {
+    expect(
+      buildProjectScript("dev", {
+        name: "Dev",
+        command: "bun dev",
+        icon: "play",
+        runOnWorktreeCreate: true,
+        waitForSetup: true,
+        runOnSettle: false,
+        stopOnSettle: true,
+        previewUrl: "http://localhost:3000",
+        autoOpenPreview: true,
+      }),
+    ).toEqual({
+      id: "dev",
+      name: "Dev",
+      command: "bun dev",
+      icon: "play",
+      runOnWorktreeCreate: true,
+      async: false,
+      stopOnSettle: true,
+      previewUrl: "http://localhost:3000",
+      autoOpenPreview: true,
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { githubRestGet, resolveGitHubRepository } from "../Services/GitHubDirect.ts";
 import * as Context from "effect/Context";
 import * as Cache from "effect/Cache";
 import * as Data from "effect/Data";
@@ -665,6 +666,8 @@ const collectOutput = Effect.fn(function* <E>(
   yield* emitCompleteLines(true);
   return text;
 });
+
+const PUSH_ACCESS_WAIT_MS = 400;
 
 export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"] }) =>
   Effect.gen(function* () {
@@ -2340,7 +2343,17 @@ export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"
             },
           );
           const remoteUrl = remoteUrlRes.code === 0 ? remoteUrlRes.stdout.trim() : null;
-          pushAccess = yield* Effect.promise(() => resolvePushAccess(input.cwd, remoteUrl));
+          // The branch list must not wait on the network for a permission badge: past this
+          // window the answer is "unknown" now and the held value on the next refresh, because
+          // the lookup keeps running and fills the cache either way.
+          pushAccess = yield* Effect.promise(() =>
+            Promise.race([
+              resolvePushAccess(input.cwd, remoteUrl),
+              new Promise<GitPushAccess>((resolve) =>
+                setTimeout(() => resolve("unknown"), PUSH_ACCESS_WAIT_MS).unref?.(),
+              ),
+            ]),
+          );
         }
 
         return {
@@ -2399,11 +2412,48 @@ export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"
           boundedCandidates = [defaultBranchCandidate, ...boundedCandidates];
         }
 
+        // One `for-each-ref` reports every branch's divergence from HEAD at once. The loop below
+        // spent two `git rev-list` processes per candidate (measured: 0.8s for 30 branches
+        // against 0.03s here) and is kept for a git too old for `%(ahead-behind:)`.
+        const divergenceByRef = yield* runGitStdout(
+          "GitCore.watchedBranchStatuses.aheadBehind",
+          input.cwd,
+          [
+            "for-each-ref",
+            "--format=%(refname:short)\t%(ahead-behind:HEAD)",
+            "refs/heads",
+            "refs/remotes",
+          ],
+        ).pipe(
+          Effect.map((stdout) => {
+            const byRef = new Map<string, { behind: number; ahead: number }>();
+            for (const line of stdout.split("\n")) {
+              const match = /^(.+)\t(\d+) (\d+)$/.exec(line.trim());
+              if (match) {
+                // `%(ahead-behind:HEAD)` is "<in ref, not HEAD> <in HEAD, not ref>".
+                byRef.set(match[1]!, { behind: Number(match[2]), ahead: Number(match[3]) });
+              }
+            }
+            return byRef.size > 0 ? byRef : null;
+          }),
+          Effect.catch(() => Effect.succeed(null)),
+        );
+
         const results = yield* Effect.forEach(
           boundedCandidates,
           (b) =>
             Effect.gen(function* () {
               const targetRef = b.name;
+              const known = divergenceByRef?.get(targetRef);
+              if (known !== undefined) {
+                return {
+                  name: b.name,
+                  isRemote: Boolean(b.isRemote),
+                  aheadCount: known.ahead,
+                  behindCount: known.behind,
+                  isDefault: Boolean(b.isDefault || b.name === "main" || b.name === "master"),
+                };
+              }
               const behindStdout = yield* runGitStdout(
                 "GitCore.watchedBranchStatuses.behind",
                 input.cwd,
@@ -2732,6 +2782,48 @@ export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"
         }
 
         const limit = input.limit ?? 5;
+
+        // Over a warm connection rather than a `gh run list` process (measured ~1.5s each,
+        // polled while the Git tool is open). Any failure falls through to the CLI below.
+        const direct = yield* Effect.tryPromise({
+          try: async () => {
+            const repository = await resolveGitHubRepository(input.cwd);
+            if (repository === null) throw new Error("No GitHub repository was found.");
+            const body = (await githubRestGet({
+              cwd: input.cwd,
+              host: repository.host,
+              path: `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(
+                repository.name,
+              )}/actions/runs?branch=${encodeURIComponent(input.branch)}&per_page=${Math.max(
+                1,
+                Math.min(100, Math.trunc(limit)),
+              )}`,
+            })) as {
+              workflow_runs?: ReadonlyArray<{
+                status?: string | null;
+                conclusion?: string | null;
+                name?: string | null;
+                display_title?: string | null;
+                head_branch?: string | null;
+                created_at?: string;
+                html_url?: string;
+              }>;
+            };
+            if (!Array.isArray(body.workflow_runs)) throw new Error("No workflow runs.");
+            return body.workflow_runs.map((run) => ({
+              status: run.status ?? "",
+              conclusion: run.conclusion ?? "",
+              name: run.display_title ?? run.name ?? "",
+              headBranch: run.head_branch ?? "",
+              createdAt: run.created_at ?? "",
+              url: run.html_url ?? "",
+              workflowName: run.name ?? "",
+            })) as unknown as Array<GitWorkflowRun>;
+          },
+          catch: (error) => error,
+        }).pipe(Effect.catch(() => Effect.succeed(null)));
+        if (direct !== null) return { hasWorkflows: true, runs: direct };
+
         const ghResult = yield* Effect.tryPromise({
           try: () =>
             runProcess(

@@ -3,6 +3,7 @@ import { openLink } from "../../browserLinkTarget";
 import { cn } from "../../lib/utils";
 import {
   ArrowUpDown,
+  BookOpen,
   Bot,
   CheckCircle2,
   ChevronDown,
@@ -19,9 +20,9 @@ import {
   Search,
 } from "lucide-react";
 import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent, ReactElement } from "react";
 import type {
   EnvironmentId,
   GitPullRequestAction,
@@ -29,6 +30,9 @@ import type {
   GitPullRequestStackMembership,
   GitPullRequestStackHead,
   GitPullRequestStack,
+  PullRequestInvolvement,
+  PullRequestListFilters,
+  PullRequestRef,
 } from "@tabs/contracts";
 import { PullRequestReviewThreadCard } from "./PullRequestReviewThreadCard";
 import { PullRequestChecksView, PullRequestChecksRollupBadge } from "./PullRequestChecksSummary";
@@ -45,6 +49,7 @@ import { newCommandId } from "../../lib/utils";
 
 import {
   gitAllPullRequestsQueryOptions,
+  gitEnvironmentQueryOptions,
   gitResolvePullRequestQueryOptions,
 } from "../../lib/gitReactQuery";
 import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
@@ -71,7 +76,20 @@ import ChatMarkdown from "../ChatMarkdown";
 import { parseUnifiedDiff } from "./unifiedDiff";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
-import { threadsAtom } from "../../state/threads";
+import { projectsAtom, threadsAtom } from "../../state/threads";
+import { usePullRequestSuggestions } from "./usePullRequestSuggestions";
+import { PullRequestComposerTextarea } from "./PullRequestComposerTextarea";
+import { HostPullRequestsPanel, isHostPullRequestProvider } from "./HostPullRequestsPanel";
+import { PullRequestFilterBar } from "./PullRequestFilterBar";
+import { PullRequestReactionBar } from "./PullRequestReactionBar";
+import { PullRequestLinkPreview } from "./PullRequestLinkPreview";
+import { PullRequestGuideTab } from "./PullRequestGuideTab";
+import { useReviewGuide } from "./useReviewGuide";
+import { pullRequestLinkTarget } from "./pullRequestLinkTarget";
+import { groupPullRequestRows } from "./pullRequestListGroups";
+import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
+import { countViewed } from "./pullRequestFilesViewed.logic";
+import { Checkbox } from "../ui/checkbox";
 import { findThreadsForPullRequest } from "@tabs/shared/threadPullRequests";
 
 interface PullRequestRow {
@@ -80,7 +98,15 @@ interface PullRequestRow {
   state: "open" | "draft" | "merged" | "closed";
   branch: string;
   url: string;
-  provider?: "github" | "gitlab" | "azure-devops" | "bitbucket" | "forgejo" | "unknown";
+  provider?:
+    | "github"
+    | "gitlab"
+    | "azure-devops"
+    | "bitbucket"
+    | "forgejo"
+    | "gitcafe"
+    | "cursor-origin"
+    | "unknown";
   isDraft: boolean;
   author: string | null;
   labels: ReadonlyArray<{ name: string; color?: string | undefined }>;
@@ -94,6 +120,8 @@ interface PullRequestRow {
   autoMergeMethod?: "merge" | "squash" | "rebase";
   stackMembership?: GitPullRequestStackMembership;
   stack?: GitPullRequestStack;
+  /** Only the service's listing knows whether the reader's review was asked for. */
+  viewerReviewRequested?: boolean;
 }
 
 function formatPrErrorMessage(rawError: unknown): { message: string; details?: string } {
@@ -172,6 +200,12 @@ function formatProviderName(provider: PullRequestRow["provider"]): string {
       return "Azure DevOps";
     case "bitbucket":
       return "Bitbucket";
+    case "forgejo":
+      return "Forgejo";
+    case "gitcafe":
+      return "GitCafe";
+    case "cursor-origin":
+      return "Cursor Origin";
     default:
       return "provider";
   }
@@ -224,7 +258,7 @@ function SecondaryActions({
   );
 }
 
-export function PRsPanel({
+function GitPRsPanel({
   cwd,
   environmentId,
   branchName,
@@ -267,8 +301,29 @@ export function PRsPanel({
   const [mergeMethod, setMergeMethod] = useState<"squash" | "merge" | "rebase">("squash");
   const [deleteBranch, setDeleteBranch] = useState(true);
   const [expandedPrNumber, setExpandedPrNumber] = useState<number | null>(null);
+  // A row's detail is read once the pointer or focus has rested on it for a moment, so opening
+  // it paints from what was already fetched. Passing over rows asks the host nothing.
+  const queryClient = useQueryClient();
+  const intentTimer = useRef<number | undefined>(undefined);
+  const prefetchOnIntent = useCallback(
+    (number: number | null) => {
+      window.clearTimeout(intentTimer.current);
+      if (number === null || !cwd) return;
+      intentTimer.current = window.setTimeout(() => {
+        void queryClient.prefetchQuery(
+          gitResolvePullRequestQueryOptions({
+            cwd,
+            reference: String(number),
+            environmentId,
+          }),
+        );
+      }, 150);
+    },
+    [cwd, environmentId, queryClient],
+  );
+  useEffect(() => () => window.clearTimeout(intentTimer.current), []);
   const [detailTab, setDetailTab] = useState<
-    "summary" | "code" | "checks" | "commits" | "activity"
+    "summary" | "code" | "guide" | "checks" | "commits" | "activity"
   >("summary");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [actionBody, setActionBody] = useState("");
@@ -309,6 +364,115 @@ export function PRsPanel({
     }),
   );
 
+  // The host-side suggestion reads address a project and a repository, which this panel derives
+  // from the checkout it shows and from the open pull request's own URL.
+  const projects = useAtomValue(projectsAtom);
+  const panelProjectId =
+    projects.find(
+      (project) =>
+        project.cwd === cwd &&
+        (environmentId === undefined || project.environmentId === environmentId),
+    )?.id ?? null;
+
+  // T3's list filters: who the pull request involves, and a few facets of its review state. The
+  // host reads these as a search, so they are answered by the pull request service's own list
+  // (which the plain listing below cannot narrow) and only while one is switched on; the plain
+  // listing stays the default because it is the quicker read.
+  const [involvement, setInvolvement] = useState<PullRequestInvolvement>("all");
+  const [facetFilters, setFacetFilters] = useState<PullRequestListFilters>({});
+  const filtersActive = involvement !== "all" || Object.keys(facetFilters).length > 0;
+  const serviceListActive = viewMode === "all" && filtersActive && panelProjectId !== null;
+  const serviceListQuery = useQuery({
+    queryKey: [
+      "git",
+      "service-pull-requests",
+      environmentId ?? "local",
+      panelProjectId,
+      filterState,
+      involvement,
+      facetFilters,
+      listLimit,
+      searchQuery,
+    ],
+    enabled: serviceListActive && api !== null,
+    queryFn: () =>
+      api!.pullRequests.list({
+        state: filterState,
+        involvement,
+        ...(Object.keys(facetFilters).length > 0 ? { filters: facetFilters } : {}),
+        projectId: panelProjectId!,
+        limit: Math.min(listLimit, 100),
+        ...(searchQuery ? { query: searchQuery } : {}),
+      }),
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const openPullRequestUrl = detailQuery.data?.pullRequest?.url ?? null;
+  const suggestionTarget = (() => {
+    try {
+      if (openPullRequestUrl === null) return { host: undefined, repository: "" };
+      const parsed = new URL(openPullRequestUrl);
+      return {
+        host: parsed.hostname,
+        repository: parsed.pathname.replace(/^\//, "").split(/\/pulls?\//)[0] ?? "",
+      };
+    } catch {
+      return { host: undefined, repository: "" };
+    }
+  })();
+  const suggestions = usePullRequestSuggestions(
+    {
+      api,
+      projectId: panelProjectId,
+      repository: suggestionTarget.repository,
+      host: suggestionTarget.host,
+    },
+    expandedPrNumber,
+  );
+  // Where a reaction on the open pull request is saved. Null leaves reactions read-only.
+  const reactionRef: PullRequestRef | null =
+    panelProjectId !== null && expandedPrNumber !== null && suggestionTarget.repository
+      ? {
+          projectId: panelProjectId,
+          repository: suggestionTarget.repository,
+          number: expandedPrNumber,
+          ...(suggestionTarget.host ? { host: suggestionTarget.host } : {}),
+        }
+      : null;
+  // Links to this repository's own pull requests show a card on hover.
+  const decorateLink = useCallback(
+    (href: string, link: ReactElement) => {
+      const target = pullRequestLinkTarget(href, {
+        projectId: panelProjectId,
+        repository: suggestionTarget.repository,
+        ...(suggestionTarget.host ? { host: suggestionTarget.host } : {}),
+      });
+      return target === null ? null : <PullRequestLinkPreview link={link} reference={target} />;
+    },
+    [panelProjectId, suggestionTarget.repository, suggestionTarget.host],
+  );
+  // The review guide is read only while its tab is open.
+  const reviewGuide = useReviewGuide({
+    api,
+    reference: reactionRef,
+    enabled: detailTab === "guide",
+  });
+  // "Viewed" ticks live with the host, per pull request, so they follow the reader across
+  // devices; only the open pull request's Code tab asks for them.
+  const filesViewed = usePullRequestFilesViewed({
+    api,
+    reference:
+      panelProjectId !== null && expandedPrNumber !== null && suggestionTarget.repository
+        ? {
+            projectId: panelProjectId,
+            repository: suggestionTarget.repository,
+            number: expandedPrNumber,
+            ...(suggestionTarget.host ? { host: suggestionTarget.host } : {}),
+          }
+        : null,
+    enabled: detailTab === "code" && detailQuery.data?.pullRequest?.provider !== "gitlab",
+  });
   const handleFixInThread = useCallback(
     (thread: GitPullRequestReviewThread) => {
       const firstComment = thread.comments[0]?.body ?? "";
@@ -345,8 +509,21 @@ export function PRsPanel({
     [detailQuery.data?.pullRequest, threads, navigate],
   );
 
-  const activeQuery = viewMode === "branch" ? branchPrQuery : allPrsQuery;
-  const capabilities = activeQuery.data?.capabilities;
+  const activeQuery =
+    viewMode === "branch" ? branchPrQuery : serviceListActive ? serviceListQuery : allPrsQuery;
+  // Only the plain queries know what a host supports; the filtered list is an answer, not a host.
+  const capabilities = (viewMode === "branch" ? branchPrQuery : allPrsQuery).data?.capabilities;
+
+  const authorMatch = /^author:(\S*)$/iu.exec(searchInput.trim());
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads author suggestions while an author: filter is typed
+  useEffect(() => {
+    if (authorMatch === null || !capabilities?.search) return;
+    const query = authorMatch[1] ?? "";
+    const timer = window.setTimeout(() => suggestions.requestAuthors(query), 200);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authorMatch?.[1], capabilities?.search]);
+
   const supportsAction = useCallback(
     (action: GitPullRequestAction) =>
       capabilities ? capabilities.actions.includes(action) : action !== "request_changes",
@@ -388,6 +565,36 @@ export function PRsPanel({
         },
       ];
     } else {
+      const serviceRows: PullRequestRow[] | null = serviceListActive
+        ? (serviceListQuery.data?.entries ?? []).map((entry) => ({
+            n: entry.number,
+            title: entry.title,
+            state: entry.state,
+            branch: `${entry.headBranch} → ${entry.baseBranch}`,
+            url: entry.url,
+            provider: entry.provider,
+            isDraft: entry.isDraft,
+            author: entry.author?.login ?? null,
+            labels: entry.labels.map((label) => ({
+              name: label.name,
+              ...(label.color ? { color: label.color } : {}),
+            })),
+            ...(entry.reviewDecision
+              ? {
+                  reviewDecision: entry.reviewDecision.replaceAll("-", "_") as
+                    | "approved"
+                    | "changes_requested"
+                    | "review_required",
+                }
+              : {}),
+            mergeability: entry.mergeability,
+            viewerReviewRequested: entry.viewerReviewRequested,
+            ...(entry.checksState ? { checksState: entry.checksState } : {}),
+            ...(entry.additions > 0 ? { additions: entry.additions } : {}),
+            ...(entry.deletions > 0 ? { deletions: entry.deletions } : {}),
+          }))
+        : null;
+      if (serviceRows !== null) return serviceRows;
       const list = allPrsQuery.data?.pullRequests || [];
       const mapped = list.map((pr) => ({
         n: pr.number,
@@ -427,7 +634,27 @@ export function PRsPanel({
         );
       });
     }
-  }, [viewMode, branchPrQuery.data, allPrsQuery.data, branchName, searchQuery, threads]);
+  }, [
+    viewMode,
+    branchPrQuery.data,
+    allPrsQuery.data,
+    serviceListActive,
+    serviceListQuery.data,
+    branchName,
+    searchQuery,
+    threads,
+  ]);
+
+  // Grouped by involvement only in the repository-wide list: "This branch" is one row.
+  const viewerLogin = useQuery(gitEnvironmentQueryOptions(cwd || null, environmentId)).data?.gitHub
+    .activeLogin ?? null;
+  const groupedPrs = useMemo(
+    () =>
+      viewMode === "all" && involvement === "all"
+        ? groupPullRequestRows(prs, viewerLogin)
+        : groupPullRequestRows(prs, null),
+    [prs, viewMode, involvement, viewerLogin],
+  );
 
   const mutatePullRequest = async (
     reference: number,
@@ -543,6 +770,20 @@ export function PRsPanel({
               }))}
             />
           )}
+          {viewMode === "all" && panelProjectId !== null ? (
+            <PullRequestFilterBar
+              involvement={involvement}
+              onInvolvement={(next) => {
+                setListLimit(50);
+                setInvolvement(next);
+              }}
+              filters={facetFilters}
+              onFilters={(next) => {
+                setListLimit(50);
+                setFacetFilters(next);
+              }}
+            />
+          ) : null}
           {viewMode === "all" && capabilities?.search ? (
             <form
               role="search"
@@ -563,8 +804,16 @@ export function PRsPanel({
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Search pull requests"
+                list={authorMatch !== null ? "git-pr-author-suggestions" : undefined}
                 className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs outline-none focus-blur-glow"
               />
+              {authorMatch !== null && suggestions.authors.length > 0 ? (
+                <datalist id="git-pr-author-suggestions">
+                  {suggestions.authors.map((login) => (
+                    <option key={login} value={`author:${login}`} />
+                  ))}
+                </datalist>
+              ) : null}
               <Button type="submit" size="sm">
                 Search
               </Button>
@@ -657,9 +906,23 @@ export function PRsPanel({
         </Card>
       ) : (
         <div className="space-y-2.5">
-          {prs.map((pr) => (
-            <Card
+          {groupedPrs.map((group) => (
+            <Fragment key={group.key}>
+              {group.label ? (
+                <div className="flex items-center gap-2 px-1 pt-1 text-[11px] font-medium text-muted-foreground">
+                  <h3>{group.label}</h3>
+                  <span className="tabular-nums text-muted-foreground/70">{group.rows.length}</span>
+                  <span className="h-px min-w-2 flex-1 bg-border/60" aria-hidden="true" />
+                </div>
+              ) : null}
+              {group.rows.map((pr) => (
+            <div
               key={pr.n}
+              onPointerEnter={() => prefetchOnIntent(pr.n)}
+              onPointerLeave={() => prefetchOnIntent(null)}
+              onFocusCapture={() => prefetchOnIntent(pr.n)}
+            >
+            <Card
               className={
                 compact ? "companion-pr-card" : "p-3.5 hover:bg-muted/20 transition-colors"
               }
@@ -924,6 +1187,7 @@ export function PRsPanel({
                           [
                             ["summary", "Summary", GitPullRequest],
                             ["code", "Code", FileDiff],
+                            ["guide", "Guide", BookOpen],
                             ["checks", "Checks", CheckCircle2],
                             ["commits", "Commits", GitCommit],
                             ["activity", "Activity", AssistantBubbleIcon],
@@ -931,7 +1195,9 @@ export function PRsPanel({
                         )
                           .filter(
                             ([id]) =>
-                              id !== "code" || detailQuery.data?.capabilities?.diff !== false,
+                              (id !== "code" || detailQuery.data?.capabilities?.diff !== false) &&
+                              // A guide is written from a project's host-backed diff.
+                              (id !== "guide" || reactionRef !== null),
                           )
                           .map(([id, label, Icon]) => (
                             <button
@@ -1122,10 +1388,22 @@ export function PRsPanel({
                               }}
                             />
                             {detailQuery.data.pullRequest.body ? (
-                              <ChatMarkdown text={detailQuery.data.pullRequest.body} cwd={cwd} />
+                              <ChatMarkdown
+                                text={detailQuery.data.pullRequest.body}
+                                cwd={cwd}
+                                decorateLink={decorateLink}
+                              />
                             ) : (
                               <p className="text-muted-foreground">No description provided.</p>
                             )}
+                            {detailQuery.data.pullRequest.reactions !== undefined ? (
+                              <PullRequestReactionBar
+                                reactions={detailQuery.data.pullRequest.reactions}
+                                canReact
+                                reference={reactionRef}
+                                onSaved={() => void detailQuery.refetch()}
+                              />
+                            ) : null}
                             <PullRequestReviewersSection
                               reviewers={detailQuery.data.pullRequest.reviewers ?? []}
                               reviews={detailQuery.data.pullRequest.reviews ?? []}
@@ -1138,6 +1416,8 @@ export function PRsPanel({
                               }
                               isPending={pendingAction !== null}
                               isOpen={detailQuery.data.pullRequest.state === "open"}
+                              suggestions={suggestions.reviewers}
+                              onRequestSuggestions={suggestions.requestReviewers}
                             />
                             <PullRequestLabelsSection
                               labels={detailQuery.data.pullRequest.labels ?? []}
@@ -1150,6 +1430,8 @@ export function PRsPanel({
                               }
                               isPending={pendingAction !== null}
                               isOpen={detailQuery.data.pullRequest.state === "open"}
+                              suggestions={suggestions.labels}
+                              onRequestSuggestions={suggestions.requestLabels}
                             />
                           </div>
                         ) : detailTab === "code" ? (
@@ -1240,6 +1522,19 @@ export function PRsPanel({
                                     </div>
                                   </div>
 
+                                  {filesViewed.enabled ? (
+                                    <div className="flex items-center justify-between border-b border-border/60 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+                                      <span className="tabular-nums">
+                                        {countViewed(
+                                          allFiles.map((file) => file.path),
+                                          filesViewed.states,
+                                        )}{" "}
+                                        of {allFiles.length} viewed
+                                        {filesViewed.truncated ? " (more files than were read)" : ""}
+                                      </span>
+                                    </div>
+                                  ) : null}
+
                                   {/* Files List */}
                                   <div className="flex-1 overflow-auto">
                                     {filteredAndSortedFiles.length === 0 ? (
@@ -1256,12 +1551,36 @@ export function PRsPanel({
                                         );
                                         const isSelected = selectedFile.path === file.path;
 
+                                        const viewed = filesViewed.isViewed(file.path);
                                         return (
-                                          <button
+                                          <div
                                             key={file.path}
+                                            className="flex items-stretch border-b border-border/40 last:border-b-0"
+                                          >
+                                          {filesViewed.enabled ? (
+                                            <label
+                                              className="flex shrink-0 cursor-pointer items-start px-2.5 py-2.5"
+                                              title={
+                                                filesViewed.isStale(file.path)
+                                                  ? "Changed since you viewed it"
+                                                  : viewed
+                                                    ? "Viewed"
+                                                    : "Mark as viewed"
+                                              }
+                                            >
+                                              <Checkbox
+                                                checked={viewed}
+                                                aria-label={`Mark ${file.path} as viewed`}
+                                                onCheckedChange={(next) =>
+                                                  filesViewed.setViewed(file.path, next === true)
+                                                }
+                                              />
+                                            </label>
+                                          ) : null}
+                                          <button
                                             type="button"
                                             aria-current={isSelected ? "true" : undefined}
-                                            className={`flex w-full items-start justify-between gap-2 border-b border-border/40 px-2.5 py-2 text-left last:border-b-0 transition-colors ${
+                                            className={`flex min-w-0 flex-1 items-start justify-between gap-2 px-2.5 py-2 text-left transition-colors ${viewed ? "opacity-60" : ""} ${
                                               isSelected
                                                 ? "bg-accent text-accent-foreground font-medium"
                                                 : "hover:bg-muted/40 text-foreground"
@@ -1306,6 +1625,7 @@ export function PRsPanel({
                                               </span>
                                             </span>
                                           </button>
+                                          </div>
                                         );
                                       })
                                     )}
@@ -1621,6 +1941,24 @@ export function PRsPanel({
                               </div>
                             );
                           })()
+                        ) : detailTab === "guide" ? (
+                          <PullRequestGuideTab
+                            guide={reviewGuide.data?.guide ?? null}
+                            run={reviewGuide.data?.run ?? null}
+                            currentHeadSha={reviewGuide.data?.currentHeadSha ?? null}
+                            isLoading={reviewGuide.isLoading}
+                            writing={reviewGuide.writing}
+                            error={reviewGuide.error}
+                            onWrite={reviewGuide.write}
+                            patchOf={(path) =>
+                              detailQuery.data?.pullRequest.files?.find((file) => file.path === path)
+                                ?.patch
+                            }
+                            onOpenFile={(path) => {
+                              setSelectedFilePath(path);
+                              setDetailTab("code");
+                            }}
+                          />
                         ) : detailTab === "checks" ? (
                           <PullRequestChecksView
                             checks={detailQuery.data.pullRequest.checks ?? []}
@@ -1646,6 +1984,38 @@ export function PRsPanel({
                               reviews={detailQuery.data.pullRequest.reviews ?? []}
                               comments={detailQuery.data.pullRequest.comments ?? []}
                               cwd={cwd}
+                              reactionRef={reactionRef}
+                              onReactionSaved={() => void detailQuery.refetch()}
+                              decorateLink={decorateLink}
+                              onEditComment={
+                                api && panelProjectId && suggestionTarget.repository
+                                  ? async (comment, body) => {
+                                      try {
+                                        await api.pullRequests.updateComment({
+                                          projectId: panelProjectId,
+                                          repository: suggestionTarget.repository,
+                                          ...(suggestionTarget.host
+                                            ? { host: suggestionTarget.host }
+                                            : {}),
+                                          number: pr.n,
+                                          commentId: comment.id,
+                                          kind: "issue-comment",
+                                          body,
+                                        });
+                                        await detailQuery.refetch();
+                                        return true;
+                                      } catch (error) {
+                                        toastManager.add({
+                                          type: "error",
+                                          title: "Could not edit the comment",
+                                          description:
+                                            error instanceof Error ? error.message : String(error),
+                                        });
+                                        return false;
+                                      }
+                                    }
+                                  : undefined
+                              }
                             />
                             {detailQuery.data.pullRequest.state === "open" ? (
                               <div className="space-y-2 border-t border-border/60 pt-3">
@@ -1655,12 +2025,47 @@ export function PRsPanel({
                                 >
                                   Add review feedback
                                 </label>
-                                <textarea
+                                <PullRequestComposerTextarea
                                   id={`pr-action-${pr.n}`}
                                   value={actionBody}
-                                  onChange={(event) => setActionBody(event.target.value)}
+                                  onValueChange={setActionBody}
                                   className="min-h-20 w-full rounded-lg border border-border bg-background p-2 text-xs"
                                   placeholder="Write a comment or review…"
+                                  support={{
+                                    mentions: capabilities?.mentions === true,
+                                    referenceSigils: capabilities?.referenceSigils ?? [],
+                                  }}
+                                  searchMentions={
+                                    api && panelProjectId && suggestionTarget.repository
+                                      ? (query) =>
+                                          api.pullRequests
+                                            .authorCandidates({
+                                              projectId: panelProjectId,
+                                              repository: suggestionTarget.repository,
+                                              ...(suggestionTarget.host
+                                                ? { host: suggestionTarget.host }
+                                                : {}),
+                                              query,
+                                            })
+                                            .then((list) => list.candidates)
+                                      : undefined
+                                  }
+                                  searchReferences={
+                                    api && panelProjectId && suggestionTarget.repository
+                                      ? (query, sigil) =>
+                                          api.pullRequests
+                                            .referenceCandidates({
+                                              projectId: panelProjectId,
+                                              repository: suggestionTarget.repository,
+                                              ...(suggestionTarget.host
+                                                ? { host: suggestionTarget.host }
+                                                : {}),
+                                              query,
+                                              sigil,
+                                            })
+                                            .then((list) => list.candidates)
+                                      : undefined
+                                  }
                                 />
                                 <div className="flex flex-wrap gap-2">
                                   {supportsAction("comment") ? (
@@ -1733,16 +2138,24 @@ export function PRsPanel({
                 </div>
               ) : null}
             </Card>
+            </div>
+              ))}
+            </Fragment>
           ))}
-          {viewMode === "all" && allPrsQuery.data?.hasMore ? (
+          {viewMode === "all" &&
+          (serviceListActive
+            ? serviceListQuery.data?.truncated === true && listLimit < 100
+            : allPrsQuery.data?.hasMore) ? (
             <div className="flex justify-center pt-1">
               <Button
                 type="button"
                 variant="outline"
-                disabled={allPrsQuery.isFetching || listLimit >= 200}
-                onClick={() => setListLimit((current) => Math.min(200, current + 50))}
+                disabled={activeQuery.isFetching || listLimit >= (serviceListActive ? 100 : 200)}
+                onClick={() =>
+                  setListLimit((current) => Math.min(serviceListActive ? 100 : 200, current + 50))
+                }
               >
-                {allPrsQuery.isFetching ? "Loading more…" : "Load 50 more pull requests"}
+                {activeQuery.isFetching ? "Loading more…" : "Load 50 more pull requests"}
               </Button>
             </div>
           ) : null}
@@ -1851,4 +2264,36 @@ export function PRsPanel({
       ) : null}
     </div>
   );
+}
+
+/**
+ * Pull requests for a checkout. A repository on a host the git layer cannot read (Forgejo,
+ * GitCafe, Cursor Origin) is listed through the server's pull-request service instead.
+ */
+export function PRsPanel(props: {
+  cwd: string;
+  environmentId?: string | undefined;
+  branchName: string;
+  onOpenCreatePR: () => void;
+  compact?: boolean;
+}) {
+  const api = useGitApi();
+  const projects = useAtomValue(projectsAtom);
+  const project = projects.find(
+    (candidate) =>
+      candidate.cwd === props.cwd &&
+      (props.environmentId === undefined || candidate.environmentId === props.environmentId),
+  );
+  const provider = project?.repositoryIdentity?.provider;
+  if (project && isHostPullRequestProvider(provider)) {
+    return (
+      <HostPullRequestsPanel
+        api={api}
+        projectId={project.id}
+        provider={provider!}
+        branchName={props.branchName}
+      />
+    );
+  }
+  return <GitPRsPanel {...props} />;
 }

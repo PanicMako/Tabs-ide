@@ -1,4 +1,5 @@
 import * as FileSystem from "effect/FileSystem";
+import * as DocumentText from "../provider/DocumentText.ts";
 import {
   ChatAttachmentId,
   getProviderAttachmentLimitError,
@@ -140,6 +141,22 @@ export const claimPendingAttachments = Effect.fn("AttachmentClaims.claimPendingA
             Effect.andThen(Effect.sync(() => claimedPaths.push(claim.finalPath))),
             Effect.uninterruptible,
           );
+          // Documents carry their text beside them, so an agent without a document reader
+          // still gets it. A retried claim reuses the sidecar the first attempt wrote.
+          const sidecar = `${claim.currentPath}.txt`;
+          if (yield* fileSystem.exists(sidecar).pipe(Effect.orElseSucceed(() => false))) {
+            yield* fileSystem.copyFile(sidecar, `${claim.finalPath}.txt`).pipe(
+              Effect.andThen(Effect.sync(() => claimedPaths.push(`${claim.finalPath}.txt`))),
+              Effect.onError(() =>
+                fileSystem.remove(`${claim.finalPath}.txt`, { force: true }).pipe(Effect.ignore),
+              ),
+              Effect.uninterruptible,
+              Effect.ignore,
+            );
+          } else {
+            const extracted = yield* DocumentText.ensureWhenAvailable(claim.finalPath);
+            if (extracted) claimedPaths.push(extracted);
+          }
           return normalized;
         }),
       { concurrency: 1 },

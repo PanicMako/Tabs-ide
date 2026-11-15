@@ -520,6 +520,13 @@ export const layer: Layer.Layer<
         thread: projection.thread,
         modelSelection: run.modelSelection,
       });
+      // The git baseline snapshot is independent of provider startup, so run
+      // both together and join the snapshot just before the turn starts.
+      const baselineCapture = yield* runExecution.beginBaselineCapture({
+        runId: run.id,
+        scope: checkpointScope,
+        ordinalWithinScope: Math.max(0, run.ordinal - 1),
+      });
       const existingSessionProjection = projection.providerSessions.find(
         (candidate) => candidate.id === providerSessionId,
       );
@@ -1215,6 +1222,7 @@ export const layer: Layer.Layer<
         run: runningRun,
         rootNode: runningRootNode,
         checkpointScope,
+        baselineCapture,
         providerThread: runningProviderThread,
         attempt: runningAttempt,
         attemptId: attempt.id,

@@ -119,7 +119,7 @@ export const AssistantMessageBorder = memo(function AssistantMessageBorder({
         <div
           ref={sweepRef}
           data-assistant-rail-sweep
-          className="h-44 w-full opacity-0 bg-gradient-to-b from-foreground/10 via-foreground/90 to-foreground/30 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
+          className="h-44 w-full opacity-0 bg-gradient-to-b from-foreground/10 via-foreground/90 to-foreground/30"
         />
       </div>
 

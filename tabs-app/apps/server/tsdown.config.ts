@@ -35,6 +35,9 @@ export default defineConfig({
       id.startsWith("@opencode-ai/") ||
       // Only the patch parser is used on the server. Its package exposes no
       // require condition, so keep the parser in both ESM and CommonJS builds.
+      // Patched in patches/ (raw process exit); staged installs would drop the patch.
+      id === "@muse-code/sdk" ||
+      id.startsWith("@muse-code/sdk/") ||
       id === "@pierre/diffs" ||
       id.startsWith("@pierre/diffs/") ||
       id.startsWith("@tabs/") ||

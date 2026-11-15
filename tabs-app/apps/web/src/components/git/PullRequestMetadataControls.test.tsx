@@ -77,3 +77,62 @@ describe("PullRequestMetadataControls", () => {
     expect(html).toContain("@contributor1");
   });
 });
+
+describe("PullRequestMetadataControls suggestions", () => {
+  it("offers the host's names as options without limiting what can be typed", () => {
+    const reviewers = renderToStaticMarkup(
+      <PullRequestReviewersSection
+        reviewers={[]}
+        supportsAction={() => true}
+        onAddReviewer={async () => {}}
+        onRemoveReviewer={async () => {}}
+        isPending={false}
+        suggestions={["maria", "li"]}
+      />,
+    );
+    expect(reviewers).toContain('<option value="maria"');
+    expect(reviewers).toContain('<option value="li"');
+    expect(reviewers).toContain('list="');
+
+    const labels = renderToStaticMarkup(
+      <PullRequestLabelsSection
+        labels={[]}
+        supportsAction={() => true}
+        onAddLabel={async () => {}}
+        onRemoveLabel={async () => {}}
+        isPending={false}
+        suggestions={["bug"]}
+      />,
+    );
+    expect(labels).toContain('<option value="bug"');
+
+    const none = renderToStaticMarkup(
+      <PullRequestLabelsSection
+        labels={[]}
+        supportsAction={() => true}
+        onAddLabel={async () => {}}
+        onRemoveLabel={async () => {}}
+        isPending={false}
+      />,
+    );
+    expect(none).not.toContain("<datalist");
+  });
+});
+
+describe("PullRequestActivityView comment editing", () => {
+  const comment = {
+    id: "c1",
+    author: { login: "maria" },
+    body: "first draft",
+    createdAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("offers Edit only where the host can rewrite a comment", () => {
+    const withEdit = renderToStaticMarkup(
+      <PullRequestActivityView comments={[comment]} onEditComment={async () => true} />,
+    );
+    expect(withEdit).toContain("Edit comment by maria");
+    const without = renderToStaticMarkup(<PullRequestActivityView comments={[comment]} />);
+    expect(without).not.toContain("Edit comment by");
+  });
+});

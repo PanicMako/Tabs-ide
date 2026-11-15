@@ -91,6 +91,7 @@ function fakeCli(responses: readonly unknown[]): {
   const gitHubCli: GitHubCliShape = {
     execute,
     listOpenPullRequests: () => Effect.succeed([]),
+    resolvePullRequestNumber: () => Effect.succeed(null),
     getPullRequest: () => Effect.die(new Error("not implemented")),
     getPullRequestFiles: () => Effect.succeed([]),
     getPullRequestReviewThreads: () => Effect.succeed([]),

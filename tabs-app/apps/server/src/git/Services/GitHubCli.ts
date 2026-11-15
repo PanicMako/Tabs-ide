@@ -12,6 +12,21 @@ import type { ProcessRunResult } from "../../processRunner";
 import type { GitHubCliError } from "../Errors.ts";
 import type { GitMutatePullRequestInput, GitPullRequestStack } from "@tabs/contracts";
 
+export interface GitHubPullRequestReaction {
+  readonly content:
+    | "thumbs-up"
+    | "thumbs-down"
+    | "laugh"
+    | "hooray"
+    | "confused"
+    | "heart"
+    | "rocket"
+    | "eyes";
+  readonly count: number;
+  readonly actors: ReadonlyArray<string>;
+  readonly viewerHasReacted: boolean;
+}
+
 export interface GitHubPullRequestSummary {
   readonly number: number;
   readonly title: string;
@@ -60,6 +75,7 @@ export interface GitHubPullRequestSummary {
     readonly body: string;
     readonly createdAt: string;
     readonly url?: string | undefined;
+    readonly reactions?: ReadonlyArray<GitHubPullRequestReaction> | undefined;
   }>;
   readonly reviews?: ReadonlyArray<{
     readonly id: string;
@@ -67,7 +83,9 @@ export interface GitHubPullRequestSummary {
     readonly body: string;
     readonly state: string;
     readonly submittedAt?: string | null | undefined;
+    readonly reactions?: ReadonlyArray<GitHubPullRequestReaction> | undefined;
   }>;
+  readonly reactions?: ReadonlyArray<GitHubPullRequestReaction> | undefined;
   readonly commits?: ReadonlyArray<{
     readonly sha: string;
     readonly subject: string;
@@ -146,6 +164,16 @@ export interface GitHubCliShape {
     readonly cwd: string;
     readonly reference: string;
   }) => Effect.Effect<GitHubPullRequestSummary, GitHubCliError>;
+
+  /**
+   * The number of the pull request a reference names, without reading the pull request: a number
+   * or URL answers locally, a branch costs one lookup. `null` when it cannot be told cheaply,
+   * which leaves the caller to read the pull request first, as it always did.
+   */
+  readonly resolvePullRequestNumber: (input: {
+    readonly cwd: string;
+    readonly reference: string;
+  }) => Effect.Effect<number | null>;
 
   readonly getPullRequestFiles: (input: {
     readonly cwd: string;

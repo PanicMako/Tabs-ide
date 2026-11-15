@@ -150,7 +150,7 @@ describe("MessagesTimeline", { timeout: 30000 }, () => {
     );
 
     expect(markup).toContain("Context compacted");
-    expect(markup).toContain("Work log");
+    expect(markup).toMatch(/\d+ steps?</);
   });
 
   it("places each turn's tasks after its assistant response and before the next user message", async () => {
@@ -451,9 +451,9 @@ describe("MessagesTimeline", { timeout: 30000 }, () => {
       />,
     );
 
-    // Verify aria-expanded on header button
+    // Seven steps collapse to the latest six behind an expandable header.
     expect(markup).toContain('aria-expanded="false"');
-    // Verify aria-label on details toggle
-    expect(markup).toContain('aria-label="View details for Tool call"');
+    expect(markup).toContain("Show 1 earlier step");
+    expect(markup).toContain("7 steps");
   });
 });

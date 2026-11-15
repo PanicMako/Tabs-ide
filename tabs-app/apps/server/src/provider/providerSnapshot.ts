@@ -9,6 +9,7 @@ import type {
   ServerProviderSkill,
   ServerProviderSlashCommand,
   ServerProviderModel,
+  ServerProviderUpdateRequiredModel,
   ServerProviderState,
   ServerProviderUsageLimits,
 } from "@tabs/contracts";
@@ -281,6 +282,7 @@ export function buildServerProvider(input: {
   catalogSource?: string;
   catalogCheckedAt?: string;
   models: ReadonlyArray<ServerProviderModel>;
+  updateRequiredModels?: ReadonlyArray<ServerProviderUpdateRequiredModel>;
   slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;
   skills?: ReadonlyArray<ServerProviderSkill>;
   probe: ProviderProbeResult;
@@ -325,6 +327,9 @@ export function buildServerProvider(input: {
     ...(input.probe.message ? { message: input.probe.message } : {}),
     ...(input.probe.usageLimits ? { usageLimits: input.probe.usageLimits } : {}),
     models: input.models,
+    ...(input.updateRequiredModels?.length
+      ? { updateRequiredModels: input.updateRequiredModels }
+      : {}),
     slashCommands: [...(input.slashCommands ?? [])],
     skills: [...(input.skills ?? [])],
     ...(versionAdvisory ? { versionAdvisory } : {}),

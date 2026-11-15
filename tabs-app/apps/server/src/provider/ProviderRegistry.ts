@@ -253,7 +253,11 @@ const mergeProviderModels = (
   // Custom rows are derived from settings and every snapshot carries the full
   // current list, so a custom model missing from `nextModels` was removed by
   // the user and must not be resurrected from the previous snapshot.
-  const retainablePreviousModels = previousModels.filter((model) => !model.isCustom);
+  // A model the installed CLI is too old for stays out of the list until it updates.
+  const updateRequiredSlugs = new Set(provider.updateRequiredModels?.map((model) => model.slug));
+  const retainablePreviousModels = previousModels.filter(
+    (model) => !model.isCustom && !updateRequiredSlugs.has(model.slug),
+  );
 
   if (shouldRetainMissingModels && nextModels.length === 0 && retainablePreviousModels.length > 0) {
     return retainablePreviousModels;

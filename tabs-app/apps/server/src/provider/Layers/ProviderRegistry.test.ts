@@ -1,3 +1,4 @@
+import { AcpRegistryCatalog } from "../acp/AcpRegistrySupport.ts";
 import * as IdAllocator from "../../orchestration-v2/IdAllocator.ts";
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -1116,7 +1117,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                         homePath: `/tmp/${missingBinary}_home`,
                       },
                     },
-                  } as unknown as ContractServerSettings["providerInstances"],
+                  } as never,
                 }),
               ),
             );
@@ -1127,6 +1128,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                 ProviderInstanceRegistryHydrationLive.pipe(Layer.provideMerge(IdAllocator.layer)),
               ),
               Layer.provideMerge(CodexResetCredit.layerTest),
+              Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
               Layer.provideMerge(Layer.succeed(ServerSettingsService, serverSettings)),
               Layer.provideMerge(
                 ServerConfig.layerTest(process.cwd(), {
@@ -1225,6 +1227,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                 ProviderInstanceRegistryHydrationLive.pipe(Layer.provideMerge(IdAllocator.layer)),
               ),
               Layer.provideMerge(CodexResetCredit.layerTest),
+              Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
               Layer.provideMerge(Layer.succeed(ServerSettingsService, serverSettings)),
               Layer.provideMerge(
                 ServerConfig.layerTest(process.cwd(), {
@@ -1336,7 +1339,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                     enabled: false,
                     config: { arbitrary: "payload" },
                   },
-                } as unknown as ContractServerSettings["providerInstances"],
+                } as never,
               }),
             ),
           );
@@ -1347,6 +1350,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
               ProviderInstanceRegistryHydrationLive.pipe(Layer.provideMerge(IdAllocator.layer)),
             ),
             Layer.provideMerge(CodexResetCredit.layerTest),
+            Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
             Layer.provideMerge(Layer.succeed(ServerSettingsService, serverSettings)),
             Layer.provideMerge(
               ServerConfig.layerTest(process.cwd(), {
@@ -1404,7 +1408,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                       enabled: false,
                       config: {},
                     },
-                  } as unknown as ContractServerSettings["providerInstances"],
+                  } as never,
                 }),
               ),
             );
@@ -1416,6 +1420,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                 ProviderInstanceRegistryHydrationLive.pipe(Layer.provideMerge(IdAllocator.layer)),
               ),
               Layer.provideMerge(CodexResetCredit.layerTest),
+              Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
               Layer.provideMerge(Layer.succeed(ServerSettingsService, serverSettings)),
               Layer.provideMerge(
                 ServerConfig.layerTest(process.cwd(), {
@@ -1473,10 +1478,14 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                 "copilot",
                 "cursor",
                 "droid",
+                "fx",
                 "grok",
                 "kilo",
+                "kiro",
+                "muse",
                 "opencode",
                 "openrouter",
+                "pi",
               ]);
               assert.strictEqual(cursorProvider?.enabled, false);
               assert.strictEqual(cursorProvider?.status, "disabled");

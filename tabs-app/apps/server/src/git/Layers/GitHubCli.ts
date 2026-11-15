@@ -9,8 +9,10 @@ import {
   GitHubCli,
   type GitHubRepositoryCloneUrls,
   type GitHubCliShape,
+  type GitHubPullRequestReaction,
   type GitHubPullRequestSummary,
 } from "../Services/GitHubCli.ts";
+import { githubGraphql, githubRestGet, resolveGitHubRepository } from "../Services/GitHubDirect.ts";
 import { decodePullRequestStacksJson } from "../githubStackActions.ts";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -84,6 +86,56 @@ function normalizePullRequestState(input: {
   return "open";
 }
 
+const RawReactionGroupsSchema = Schema.optional(
+  Schema.Array(
+    Schema.Struct({
+      content: Schema.String,
+      viewerHasReacted: Schema.optional(Schema.Boolean),
+      reactors: Schema.optional(
+        Schema.Struct({
+          totalCount: Schema.Number,
+          nodes: Schema.optional(
+            Schema.Array(Schema.NullOr(Schema.Struct({ login: Schema.optional(Schema.String) }))),
+          ),
+        }),
+      ),
+    }),
+  ),
+);
+
+const REACTION_CONTENT = {
+  THUMBS_UP: "thumbs-up",
+  THUMBS_DOWN: "thumbs-down",
+  LAUGH: "laugh",
+  HOORAY: "hooray",
+  CONFUSED: "confused",
+  HEART: "heart",
+  ROCKET: "rocket",
+  EYES: "eyes",
+} as const;
+
+/** GitHub's reaction groups as the page shows them; groups nobody is in are dropped. */
+function normalizeReactionGroups(
+  groups: Schema.Schema.Type<typeof RawReactionGroupsSchema>,
+): GitHubPullRequestReaction[] | undefined {
+  if (groups === undefined) return undefined;
+  return groups.flatMap((group) => {
+    const content = REACTION_CONTENT[group.content as keyof typeof REACTION_CONTENT];
+    const count = group.reactors?.totalCount ?? 0;
+    if (content === undefined || count <= 0) return [];
+    return [
+      {
+        content,
+        count,
+        actors: (group.reactors?.nodes ?? []).flatMap((node) =>
+          node?.login ? [node.login] : [],
+        ),
+        viewerHasReacted: group.viewerHasReacted === true,
+      },
+    ];
+  });
+}
+
 const RawGitHubPullRequestSchema = Schema.Struct({
   number: PositiveInt,
   title: TrimmedNonEmptyString,
@@ -129,12 +181,19 @@ const RawGitHubPullRequestSchema = Schema.Struct({
   reviewDecision: Schema.optional(Schema.NullOr(Schema.String)),
   mergeable: Schema.optional(Schema.NullOr(Schema.String)),
   statusCheckRollup: Schema.optional(Schema.Array(Schema.Record(Schema.String, Schema.Unknown))),
+  /**
+   * The rollup's single aggregate state (`SUCCESS`, `FAILURE`, `PENDING`…), for listings that
+   * deliberately skip the per-check contexts: reading every context of fifty pull requests is
+   * what made `gh pr list --json statusCheckRollup` take seconds longer than the rest of the page.
+   */
+  checksRollupState: Schema.optional(Schema.NullOr(Schema.String)),
   additions: Schema.optional(Schema.Number),
   deletions: Schema.optional(Schema.Number),
   changedFiles: Schema.optional(Schema.Number),
   createdAt: Schema.optional(Schema.String),
   updatedAt: Schema.optional(Schema.String),
   body: Schema.optional(Schema.String),
+  reactionGroups: RawReactionGroupsSchema,
   reviewRequests: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -159,6 +218,7 @@ const RawGitHubPullRequestSchema = Schema.Struct({
         body: Schema.String,
         createdAt: Schema.String,
         url: Schema.optional(Schema.String),
+        reactionGroups: RawReactionGroupsSchema,
       }),
     ),
   ),
@@ -177,6 +237,7 @@ const RawGitHubPullRequestSchema = Schema.Struct({
         body: Schema.String,
         state: Schema.String,
         submittedAt: Schema.optional(Schema.NullOr(Schema.String)),
+        reactionGroups: RawReactionGroupsSchema,
       }),
     ),
   ),
@@ -334,6 +395,27 @@ function normalizeFileStatus(
     : "changed";
 }
 
+type RawPullRequestFile = Schema.Schema.Type<typeof RawGitHubPullRequestFileSchema>;
+
+function boundPullRequestFiles(files: ReadonlyArray<RawPullRequestFile>) {
+  let remainingPatchChars = MAX_PULL_REQUEST_TOTAL_PATCH_CHARS;
+  return files.slice(0, MAX_PULL_REQUEST_FILES).map((file) => {
+    const patch = file.patch ?? null;
+    const allowedPatchChars = Math.min(MAX_PULL_REQUEST_FILE_PATCH_CHARS, remainingPatchChars);
+    const boundedPatch = patch === null ? null : patch.slice(0, allowedPatchChars);
+    remainingPatchChars -= boundedPatch?.length ?? 0;
+    return {
+      path: file.filename,
+      ...(file.previous_filename ? { previousPath: file.previous_filename } : {}),
+      status: normalizeFileStatus(file.status),
+      additions: Math.max(0, file.additions),
+      deletions: Math.max(0, file.deletions),
+      patch: boundedPatch,
+      patchTruncated: patch !== null && patch.length > allowedPatchChars,
+    };
+  });
+}
+
 function normalizePullRequestSummary(
   raw: Schema.Schema.Type<typeof RawGitHubPullRequestSchema>,
 ): GitHubPullRequestSummary {
@@ -385,9 +467,16 @@ function normalizePullRequestSummary(
       },
     ];
   });
+  const rollupState = String(raw.checksRollupState ?? "").toUpperCase();
   const checksState =
     checks.length === 0
-      ? undefined
+      ? rollupState === "SUCCESS"
+        ? ("passing" as const)
+        : rollupState === "FAILURE" || rollupState === "ERROR"
+          ? ("failing" as const)
+          : rollupState === "PENDING" || rollupState === "EXPECTED"
+            ? ("pending" as const)
+            : undefined
       : checks.some((check) => {
             const conclusion = String(check.conclusion ?? check.state ?? "").toUpperCase();
             return ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"].includes(
@@ -427,6 +516,9 @@ function normalizePullRequestSummary(
     ...(raw.createdAt ? { createdAt: raw.createdAt } : {}),
     ...(raw.updatedAt ? { updatedAt: raw.updatedAt } : {}),
     ...(raw.body !== undefined ? { body: raw.body } : {}),
+    ...(raw.reactionGroups !== undefined
+      ? { reactions: normalizeReactionGroups(raw.reactionGroups)! }
+      : {}),
     ...(raw.reviewRequests ? { reviewers: raw.reviewRequests } : {}),
     ...(raw.statusCheckRollup ? { checks: normalizedChecks } : {}),
     ...(raw.comments
@@ -437,6 +529,9 @@ function normalizePullRequestSummary(
             body: comment.body,
             createdAt: comment.createdAt,
             ...(comment.url ? { url: comment.url } : {}),
+            ...(comment.reactionGroups !== undefined
+              ? { reactions: normalizeReactionGroups(comment.reactionGroups)! }
+              : {}),
           })),
         }
       : {}),
@@ -448,6 +543,9 @@ function normalizePullRequestSummary(
             body: review.body,
             state: review.state,
             ...(review.submittedAt !== undefined ? { submittedAt: review.submittedAt } : {}),
+            ...(review.reactionGroups !== undefined
+              ? { reactions: normalizeReactionGroups(review.reactionGroups)! }
+              : {}),
           })),
         }
       : {}),
@@ -505,6 +603,185 @@ function decodeGitHubJson<S extends Schema.Top>(
   );
 }
 
+/**
+ * One GraphQL document in place of `gh pr list --json …statusCheckRollup`. The CLI's rollup field
+ * reads every check context of every row (measured: ~3-5s extra for 50 rows), whereas the
+ * rollup's aggregate state is what the list actually shows. `{owner}`/`{repo}` are filled in by
+ * `gh api` from the working directory's repository, so no separate repository lookup is spent.
+ */
+const PULL_REQUEST_LIST_MAX_FAST_LIMIT = 100;
+function buildPullRequestListQuery(state: "open" | "closed" | "merged" | "all"): string {
+  const states =
+    state === "open" ? "[OPEN]" : state === "closed" ? "[CLOSED]" : state === "merged" ? "[MERGED]" : "[OPEN, CLOSED, MERGED]";
+  return `query($owner: String!, $name: String!, $limit: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(first: $limit, states: ${states}, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+        number title url baseRefName headRefName state mergedAt isDraft isCrossRepository
+        author { login avatarUrl url }
+        headRepository { nameWithOwner }
+        headRepositoryOwner { login }
+        labels(first: 20) { nodes { name color description } }
+        reviewDecision mergeable additions deletions changedFiles createdAt updatedAt
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+      }
+    }
+  }
+}`;
+}
+
+interface GraphQlPullRequestNode {
+  readonly commits?: {
+    readonly nodes?: ReadonlyArray<{
+      readonly commit?: { readonly statusCheckRollup?: { readonly state?: string } | null };
+    } | null>;
+  };
+  readonly labels?: { readonly nodes?: ReadonlyArray<unknown> };
+  readonly [key: string]: unknown;
+}
+
+/** Reshapes a GraphQL node into the object `gh pr list --json` would have printed. */
+export function pullRequestListNodesToRaw(raw: string): string {
+  const parsed = JSON.parse(raw) as {
+    data?: {
+      repository?: { pullRequests?: { nodes?: ReadonlyArray<GraphQlPullRequestNode | null> } };
+    };
+  };
+  const nodes = parsed.data?.repository?.pullRequests?.nodes;
+  if (!Array.isArray(nodes)) throw new Error("GitHub returned no pull request list.");
+  return JSON.stringify(
+    nodes.flatMap((node) => {
+      if (node === null) return [];
+      const { commits, labels, ...rest } = node;
+      const checksRollupState = commits?.nodes?.[0]?.commit?.statusCheckRollup?.state;
+      return [
+        {
+          ...rest,
+          labels: labels?.nodes ?? [],
+          ...(checksRollupState ? { checksRollupState } : {}),
+        },
+      ];
+    }),
+  );
+}
+
+const PULL_REQUEST_DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      number title url baseRefName headRefName state mergedAt isCrossRepository isDraft
+      headRepository { nameWithOwner }
+      headRepositoryOwner { login }
+      author { login avatarUrl url }
+      labels(first: 50) { nodes { name color description } }
+      reviewDecision mergeable additions deletions changedFiles createdAt updatedAt body
+      reactionGroups { content viewerHasReacted reactors(first: 3) { totalCount nodes { ... on Actor { login } } } }
+      reviewRequests(first: 30) {
+        nodes { requestedReviewer { __typename ... on User { login avatarUrl url } } }
+      }
+      comments(first: 100) {
+        nodes { id body createdAt url author { login avatarUrl } reactionGroups { content viewerHasReacted reactors(first: 3) { totalCount nodes { ... on Actor { login } } } } }
+      }
+      reviews(first: 100) {
+        nodes { id body state submittedAt author { login avatarUrl } reactionGroups { content viewerHasReacted reactors(first: 3) { totalCount nodes { ... on Actor { login } } } } }
+      }
+      commits(first: 100) {
+        nodes {
+          commit {
+            oid messageHeadline authoredDate
+            authors(first: 5) { nodes { user { login avatarUrl } } }
+          }
+        }
+      }
+      latest: commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun {
+                    name status conclusion detailsUrl
+                    checkSuite { workflowRun { workflow { name } } }
+                  }
+                  ... on StatusContext { context state targetUrl }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+type Nodes<T> = { readonly nodes?: ReadonlyArray<T | null> } | null | undefined;
+const nodesOf = <T>(connection: Nodes<T>): T[] =>
+  (connection?.nodes ?? []).filter((node): node is T => node !== null);
+
+/** Reshapes the detail GraphQL node into what `gh pr view --json …` prints. */
+export function pullRequestDetailNodeToRaw(raw: string): string {
+  const root = JSON.parse(raw) as {
+    data?: { repository?: { pullRequest?: Record<string, any> | null } | null };
+  };
+  const pr = root.data?.repository?.pullRequest;
+  if (!pr) throw new Error("GitHub returned no pull request.");
+  const contexts = nodesOf<Record<string, any>>(
+    nodesOf<Record<string, any>>(pr.latest)[0]?.commit?.statusCheckRollup?.contexts,
+  );
+  return JSON.stringify({
+    number: pr.number,
+    title: pr.title,
+    url: pr.url,
+    baseRefName: pr.baseRefName,
+    headRefName: pr.headRefName,
+    state: pr.state,
+    mergedAt: pr.mergedAt,
+    isCrossRepository: pr.isCrossRepository,
+    isDraft: pr.isDraft,
+    headRepository: pr.headRepository,
+    headRepositoryOwner: pr.headRepositoryOwner,
+    author: pr.author,
+    labels: nodesOf(pr.labels),
+    reviewDecision: pr.reviewDecision,
+    mergeable: pr.mergeable,
+    additions: pr.additions,
+    deletions: pr.deletions,
+    changedFiles: pr.changedFiles,
+    createdAt: pr.createdAt,
+    updatedAt: pr.updatedAt,
+    body: pr.body ?? "",
+    reactionGroups: pr.reactionGroups,
+    reviewRequests: nodesOf<Record<string, any>>(pr.reviewRequests).flatMap((request) =>
+      request.requestedReviewer?.login ? [request.requestedReviewer] : [],
+    ),
+    comments: nodesOf(pr.comments),
+    reviews: nodesOf(pr.reviews),
+    commits: nodesOf<Record<string, any>>(pr.commits).map(({ commit }) => ({
+      oid: commit.oid,
+      messageHeadline: commit.messageHeadline,
+      authoredDate: commit.authoredDate,
+      authors: nodesOf<Record<string, any>>(commit.authors).map((author) => author.user ?? {}),
+    })),
+    statusCheckRollup: contexts.map((context) =>
+      context.__typename === "CheckRun"
+        ? {
+            __typename: "CheckRun",
+            name: context.name,
+            status: context.status,
+            conclusion: context.conclusion,
+            detailsUrl: context.detailsUrl,
+            workflowName: context.checkSuite?.workflowRun?.workflow?.name,
+          }
+        : {
+            __typename: "StatusContext",
+            context: context.context,
+            state: context.state,
+            targetUrl: context.targetUrl,
+          },
+    ),
+  });
+}
+
 const makeGitHubCli = Effect.sync(() => {
   const execute: GitHubCliShape["execute"] = (input) =>
     Effect.tryPromise({
@@ -516,7 +793,7 @@ const makeGitHubCli = Effect.sync(() => {
       catch: (error) => normalizeGitHubCliError("execute", error),
     });
 
-  const service = {
+  const cliService = {
     execute,
     listOpenPullRequests: (input) => {
       const args = [
@@ -532,21 +809,71 @@ const makeGitHubCli = Effect.sync(() => {
       if (input.headSelector) {
         args.push("--head", input.headSelector);
       }
-      return execute({
-        cwd: input.cwd,
-        args,
-      }).pipe(
+      const decodeList = (raw: string) =>
+        raw.length === 0
+          ? Effect.succeed([])
+          : decodeGitHubJson(
+              raw,
+              Schema.Array(RawGitHubPullRequestSchema),
+              "listOpenPullRequests",
+              "GitHub CLI returned invalid PR list JSON.",
+            );
+      const viaCli = execute({ cwd: input.cwd, args }).pipe(
         Effect.map((result) => result.stdout.trim()),
-        Effect.flatMap((raw) =>
-          raw.length === 0
-            ? Effect.succeed([])
-            : decodeGitHubJson(
-                raw,
-                Schema.Array(RawGitHubPullRequestSchema),
-                "listOpenPullRequests",
-                "GitHub CLI returned invalid PR list JSON.",
-              ),
-        ),
+        Effect.flatMap(decodeList),
+      );
+      const limit = input.limit ?? 50;
+      // A head selector or a page past one GraphQL page keeps gh's own handling.
+      const query = buildPullRequestListQuery(input.state ?? "all");
+      const viaGraphQl = (transport: "direct" | "cli") =>
+        (transport === "direct"
+          ? Effect.tryPromise({
+              try: async () => {
+                const repository = await resolveGitHubRepository(input.cwd);
+                if (repository === null) throw new Error("No GitHub repository was found.");
+                return githubGraphql({
+                  cwd: input.cwd,
+                  host: repository.host,
+                  query,
+                  variables: {
+                    owner: repository.owner,
+                    name: repository.name,
+                    limit: Math.trunc(limit),
+                  },
+                });
+              },
+              catch: (error) => normalizeGitHubCliError("stdout", error),
+            })
+          : execute({
+              cwd: input.cwd,
+              args: [
+                "api",
+                "graphql",
+                "-F",
+                "owner={owner}",
+                "-F",
+                "name={repo}",
+                "-F",
+                `limit=${Math.trunc(limit)}`,
+                "-f",
+                `query=${query}`,
+              ],
+            }).pipe(Effect.map((result) => result.stdout))
+        ).pipe(
+          Effect.flatMap((stdout) =>
+            Effect.try({
+              try: () => pullRequestListNodesToRaw(stdout),
+              catch: (error) => normalizeGitHubCliError("stdout", error),
+            }),
+          ),
+          Effect.flatMap(decodeList),
+        );
+      // Direct HTTPS first (no process start), then the CLI's own GraphQL, then `gh pr list`.
+      const fast =
+        input.headSelector || limit > PULL_REQUEST_LIST_MAX_FAST_LIMIT || limit < 1
+          ? null
+          : viaGraphQl("direct").pipe(Effect.catch(() => viaGraphQl("cli")));
+      return (fast === null ? viaCli : fast.pipe(Effect.catch(() => viaCli))).pipe(
         Effect.map((pullRequests) => pullRequests.map(normalizePullRequestSummary)),
       );
     },
@@ -591,28 +918,7 @@ const makeGitHubCli = Effect.sync(() => {
             "GitHub CLI returned invalid pull request file JSON.",
           ),
         ),
-        Effect.map((pages) => {
-          const files = pages.flat();
-          let remainingPatchChars = MAX_PULL_REQUEST_TOTAL_PATCH_CHARS;
-          return files.slice(0, MAX_PULL_REQUEST_FILES).map((file) => {
-            const patch = file.patch ?? null;
-            const allowedPatchChars = Math.min(
-              MAX_PULL_REQUEST_FILE_PATCH_CHARS,
-              remainingPatchChars,
-            );
-            const boundedPatch = patch === null ? null : patch.slice(0, allowedPatchChars);
-            remainingPatchChars -= boundedPatch?.length ?? 0;
-            return {
-              path: file.filename,
-              ...(file.previous_filename ? { previousPath: file.previous_filename } : {}),
-              status: normalizeFileStatus(file.status),
-              additions: Math.max(0, file.additions),
-              deletions: Math.max(0, file.deletions),
-              patch: boundedPatch,
-              patchTruncated: patch !== null && patch.length > allowedPatchChars,
-            };
-          });
-        }),
+        Effect.map((pages) => boundPullRequestFiles(pages.flat())),
       ),
     getPullRequestReviewThreads: (input) =>
       Effect.gen(function* () {
@@ -892,6 +1198,195 @@ const makeGitHubCli = Effect.sync(() => {
           return Effect.fail(err);
         }),
       ),
+  } satisfies Omit<GitHubCliShape, "resolvePullRequestNumber">;
+
+  /**
+   * Pull request detail reads over the in-process connection. The detail page needs the pull
+   * request, its files, its review threads and its stack; as four `gh` processes (two of them
+   * preceded by a `gh repo view`) that was several seconds. Each read here falls back to the CLI
+   * read it replaces, so a failure of the direct path is only ever a slower page.
+   */
+  const direct = <A, E>(attempt: () => Promise<A>, fallback: Effect.Effect<A, E>) =>
+    Effect.tryPromise({ try: attempt, catch: (error) => error }).pipe(
+      Effect.catch(() => fallback),
+    );
+
+  const directFiles: GitHubCliShape["getPullRequestFiles"] = (input) =>
+    direct(async () => {
+      const repository = await resolveGitHubRepository(input.cwd);
+      if (repository === null || !/^\d+$/.test(input.reference)) throw new Error("no repository");
+      const rows: Array<Record<string, unknown>> = [];
+      for (let page = 1; page <= 10; page += 1) {
+        const body = (await githubRestGet({
+          cwd: input.cwd,
+          host: repository.host,
+          path: `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(
+            repository.name,
+          )}/pulls/${input.reference}/files?per_page=100&page=${page}`,
+        })) as Array<Record<string, unknown>>;
+        if (!Array.isArray(body)) throw new Error("unexpected files response");
+        rows.push(...body);
+        if (body.length < 100) break;
+      }
+      // Decoded and bounded by the CLI path's own code, so both paths answer identically.
+      return rows;
+    }, Effect.succeed(null)).pipe(
+      Effect.flatMap((rows) =>
+        rows === null
+          ? cliService.getPullRequestFiles(input)
+          : Effect.gen(function* () {
+              const pages = yield* decodeGitHubJson(
+                JSON.stringify([rows]),
+                Schema.Array(Schema.Array(RawGitHubPullRequestFileSchema)),
+                "getPullRequestFiles",
+                "GitHub returned invalid pull request file JSON.",
+              );
+              return boundPullRequestFiles(pages.flat());
+            }).pipe(Effect.catch(() => cliService.getPullRequestFiles(input))),
+      ),
+    );
+
+  const directReviewThreads: GitHubCliShape["getPullRequestReviewThreads"] = (input) =>
+    direct(async () => {
+      const repository = await resolveGitHubRepository(input.cwd);
+      if (repository === null || !/^\d+$/.test(input.reference)) throw new Error("no repository");
+      const threads: ReturnType<typeof decodeGitHubReviewThreads> = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 20; page += 1) {
+        const body = JSON.parse(
+          await githubGraphql({
+            cwd: input.cwd,
+            host: repository.host,
+            query: REVIEW_THREADS_QUERY,
+            variables: {
+              owner: repository.owner,
+              name: repository.name,
+              number: Number(input.reference),
+              cursor,
+            },
+          }),
+        ) as unknown;
+        threads.push(...decodeGitHubReviewThreads(body));
+        const connection = object(
+          object(object(object(object(body)?.data)?.repository)?.pullRequest)?.reviewThreads,
+        );
+        const pageInfo = object(connection?.pageInfo);
+        const nextCursor = nonEmptyText(pageInfo?.endCursor);
+        if (pageInfo?.hasNextPage !== true || !nextCursor) break;
+        cursor = nextCursor;
+      }
+      return threads;
+    }, cliService.getPullRequestReviewThreads(input));
+
+  const directStack: GitHubCliShape["getPullRequestStack"] = (input) =>
+    Effect.tryPromise({
+      try: async () => {
+        const repository = input.repository
+          ? (() => {
+              const [owner, name] = input.repository!.split("/");
+              return owner && name
+                ? { host: input.host ?? "github.com", owner, name }
+                : null;
+            })()
+          : await resolveGitHubRepository(input.cwd);
+        if (repository === null) throw new Error("no repository");
+        try {
+          const body = await githubRestGet({
+            cwd: input.cwd,
+            host: repository.host,
+            path: `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(
+              repository.name,
+            )}/stacks?pull_request=${encodeURIComponent(input.reference)}`,
+          });
+          return decodePullRequestStacksJson(JSON.stringify(body));
+        } catch (error) {
+          // Stacks are not offered everywhere: these answers mean "none", not "try the CLI".
+          if (error instanceof Error && /responded (404|403|410|422)\./.test(error.message)) {
+            return null;
+          }
+          throw error;
+        }
+      },
+      catch: (error) => error,
+    }).pipe(Effect.catch(() => cliService.getPullRequestStack(input)));
+
+  const resolvePullRequestNumber: GitHubCliShape["resolvePullRequestNumber"] = (input) => {
+    const reference = input.reference.trim();
+    const numeric = /^#?(\d+)$/.exec(reference) ?? /\/pull\/(\d+)(?:[/?#].*)?$/.exec(reference);
+    if (numeric?.[1]) return Effect.succeed(Number(numeric[1]));
+    return Effect.tryPromise({
+      try: async () => {
+        const repository = await resolveGitHubRepository(input.cwd);
+        if (repository === null) return null;
+        const body = JSON.parse(
+          await githubGraphql({
+            cwd: input.cwd,
+            host: repository.host,
+            query: `query($owner: String!, $name: String!, $head: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(headRefName: $head, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes { number state }
+    }
+  }
+}`,
+            variables: { owner: repository.owner, name: repository.name, head: reference },
+          }),
+        ) as {
+          data?: {
+            repository?: {
+              pullRequests?: { nodes?: ReadonlyArray<{ number: number; state: string }> };
+            };
+          };
+        };
+        const nodes = body.data?.repository?.pullRequests?.nodes ?? [];
+        // What `gh pr view <branch>` prefers: an open pull request, else the latest one.
+        return (nodes.find((node) => node.state === "OPEN") ?? nodes[0])?.number ?? null;
+      },
+      catch: (error) => error,
+    }).pipe(Effect.catch(() => Effect.succeed(null)));
+  };
+
+  const directPullRequest: GitHubCliShape["getPullRequest"] = (input) =>
+    resolvePullRequestNumber(input).pipe(
+      Effect.flatMap((number) =>
+        number === null
+          ? cliService.getPullRequest(input)
+          : Effect.tryPromise({
+              try: async () => {
+                const repository = await resolveGitHubRepository(input.cwd);
+                if (repository === null) throw new Error("no repository");
+                return pullRequestDetailNodeToRaw(
+                  await githubGraphql({
+                    cwd: input.cwd,
+                    host: repository.host,
+                    query: PULL_REQUEST_DETAIL_QUERY,
+                    variables: { owner: repository.owner, name: repository.name, number },
+                  }),
+                );
+              },
+              catch: (error) => error,
+            }).pipe(
+              Effect.flatMap((raw) =>
+                decodeGitHubJson(
+                  raw,
+                  RawGitHubPullRequestSchema,
+                  "getPullRequest",
+                  "GitHub returned invalid pull request JSON.",
+                ),
+              ),
+              Effect.map(normalizePullRequestSummary),
+              Effect.catch(() => cliService.getPullRequest(input)),
+            ),
+      ),
+    );
+
+  const service = {
+    ...cliService,
+    getPullRequest: directPullRequest,
+    getPullRequestFiles: directFiles,
+    getPullRequestReviewThreads: directReviewThreads,
+    getPullRequestStack: directStack,
+    resolvePullRequestNumber,
   } satisfies GitHubCliShape;
 
   return service;

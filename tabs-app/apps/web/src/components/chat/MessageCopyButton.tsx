@@ -40,6 +40,7 @@ export const MessageCopyButton = memo(function MessageCopyButton({
         render={
           <Button
             aria-label={accessibleLabel}
+            data-message-copy="true"
             disabled={isCopied}
             onClick={() => copyToClipboard(text)}
             ref={ref}

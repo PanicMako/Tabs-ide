@@ -1,4 +1,9 @@
-import { ProviderDriverKind, TextGenerationError, type CodexSettings } from "@tabs/contracts";
+import {
+  ProviderDriverKind,
+  ProviderSetupError,
+  TextGenerationError,
+  type CodexSettings,
+} from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Option from "effect/Option";
@@ -121,10 +126,21 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
             effective.environment,
             managedAuth,
           );
-          const models = yield* chatGptModels(
-            effective.environment.ACCESS_TOKEN!,
-            draft.models,
-          ).pipe(Effect.provideService(HttpClient.HttpClient, http));
+          const credentials = yield* runtime.auth.access;
+          // Another server can replace the saved profile while the native probe runs.
+          // Never send that account's token with the launch profile's catalog labels.
+          if (
+            (yield* runtime.auth.profileKey(credentials)) !== effective.revision ||
+            (yield* runtime.auth.profileKey(saved.value)) !== effective.revision
+          )
+            return yield* new ProviderSetupError({
+              instanceId,
+              operation: "models",
+              detail: "The ChatGPT connection changed while checking Codex. Retry.",
+            });
+          const models = yield* chatGptModels(credentials.accessToken, draft.models).pipe(
+            Effect.provideService(HttpClient.HttpClient, http),
+          );
           return { ...draft, models };
         }),
       ),

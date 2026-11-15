@@ -1,4 +1,5 @@
 import type { ProviderUserInputAnswers, UserInputAttachments } from "@tabs/contracts";
+import * as DocumentText from "./DocumentText.ts";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -46,8 +47,9 @@ export const appendUserInputAttachmentPaths = Effect.fn("appendUserInputAttachme
             issue: `Attachment '${attachment.name}' is no longer available. Attach it again.`,
           });
         }
+        const extracted = yield* DocumentText.ensureWhenAvailable(path);
         references.push(
-          `Attached ${attachment.type} ${quoteReference(attachment.name)}: ${quoteReference(path)}`,
+          `Attached ${attachment.type} ${quoteReference(attachment.name)}: ${quoteReference(path)}${extracted ? ` (text extracted to: ${quoteReference(extracted)})` : ""}`,
         );
       }
       const answer = answers.get(questionId);

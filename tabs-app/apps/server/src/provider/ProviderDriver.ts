@@ -28,7 +28,7 @@ import type {
   AcpRegistrySetProviderInput,
   ProviderConsumeResetCreditOutcome,
   ProviderDriverKind,
-  ProviderInstanceEnvironment,
+  ResolvedProviderInstanceEnvironment,
   ProviderInstanceId,
   ServerProvider,
   ServerProviderWorkspaceSnapshot,
@@ -110,6 +110,11 @@ export interface ProviderDriverMetadata {
    * rejects multi-instance configurations with a clear error.
    */
   readonly supportsMultipleInstances?: boolean;
+  /**
+   * False for drivers that only make sense once configured (e.g. a generic
+   * ACP command), so hydration does not synthesize an empty default instance.
+   */
+  readonly hasDefaultInstance?: boolean;
 }
 
 /**
@@ -198,7 +203,7 @@ export interface ProviderDriverCreateInput<Config> {
   readonly instanceId: ProviderInstanceId;
   readonly displayName: string | undefined;
   readonly accentColor?: string | undefined;
-  readonly environment: ProviderInstanceEnvironment;
+  readonly environment: ResolvedProviderInstanceEnvironment;
   readonly enabled: boolean;
   readonly config: Config;
 }

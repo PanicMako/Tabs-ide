@@ -389,3 +389,89 @@ export function normalizeThreadRenameTitle(
   }
   return { status: "valid", title: trimmed };
 }
+
+type SidebarTreeThread = Pick<
+  Thread,
+  "id" | "environmentId" | "isSubagent" | "parentThreadId" | "createdAt"
+>;
+
+export interface SidebarThreadTree<T extends SidebarTreeThread> {
+  /** Threads shown at the top level, in the order given. */
+  readonly roots: readonly T[];
+  /** Direct sub-threads per parent id, oldest first so they read in plan order. */
+  readonly childrenByParent: ReadonlyMap<T["id"], readonly T[]>;
+}
+
+const MAX_SIDEBAR_THREAD_DEPTH = 6;
+
+/**
+ * Nests delegated sub-threads under the thread that created them. A
+ * sub-thread whose parent is not in `threads` (archived, in another project,
+ * not loaded yet) stays at the top level so it never disappears.
+ */
+export function buildSidebarThreadTree<T extends SidebarTreeThread>(
+  threads: readonly T[],
+): SidebarThreadTree<T> {
+  const key = (id: T["id"], environmentId: T["environmentId"]) => `${environmentId ?? ""}:${id}`;
+  const present = new Set(threads.map((thread) => key(thread.id, thread.environmentId)));
+  const childrenByParent = new Map<T["id"], T[]>();
+  const roots: T[] = [];
+  for (const thread of threads) {
+    const parentId = thread.isSubagent === true ? thread.parentThreadId : null;
+    if (
+      parentId == null ||
+      parentId === thread.id ||
+      !present.has(key(parentId as T["id"], thread.environmentId))
+    ) {
+      roots.push(thread);
+      continue;
+    }
+    const siblings = childrenByParent.get(parentId as T["id"]);
+    if (siblings) siblings.push(thread);
+    else childrenByParent.set(parentId as T["id"], [thread]);
+  }
+  // A parent cycle would leave its members unreachable from any root; surface them.
+  const reachable = new Set<T["id"]>();
+  const walk = (thread: T, depth: number) => {
+    if (reachable.has(thread.id) || depth > MAX_SIDEBAR_THREAD_DEPTH) return;
+    reachable.add(thread.id);
+    for (const child of childrenByParent.get(thread.id) ?? []) walk(child, depth + 1);
+  };
+  for (const root of roots) walk(root, 0);
+  for (const thread of threads) {
+    if (!reachable.has(thread.id)) {
+      roots.push(thread);
+      walk(thread, 0);
+    }
+  }
+  for (const [parentId, children] of childrenByParent) {
+    childrenByParent.set(
+      parentId,
+      children.toSorted((left, right) => {
+        const byCreated = left.createdAt.localeCompare(right.createdAt);
+        return byCreated !== 0 ? byCreated : left.id.localeCompare(right.id);
+      }),
+    );
+  }
+  return { roots, childrenByParent };
+}
+
+/** Every descendant of `threadId`, depth-first in display order. */
+export function listSidebarDescendants<T extends SidebarTreeThread>(
+  tree: SidebarThreadTree<T>,
+  threadId: T["id"],
+): T[] {
+  const out: T[] = [];
+  const seen = new Set<T["id"]>([threadId]);
+  const visit = (id: T["id"], depth: number) => {
+    if (depth > MAX_SIDEBAR_THREAD_DEPTH) return;
+    for (const child of tree.childrenByParent.get(id) ?? []) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      out.push(child);
+      visit(child.id, depth + 1);
+    }
+  };
+  visit(threadId, 0);
+  return out;
+}

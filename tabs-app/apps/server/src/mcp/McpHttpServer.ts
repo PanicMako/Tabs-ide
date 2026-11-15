@@ -38,6 +38,8 @@ import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
+import { ThemeToolkit } from "./toolkits/theme/tools.ts";
+import * as ThemeHandlers from "./toolkits/theme/handlers.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
@@ -921,6 +923,8 @@ const layerEnvironmentRegistration = toolkit(EnvironmentToolkit).pipe(
   Layer.provide(EnvironmentHandlers.layer),
 );
 
+const layerThemeRegistration = toolkit(ThemeToolkit).pipe(Layer.provide(ThemeHandlers.layer));
+
 const layerProjectRegistration = toolkit(ProjectToolkit).pipe(Layer.provide(ProjectHandlers.layer));
 
 const layerAttachmentRegistration = toolkit(AttachmentToolkit).pipe(
@@ -1019,6 +1023,7 @@ export const layerTools = Layer.mergeAll(
   layerAttachmentRegistration,
   layerProjectRegistration,
   layerEnvironmentRegistration,
+  layerThemeRegistration,
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,
   layerPullRequestsToolkit,

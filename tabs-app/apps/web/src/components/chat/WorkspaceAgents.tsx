@@ -1,4 +1,5 @@
 import { WorkspaceAutomations } from "./WorkspaceAutomations";
+import { useDetailShown } from "./workspaceDetails";
 import { useWorkspaceActionExpansion } from "./workspaceActionsState";
 import {
   ThreadId,
@@ -10,6 +11,8 @@ import {
   type RunId,
   ProviderInstanceId,
 } from "@tabs/contracts";
+import { buildOvermindStartMessage } from "@tabs/shared/overmind";
+import { OvermindSection } from "./OvermindSection";
 import { useState, useId, useEffect, useRef } from "react";
 import {
   BotIcon,
@@ -21,7 +24,7 @@ import {
   ShieldAlertIcon,
 } from "lucide-react";
 import { environmentApi } from "../../connection/environmentApiRegistry";
-import { newCommandId } from "../../lib/utils";
+import { newCommandId, newMessageId } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -85,6 +88,7 @@ function ScopedWorkspaceAgents({
     if (mounted.current) onOpenThread(id);
   };
   const nativeChild = isProviderNativeSubagentThread(context.thread);
+  const showAutomations = useDetailShown("automations");
   const taskInputId = useId();
   const providerSelectId = useId();
   const modelSelectId = useId();
@@ -606,6 +610,37 @@ function ScopedWorkspaceAgents({
               Delegate task
             </button>
 
+            <OvermindSection
+              subagents={context.subagents}
+              rowClassName={row}
+              disabled={nativeChild || busy !== null}
+              disabledReason={nativeChild ? "Start Overmind from the parent conversation" : null}
+              onOpenThread={(threadId) => openThread(ThreadId.make(threadId))}
+              onStop={(subagentId, childThreadId) => {
+                const agent = context.subagents.find((candidate) => candidate.id === subagentId);
+                if (agent) {
+                  void perform(`stop:${childThreadId}`, () =>
+                    stopChild(agent, ThreadId.make(childThreadId)),
+                  );
+                }
+              }}
+              providers={availableProviders}
+              onStart={async (goal, workers) => {
+                await dispatch({
+                  type: "message.dispatch",
+                  commandId: newCommandId(),
+                  threadId: context.thread.id,
+                  messageId: newMessageId(),
+                  text: buildOvermindStartMessage(goal, workers ?? undefined),
+                  attachments: [],
+                  dispatchMode: { type: parentRun ? "queue_after_active" : "start_immediately" },
+                  createdBy: "user",
+                  creationSource: "web",
+                });
+                setExpanded(true);
+              }}
+            />
+
             {nativeChild && (
               <p className="px-2 text-[10px] text-muted-foreground">
                 Delegate tasks from the parent conversation.
@@ -856,7 +891,9 @@ function ScopedWorkspaceAgents({
           </DialogPopup>
         </Dialog>
       </section>
-      {!nativeChild && <WorkspaceAutomations context={context} environmentId={environmentId} />}
+      {!nativeChild && showAutomations && (
+        <WorkspaceAutomations context={context} environmentId={environmentId} />
+      )}
     </>
   );
 }

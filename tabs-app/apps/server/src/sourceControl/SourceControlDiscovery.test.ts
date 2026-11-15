@@ -19,6 +19,8 @@ import * as BitbucketApi from "./BitbucketApi.ts";
 import * as GitHubCli from "./GitHubCli.ts";
 import * as GitLabCli from "./GitLabCli.ts";
 import * as ForgejoCli from "./ForgejoCli.ts";
+import * as GitCafeApi from "./GitCafeApi.ts";
+import * as OriginCli from "./OriginCli.ts";
 import * as ForgejoSourceControlProvider from "./ForgejoSourceControlProvider.ts";
 import * as ForgejoPullRequestProvider from "../pullRequest/ForgejoPullRequestProvider.ts";
 import * as SourceControlDiscovery from "./SourceControlDiscovery.ts";
@@ -40,6 +42,18 @@ const layerSourceControlProviderRegistryTest = (input: {
         Layer.mock(GitHubCli.GitHubCli)({}),
         Layer.mock(GitLabCli.GitLabCli)({}),
         Layer.mock(ForgejoCli.ForgejoCli)({ listLogins: () => Effect.succeed([]) }),
+        Layer.mock(GitCafeApi.GitCafeApi)({}),
+        Layer.mock(OriginCli.OriginCli)({
+          personalNamespace: () =>
+            Effect.fail(
+              new OriginCli.OriginCliError({
+                operation: "x",
+                cwd: "/",
+                reason: "failed",
+                detail: "x",
+              }),
+            ),
+        }),
         Layer.mock(VcsDriverRegistry.VcsDriverRegistry)({}),
         Layer.mock(VcsProcess.VcsProcess)(input.process),
       ),
@@ -608,6 +622,18 @@ it.effect("reports implemented tools separately from locally available executabl
           auth: "unknown",
           account: Option.none(),
         },
+        {
+          kind: "gitcafe",
+          status: "missing",
+          auth: "unknown",
+          account: Option.none(),
+        },
+        {
+          kind: "cursor-origin",
+          status: "missing",
+          auth: "unknown",
+          account: Option.none(),
+        },
       ],
     );
     const bitbucket = result.sourceControlProviders.find((item) => item.kind === "bitbucket");
@@ -745,6 +771,22 @@ Logged in to gitlab.com as gitlab-user
           auth: "authenticated",
           account: Option.some("forgejo-user"),
           detail: Option.none(),
+        },
+        {
+          kind: "gitcafe",
+          auth: "unknown",
+          account: Option.none(),
+          detail: Option.some(
+            `VCS process failed to spawn in source-control.discovery.auth: cafe (${process.cwd()})`,
+          ),
+        },
+        {
+          kind: "cursor-origin",
+          auth: "unknown",
+          account: Option.none(),
+          detail: Option.some(
+            `VCS process failed to spawn in source-control.discovery.auth: origin (${process.cwd()})`,
+          ),
         },
       ],
     );

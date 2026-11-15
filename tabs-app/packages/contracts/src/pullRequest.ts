@@ -391,6 +391,9 @@ export type PullRequestViewedFilesStore = typeof PullRequestViewedFilesStore.Typ
  * Bitbucket has no endpoint that reopens a declined pull request. Both would otherwise be dead
  * buttons.
  */
+export const PullRequestReferenceSigil = Schema.Literals(["#", "!"]);
+export type PullRequestReferenceSigil = typeof PullRequestReferenceSigil.Type;
+
 export const PullRequestCapabilities = Schema.Struct({
   /** A unified patch can be fetched for the change request. */
   diff: Schema.Boolean,
@@ -444,6 +447,10 @@ export const PullRequestCapabilities = Schema.Struct({
    * to change them, which is what every server before this field was.
    */
   labels: Schema.optional(Schema.Boolean),
+  /** The host completes `@login` in comment composers. */
+  mentions: Schema.optional(Schema.Boolean),
+  /** The sigils whose references the host completes: `#` for issues, `!` for merge requests. */
+  referenceSigils: Schema.optional(Schema.Array(PullRequestReferenceSigil)),
 });
 export type PullRequestCapabilities = typeof PullRequestCapabilities.Type;
 
@@ -661,7 +668,7 @@ export type PullRequestListResult = typeof PullRequestListResult.Type;
  * (a frontend project's thread linking a backend PR). Absent `host` means "the project's
  * own host", which is every reference from before thread links became host-level.
  */
-export const PullRequestRef = Schema.Struct({
+const PullRequestRepositoryRefFields = {
   projectId: ProjectId,
   host: Schema.optional(TrimmedNonEmptyString),
   /** Refuse a routed operation unless this GitHub account still owns the active credential. */
@@ -669,9 +676,54 @@ export const PullRequestRef = Schema.Struct({
   /** Let another environment answer when this one's cached response has expired. */
   allowStale: Schema.optional(Schema.Boolean),
   repository: TrimmedNonEmptyString,
+};
+
+/** A repository of a project, before any one change request in it is named. */
+export const PullRequestRepositoryRef = Schema.Struct(PullRequestRepositoryRefFields);
+export type PullRequestRepositoryRef = typeof PullRequestRepositoryRef.Type;
+
+export const PullRequestRef = Schema.Struct({
+  ...PullRequestRepositoryRefFields,
   number: PositiveInt,
 });
 export type PullRequestRef = typeof PullRequestRef.Type;
+
+/** People who could have opened a change request here, for narrowing a listing by author. */
+export const PullRequestAuthorSearchInput = Schema.Struct({
+  ...PullRequestRepositoryRefFields,
+  query: Schema.optional(Schema.String.check(Schema.isMaxLength(100))),
+});
+export type PullRequestAuthorSearchInput = typeof PullRequestAuthorSearchInput.Type;
+
+export const PullRequestAuthorCandidateList = Schema.Struct({
+  candidates: Schema.Array(PullRequestActor),
+  /** The host knows more people than the read asked for; the list is not all of them. */
+  truncated: Schema.Boolean,
+});
+export type PullRequestAuthorCandidateList = typeof PullRequestAuthorCandidateList.Type;
+
+/** An issue or change request a composer can reference, with the text the host links. */
+export const PullRequestReferenceCandidate = Schema.Struct({
+  reference: TrimmedNonEmptyString,
+  kind: Schema.Literals(["issue", "change-request"]),
+  number: PositiveInt,
+  title: Schema.String,
+  state: Schema.Literals(["open", "closed", "merged"]),
+});
+export type PullRequestReferenceCandidate = typeof PullRequestReferenceCandidate.Type;
+
+export const PullRequestReferenceSearchInput = Schema.Struct({
+  ...PullRequestRepositoryRefFields,
+  query: Schema.optional(Schema.String.check(Schema.isMaxLength(100))),
+  sigil: Schema.optional(PullRequestReferenceSigil),
+});
+export type PullRequestReferenceSearchInput = typeof PullRequestReferenceSearchInput.Type;
+
+export const PullRequestReferenceCandidateList = Schema.Struct({
+  candidates: Schema.Array(PullRequestReferenceCandidate),
+  truncated: Schema.Boolean,
+});
+export type PullRequestReferenceCandidateList = typeof PullRequestReferenceCandidateList.Type;
 
 /** Account discovery never needs the originating project's private repository metadata. */
 export const PullRequestRoutingIdentityInput = Schema.Struct({
@@ -1279,7 +1331,7 @@ const PROVIDER_REQUIREMENT: Partial<
     missing:
       "Install Forgejo CLI (`fj` 0.6 or later) from https://codeberg.org/forgejo-contrib/forgejo-cli or Gitea CLI (`tea` 0.16 or later) from https://gitea.com/gitea/tea to browse Forgejo pull requests.",
     unauthenticated:
-      "Authenticate your Forgejo or Gitea server with `fj --host <server-url> auth add-token` on the T3 Code server. If fj is missing or unconfigured for that server, use `tea login add`. A configured fj account must be repaired with fj.",
+      "Authenticate your Forgejo or Gitea server with `fj --host <server-url> auth add-token` on the Tabs server. If fj is missing or unconfigured for that server, use `tea login add`. A configured fj account must be repaired with fj.",
   },
   gitlab: {
     missing:

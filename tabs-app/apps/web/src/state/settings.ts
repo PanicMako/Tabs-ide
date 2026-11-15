@@ -17,6 +17,7 @@ import { useEffect } from "react";
 
 import { getLocalStorageItem, setLocalStorageItem } from "../hooks/useLocalStorage";
 import { setEnvironmentThemes, refreshTheme } from "../hooks/useTheme";
+import { applyUserTheme } from "../userTheme";
 import { ensureNativeApi } from "../nativeApi";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@tabs/shared/keybindings";
 import { appAtomRegistry } from "./atomRegistry";
@@ -66,10 +67,12 @@ let refreshServerConfigPromise: Promise<ServerConfig | null> | null = null;
 export function setServerConfig(config: ServerConfig) {
   appAtomRegistry.set(serverConfigAtom, config);
   setEnvironmentThemes(config.environmentThemes ?? []);
+  applyUserTheme(config.settings?.userTheme);
 }
 
 export function applyServerConfigUpdate(payload: ServerConfigUpdatedPayload) {
   if (payload.environmentThemes) setEnvironmentThemes(payload.environmentThemes);
+  if (payload.settings) applyUserTheme(payload.settings.userTheme);
   appAtomRegistry.update(serverConfigAtom, (config) =>
     config === null
       ? config

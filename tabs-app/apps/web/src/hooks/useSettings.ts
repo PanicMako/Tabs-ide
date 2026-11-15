@@ -67,6 +67,8 @@ function mergeServerSettingsPatch(
     ...restPatch
   } = patch;
   let next = deepMerge(current, restPatch as any);
+  // The server replaces the user theme whole; merging would keep colors the user removed.
+  if (patch.userTheme) next = { ...next, userTheme: patch.userTheme };
 
   if (usageLimitSourcesPatch) {
     const updatedSources = { ...next.usageLimitSources };

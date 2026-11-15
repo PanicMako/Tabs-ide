@@ -57,6 +57,8 @@ import {
 } from "../../review/ReviewHistoryStore.ts";
 import { ProjectSetupScriptRunner } from "../../project/ProjectSetupScriptRunner.ts";
 import { VcsAutoPullPolicy } from "../Services/VcsAutoPullPolicy.ts";
+import { readGhHosts } from "./GitEnvironment.ts";
+import { memoizeGitHubRead } from "../Services/GitHubReadMemo.ts";
 
 const COMMIT_TIMEOUT_MS = 10 * 60_000;
 const MAX_PROGRESS_TEXT_LENGTH = 500;
@@ -345,6 +347,8 @@ function normalizePullRequestReference(reference: string): string {
 
 const GITHUB_PULL_REQUEST_CAPABILITIES = {
   provider: "github" as const,
+  mentions: true,
+  referenceSigils: ["#"] as const,
   diff: true,
   create: true,
   search: false,
@@ -378,6 +382,8 @@ const GITHUB_PULL_REQUEST_CAPABILITIES = {
 
 const GITLAB_PULL_REQUEST_CAPABILITIES = {
   provider: "gitlab" as const,
+  mentions: true,
+  referenceSigils: ["#", "!"] as const,
   diff: true,
   create: true,
   search: false,
@@ -588,9 +594,22 @@ export const makeGitManager = Effect.gen(function* () {
       return "unknown" as const;
     });
 
+  /**
+   * `gh auth status` verifies every signed-in account over the network, so asking it on each
+   * pull request open cost a second or more before any real read began. Who is signed in changes
+   * on the timescale of an account switch, which clears this memo.
+   */
   const resolveAccountForProvider = (provider: string, cwd: string) =>
+    memoizeGitHubRead(`account:${provider}:${cwd}`, 30_000, resolveAccountForProviderUncached(provider, cwd));
+
+  const resolveAccountForProviderUncached = (provider: string, cwd: string) =>
     Effect.gen(function* () {
       if (provider === "github") {
+        // The active account is on disk in gh's `hosts.yml`; `gh auth status` would verify every
+        // account over the network (~1.5s) just to say the same thing.
+        const hosts = yield* Effect.promise(readGhHosts);
+        const onDisk = hosts?.find((account) => account.active)?.login;
+        if (onDisk) return onDisk;
         const authStatus = yield* gitHubCli.getAuthStatus({ cwd }).pipe(
           Effect.map((out) => {
             const parsed = parseGitHubAuthStatus(out);
@@ -1316,23 +1335,44 @@ export const makeGitManager = Effect.gen(function* () {
         const pullRequest =
           provider === "github"
             ? yield* Effect.gen(function* () {
-                const details = yield* gitHubCli.getPullRequest({
+                // The reads after the pull request itself only need its number. When the
+                // reference already names it, or one lookup can, all four run together instead
+                // of the pull request first and the other three after it.
+                const knownNumber = yield* gitHubCli.resolvePullRequestNumber({
                   cwd: input.cwd,
                   reference,
                 });
-                const files = yield* gitHubCli.getPullRequestFiles({
+                const readRest = (number: number) =>
+                  Effect.all(
+                    [
+                      gitHubCli.getPullRequestFiles({
+                        cwd: input.cwd,
+                        reference: String(number),
+                      }),
+                      gitHubCli.getPullRequestReviewThreads({
+                        cwd: input.cwd,
+                        reference: String(number),
+                      }),
+                      gitHubCli.getPullRequestStack({
+                        cwd: input.cwd,
+                        reference: String(number),
+                        repository,
+                      }),
+                    ],
+                    { concurrency: 3 },
+                  );
+                const readDetails = gitHubCli.getPullRequest({
                   cwd: input.cwd,
-                  reference: String(details.number),
+                  reference: knownNumber === null ? reference : String(knownNumber),
                 });
-                const reviewThreads = yield* gitHubCli.getPullRequestReviewThreads({
-                  cwd: input.cwd,
-                  reference: String(details.number),
-                });
-                const stack = yield* gitHubCli.getPullRequestStack({
-                  cwd: input.cwd,
-                  reference: String(details.number),
-                  repository,
-                });
+                const [details, [files, reviewThreads, stack]] =
+                  knownNumber === null
+                    ? yield* readDetails.pipe(
+                        Effect.flatMap((read) =>
+                          readRest(read.number).pipe(Effect.map((rest) => [read, rest] as const)),
+                        ),
+                      )
+                    : yield* Effect.all([readDetails, readRest(knownNumber)], { concurrency: 2 });
                 const targetIndex = stack
                   ? stack.layers.findIndex((layer) => layer.number === details.number)
                   : -1;

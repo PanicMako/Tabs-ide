@@ -135,6 +135,8 @@ import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "
 import { isNonEmpty as isNonEmptyString } from "effect/String";
 import {
   getFallbackThreadIdAfterDelete,
+  buildSidebarThreadTree,
+  listSidebarDescendants,
   getVisibleThreadsForProject,
   normalizeThreadRenameTitle,
   resolveProjectStatusIndicator,
@@ -457,6 +459,10 @@ export default function Sidebar() {
   const addProjectInputRef = useRef<HTMLInputElement | null>(null);
   const [renamingThreadId, setRenamingThreadId] = useState<ThreadId | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
+  // Explicit open/closed choice per parent thread; absent means the default rule.
+  const [nestedThreadOverrides, setNestedThreadOverrides] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
   const [expandedThreadListsByProject, setExpandedThreadListsByProject] = useState<
     ReadonlySet<ProjectId>
   >(() => new Set());
@@ -1018,7 +1024,7 @@ export default function Sidebar() {
           },
           {
             id: "settle",
-            label: thread.settledAt ? "Return to active" : "Settle thread",
+            label: thread.settledAt ? "Reopen" : "Mark as done",
           },
           {
             id: "snooze",
@@ -1461,19 +1467,46 @@ export default function Sidebar() {
           ) ?? null)
         : null;
     const shouldShowThreadPanel = project.expanded || pinnedCollapsedThread !== null;
+    const threadTree = buildSidebarThreadTree(projectThreads);
     const { hasHiddenThreads, visibleThreads } = getVisibleThreadsForProject({
-      threads: projectThreads,
+      threads: threadTree.roots,
       activeThreadId,
       isThreadListExpanded,
       previewLimit: THREAD_PREVIEW_LIMIT,
     });
-    const orderedProjectThreadKeys = projectThreads.flatMap((thread) =>
-      thread.environmentId
-        ? [scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))]
-        : [],
-    );
     const renderedThreads = pinnedCollapsedThread ? [pinnedCollapsedThread] : visibleThreads;
-    const renderThreadRow = (thread: (typeof projectThreads)[number]) => {
+    const threadKeyOf = (thread: (typeof projectThreads)[number]) =>
+      thread.environmentId
+        ? scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))
+        : thread.id;
+    // Sub-threads are always listed under their parent unless the user folds them.
+    const isNestedOpen = (thread: (typeof projectThreads)[number]) =>
+      (threadTree.childrenByParent.get(thread.id)?.length ?? 0) > 0 &&
+      (nestedThreadOverrides.get(threadKeyOf(thread)) ?? true);
+    // Range selection follows what is on screen: collapsed sub-threads are skipped.
+    const orderedProjectThreadKeys: string[] = [];
+    const collectVisibleKeys = (thread: (typeof projectThreads)[number]) => {
+      if (thread.environmentId) orderedProjectThreadKeys.push(threadKeyOf(thread));
+      if (!isNestedOpen(thread)) return;
+      for (const child of threadTree.childrenByParent.get(thread.id) ?? []) {
+        collectVisibleKeys(child);
+      }
+    };
+    for (const thread of renderedThreads) collectVisibleKeys(thread);
+    const renderThreadRow = (
+      thread: (typeof projectThreads)[number],
+      depth = 0,
+      isLastChild = true,
+    ): React.ReactNode => {
+      const nestedChildren = threadTree.childrenByParent.get(thread.id) ?? [];
+      const nestedCount = listSidebarDescendants(threadTree, thread.id).length;
+      const nestedOpen = nestedCount > 0 && isNestedOpen(thread);
+      const toggleNested = () =>
+        setNestedThreadOverrides((current) => {
+          const next = new Map(current);
+          next.set(threadKeyOf(thread), !nestedOpen);
+          return next;
+        });
       const isActive = routeThreadId === thread.id && routeEnvironmentId === thread.environmentId;
       const threadKey = thread.environmentId
         ? scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))
@@ -1495,7 +1528,14 @@ export default function Sidebar() {
       return (
         <SidebarMenuSubItem
           key={`${thread.environmentId}:${thread.id}`}
-          className="w-full"
+          className={cn(
+            "w-full",
+            depth > 0 &&
+              "relative pl-3 before:pointer-events-none before:absolute before:top-0 before:left-0 before:h-3.5 before:w-2.5 before:rounded-bl-sm before:border-b before:border-l before:border-border",
+            depth > 0 &&
+              !isLastChild &&
+              "after:pointer-events-none after:absolute after:top-3.5 after:bottom-0 after:left-0 after:border-l after:border-border",
+          )}
           data-thread-item
         >
           <SidebarMenuSubButton
@@ -1580,7 +1620,7 @@ export default function Sidebar() {
                 <Clock3Icon aria-label="Snoozed" className="size-3 text-blue-500" />
               )}
               {!threadStatus && isSettled(lifecycleEntry, thread.updatedAt ?? thread.createdAt) && (
-                <CircleCheckIcon aria-label="Settled" className="size-3 text-muted-foreground/50" />
+                <CircleCheckIcon aria-label="Done" className="size-3 text-muted-foreground/50" />
               )}
               {renamingThreadId === thread.id ? (
                 <div
@@ -1680,6 +1720,37 @@ export default function Sidebar() {
               </span>
             </div>
           </SidebarMenuSubButton>
+          {nestedCount > 0 && !nestedOpen && (
+            <button
+              type="button"
+              data-thread-selection-safe
+              className="mt-0.5 flex h-6 w-full items-center gap-1.5 pl-3 text-left text-xs text-muted-foreground/70 hover:text-foreground"
+              onClick={toggleNested}
+            >
+              <span
+                aria-hidden="true"
+                className="mb-1.5 h-3 w-2.5 shrink-0 rounded-bl-sm border-b border-l border-border"
+              />
+              <span>{nestedCount} nested</span>
+            </button>
+          )}
+          {nestedOpen && (
+            <>
+              <ul className="mt-0.5 ml-3 flex min-w-0 flex-col">
+                {nestedChildren.map((child, index) =>
+                  renderThreadRow(child, depth + 1, index === nestedChildren.length - 1),
+                )}
+              </ul>
+              <button
+                type="button"
+                data-thread-selection-safe
+                className="mt-0.5 ml-3 flex h-5 items-center pl-3 text-left text-[11px] text-muted-foreground/60 hover:text-foreground"
+                onClick={toggleNested}
+              >
+                Hide nested
+              </button>
+            </>
+          )}
         </SidebarMenuSubItem>
       );
     };

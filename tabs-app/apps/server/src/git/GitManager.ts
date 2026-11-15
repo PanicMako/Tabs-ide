@@ -1,3 +1,6 @@
+import * as LegacyGitHubCli from "./Services/GitHubCli.ts";
+import { GitHubCliLive as LegacyGitHubCliLive } from "./Layers/GitHubCli.ts";
+import { resolveGitHubRepository } from "./Services/GitHubDirect.ts";
 import { CommitDraftContext } from "./CommitDraftContext";
 import { auditReviewPlan } from "../review/AuditReviewPlan.ts";
 import * as Arr from "effect/Array";
@@ -709,10 +712,10 @@ function toResolvedPullRequest(pr: {
   number: number;
   title: string;
   url: string;
-  baseRefName?: string;
-  headRefName?: string;
-  baseBranch?: string;
-  headBranch?: string;
+  baseRefName?: string | undefined;
+  headRefName?: string | undefined;
+  baseBranch?: string | undefined;
+  headBranch?: string | undefined;
   state?: "open" | "closed" | "merged";
   isDraft?: boolean | undefined;
   headRepositoryNameWithOwner?: string | null | undefined;
@@ -723,12 +726,13 @@ function toResolvedPullRequest(pr: {
   reviewDecision?: GitResolvedPullRequest["reviewDecision"] | null | undefined;
   mergeability?: GitResolvedPullRequest["mergeability"] | null | undefined;
   checksState?: GitResolvedPullRequest["checksState"] | null | undefined;
-  additions?: number;
-  deletions?: number;
-  changedFiles?: number;
-  createdAt?: string;
-  updatedAt?: string | Option.Option<DateTime.Utc>;
-  body?: string;
+  additions?: number | undefined;
+  deletions?: number | undefined;
+  changedFiles?: number | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | Option.Option<DateTime.Utc> | undefined;
+  body?: string | undefined;
+  reactions?: GitResolvedPullRequest["reactions"];
   reviewers?: GitResolvedPullRequest["reviewers"];
   checks?: GitResolvedPullRequest["checks"];
   comments?: GitResolvedPullRequest["comments"];
@@ -765,6 +769,7 @@ function toResolvedPullRequest(pr: {
     ...(pr.createdAt ? { createdAt: pr.createdAt } : {}),
     ...(updatedAtStr ? { updatedAt: updatedAtStr } : {}),
     ...(pr.body !== undefined ? { body: pr.body } : {}),
+    ...(pr.reactions ? { reactions: pr.reactions } : {}),
     ...(pr.reviewers ? { reviewers: pr.reviewers } : {}),
     ...(pr.checks ? { checks: pr.checks } : {}),
     ...(pr.comments ? { comments: pr.comments } : {}),
@@ -805,6 +810,10 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
 
   const sourceControlProvider = (cwd: string) => sourceControlProviders.resolve({ cwd });
+  // The Git tool's GitHub reads (see `resolveGitHubPullRequestDetail`); it needs nothing else.
+  const legacyGitHubCli = yield* LegacyGitHubCli.GitHubCli.pipe(
+    Effect.provide(LegacyGitHubCliLive),
+  );
   const draftProcess = yield* VcsProcess.VcsProcess;
   const serverSettingsService = yield* ServerSettings.ServerSettingsService;
   const threads = yield* ProjectionStore.ProjectionStoreV2;
@@ -2458,10 +2467,76 @@ export const make = Effect.gen(function* () {
     },
   );
 
+  /**
+   * The pull request page's Summary, Code, Checks, Commits and Activity tabs read the files,
+   * review threads, comments, reviews, commits, checks and stack of one pull request. The
+   * provider's change-request read is only the summary, so those tabs showed "no changed files"
+   * under a row that listed +/- counts. GitHub's own reads are therefore made together here:
+   * the number is resolved once and the detail, files, threads and stack run in parallel.
+   */
+  const resolveGitHubPullRequestDetail = (cwd: string, reference: string) =>
+    Effect.gen(function* () {
+      const number = yield* legacyGitHubCli.resolvePullRequestNumber({ cwd, reference });
+      const repository = yield* Effect.promise(() => resolveGitHubRepository(cwd));
+      const repositoryId = repository ? `${repository.owner}/${repository.name}` : undefined;
+      const readRest = (n: number) =>
+        Effect.all(
+          [
+            legacyGitHubCli.getPullRequestFiles({ cwd, reference: String(n) }),
+            legacyGitHubCli.getPullRequestReviewThreads({ cwd, reference: String(n) }),
+            legacyGitHubCli.getPullRequestStack({
+              cwd,
+              reference: String(n),
+              ...(repositoryId ? { repository: repositoryId } : {}),
+            }),
+          ],
+          { concurrency: 3 },
+        );
+      const readDetails = legacyGitHubCli.getPullRequest({
+        cwd,
+        reference: number === null ? reference : String(number),
+      });
+      const [details, [files, reviewThreads, stack]] =
+        number === null
+          ? yield* readDetails.pipe(
+              Effect.flatMap((read) =>
+                readRest(read.number).pipe(Effect.map((rest) => [read, rest] as const)),
+              ),
+            )
+          : yield* Effect.all([readDetails, readRest(number)], { concurrency: 2 });
+      const targetIndex = stack
+        ? stack.layers.findIndex((layer) => layer.number === details.number)
+        : -1;
+      return {
+        ...toResolvedPullRequest({ ...details, provider: "github" }),
+        ...(files.length > 0 ? { files } : {}),
+        ...(reviewThreads.length > 0 ? { reviewThreads } : {}),
+        ...(stack ? { stack } : {}),
+        ...(stack
+          ? {
+              stackMembership: {
+                number: stack.number,
+                position: targetIndex >= 0 ? targetIndex + 1 : 1,
+                size: stack.layers.length,
+                base: stack.base,
+              },
+            }
+          : {}),
+      } as ResolvedPullRequest;
+    });
+
   const resolvePullRequest: GitManager["Service"]["resolvePullRequest"] = Effect.fn(
     "resolvePullRequest",
   )(function* (input) {
-    const pullRequest = yield* (yield* sourceControlProvider(input.cwd))
+    const provider = yield* sourceControlProvider(input.cwd);
+    if (provider.kind === "github") {
+      const rich = yield* resolveGitHubPullRequestDetail(
+        input.cwd,
+        normalizePullRequestReference(input.reference),
+      ).pipe(Effect.catch(() => Effect.succeed(null)));
+      if (rich !== null) return { pullRequest: rich };
+    }
+    const pullRequest = yield* provider
       .getChangeRequest({
         cwd: input.cwd,
         reference: normalizePullRequestReference(input.reference),

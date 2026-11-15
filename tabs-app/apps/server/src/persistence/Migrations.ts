@@ -74,6 +74,7 @@ import Migration0056 from "./Migrations/056_ScheduledTaskWebhooks.ts";
 import Migration0057 from "./Migrations/057_WebhookRelayDeliveries.ts";
 import Migration0058 from "./Migrations/058_ProjectionCompatibilityRepairs.ts";
 import Migration0059 from "./Migrations/059_OrchestrationV2CancellationIntents.ts";
+import Migration0060 from "./Migrations/060_PullRequestReviewGuides.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -145,6 +146,7 @@ export const migrationEntries = [
   [57, "WebhookRelayDeliveries", Migration0057],
   [58, "ProjectionCompatibilityRepairs", Migration0058],
   [59, "OrchestrationV2CancellationIntents", Migration0059],
+  [60, "PullRequestReviewGuides", Migration0060],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

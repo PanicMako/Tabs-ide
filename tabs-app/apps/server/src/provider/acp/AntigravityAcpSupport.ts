@@ -8,6 +8,7 @@ import {
 } from "@tabs/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import { HostProcessPlatform } from "@tabs/shared/hostProcess";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -230,6 +231,27 @@ const AUDIO_MIME_TYPES = new Set([
   "audio/webm",
 ]);
 const ANTIGRAVITY_MAX_AUDIO_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+/** Linked-video and native range-read decisions key on this release. */
+/**
+ * Releases Tabs qualified for native range reads and linked video. On 1.4.5 the client-read path
+ * sends a whole file to serve one line, and the native reader keeps diff edits.
+ */
+export function isQualifiedAntigravityRelease(version: string | null | undefined): boolean {
+  return version?.trim() === "1.4.5";
+}
+
+// The agent inlines linked video bytes into one model request, so keep it under the inline limit.
+const ANTIGRAVITY_MAX_VIDEO_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Only Gemini takes video. The evidence is the session's resolved model, so an account default
+ * counts once the agent reports it; opaque ids such as `agy-model` need a Gemini display name.
+ */
+function antigravityModelAcceptsVideo(
+  model: { readonly id: string; readonly name: string | undefined } | undefined,
+): boolean {
+  return model !== undefined && (/^gemini-/i.test(model.id) || /^gemini\b/i.test(model.name ?? ""));
+}
 const TEXT_MIME_TYPES = new Set([
   "application/json",
   "application/ld+json",
@@ -433,3 +455,161 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
   }
   return blocks;
 });
+
+/**
+ * Capability-aware variant: sends a native block only when the agent advertised support for it,
+ * and links video for qualified releases and Gemini models.
+ */
+export const buildAntigravityCapabilityPrompt = Effect.fn("buildAntigravityCapabilityPrompt")(
+  function* (input: {
+    readonly input: ProviderSendTurnInput["input"];
+    readonly attachments: ProviderSendTurnInput["attachments"];
+    readonly resolveAttachmentPath: (
+      attachment: NonNullable<ProviderSendTurnInput["attachments"]>[number],
+    ) => string | null;
+    readonly promptCapabilities: EffectAcpSchema.AgentCapabilities["promptCapabilities"];
+    /** Linked video needs a runtime whose `resource_link` handling is qualified and a Gemini model. */
+    readonly agentVersion?: string | undefined;
+    readonly currentModel?: { readonly id: string; readonly name: string | undefined } | undefined;
+  }): Effect.fn.Return<
+    ReadonlyArray<EffectAcpSchema.ContentBlock>,
+    EffectAcpErrors.AcpError,
+    FileSystem.FileSystem | Path.Path
+  > {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    // The agent runs on this host.
+    const platform = yield* HostProcessPlatform;
+    const blocks: Array<EffectAcpSchema.ContentBlock> = [];
+    const text = input.input?.trim();
+    if (text) blocks.push({ type: "text", text });
+    let totalBytes = 0;
+
+    for (const attachment of input.attachments ?? []) {
+      const isPastedText =
+        attachment.type === "file" &&
+        "source" in attachment &&
+        attachment.source?._tag === "pasted-text";
+      // The text already carries the path; keep folded pastes lazy so agents can search without embedding the whole file.
+      const mimeType = attachment.mimeType.toLowerCase().split(";", 1)[0] ?? "";
+      const image = attachment.type === "image" && IMAGE_MIME_TYPES.has(mimeType);
+      const audio = attachment.type === "file" && AUDIO_MIME_TYPES.has(mimeType);
+      const pdf = attachment.type === "file" && mimeType === "application/pdf";
+      const video =
+        attachment.type === "file" &&
+        mimeType === "video/mp4" &&
+        isQualifiedAntigravityRelease(input.agentVersion) &&
+        // The agent turns a file URI into a path with unquote(urlparse(uri).path), which drops
+        // Windows drives and UNC hosts. Keep the saved path there until Google fixes it.
+        platform !== "win32" &&
+        antigravityModelAcceptsVideo(input.currentModel);
+      const textFile =
+        attachment.type === "file" &&
+        (mimeType.startsWith("text/") ||
+          TEXT_MIME_TYPES.has(mimeType) ||
+          TEXT_FILE_EXTENSIONS.has(path.extname(attachment.name).toLowerCase()));
+      const isPathOnly =
+        (attachment.type === "image" && (!image || input.promptCapabilities?.image !== true)) ||
+        (attachment.type === "file" &&
+          (isPastedText ||
+            (audio
+              ? input.promptCapabilities?.audio !== true
+              : pdf || textFile
+                ? input.promptCapabilities?.embeddedContext !== true
+                : !video)));
+      const attachmentPath = input.resolveAttachmentPath(attachment);
+      if (!attachmentPath) {
+        return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+          `Invalid attachment '${attachment.name}'.`,
+        );
+      }
+      const info = yield* fileSystem
+        .stat(attachmentPath)
+        .pipe(
+          Effect.mapError(() =>
+            EffectAcpErrors.AcpRequestError.invalidParams(
+              `Could not read attachment '${attachment.name}'.`,
+            ),
+          ),
+        );
+      if (info.type !== "File") {
+        return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+          `Could not read attachment '${attachment.name}'.`,
+        );
+      }
+      if (isPathOnly) continue;
+      const size = Number(info.size);
+      const limit = image
+        ? PROVIDER_SEND_TURN_MAX_IMAGE_BYTES
+        : audio
+          ? ANTIGRAVITY_MAX_AUDIO_ATTACHMENT_BYTES
+          : pdf
+            ? MAX_TOTAL_ATTACHMENT_BYTES
+            : video
+              ? ANTIGRAVITY_MAX_VIDEO_ATTACHMENT_BYTES
+              : ANTIGRAVITY_MAX_TEXT_ATTACHMENT_BYTES;
+      if (
+        attachment.type === "file" &&
+        (size > limit || totalBytes + size > MAX_TOTAL_ATTACHMENT_BYTES)
+      ) {
+        continue;
+      }
+      totalBytes += size;
+      if (size > limit || totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+        return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+          `Image '${attachment.name}' is too large. Antigravity accepts images up to 10 MiB and 50 MiB of native attachments per message.`,
+        );
+      }
+      const uri = yield* path.toFileUrl(attachmentPath).pipe(
+        Effect.map((url) => url.href),
+        Effect.mapError(() =>
+          EffectAcpErrors.AcpRequestError.invalidParams(`Invalid attachment '${attachment.name}'.`),
+        ),
+      );
+      if (pdf || video) {
+        blocks.push({ type: "resource_link", uri, name: attachment.name, mimeType, size });
+        continue;
+      }
+      const bytes = yield* fileSystem.stream(attachmentPath, { bytesToRead: limit + 1 }).pipe(
+        Stream.runCollect,
+        Effect.map((chunks) => Buffer.concat(chunks)),
+        Effect.mapError(() =>
+          EffectAcpErrors.AcpRequestError.invalidParams(
+            `Could not read attachment '${attachment.name}'.`,
+          ),
+        ),
+      );
+      totalBytes += bytes.length - size;
+      if (bytes.length > limit || totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+        return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+          `Attachment '${attachment.name}' changed while being read and is too large.`,
+        );
+      }
+      if (image) {
+        blocks.push({ type: "image", data: Buffer.from(bytes).toString("base64"), mimeType });
+      } else if (audio) {
+        blocks.push({ type: "audio", data: Buffer.from(bytes).toString("base64"), mimeType });
+      } else {
+        const decoded = yield* Effect.try({
+          try: () => new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+          catch: () =>
+            EffectAcpErrors.AcpRequestError.invalidParams(
+              `Attachment '${attachment.name}' is not a UTF-8 text file.`,
+            ),
+        });
+        if (decoded.includes("\0")) {
+          return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+            `Attachment '${attachment.name}' contains binary data.`,
+          );
+        }
+        blocks.push({ type: "resource", resource: { uri, mimeType, text: decoded } });
+      }
+    }
+    if (blocks.length === 0) {
+      return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+        "A turn requires text or supported attachments.",
+      );
+    }
+    return blocks;
+  },
+);

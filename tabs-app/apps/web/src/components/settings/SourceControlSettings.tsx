@@ -17,6 +17,8 @@ import {
 import { cn } from "~/lib/utils";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
+import { BitbucketTokenSettings } from "./BitbucketTokenSettings";
+import { GitCafeTokenSettings } from "./GitCafeTokenSettings";
 
 const SOURCE_CONTROL_COMMANDS: Record<string, { name: string; install?: string; login?: string }> =
   {
@@ -399,6 +401,9 @@ export function SourceControlSettingsPanel({
           );
         })}
       </SettingsSection>
+
+      <BitbucketTokenSettings />
+      <GitCafeTokenSettings />
 
       <p className="text-xs text-muted-foreground/60 px-0.5">
         Install the required CLI tools to enable provider authentication and pull request

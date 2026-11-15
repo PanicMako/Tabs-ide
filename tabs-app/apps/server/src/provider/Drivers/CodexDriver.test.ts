@@ -1,4 +1,5 @@
 import * as CodexInstallation from "../CodexInstallation.ts";
+import * as CodexManagedTokenBroker from "../CodexManagedTokenBroker.ts";
 import * as ServerSecretStore from "../../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../../environment/ServerEnvironment.ts";
 // @effect-diagnostics nodeBuiltinImport:off
@@ -56,6 +57,11 @@ const layerTest = ServerConfig.layerTest(process.cwd(), {
     }),
   ),
   Layer.provideMerge(Layer.mock(ServerSecretStore.ServerSecretStore)({})),
+  Layer.provideMerge(
+    Layer.mock(CodexManagedTokenBroker.CodexManagedTokenBroker)({
+      endpoint: Effect.succeed("unused-managed-token-endpoint"),
+    }),
+  ),
   Layer.provideMerge(
     Layer.succeed(ServerEnvironment.ServerEnvironmentIdentity, {
       getEnvironmentId: Effect.succeed(EnvironmentId.make("00000000-0000-4000-8000-000000000001")),
@@ -225,7 +231,9 @@ it.layer(layerTest)("CodexDriver", (it) => {
         const launch = launches[0]!;
         expect(launch.settings.binaryPath).toBe(executable.executablePath);
         expect(launch.settings.launchArgs).toContain("openai_token_sharing");
-        expect(launch.environment.ACCESS_TOKEN).toBe("dummy-owned-access");
+        // The token reaches Codex through the token helper, never its environment.
+        expect(launch.environment.ACCESS_TOKEN).toBeUndefined();
+        expect(launch.settings.launchArgs).toContain("__managed-chatgpt-token");
         expect(launch.environment.OPENAI_API_KEY).toBeUndefined();
         expect(launch.environment.CODEX_HOME).toBe(launch.settings.homePath);
         const before = yield* instance.auth!.subscribe("test-owner").pipe(Stream.runHead);

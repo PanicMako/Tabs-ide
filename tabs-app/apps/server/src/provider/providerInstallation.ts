@@ -7,6 +7,7 @@ import {
   ProviderSetupError,
   type ProviderSetupInput,
 } from "@tabs/contracts";
+import { resolveInstanceEnvironment } from "./ProviderInstanceSecrets.ts";
 import { resolveCommandPath } from "@tabs/shared/shell";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -139,9 +140,10 @@ export const makeProviderInstallation = Effect.fn("makeProviderInstallation")(fu
         return Effect.succeed([]);
       }
       const binaryPath = entry.config.binaryPath.trim();
-      return resolveCommandPath(binaryPath, {
-        env: mergeProviderInstanceEnvironment(entry.environment),
-      }).pipe(
+      return resolveInstanceEnvironment(entry.environment).pipe(
+        Effect.flatMap(({ environment }) =>
+          resolveCommandPath(binaryPath, { env: mergeProviderInstanceEnvironment(environment) }),
+        ),
         Effect.map((resolved) => [binaryPath, resolved]),
         Effect.orElseSucceed(() => [binaryPath]),
       );

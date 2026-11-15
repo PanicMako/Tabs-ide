@@ -8,14 +8,33 @@ vi.mock("../../processRunner", () => ({
 
 import { runProcess } from "../../processRunner";
 import { GitHubCli } from "../Services/GitHubCli.ts";
+import { clearGitHubDirectCaches } from "../Services/GitHubDirect.ts";
 import { decodeGitHubReviewThreads, GitHubCliLive } from "./GitHubCli.ts";
 
 const mockedRunProcess = vi.mocked(runProcess);
 const layer = it.layer(GitHubCliLive);
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   mockedRunProcess.mockReset();
 });
+
+/** Scripted CLI answers, in order, with the direct (in-process) path made to fail first. */
+function cliOnly(answers: ReadonlyArray<ReturnType<typeof ok>>) {
+  clearGitHubDirectCaches();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response("down", { status: 500 })),
+  );
+  const queue = [...answers];
+  mockedRunProcess.mockImplementation(async (command, args) => {
+    if (command === "git") throw new Error("not a repository");
+    if (args[0] === "auth") throw new Error("no token");
+    const next = queue.shift();
+    if (next === undefined) throw new Error(`unexpected ${command} ${args.join(" ")}`);
+    return next;
+  });
+}
 
 it("decodes GitHub GraphQL review threads, resolution, and reactions", () => {
   expect(
@@ -112,42 +131,26 @@ layer("GitHubCliLive", (it) => {
             },
           },
         });
-      mockedRunProcess
-        .mockResolvedValueOnce({
-          stdout: "tabs/app\n",
-          stderr: "",
-          code: 0,
-          signal: null,
-          timedOut: false,
-        })
-        .mockResolvedValueOnce({
-          stdout: page("thread-1", true, "cursor-1"),
-          stderr: "",
-          code: 0,
-          signal: null,
-          timedOut: false,
-        })
-        .mockResolvedValueOnce({
-          stdout: page("thread-2", false, null),
-          stderr: "",
-          code: 0,
-          signal: null,
-          timedOut: false,
-        });
+      cliOnly([
+        ok("tabs/app\n"),
+        ok(page("thread-1", true, "cursor-1")),
+        ok(page("thread-2", false, null)),
+      ]);
 
       const gh = yield* GitHubCli;
       const threads = yield* gh.getPullRequestReviewThreads({ cwd: "/repo", reference: "42" });
       expect(threads.map((thread) => thread.id)).toEqual(["thread-1", "thread-2"]);
-      expect(mockedRunProcess.mock.calls[2]?.[1]).toEqual(
-        expect.arrayContaining(["cursor=cursor-1"]),
-      );
+      expect(
+        mockedRunProcess.mock.calls.some(
+          ([command, args]) => command === "gh" && args.includes("cursor=cursor-1"),
+        ),
+      ).toBe(true);
     }),
   );
 
   it.effect("normalizes pull request file patches and binary omissions", () =>
     Effect.gen(function* () {
-      mockedRunProcess.mockResolvedValueOnce({
-        stdout: JSON.stringify([
+      cliOnly([ok(JSON.stringify([
           [
             {
               filename: "src/new.ts",
@@ -166,12 +169,7 @@ layer("GitHubCliLive", (it) => {
               deletions: 0,
             },
           ],
-        ]),
-        stderr: "",
-        code: 0,
-        signal: null,
-        timedOut: false,
-      });
+        ]))]);
 
       const gh = yield* GitHubCli;
       const files = yield* gh.getPullRequestFiles({ cwd: "/repo", reference: "42" });
@@ -205,8 +203,9 @@ layer("GitHubCliLive", (it) => {
 
   it.effect("parses pull request view output", () =>
     Effect.gen(function* () {
-      mockedRunProcess.mockResolvedValueOnce({
-        stdout: JSON.stringify({
+      cliOnly([
+        ok(
+          JSON.stringify({
           number: 42,
           title: "Add PR thread creation",
           url: "https://github.com/pingdotgg/codething-mvp/pull/42",
@@ -260,11 +259,8 @@ layer("GitHubCliLive", (it) => {
             },
           ],
         }),
-        stderr: "",
-        code: 0,
-        signal: null,
-        timedOut: false,
-      });
+        ),
+      ]);
 
       const result = yield* Effect.gen(function* () {
         const gh = yield* GitHubCli;
@@ -370,11 +366,13 @@ layer("GitHubCliLive", (it) => {
 
   it.effect("surfaces a friendly error when the pull request is not found", () =>
     Effect.gen(function* () {
-      mockedRunProcess.mockRejectedValueOnce(
-        new Error(
+      cliOnly([]);
+      mockedRunProcess.mockImplementation(async (command, args) => {
+        if (command === "git" || args[0] === "auth") throw new Error("direct path unavailable");
+        throw new Error(
           "GraphQL: Could not resolve to a PullRequest with the number of 4888. (repository.pullRequest)",
-        ),
-      );
+        );
+      });
 
       const error = yield* Effect.gen(function* () {
         const gh = yield* GitHubCli;
@@ -514,6 +512,127 @@ layer("GitHubCliLive", (it) => {
       expect(mockedRunProcess.mock.calls[1]?.[1]).toEqual(
         expect.arrayContaining(["subjectId=PRRC_comment", "content=ROCKET"]),
       );
+    }),
+  );
+});
+
+const node = (overrides: Record<string, unknown> = {}) => ({
+  number: 7,
+  title: "Speed up list",
+  url: "https://github.com/tabs/app/pull/7",
+  baseRefName: "main",
+  headRefName: "feat",
+  state: "OPEN",
+  mergedAt: null,
+  isDraft: false,
+  isCrossRepository: false,
+  author: { login: "octo" },
+  headRepository: { nameWithOwner: "tabs/app" },
+  headRepositoryOwner: { login: "tabs" },
+  labels: { nodes: [{ name: "perf", color: "ffffff", description: null }] },
+  reviewDecision: "APPROVED",
+  mergeable: "MERGEABLE",
+  additions: 3,
+  deletions: 1,
+  changedFiles: 2,
+  createdAt: "2026-11-01T00:00:00Z",
+  updatedAt: "2026-11-02T00:00:00Z",
+  commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
+  ...overrides,
+});
+const ok = (stdout: string) => ({ stdout, stderr: "", code: 0, signal: null, timedOut: false });
+
+const graphqlBody = JSON.stringify({
+  data: { repository: { pullRequests: { nodes: [node(), null] } } },
+});
+
+layer("GitHubCliLive list", (it) => {
+  it.effect("lists over one direct HTTPS read, without starting gh for the list itself", () =>
+    Effect.gen(function* () {
+      clearGitHubDirectCaches();
+      mockedRunProcess.mockImplementation(async (_command, args) =>
+        ok(args[0] === "remote" ? "https://github.com/tabs/app.git\n" : "token-abc\n"),
+      );
+      const fetchMock = vi.fn(async () => new Response(graphqlBody, { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+      const gh = yield* GitHubCli;
+      const list = yield* gh.listOpenPullRequests({ cwd: "/repo", state: "open", limit: 50 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe("https://api.github.com/graphql");
+      expect(JSON.parse(String(init.body)).variables).toMatchObject({
+        owner: "tabs",
+        name: "app",
+        limit: 50,
+      });
+      expect(
+        mockedRunProcess.mock.calls.some(([command, args]) => command === "gh" && args[0] === "pr"),
+      ).toBe(false);
+      expect(list).toHaveLength(1);
+      expect(list[0]).toMatchObject({
+        number: 7,
+        state: "open",
+        checksState: "failing",
+        reviewDecision: "approved",
+        mergeability: "mergeable",
+        labels: [{ name: "perf" }],
+      });
+
+      // A second read reuses the held token: no further `gh auth token`.
+      yield* gh.listOpenPullRequests({ cwd: "/repo", state: "open", limit: 50 });
+      expect(
+        mockedRunProcess.mock.calls.filter(([, args]) => args[0] === "auth"),
+      ).toHaveLength(1);
+    }),
+  );
+
+  it.effect("falls back to gh's GraphQL, then gh pr list, when the direct read fails", () =>
+    Effect.gen(function* () {
+      clearGitHubDirectCaches();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response("nope", { status: 500 })),
+      );
+      mockedRunProcess.mockImplementation(async (_command, args) => {
+        if (args[0] === "remote") return ok("git@github.com:tabs/app.git\n");
+        if (args[0] === "auth") return ok("token-abc\n");
+        if (args[0] === "api") return ok(graphqlBody);
+        throw new Error("unexpected");
+      });
+      const gh = yield* GitHubCli;
+      const list = yield* gh.listOpenPullRequests({ cwd: "/repo", state: "all", limit: 50 });
+      expect(list.map((pr) => pr.number)).toEqual([7]);
+
+      mockedRunProcess.mockImplementation(async (_command, args) => {
+        if (args[0] === "remote") return ok("git@github.com:tabs/app.git\n");
+        if (args[0] === "auth") return ok("token-abc\n");
+        if (args[0] === "api") throw new Error("boom");
+        return ok(
+          JSON.stringify([
+            {
+              number: 9,
+              title: "From CLI",
+              url: "https://github.com/tabs/app/pull/9",
+              baseRefName: "main",
+              headRefName: "x",
+              state: "OPEN",
+            },
+          ]),
+        );
+      });
+      const second = yield* gh.listOpenPullRequests({ cwd: "/repo", state: "all", limit: 50 });
+      expect(second.map((pr) => pr.number)).toEqual([9]);
+    }),
+  );
+
+  it.effect("keeps gh pr list for a head selector", () =>
+    Effect.gen(function* () {
+      mockedRunProcess.mockReset();
+      mockedRunProcess.mockResolvedValueOnce(ok("[]"));
+      const gh = yield* GitHubCli;
+      yield* gh.listOpenPullRequests({ cwd: "/repo", headSelector: "feat", limit: 5 });
+      expect(mockedRunProcess).toHaveBeenCalledTimes(1);
+      expect(mockedRunProcess.mock.calls[0]?.[1]?.slice(0, 2)).toEqual(["pr", "list"]);
     }),
   );
 });

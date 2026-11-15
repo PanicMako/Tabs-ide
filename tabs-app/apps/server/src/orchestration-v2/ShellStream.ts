@@ -40,9 +40,15 @@ export function buildActiveShellSnapshot(input: {
   };
 }
 
+/**
+ * Drops idle sub-thread rows from a snapshot, except those the sidebar nests under a parent that is
+ * in the same snapshot: a finished Overmind task must still be listed after a restart. Idle
+ * sub-threads whose parent is not present (archived, paged out) stay omitted.
+ */
 export function omitIdleSubagentShells(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
 ): ReadonlyArray<OrchestrationV2ThreadShell> {
+  const present = new Set<string>(threads.map((thread) => thread.id));
   const parentIds = new Set<string>();
   for (const thread of threads) {
     if (thread.lineage.relationshipToParent === "subagent" && thread.lineage.parentThreadId) {
@@ -53,7 +59,8 @@ export function omitIdleSubagentShells(
     (thread) =>
       thread.lineage.relationshipToParent !== "subagent" ||
       isLiveSubagentShell(thread) ||
-      parentIds.has(thread.id),
+      parentIds.has(thread.id) ||
+      (thread.lineage.parentThreadId !== null && present.has(thread.lineage.parentThreadId)),
   );
 }
 

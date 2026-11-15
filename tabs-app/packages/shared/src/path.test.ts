@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isExplicitRelativePath,
+  isNetworkPath,
   isUncPath,
   isWindowsAbsolutePath,
   isWindowsDrivePath,
@@ -56,5 +57,19 @@ describe("path helpers", () => {
     expect(newProjectFolderName("Con")).toBe("con-project");
     expect(newProjectFolderName("LPT1")).toBe("lpt1-project");
     expect(newProjectFolderName("console")).toBe("console");
+  });
+});
+
+describe("isNetworkPath", () => {
+  it("flags UNC and device paths written with either separator", () => {
+    for (const value of ["\\\\host\\share", "//host/share", "\\\\?\\C:\\x", "/\\host"]) {
+      expect(isNetworkPath(value)).toBe(true);
+    }
+  });
+
+  it("leaves ordinary paths alone", () => {
+    for (const value of ["/Users/me/project", "C:\\project", "C:/project", "./a", "a//b", ""]) {
+      expect(isNetworkPath(value)).toBe(false);
+    }
   });
 });

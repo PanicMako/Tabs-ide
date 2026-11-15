@@ -39,6 +39,7 @@ describe("V2 preview upgrade", () => {
         [57, "WebhookRelayDeliveries"],
         [58, "ProjectionCompatibilityRepairs"],
         [59, "OrchestrationV2CancellationIntents"],
+        [60, "PullRequestReviewGuides"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* sql`SELECT * FROM orchestration_v2_legacy_imports`, imports);
@@ -118,6 +119,7 @@ describe("V2 preview upgrade", () => {
         [57, "WebhookRelayDeliveries"],
         [58, "ProjectionCompatibilityRepairs"],
         [59, "OrchestrationV2CancellationIntents"],
+        [60, "PullRequestReviewGuides"],
       ]);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );

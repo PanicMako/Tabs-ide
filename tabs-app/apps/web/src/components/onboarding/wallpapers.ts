@@ -307,6 +307,7 @@ const AGENT_WALLPAPER_STORAGE_KEY = "tabs:agentWallpaper";
 const AGENT_WALLPAPER_ENABLED_KEY = "tabs:agentWallpaperEnabled";
 const CUSTOM_WALLPAPERS_STORAGE_KEY = "tabs:customWallpapers";
 const THREAD_WALLPAPER_STORAGE_PREFIX = "tabs:threadWallpaper:";
+const PROJECT_WALLPAPER_STORAGE_PREFIX = "tabs:projectWallpaper:";
 export const AGENT_WALLPAPER_CHANGE_EVENT = "tabs:agent-wallpaper-change";
 
 /**
@@ -477,10 +478,65 @@ export function getAllThreadWallpaperAssignments(): Record<string, string> {
   return result;
 }
 
-export function resolveWallpaperForThread(threadId?: string | null): WallpaperOption {
+// ── Per-Project Wallpaper Assignments ────────────────────────────────────
+
+/** Where a chosen wallpaper applies: one thread, every thread in a project, or everywhere. */
+export type WallpaperScope = "thread" | "project" | "global";
+
+export function getProjectWallpaper(projectId: string): WallpaperOption | null {
+  try {
+    const saved = localStorage.getItem(PROJECT_WALLPAPER_STORAGE_PREFIX + projectId);
+    if (saved) {
+      const match = getAllAgentWallpapers().find((w) => w.url === saved);
+      if (match) return match;
+      return {
+        id: `project-${projectId}`,
+        label: "Project Custom Wallpaper",
+        category: "Custom",
+        url: saved,
+        accentColor: "#38bdf8",
+        description: "Assigned to this project",
+        isCustom: true,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+export function saveProjectWallpaper(projectId: string, url: string): void {
+  try {
+    localStorage.setItem(PROJECT_WALLPAPER_STORAGE_PREFIX + projectId, url);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { projectId, url } }),
+      );
+    }
+  } catch {}
+}
+
+export function clearProjectWallpaper(projectId: string): void {
+  try {
+    localStorage.removeItem(PROJECT_WALLPAPER_STORAGE_PREFIX + projectId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { projectId, cleared: true } }),
+      );
+    }
+  } catch {}
+}
+
+/** A thread's own wallpaper wins, then its project's, then the one used everywhere. */
+export function resolveWallpaperForThread(
+  threadId?: string | null,
+  projectId?: string | null,
+): WallpaperOption {
   if (threadId) {
     const threadSpecific = getThreadWallpaper(threadId);
     if (threadSpecific) return threadSpecific;
+  }
+  if (projectId) {
+    const projectSpecific = getProjectWallpaper(projectId);
+    if (projectSpecific) return projectSpecific;
   }
   return getInitialAgentWallpaper();
 }

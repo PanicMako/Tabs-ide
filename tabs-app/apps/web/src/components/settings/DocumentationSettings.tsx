@@ -373,11 +373,11 @@ and write a conventional commit message"
     categoryLabel: "Agents & Threads",
     icon: LayersIcon,
     summary:
-      "Rename, auto-generate titles, pin important sessions, settle finished tasks, snooze reminders, or branch threads.",
+      "Rename, auto-generate titles, pin important sessions, mark finished tasks done, snooze reminders, or branch threads.",
     details:
-      "Settling a thread archives completed conversations out of the primary list while keeping their history fully searchable. Snoozing temporarily hides threads until a specified time or notification. Deleting permanently purges a thread and can automatically prune associated git worktrees. Branching forks the exact conversation state into a new thread for parallel exploration.",
+      "Marking a thread done moves completed conversations out of the Open list while keeping their history fully searchable. Snoozing temporarily hides threads until a specified time or notification. Deleting permanently purges a thread and can automatically prune associated git worktrees. Branching forks the exact conversation state into a new thread for parallel exploration.",
     highlights: [
-      "Settle threads to keep your workspace decluttered without losing any history.",
+      "Mark threads done to keep your workspace decluttered without losing any history.",
       "Snooze threads with scheduled wakeup alarms and desktop reminders.",
       "Branch threads to fork conversation states into new parallel investigations.",
       "Auto-generated titles use a fast model pass over the conversation to produce concise names.",
@@ -388,7 +388,7 @@ and write a conventional commit message"
         step: 1,
         title: "Settle a completed thread",
         description:
-          "Right-click a thread → Settle. It moves to the Settled archive but remains searchable via ⌘K.",
+          "Right-click a thread → Mark as done. It moves to the Done tab but remains searchable via ⌘K.",
       },
       {
         step: 2,
@@ -416,7 +416,7 @@ and write a conventional commit message"
       },
       {
         kind: "info",
-        text: "Settled threads are excluded from the default sidebar view but appear in search results and can be unsettled at any time.",
+        text: "Done threads are excluded from the default sidebar view but appear in search results and can be reopened at any time.",
       },
     ],
   },
@@ -557,7 +557,7 @@ and write a conventional commit message"
       { label: "Open Settings", keys: ["⌘", ","] },
       { label: "Source Control", keys: ["⌘", "⇧", "G"] },
       { label: "Open Browser Panel", keys: ["⌘", "⇧", "B"] },
-      { label: "Settle Thread", keys: ["⌘", "⇧", "S"] },
+      { label: "Mark Thread Done", keys: ["⌘", "⇧", "S"] },
       { label: "Focus Composer", keys: ["⌘", "L"] },
     ],
     tips: [

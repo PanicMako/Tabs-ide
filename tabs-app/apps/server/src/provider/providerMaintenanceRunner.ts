@@ -7,6 +7,7 @@ import {
   type ServerProviderUpdatedPayload,
   type ServerProviderUpdateState,
 } from "@tabs/contracts";
+import * as ProviderInstallationGate from "./ProviderInstallationGate.ts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
@@ -396,7 +397,10 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
               }),
             );
 
-            const result = yield* runMaintenanceCommand(update.executable, update.args, update.env);
+            const result = yield* ProviderInstallationGate.updateWhenGated(
+              [instanceId],
+              runMaintenanceCommand(update.executable, update.args, update.env),
+            );
             const finishedAt = yield* nowIso;
             if (result.timedOut || result.exitCode !== 0) {
               return yield* finish(
@@ -586,7 +590,10 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
               );
             }
 
-            const result = yield* runMaintenanceCommand(command!.executable, command!.args);
+            const result = yield* ProviderInstallationGate.updateWhenGated(
+              [instanceId],
+              runMaintenanceCommand(command!.executable, command!.args),
+            );
             const finishedAt = yield* nowIso;
             if (result.timedOut || result.exitCode !== 0) {
               return yield* finish(

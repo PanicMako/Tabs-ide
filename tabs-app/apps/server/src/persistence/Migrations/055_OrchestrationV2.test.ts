@@ -13,7 +13,7 @@ layer("055_OrchestrationV2", (it) => {
     Effect.sync(() => {
       assert.deepStrictEqual(
         migrationEntries.map(([id]) => id),
-        Array.from({ length: 59 }, (_, index) => index + 1),
+        Array.from({ length: 60 }, (_, index) => index + 1),
       );
     }),
   );
@@ -31,6 +31,7 @@ layer("055_OrchestrationV2", (it) => {
         [57, "WebhookRelayDeliveries"],
         [58, "ProjectionCompatibilityRepairs"],
         [59, "OrchestrationV2CancellationIntents"],
+        [60, "PullRequestReviewGuides"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
 

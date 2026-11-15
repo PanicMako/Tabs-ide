@@ -10,12 +10,7 @@ async function requireJson(response: Response): Promise<Record<string, unknown>>
   return response.json();
 }
 
-export async function authorizeDesktopWebSocket(rawUrl: string): Promise<string> {
-  const url = new URL(rawUrl);
-  const bootstrapToken = url.searchParams.get("token");
-  if (!bootstrapToken) return rawUrl;
-  const protocol = url.protocol === "wss:" ? "https:" : "http:";
-  const origin = `${protocol}//${url.host}`;
+function exchangeBootstrapToken(rawUrl: string, origin: string, bootstrapToken: string) {
   let session = sessions.get(rawUrl);
   if (!session) {
     session = fetch(new URL("/oauth/token", origin), {
@@ -37,9 +32,32 @@ export async function authorizeDesktopWebSocket(rawUrl: string): Promise<string>
         return body.access_token;
       });
     sessions.set(rawUrl, session);
+    // A failed exchange must not poison later attempts.
+    session.catch(() => sessions.delete(rawUrl));
   }
+  return session;
+}
+
+function originOf(url: URL): string {
+  const protocol = url.protocol === "wss:" ? "https:" : "http:";
+  return `${protocol}//${url.host}`;
+}
+
+/** The desktop session's bearer token for HTTP calls, or null when the page authenticates by cookie. */
+export async function desktopHttpAccessToken(rawUrl: string): Promise<string | null> {
+  const url = new URL(rawUrl);
+  const bootstrapToken = url.searchParams.get("token");
+  if (!bootstrapToken) return null;
+  return exchangeBootstrapToken(rawUrl, originOf(url), bootstrapToken);
+}
+
+export async function authorizeDesktopWebSocket(rawUrl: string): Promise<string> {
+  const url = new URL(rawUrl);
+  const bootstrapToken = url.searchParams.get("token");
+  if (!bootstrapToken) return rawUrl;
+  const origin = originOf(url);
   try {
-    const accessToken = await session;
+    const accessToken = await exchangeBootstrapToken(rawUrl, origin, bootstrapToken);
     const response = await fetch(new URL("/api/auth/websocket-ticket", origin), {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },

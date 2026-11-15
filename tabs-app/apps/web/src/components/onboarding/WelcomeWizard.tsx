@@ -329,7 +329,13 @@ function AnimatedHalftoneCanvas({ isLaunching, isSkipping }: AnimatedHalftonePro
     const gc = glowCanvas.getContext("2d");
     if (!dc || !gc) return;
 
-    const GRID = 6; // px between dot centers
+    // Dot spacing and frame rate trade a little density for smoothness on modest GPUs.
+    // Windows and Linux rasterize this 50k-dot path on the CPU path far more often than macOS.
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const modest =
+      /Win|Linux/i.test(navigator.platform) || (navigator.hardwareConcurrency ?? 8) <= 4;
+    const GRID = modest ? 9 : 6; // px between dot centers
+    const FRAME_MS = modest ? 1000 / 24 : 1000 / 40;
     let W = window.innerWidth;
     let H = window.innerHeight;
     const resize = () => {
@@ -370,8 +376,14 @@ function AnimatedHalftoneCanvas({ isLaunching, isSkipping }: AnimatedHalftonePro
     const SPARK_HUES = [195, 258, 145, 38] as const; // cyan, violet, green, amber
     const STREAM_HUES = [195, 258, 145] as const;
 
+    let drawnOnce = false;
     const render = (now: number) => {
       animId = requestAnimationFrame(render);
+      // Skip hidden-window frames and frames that arrive faster than the target rate.
+      if (document.hidden || now - last < FRAME_MS - 1) return;
+      // Reduced motion keeps one still frame instead of animating.
+      if (reducedMotion && drawnOnce) return;
+      drawnOnce = true;
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       const t = now / 1000;

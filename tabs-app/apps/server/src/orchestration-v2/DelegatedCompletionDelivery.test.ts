@@ -34,7 +34,9 @@ import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EventSink from "./EventSink.ts";
+import * as DelegatedTaskQuestionReactor from "./DelegatedTaskQuestionReactor.ts";
 import * as Orchestrator from "./Orchestrator.ts";
+import * as ProjectionStore from "./ProjectionStore.ts";
 import type { ProviderAdapterV2Shape } from "./ProviderAdapter.ts";
 import { continueRestartedRun } from "./RestartContinuation.ts";
 import * as RuntimeLayer from "./runtimeLayer.ts";
@@ -1270,5 +1272,105 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         [child.taskId],
       );
     }),
+  );
+});
+
+// Shares the orchestrator's in-memory database (the same layer instance), so the real
+// projection store reads what the orchestrator wrote.
+const layerTestWithProjectionStore = layerTest.pipe(
+  Layer.provideMerge(ProjectionStore.layer),
+  Layer.provideMerge(SqlitePersistence.layerMemory),
+);
+
+it.layer(layerTestWithProjectionStore)("blocked delegated tasks wake their lead", (it) => {
+  it.effect(
+    "queues a wake behind the lead's active turn for a question, and drops it once answered",
+    () =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const eventSink = yield* EventSink.EventSinkV2;
+        const now = yield* DateTime.now;
+        const threadId = ThreadId.make("thread:blocked-task-lead");
+        const projectId = ProjectId.make("project:blocked-task-lead");
+        const runId = RunId.make("run:blocked-task-lead");
+        const rootNodeId = NodeId.make("node:blocked-task-lead-root");
+        yield* seedParentWithTerminalTask({
+          threadId,
+          projectId,
+          runId,
+          rootNodeId,
+          taskId: NodeId.make("node:blocked-task-lead-done"),
+          deliveryState: "delivered",
+          now,
+        });
+        // An Overmind-style async task: the lead is mid-turn and the child is still working.
+        const child = yield* seedRestartCancelledChild({
+          parentThreadId: threadId,
+          projectId,
+          parentRunId: runId,
+          rootNodeId,
+          name: "blocked-task-lead-child",
+          completionWake: "always",
+          continuationPending: false,
+          now,
+        });
+        const requestEvent = (status: "pending" | "resolved") =>
+          ({
+            id: EventId.make(`event:blocked-task-lead:${status}`),
+            type: "runtime-request.updated",
+            threadId: child.childThreadId,
+            runId: child.childRunId,
+            nodeId: NodeId.make("node:blocked-task-lead-request"),
+            occurredAt: now,
+            payload: {
+              id: "runtime-request:blocked-task-lead",
+              nodeId: NodeId.make("node:blocked-task-lead-request"),
+              providerTurnId: null,
+              nativeRequestRef: null,
+              kind: "user_input",
+              status,
+              responseCapability: { type: "message" },
+              createdAt: now,
+              resolvedAt: status === "pending" ? null : now,
+            },
+          }) as never;
+        const reactorLayer = DelegatedTaskQuestionReactor.layer.pipe(
+          Layer.provide(Layer.succeed(Orchestrator.OrchestratorV2, orchestrator)),
+          Layer.provide(Layer.succeed(ProjectionStore.ProjectionStoreV2, projections)),
+        );
+        const reactor = yield* DelegatedTaskQuestionReactor.DelegatedTaskQuestionReactor.pipe(
+          Effect.provide(reactorLayer),
+        );
+
+        yield* eventSink.write({
+          commandId: CommandId.make("command:blocked-task-lead:pending"),
+          events: [requestEvent("pending")],
+        });
+        yield* reactor.handle(requestEvent("pending"));
+
+        const woken = yield* orchestrator.getThreadProjection(threadId);
+        const wake = woken.messages.find((message) =>
+          String(message.id).startsWith("message:delegated-task-question:"),
+        );
+        assert.isDefined(wake);
+        assert.include(wake?.text ?? "", "t3_pending_request_respond");
+        assert.equal(wake?.notification?.source.kind, "delegated_task");
+        // Behind the active turn, never steered into it or started over it.
+        const queued = woken.runs.find((run) => run.userMessageId === wake?.id);
+        assert.equal(queued?.status, "queued");
+        assert.equal(woken.runs.find((run) => run.id === runId)?.status, "running");
+
+        yield* eventSink.write({
+          commandId: CommandId.make("command:blocked-task-lead:resolved"),
+          events: [requestEvent("resolved")],
+        });
+        yield* reactor.handle(requestEvent("resolved"));
+        const answered = yield* orchestrator.getThreadProjection(threadId);
+        assert.notEqual(
+          answered.runs.find((run) => run.userMessageId === wake?.id)?.status,
+          "queued",
+        );
+      }),
   );
 });

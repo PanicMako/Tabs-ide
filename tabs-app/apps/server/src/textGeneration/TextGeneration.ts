@@ -1,4 +1,6 @@
+import type { PullRequestReviewGuideStop } from "@tabs/contracts";
 import * as Context from "effect/Context";
+import { executeWhenGated } from "../provider/ProviderInstallationGate.ts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Schema from "effect/Schema";
@@ -86,6 +88,39 @@ export interface ThreadTitleGenerationInput {
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
   /** What model and provider to use for generation. */
   modelSelection: ModelSelection;
+}
+
+export interface TranscriptionPostProcessingInput {
+  readonly cwd: string;
+  /** Instructions, transcript and surrounding draft, built by `buildTranscriptionPostProcessingPrompt`. */
+  readonly prompt: string;
+  readonly modelSelection: ModelSelection;
+}
+
+export interface ReviewGuideGenerationInput {
+  readonly cwd: string;
+  readonly number: number;
+  readonly title: string;
+  readonly description: string;
+  readonly baseBranch: string;
+  readonly headBranch: string;
+  /** The files the pull request changes, as the host names them. */
+  readonly files: ReadonlyArray<string>;
+  /** The unified diff the guide is written from, already bounded by the caller. */
+  readonly patch: string;
+  /** Conversation already settled on the pull request, so the guide does not re-raise it. */
+  readonly settledReview: string;
+  /** Extra instructions from the reader or the project, empty when there are none. */
+  readonly instructions: string;
+  readonly modelSelection: ModelSelection;
+}
+
+export interface ReviewGuideGenerationResult {
+  readonly stops: ReadonlyArray<PullRequestReviewGuideStop>;
+}
+
+export interface TranscriptionPostProcessingResult {
+  readonly transcription: string;
 }
 
 export interface ThreadTitleGenerationResult {
@@ -196,6 +231,16 @@ export interface TextGenerationShape {
     input: DiffSummaryGenerationInput,
   ) => Effect.Effect<DiffSummaryGenerationResult, TextGenerationError>;
 
+  /** Cleans a dictated transcript. Providers without it report the operation unsupported. */
+  readonly generateTranscriptionPostProcessing?: (
+    input: TranscriptionPostProcessingInput,
+  ) => Effect.Effect<TranscriptionPostProcessingResult, TextGenerationError>;
+
+  /** Writes a guided tour of a pull request. Providers without it report the operation unsupported. */
+  readonly generateReviewGuide?: (
+    input: ReviewGuideGenerationInput,
+  ) => Effect.Effect<ReviewGuideGenerationResult, TextGenerationError>;
+
   readonly generateStructuredTesting: <S extends Schema.Top>(
     input: StructuredTestingGenerationInput<S>,
   ) => Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"]>;
@@ -214,6 +259,8 @@ type TextGenerationOp =
   | "generateBranchName"
   | "generateThreadTitle"
   | "generateDiffSummary"
+  | "generateTranscriptionPostProcessing"
+  | "generateReviewGuide"
   | "generateStructuredTesting";
 
 const resolveInstance = (
@@ -234,7 +281,7 @@ const resolveInstance = (
     ),
   );
 
-export const makeTextGenerationFromRegistry = (
+const makeUngatedTextGenerationFromRegistry = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
 ): TextGenerationShape => ({
   generateCommitMessage: (input) =>
@@ -256,6 +303,36 @@ export const makeTextGenerationFromRegistry = (
   generateDiffSummary: (input) =>
     resolveInstance(registry, "generateDiffSummary", input.modelSelection.instanceId).pipe(
       Effect.flatMap((textGeneration) => textGeneration.generateDiffSummary(input)),
+    ),
+  generateTranscriptionPostProcessing: (input) =>
+    resolveInstance(
+      registry,
+      "generateTranscriptionPostProcessing",
+      input.modelSelection.instanceId,
+    ).pipe(
+      Effect.flatMap((textGeneration) =>
+        textGeneration.generateTranscriptionPostProcessing
+          ? textGeneration.generateTranscriptionPostProcessing(input)
+          : Effect.fail(
+              new TextGenerationError({
+                operation: "generateTranscriptionPostProcessing",
+                detail: "The writing model's provider cannot clean up transcripts.",
+              }),
+            ),
+      ),
+    ),
+  generateReviewGuide: (input) =>
+    resolveInstance(registry, "generateReviewGuide", input.modelSelection.instanceId).pipe(
+      Effect.flatMap((textGeneration) =>
+        textGeneration.generateReviewGuide
+          ? textGeneration.generateReviewGuide(input)
+          : Effect.fail(
+              new TextGenerationError({
+                operation: "generateReviewGuide",
+                detail: "The review guide model's provider cannot write guides.",
+              }),
+            ),
+      ),
     ),
   generateStructuredTesting: (input) =>
     registry.getInstance(input.modelSelection.instanceId).pipe(
@@ -279,6 +356,37 @@ export const makeTextGenerationFromRegistry = (
       }),
     ),
 });
+
+/**
+ * Runs every operation through the installation gate, so a provider update
+ * waits for in-flight text generation and generation waits for the update.
+ */
+export const makeTextGenerationFromRegistry = (
+  registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
+): TextGenerationShape => {
+  const base = makeUngatedTextGenerationFromRegistry(registry);
+  return {
+    generateCommitMessage: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateCommitMessage(input)),
+    generatePrContent: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generatePrContent(input)),
+    generateBranchName: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateBranchName(input)),
+    generateThreadTitle: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateThreadTitle(input)),
+    generateDiffSummary: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateDiffSummary(input)),
+    generateTranscriptionPostProcessing: (input) =>
+      executeWhenGated(
+        input.modelSelection.instanceId,
+        base.generateTranscriptionPostProcessing!(input),
+      ),
+    generateReviewGuide: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateReviewGuide!(input)),
+    generateStructuredTesting: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateStructuredTesting(input)),
+  };
+};
 
 export const layer = Layer.effect(
   TextGeneration,

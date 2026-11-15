@@ -27,12 +27,14 @@ import {
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
@@ -503,6 +505,11 @@ export interface RunExecutionServiceV2StartRootRunInput {
   readonly run: OrchestrationV2Run;
   readonly rootNode: OrchestrationV2ExecutionNode;
   readonly checkpointScope: OrchestrationV2CheckpointScope;
+  /**
+   * A baseline capture started earlier by `beginBaselineCapture`, so the git
+   * snapshot overlaps provider session startup. Joined before the turn starts.
+   */
+  readonly baselineCapture?: Fiber.Fiber<void>;
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly attempt: OrchestrationV2RunAttempt;
   readonly attemptId: RunAttemptId;
@@ -523,6 +530,12 @@ export interface RunExecutionServiceV2StartRootRunInput {
 }
 
 export interface RunExecutionServiceV2Shape {
+  /** Starts the checkpoint baseline capture in the background; never fails. */
+  readonly beginBaselineCapture: (input: {
+    readonly runId: OrchestrationV2Run["id"];
+    readonly scope: OrchestrationV2CheckpointScope;
+    readonly ordinalWithinScope: number;
+  }) => Effect.Effect<Fiber.Fiber<void>>;
   readonly startRootRun: (
     input: RunExecutionServiceV2StartRootRunInput,
   ) => Effect.Effect<void, RunExecutionServiceV2Error>;
@@ -793,7 +806,26 @@ export const layer: Layer.Layer<
         yield* input.refreshAfterTurn;
       });
 
+    const captureBaselineOrWarn = (input: {
+      readonly runId: OrchestrationV2Run["id"];
+      readonly scope: OrchestrationV2CheckpointScope;
+      readonly ordinalWithinScope: number;
+    }): Effect.Effect<void> =>
+      checkpointService
+        .captureBaseline({ scope: input.scope, ordinalWithinScope: input.ordinalWithinScope })
+        .pipe(
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.interrupt
+              : Effect.logWarning(
+                  "orchestration V2 checkpoint baseline capture failed; starting provider without a baseline",
+                  { runId: input.runId },
+                ),
+          ),
+        );
+
     return RunExecutionServiceV2.of({
+      beginBaselineCapture: (input) => Effect.forkDetach(captureBaselineOrWarn(input)),
       startRootRun: (input) =>
         Effect.gen(function* () {
           // Startup failure and stream shutdown can report the same attempt.
@@ -835,21 +867,13 @@ export const layer: Layer.Layer<
                     .responseStreamingMode,
               ),
             );
-            yield* checkpointService
-              .captureBaseline({
-                scope: input.checkpointScope,
-                ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
-              })
-              .pipe(
-                Effect.catchCause((cause) =>
-                  Cause.hasInterruptsOnly(cause)
-                    ? Effect.failCause(cause)
-                    : Effect.logWarning(
-                        "orchestration V2 checkpoint baseline capture failed; starting provider without a baseline",
-                        { runId: input.run.id },
-                      ),
-                ),
-              );
+            yield* input.baselineCapture === undefined
+              ? captureBaselineOrWarn({
+                  runId: input.run.id,
+                  scope: input.checkpointScope,
+                  ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
+                })
+              : Fiber.join(input.baselineCapture);
             if (
               input.shouldStartProviderTurn !== undefined &&
               !(yield* input.shouldStartProviderTurn())
@@ -1170,91 +1194,131 @@ export const layer: Layer.Layer<
             return true;
           });
           const filterAssistantEvent = makeAssistantStreamingFilter(responseStreamingMode);
+          // Held streamed text is delivered whole once its message goes quiet. A timer fiber runs
+          // that flush as an ordinary ingestion step, serialized with the stream by a lock so the
+          // ordering against routing and snapshots is unchanged.
+          const ingestionLock = yield* Semaphore.make(1);
+          let idleFlushClosed = false;
+          let idleFlushWake: { readonly at: number; readonly fiber: Fiber.Fiber<void> } | undefined;
+          const ingestProviderEvent = (
+            event: ProviderAdapterV2Event,
+            idleFlushed: boolean,
+          ): Effect.Effect<void, unknown> =>
+            Effect.gen(function* () {
+              let storedEventCount = 0;
+              const deliveredEvent = idleFlushed
+                ? event
+                : filterAssistantEvent(event, DateTime.toEpochMillis(yield* DateTime.now));
+              if (deliveredEvent) {
+                // Root provider_thread.updated always uses an ownership gate:
+                // pre-terminal writeIfRunCurrent (attempt still running), or
+                // post-terminal writeIfProviderThreadOwner so late roster
+                // clears still land while this attempt owns the run and this
+                // run owns lastRunOrdinal.
+                const rootTerminalAlreadySeen = yield* Ref.get(rootTerminalSeen);
+                const isRootProviderThreadUpdate =
+                  event.type === "provider_thread.updated" &&
+                  event.providerThread.id === input.providerThread.id;
+                const storedEvents = yield* providerEventIngestor.ingestNormalized({
+                  analyticsContext: {
+                    modelSelection: input.modelSelection,
+                    runtimeMode: input.runtimePolicy.runtimeMode,
+                    interactionMode: input.runtimePolicy.interactionMode,
+                  },
+                  providerSessionId: input.providerSessionId,
+                  providerInstanceId: input.run.providerInstanceId,
+                  threadId: input.run.threadId,
+                  runId: input.run.id,
+                  nodeId: input.rootNode.id,
+                  event: deliveredEvent,
+                  ...(isRootProviderThreadUpdate
+                    ? rootTerminalAlreadySeen
+                      ? {
+                          writeIfProviderThreadOwner: {
+                            providerThreadId: input.providerThread.id,
+                            runId: input.run.id,
+                            activeAttemptId: input.attempt.id,
+                            expectedLastRunOrdinal: input.run.ordinal,
+                          },
+                        }
+                      : {
+                          writeIfRunCurrent: {
+                            runId: input.run.id,
+                            activeAttemptId: input.attempt.id,
+                            expectedStatus: "running" as const,
+                          },
+                        }
+                    : {}),
+                });
+                storedEventCount = storedEvents.length;
+                if (
+                  isRootProviderThreadUpdate &&
+                  rootTerminalAlreadySeen &&
+                  storedEventCount === 0
+                ) {
+                  // Ownership lost (or thread row missing). Stop pinning the
+                  // stream on this run's background probe.
+                  yield* Ref.set(providerThreadOwnerLost, true);
+                }
+              }
+              if (event.type === "provider_thread.updated") {
+                if (event.providerThread.id === input.providerThread.id && storedEventCount > 0) {
+                  yield* Ref.set(latestProviderThread, event.providerThread);
+                }
+              }
+              if (
+                event.type === "turn_item.updated" &&
+                event.turnItem.providerTurnId === (yield* Ref.get(eventRouting)).rootProviderTurnId
+              ) {
+                yield* Ref.update(latestTurnItemOrdinal, (current) =>
+                  Math.max(current, event.turnItem.ordinal),
+                );
+              }
+              if (event.type === "turn.terminal") {
+                yield* Ref.set(terminalEvent, event);
+                yield* Ref.set(rootTerminalSeen, true);
+                yield* finalizeRootRun(event);
+              }
+              yield* trackChildLifecycle(event, deliveredEvent !== null);
+              yield* scheduleIdleFlush;
+            });
+          const flushIdleAssistantText: Effect.Effect<void> = Effect.gen(function* () {
+            idleFlushWake = undefined;
+            if (idleFlushClosed || (yield* Ref.get(rootTerminalSeen))) return;
+            const now = DateTime.toEpochMillis(yield* DateTime.now);
+            for (const event of filterAssistantEvent.takeIdleFlushes(now)) {
+              yield* ingestProviderEvent(event, true);
+            }
+          }).pipe(
+            ingestionLock.withPermits(1),
+            Effect.catchCause((cause) =>
+              Effect.logWarning("Idle assistant text flush failed", { cause: Cause.pretty(cause) }),
+            ),
+          );
+          const scheduleIdleFlush: Effect.Effect<void> = Effect.suspend(() => {
+            const at = filterAssistantEvent.nextIdleFlushAt();
+            if (
+              idleFlushClosed ||
+              at === null ||
+              (idleFlushWake !== undefined && idleFlushWake.at <= at)
+            )
+              return Effect.void;
+            const previous = idleFlushWake?.fiber;
+            return Effect.gen(function* () {
+              if (previous !== undefined) yield* Fiber.interrupt(previous);
+              const now = DateTime.toEpochMillis(yield* DateTime.now);
+              const fiber = yield* Effect.sleep(Duration.millis(Math.max(0, at - now))).pipe(
+                Effect.andThen(flushIdleAssistantText),
+                Effect.forkDetach,
+              );
+              idleFlushWake = { at, fiber };
+            });
+          });
           const providerEventFiber = yield* eventSubscription.events.pipe(
             Stream.filterEffect((event) =>
               Ref.modify(eventRouting, (state) => routeProviderEvent(event, routeIdentity, state)),
             ),
-            Stream.tap((event) =>
-              Effect.gen(function* () {
-                let storedEventCount = 0;
-                const deliveredEvent = filterAssistantEvent(
-                  event,
-                  DateTime.toEpochMillis(yield* DateTime.now),
-                );
-                if (deliveredEvent) {
-                  // Root provider_thread.updated always uses an ownership gate:
-                  // pre-terminal writeIfRunCurrent (attempt still running), or
-                  // post-terminal writeIfProviderThreadOwner so late roster
-                  // clears still land while this attempt owns the run and this
-                  // run owns lastRunOrdinal.
-                  const rootTerminalAlreadySeen = yield* Ref.get(rootTerminalSeen);
-                  const isRootProviderThreadUpdate =
-                    event.type === "provider_thread.updated" &&
-                    event.providerThread.id === input.providerThread.id;
-                  const storedEvents = yield* providerEventIngestor.ingestNormalized({
-                    analyticsContext: {
-                      modelSelection: input.modelSelection,
-                      runtimeMode: input.runtimePolicy.runtimeMode,
-                      interactionMode: input.runtimePolicy.interactionMode,
-                    },
-                    providerSessionId: input.providerSessionId,
-                    providerInstanceId: input.run.providerInstanceId,
-                    threadId: input.run.threadId,
-                    runId: input.run.id,
-                    nodeId: input.rootNode.id,
-                    event: deliveredEvent,
-                    ...(isRootProviderThreadUpdate
-                      ? rootTerminalAlreadySeen
-                        ? {
-                            writeIfProviderThreadOwner: {
-                              providerThreadId: input.providerThread.id,
-                              runId: input.run.id,
-                              activeAttemptId: input.attempt.id,
-                              expectedLastRunOrdinal: input.run.ordinal,
-                            },
-                          }
-                        : {
-                            writeIfRunCurrent: {
-                              runId: input.run.id,
-                              activeAttemptId: input.attempt.id,
-                              expectedStatus: "running" as const,
-                            },
-                          }
-                      : {}),
-                  });
-                  storedEventCount = storedEvents.length;
-                  if (
-                    isRootProviderThreadUpdate &&
-                    rootTerminalAlreadySeen &&
-                    storedEventCount === 0
-                  ) {
-                    // Ownership lost (or thread row missing). Stop pinning the
-                    // stream on this run's background probe.
-                    yield* Ref.set(providerThreadOwnerLost, true);
-                  }
-                }
-                if (event.type === "provider_thread.updated") {
-                  if (event.providerThread.id === input.providerThread.id && storedEventCount > 0) {
-                    yield* Ref.set(latestProviderThread, event.providerThread);
-                  }
-                }
-                if (
-                  event.type === "turn_item.updated" &&
-                  event.turnItem.providerTurnId ===
-                    (yield* Ref.get(eventRouting)).rootProviderTurnId
-                ) {
-                  yield* Ref.update(latestTurnItemOrdinal, (current) =>
-                    Math.max(current, event.turnItem.ordinal),
-                  );
-                }
-                if (event.type === "turn.terminal") {
-                  yield* Ref.set(terminalEvent, event);
-                  yield* Ref.set(rootTerminalSeen, true);
-                  yield* finalizeRootRun(event);
-                }
-                yield* trackChildLifecycle(event, deliveredEvent !== null);
-              }),
-            ),
+            Stream.tap((event) => ingestionLock.withPermits(1)(ingestProviderEvent(event, false))),
             Stream.takeUntilEffect(() => shouldStopProviderEventIngestion),
             Stream.runDrain,
             Effect.mapError((cause) => new RunExecutionIngestError({ runId: input.run.id, cause })),
@@ -1325,6 +1389,14 @@ export const layer: Layer.Layer<
               ),
             ),
             Effect.ensuring(eventSubscription.close),
+            Effect.ensuring(
+              Effect.suspend(() => {
+                idleFlushClosed = true;
+                return idleFlushWake === undefined
+                  ? Effect.void
+                  : Fiber.interrupt(idleFlushWake.fiber);
+              }),
+            ),
             Effect.forkDetach,
           );
 

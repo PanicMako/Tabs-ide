@@ -76,6 +76,7 @@ export const deriveProviderInstanceConfigMap = (
   const merged: Record<string, ProviderInstanceConfig> = { ...settings.providerInstances };
 
   for (const driver of BUILT_IN_DRIVERS) {
+    if (driver.metadata.hasDefaultInstance === false) continue;
     const instanceId = defaultInstanceIdForDriver(driver.driverKind);
     if (instanceId in merged) {
       // Explicit `providerInstances` entry for this slot — user-authored

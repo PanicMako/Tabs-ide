@@ -1,4 +1,5 @@
 import { type GitStackedAction } from "@tabs/contracts";
+import type { NativeApi } from "@tabs/contracts";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { environmentApi } from "../connection/environmentApiRegistry";
 import { readPullRequestSnapshot, writePullRequestSnapshot } from "./pullRequestSnapshot";
@@ -49,6 +50,24 @@ export function invalidateGitQueries(queryClient: QueryClient) {
   });
 }
 
+/**
+ * A different GitHub account answers differently: the server holds who is signed in for ten
+ * minutes and pull request listings for thirty seconds, none of it keyed by account, so a switch
+ * or sign-out has to drop that as well as this client's copies.
+ */
+async function invalidateAfterAccountChange(queryClient: QueryClient, environmentId?: string) {
+  try {
+    const api = await environmentApi(environmentId);
+    await api.pullRequests.invalidate({});
+  } catch {
+    // The caches expire on their own; a failed nudge must not fail the switch.
+  }
+  await Promise.all([
+    invalidateGitQueries(queryClient),
+    queryClient.invalidateQueries({ queryKey: ["host-pull-requests"] }),
+  ]);
+}
+
 export function gitEnvironmentQueryOptions(cwd: string | null, environmentId?: string) {
   return queryOptions({
     queryKey: scopedGitKey(environmentId, gitQueryKeys.environment(cwd)),
@@ -59,7 +78,15 @@ export function gitEnvironmentQueryOptions(cwd: string | null, environmentId?: s
     },
     enabled: cwd !== null,
     staleTime: GIT_ENVIRONMENT_STALE_TIME_MS,
-    refetchInterval: GIT_ENVIRONMENT_STALE_TIME_MS,
+    // Token scopes arrive from the server a moment after the account list does, so look again
+    // soon while any account still lacks them.
+    refetchInterval: (query) =>
+      query.state.data?.gitHub.accounts.some(
+        (account) => account.scopes.length === 0 ||
+          (account.host === "github.com" && account.avatarUrl === undefined),
+      )
+        ? 3_000
+        : GIT_ENVIRONMENT_STALE_TIME_MS,
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });
@@ -82,7 +109,7 @@ export function gitHubSwitchAccountMutationOptions(input: {
       return api.git.gitHubSwitchAccount(account);
     },
     onSuccess: async () => {
-      await invalidateGitQueries(input.queryClient);
+      await invalidateAfterAccountChange(input.queryClient, input.environmentId);
     },
   });
 }
@@ -99,7 +126,7 @@ export function gitHubLogoutMutationOptions(input: {
       return api.git.gitHubLogout(account);
     },
     onSuccess: async () => {
-      await invalidateGitQueries(input.queryClient);
+      await invalidateAfterAccountChange(input.queryClient, input.environmentId);
     },
   });
 }
@@ -261,6 +288,44 @@ export function gitResolvePullRequestQueryOptions(input: {
   });
 }
 
+// The list a reader saw last time, shown the moment the panel opens while the fresh one loads.
+// Only the default page (no search, first page size) is kept: that is the one every open asks for.
+const PR_LIST_SNAPSHOT_PREFIX = "tabs.pr.list:v1:";
+
+function prListSnapshotKey(environmentId: string | undefined, cwd: string, state: string) {
+  return `${PR_LIST_SNAPSHOT_PREFIX}${JSON.stringify([environmentId ?? "local", cwd, state])}`;
+}
+
+function readPrListSnapshot<T>(
+  environmentId: string | undefined,
+  cwd: string | null,
+  state: string,
+): T | undefined {
+  if (!cwd || typeof window === "undefined") return undefined;
+  try {
+    const raw = window.localStorage.getItem(prListSnapshotKey(environmentId, cwd, state));
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as { pullRequests?: unknown };
+    return Array.isArray(parsed.pullRequests) ? (parsed as T) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writePrListSnapshot(
+  environmentId: string | undefined,
+  cwd: string,
+  state: string,
+  value: unknown,
+) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(prListSnapshotKey(environmentId, cwd, state), JSON.stringify(value));
+  } catch {
+    // Quota or private mode: the snapshot is only a head start.
+  }
+}
+
 export function gitAllPullRequestsQueryOptions(
   cwd: string | null,
   state: "open" | "closed" | "merged" | "all" = "all",
@@ -275,13 +340,26 @@ export function gitAllPullRequestsQueryOptions(
       if (!cwd) {
         throw new Error("Pull requests lookup is unavailable.");
       }
-      return api.git.listPullRequests({
+      const result = await api.git.listPullRequests({
         cwd,
         state,
         limit,
         ...(search ? { query: search } : {}),
       });
+      if (!search && limit === 50) writePrListSnapshot(environmentId, cwd, state, result);
+      return result;
     },
+    // A filter or page-size change keeps the rows on screen until the new ones arrive, and a
+    // reopen starts from the last list seen instead of an empty panel.
+    placeholderData: (previous) =>
+      previous ??
+      (!search && limit === 50
+        ? readPrListSnapshot<Awaited<ReturnType<NativeApi["git"]["listPullRequests"]>>>(
+            environmentId,
+            cwd,
+            state,
+          )
+        : undefined),
     enabled: cwd !== null,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

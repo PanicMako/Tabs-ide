@@ -15,6 +15,8 @@ import {
 } from "effect/unstable/http";
 
 import { GitCommandError } from "@tabs/contracts";
+import { encodeStoredReference } from "@tabs/shared/secretProviders/storedReference";
+import { SecretResolver } from "../secrets/SecretResolverCore.ts";
 import * as BitbucketApi from "./BitbucketApi.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
@@ -540,6 +542,34 @@ it.effect("prefers credentials saved in settings over the environment, without a
     yield* bitbucket.probeAuth;
     assert.strictEqual(lastAuthorization(), basic("user@example.com", "token"));
   }).pipe(Effect.provide(layer));
+});
+
+it.effect("reads a saved token that is a secret reference from its provider", () => {
+  const { execute, layer } = makeLayer({
+    response: () => Response.json({ username: "bitbucket-user" }),
+  });
+  const resolver = Layer.succeed(
+    SecretResolver,
+    SecretResolver.of({
+      read: (references) => Effect.succeed(references.map(() => "from-provider")),
+      invalidate: () => Effect.void,
+      label: (provider) => Effect.succeed(provider),
+    }),
+  );
+  return Effect.gen(function* () {
+    const bitbucket = yield* BitbucketApi.BitbucketApi;
+    const settings = yield* ServerSettings.ServerSettingsService;
+    yield* settings.updateSettings({
+      bitbucket: {
+        accessToken: encodeStoredReference({ provider: "op" as never, reference: "op://v/i/f" }),
+      },
+    });
+    yield* bitbucket.probeAuth;
+    assert.strictEqual(
+      execute.mock.calls.at(-1)?.[0].headers.authorization,
+      "Bearer from-provider",
+    );
+  }).pipe(Effect.provide(Layer.provideMerge(layer, resolver)));
 });
 
 it.effect("never puts a saved token that is unsafe for an HTTP header on the wire", () => {

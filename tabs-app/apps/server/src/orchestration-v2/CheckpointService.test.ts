@@ -11,7 +11,9 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as TestClock from "effect/testing/TestClock";
 
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as CheckpointService from "./CheckpointService.ts";
@@ -101,3 +103,42 @@ it.effect.each([false, true, "interrupt"] as const)(
     }).pipe(Effect.provide(layerTest));
   },
 );
+
+it.effect("gives up on a baseline snapshot that outlasts its budget", () => {
+  const scope: OrchestrationV2CheckpointScope = {
+    id: CheckpointScopeId.make("checkpoint-scope:slow-baseline"),
+    threadId: ThreadId.make("thread:slow-baseline"),
+    runId: RunId.make("run:slow-baseline:1"),
+    nodeId: NodeId.make("node:slow-baseline:1"),
+    parentScopeId: null,
+    providerThreadId: ProviderThreadId.make("provider-thread:slow-baseline"),
+    kind: "root_run",
+    ordinalWithinParent: 0,
+    advancesAppRunCount: true,
+    cwd: "/repo",
+    createdAt: DateTime.makeUnsafe("2026-07-28T00:00:00.000Z"),
+  };
+  const layerTest = CheckpointService.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        IdAllocator.layer,
+        Layer.mock(CheckpointStore.CheckpointStore)({
+          isGitRepository: () => Effect.succeed(true),
+          hasCheckpointRef: () => Effect.succeed(false),
+          captureCheckpoint: () => Effect.never,
+        }),
+      ),
+    ),
+  );
+
+  return Effect.gen(function* () {
+    const checkpoints = yield* CheckpointService.CheckpointServiceV2;
+    const fiber = yield* checkpoints
+      .captureBaseline({ scope, ordinalWithinScope: 0 })
+      .pipe(Effect.exit, Effect.forkScoped);
+    yield* TestClock.adjust("5 seconds");
+    const exit = yield* Fiber.join(fiber);
+    assert.isTrue(Exit.isFailure(exit));
+    assert.isFalse(Exit.hasInterrupts(exit));
+  }).pipe(Effect.provide(layerTest), Effect.scoped);
+});

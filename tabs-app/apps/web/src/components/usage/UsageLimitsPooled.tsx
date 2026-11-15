@@ -569,3 +569,80 @@ function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
     </ul>
   );
 }
+
+/** One provider's windows as stacked rows that fit a narrow card: label, percent left, bar, reset. */
+function CompactPool({ pool, now }: { readonly pool: LimitPool; readonly now: number }) {
+  const color = barColor(pool.driver);
+  const label = getDriverOption(pool.driver)?.label ?? String(pool.driver);
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 text-xs font-medium">
+        <ProviderInstanceIcon
+          driverKind={pool.driver}
+          displayName={label}
+          indicatorBackground="var(--background)"
+          className="size-4"
+          iconClassName="size-3.5 text-foreground/80"
+        />
+        {label}
+      </h3>
+      {pool.windows.map((window) => {
+        const nextRefill = window.resets.find((reset) => reset.restoresPercent > 0);
+        return (
+          <div key={`${window.kind}:${window.id}`} className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-[11px]">
+              <span className="min-w-0 truncate text-muted-foreground">{window.label}</span>
+              <span className="shrink-0 font-semibold tabular-nums">
+                {window.remainingPercent}% left
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label={`${window.label}: ${window.remainingPercent}% left`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={window.remainingPercent}
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${window.remainingPercent}%`, backgroundColor: color }}
+              />
+            </div>
+            {nextRefill ? (
+              <p className="text-[10px] tabular-nums text-muted-foreground">
+                ↻ +{nextRefill.restoresPercent}%{" "}
+                {nextRefill.at <= now ? "now" : `in ${formatDuration(nextRefill.at - now)}`}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** The limits in a layout that fits the workspace card instead of a full page. */
+export function UsageLimitsCompact({
+  presentations,
+  now,
+}: {
+  readonly presentations: Parameters<typeof collectLimitAccounts>[0];
+  readonly now: number;
+}) {
+  const pools = collectLimitPools(collectLimitAccounts(presentations), now);
+  const notices = collectLimitNotices(presentations);
+  return (
+    <div className="min-w-0 space-y-4">
+      {pools.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          No provider reports subscription limits yet.
+        </p>
+      ) : null}
+      {pools.map((pool) => (
+        <CompactPool key={pool.driver} pool={pool} now={now} />
+      ))}
+      <LimitNotices notices={notices} />
+    </div>
+  );
+}

@@ -140,6 +140,7 @@ export const RPC_REQUIRED_SCOPES = {
 
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: AuthOrchestrationOperateScope,
   [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: AuthOrchestrationReadScope,
+  [ORCHESTRATION_V2_WS_METHODS.getNativeChildWork]: AuthOrchestrationReadScope,
   [ORCHESTRATION_V2_WS_METHODS.getTurnDiff]: AuthOrchestrationReadScope,
   [ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff]: AuthOrchestrationReadScope,
   [ORCHESTRATION_V2_WS_METHODS.searchThreads]: AuthOrchestrationReadScope,
@@ -194,6 +195,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.serverDisableAcpRegistryProvider]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverLogoutAcpRegistry]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverDiscoverSourceControl]: AuthOrchestrationReadScope,
+  [WS_METHODS.serverCheckSecretSource]: AuthOrchestrationReadScope,
   [WS_METHODS.serverGetTraceDiagnostics]: AuthOrchestrationReadScope,
   [WS_METHODS.serverGetProcessDiagnostics]: AuthOrchestrationReadScope,
   [WS_METHODS.serverGetResourceTelemetry]: AuthOrchestrationReadScope,
@@ -232,6 +234,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.pullRequestsChecks]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsActivity]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsThreadComments]: AuthOrchestrationReadScope,
+  [WS_METHODS.pullRequestsDiff]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsDiffFileContents]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsFilesViewed]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsRunAction]: AuthOrchestrationOperateScope,
@@ -242,6 +245,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.pullRequestsReplyToThread]: AuthOrchestrationOperateScope,
   [WS_METHODS.pullRequestsSetThreadResolution]: AuthOrchestrationOperateScope,
   [WS_METHODS.pullRequestsSetReaction]: AuthOrchestrationOperateScope,
+  [WS_METHODS.pullRequestsReviewGuide]: AuthOrchestrationReadScope,
+  [WS_METHODS.pullRequestsGenerateReviewGuide]: AuthOrchestrationOperateScope,
   [WS_METHODS.pullRequestsSetFilesViewed]: AuthOrchestrationOperateScope,
   // Read scope like the reads it un-caches: refreshing is part of reading, and a read-only
   // client pressing refresh must not be told it may not look again.
@@ -252,6 +257,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.pullRequestsReviewerCandidates]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsRequestReviewers]: AuthOrchestrationOperateScope,
   [WS_METHODS.pullRequestsLabelCandidates]: AuthOrchestrationReadScope,
+  [WS_METHODS.pullRequestsAuthorCandidates]: AuthOrchestrationReadScope,
+  [WS_METHODS.pullRequestsReferenceCandidates]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsSetLabels]: AuthOrchestrationOperateScope,
   [WS_METHODS.sourceControlLookupRepository]: AuthOrchestrationReadScope,
   [WS_METHODS.sourceControlCloneRepository]: AuthOrchestrationOperateScope,

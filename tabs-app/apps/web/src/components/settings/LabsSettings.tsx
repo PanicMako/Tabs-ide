@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, MicIcon, PaletteIcon } from "lucide-react";
 import { TabsExtensionIcon } from "../Icons";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import { useTheme } from "../../hooks/useTheme";
@@ -26,6 +26,8 @@ import {
 } from "../onboarding/wallpapers";
 const ExtensionsSettings = lazy(() => import("./ExtensionsSettings"));
 const WallpaperSettings = lazy(() => import("./WallpaperSettings"));
+const VoiceSettings = lazy(() => import("./VoiceSettings"));
+const AgentThemeSettings = lazy(() => import("./AgentThemeSettings"));
 
 export default function LabsSettings() {
   const editorial = useSettingsLabsStore((state) => state.editorialSettings);
@@ -47,7 +49,10 @@ export default function LabsSettings() {
         ).value
       : "0";
   const { updateSettings } = useUpdateSettings();
-  const [experiment, setExperiment] = useState<"wallpapers" | "extensions" | null>(null);
+  const [experiment, setExperiment] = useState<
+    "wallpapers" | "extensions" | "voice" | "agent-theme" | null
+  >(null);
+  const voiceInputEnabled = useSettings((settings) => settings.voiceInputEnabled);
 
   useEffect(() => {
     if (editorial && settingsOnly && appearance !== resolvedTheme) {
@@ -76,6 +81,10 @@ export default function LabsSettings() {
       <Suspense fallback={<SettingsLoadingState label={`Loading ${experiment}`} />}>
         {experiment === "wallpapers" ? (
           <WallpaperSettings onBack={() => setExperiment(null)} />
+        ) : experiment === "voice" ? (
+          <VoiceSettings onBack={() => setExperiment(null)} />
+        ) : experiment === "agent-theme" ? (
+          <AgentThemeSettings onBack={() => setExperiment(null)} />
         ) : (
           <ExtensionsSettings onBack={() => setExperiment(null)} />
         )}
@@ -150,10 +159,10 @@ export default function LabsSettings() {
       <SettingsSection title="Workspace experiments">
         <SettingsRow
           title="Agent wallpapers"
-          description="Anime backgrounds with animated wave-halftone particles, dual light/dark mode blending, and per-thread overrides."
+          description="Anime backgrounds behind your agent chats, with print styles (ASCII, dither, braille and more), light and dark readability, and per-thread overrides."
           status={
             isWallpaperEnabled ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500 border border-emerald-500/30">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
                 Enabled
               </span>
             ) : (
@@ -213,6 +222,33 @@ export default function LabsSettings() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          title="Voice input"
+          description="Dictate into the composer with an on-device speech model. Audio stays on this machine."
+          control={
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => setExperiment("voice")}>
+                <MicIcon className="size-3.5 mr-2" />
+                Voice settings
+              </Button>
+              <Switch
+                aria-label="Voice input"
+                checked={voiceInputEnabled}
+                onCheckedChange={(checked) => void updateSettings({ voiceInputEnabled: checked })}
+              />
+            </div>
+          }
+        />
+        <SettingsRow
+          title="Agent theme"
+          description="Let an agent restyle Tabs with its theme tool, or set colors and CSS yourself. It applies live on top of your theme."
+          control={
+            <Button variant="outline" size="sm" onClick={() => setExperiment("agent-theme")}>
+              <PaletteIcon className="size-3.5 mr-2" />
+              Open agent theme
+            </Button>
           }
         />
         <SettingsRow

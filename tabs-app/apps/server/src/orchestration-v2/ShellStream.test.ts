@@ -728,4 +728,31 @@ describe("idle subagent snapshot omission", () => {
       ),
     ).toBe(true);
   });
+
+  it("keeps idle sub-threads whose parent is in the snapshot", () => {
+    const parent = shellFixture({
+      id: ThreadId.make("parent"),
+      lineage: {
+        parentThreadId: null,
+        rootThreadId: ThreadId.make("parent"),
+        relationshipToParent: null,
+      },
+    });
+    const child = shellFixture({
+      id: ThreadId.make("finished-child"),
+      lineage: {
+        parentThreadId: parent.id,
+        rootThreadId: parent.id,
+        relationshipToParent: "subagent",
+      },
+      status: "idle",
+      activityRunStatus: null,
+      pendingRuntimeRequest: null,
+      pendingBackgroundTasks: [],
+    });
+    expect(activeShellRowsForSubscriber([parent, child], true).threads.map((t) => t.id)).toEqual([
+      "parent",
+      "finished-child",
+    ]);
+  });
 });

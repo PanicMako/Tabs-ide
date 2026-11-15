@@ -27,6 +27,29 @@ export const HostProcessArchitecture = Context.Reference<NodeJS.Architecture>(
   },
 );
 
+export const HostProcessHomeDirectory = Context.Reference<string>(
+  "@tabs/shared/hostProcess/HostProcessHomeDirectory",
+  {
+    defaultValue: () => NodeOS.homedir(),
+  },
+);
+
+export const HostProcessLinuxLibc = Context.Reference<"gnu" | "musl">(
+  "@tabs/shared/hostProcess/HostProcessLinuxLibc",
+  {
+    defaultValue: () => {
+      try {
+        const report = process.report?.getReport() as
+          | { header?: { glibcVersionRuntime?: unknown } }
+          | undefined;
+        return typeof report?.header?.glibcVersionRuntime === "string" ? "gnu" : "musl";
+      } catch {
+        return "musl";
+      }
+    },
+  },
+);
+
 export const HostProcessHostname = Context.Reference<string>(
   "@tabs/shared/hostProcess/HostProcessHostname",
   {

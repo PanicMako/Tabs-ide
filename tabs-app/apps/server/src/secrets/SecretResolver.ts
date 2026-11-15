@@ -1,0 +1,22 @@
+import type { ServerSettings } from "@tabs/contracts";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+
+import { BUILT_IN_SECRET_PROVIDER_DRIVER_LIST } from "./secretProviderDefinitions.ts";
+import * as SecretResolverCore from "./SecretResolverCore.ts";
+import * as Settings from "../serverSettings.ts";
+
+export { SecretResolver } from "./SecretResolverCore.ts";
+
+export const layer = Layer.unwrap(
+  Effect.gen(function* () {
+    const serverSettings = yield* Settings.ServerSettingsService;
+    return SecretResolverCore.layer({
+      drivers: BUILT_IN_SECRET_PROVIDER_DRIVER_LIST,
+      secretProviders: serverSettings.getSettings.pipe(
+        Effect.map((settings) => settings.secretProviders),
+        Effect.orElseSucceed((): ServerSettings["secretProviders"] => ({})),
+      ),
+    });
+  }),
+);

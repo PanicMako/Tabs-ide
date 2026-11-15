@@ -1,4 +1,4 @@
-// Adapted from T3 Code PR #23178 (MIT).
+// Adapted from Tabs PR #23178 (MIT).
 import {
   renderTokenLines,
   type DiffsHighlighter,

@@ -175,6 +175,34 @@ it.layer(TestLayer)("git integration", (it) => {
     );
   });
 
+  // ── watchedBranchStatuses ──
+
+  describe("watchedBranchStatuses", () => {
+    it.effect("reports each branch's ahead and behind counts from HEAD", () =>
+      Effect.gen(function* () {
+        const tmp = yield* makeTmpDir();
+        yield* initRepoWithCommit(tmp);
+        const core = yield* GitCore;
+        yield* git(tmp, ["checkout", "-b", "side"]);
+        yield* writeTextFile(path.join(tmp, "side.txt"), "1");
+        yield* git(tmp, ["add", "."]);
+        yield* git(tmp, ["commit", "-m", "side one"]);
+        yield* writeTextFile(path.join(tmp, "side2.txt"), "2");
+        yield* git(tmp, ["add", "."]);
+        yield* git(tmp, ["commit", "-m", "side two"]);
+        yield* git(tmp, ["checkout", "-"]);
+        yield* writeTextFile(path.join(tmp, "main.txt"), "m");
+        yield* git(tmp, ["add", "."]);
+        yield* git(tmp, ["commit", "-m", "main one"]);
+
+        const result = yield* core.watchedBranchStatuses({ cwd: tmp });
+        const side = result.branches.find((branch) => branch.name === "side");
+        // `side` has two commits HEAD lacks, and HEAD has one commit `side` lacks.
+        expect(side).toMatchObject({ behindCount: 2, aheadCount: 1 });
+      }),
+    );
+  });
+
   // ── listGitBranches ──
 
   describe("listGitBranches", () => {

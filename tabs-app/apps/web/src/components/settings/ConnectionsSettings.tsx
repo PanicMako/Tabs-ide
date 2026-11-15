@@ -4,6 +4,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+import { ConnectionGuideDialog } from "./ConnectionGuideDialog";
+import { RemoteAccessSection } from "./RemoteAccessSettings";
 import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 import { toastManager } from "~/components/ui/toast";
 import { useConfirm } from "~/hooks/useConfirm";
@@ -11,10 +13,6 @@ import {
   Link2Icon,
   MonitorIcon,
   ShieldCheckIcon,
-  InfoIcon,
-  LockIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   TerminalIcon,
   PlusIcon,
   Trash2Icon,
@@ -68,10 +66,6 @@ export function ConnectionsSettings() {
     ipv4: null,
   });
   const [isLoadingTailscale, setIsLoadingTailscale] = useState(true);
-
-  // Wizard States
-  const [guideStep, setGuideStep] = useState(1);
-  const [httpsStep, setHttpsStep] = useState(1);
 
   // Add Environment Dialog Form States
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -307,7 +301,7 @@ export function ConnectionsSettings() {
         <div className="space-y-1.5">
           <SettingsPageTitle className="mb-2">Connections</SettingsPageTitle>
           <p className="text-sm text-muted-foreground">
-            Configure network access, Tailscale HTTPS tunnels, and remote environment connections.
+            Let other devices in, and connect to machines running Tabs elsewhere.
           </p>
         </div>
         <div
@@ -334,144 +328,33 @@ export function ConnectionsSettings() {
                     Tailscale HTTPS
                   </span>
                 </div>
-                <Dialog
-                  onOpenChange={(open) => {
-                    if (open) setHttpsStep(1);
-                  }}
-                >
-                  <DialogTrigger
-                    render={
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-foreground p-0 rounded-full flex items-center justify-center"
-                      >
-                        <InfoIcon className="size-4" />
-                      </Button>
-                    }
-                  />
-                  <DialogContent className="max-w-[520px]">
-                    <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2 text-[18px]">
-                        <Link2Icon className="size-5 text-foreground" />
-                        Tailscale HTTPS
-                      </DialogTitle>
-                      <DialogDescription className="text-[13px]">
-                        Concept Guide — Step {httpsStep} of 3
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogPanel className="space-y-6 pt-5 pb-3">
-                      {httpsStep === 1 && (
-                        <div className="space-y-4 text-center py-4">
-                          <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-foreground">
-                            <ShieldCheckIcon className="size-8" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-[16px] font-bold text-foreground">
-                              1. Private Mesh Network (Tailnet)
-                            </h4>
-                            <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                              Tailscale links your devices together in a secure peer-to-peer virtual
-                              private network. All connections are end-to-end encrypted using
-                              WireGuard.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {httpsStep === 2 && (
-                        <div className="space-y-4 text-center py-4">
-                          <div className="mx-auto size-16 rounded-full bg-info/10 flex items-center justify-center border border-info/20 text-info">
-                            <MonitorIcon className="size-8" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-[16px] font-bold text-foreground">
-                              2. MagicDNS Mapping
-                            </h4>
-                            <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                              MagicDNS automatically translates dynamic IP addresses into clean,
-                              stable, human-readable hostnames (e.g.{" "}
-                              <code className="bg-muted px-1.5 py-0.5 rounded text-[12px] font-mono text-foreground font-semibold">
-                                my-server.ts.net
-                              </code>
-                              ).
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {httpsStep === 3 && (
-                        <div className="space-y-4 text-center py-4">
-                          <div className="mx-auto size-16 rounded-full bg-success/10 flex items-center justify-center border border-success/20 text-success">
-                            <LockIcon className="size-8" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-[16px] font-bold text-foreground">
-                              3. Private SSL Certificates
-                            </h4>
-                            <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                              Tailscale provisions trusted Let's Encrypt certificates directly for
-                              your MagicDNS domain name. This enables fully verified, private HTTPS
-                              inside your browser.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Navigation Controls */}
-                      <div className="flex items-center justify-between pt-5 border-t border-border/40">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setHttpsStep((s) => Math.max(1, s - 1))}
-                          className={cn(
-                            "text-xs h-8 gap-1 pl-1.5 pr-2.5",
-                            httpsStep === 1 && "invisible",
-                          )}
-                        >
-                          <ChevronLeftIcon className="size-4" />
-                          Back
-                        </Button>
-
-                        {/* Pagination Dots */}
-                        <div className="flex items-center gap-1.5">
-                          {[1, 2, 3].map((step) => (
-                            <span
-                              key={step}
-                              onClick={() => setHttpsStep(step)}
-                              className={cn(
-                                "size-1.5 rounded-full transition-all cursor-pointer",
-                                httpsStep === step
-                                  ? "bg-primary scale-125"
-                                  : "bg-muted-foreground/30 hover:bg-muted-foreground/50",
-                              )}
-                            />
-                          ))}
-                        </div>
-
-                        {httpsStep < 3 ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setHttpsStep((s) => Math.min(3, s + 1))}
-                            className="text-xs h-8 gap-1 pl-2.5 pr-1.5"
-                          >
-                            Next
-                            <ChevronRightIcon className="size-4" />
-                          </Button>
-                        ) : (
-                          <DialogClose
-                            render={
-                              <Button size="sm" variant="secondary" className="text-xs h-8">
-                                Finish
-                              </Button>
-                            }
-                          />
-                        )}
-                      </div>
-                    </DialogPanel>
-                  </DialogContent>
-                </Dialog>
+                <ConnectionGuideDialog
+                  triggerLabel="About Tailscale HTTPS"
+                  title="Tailscale HTTPS"
+                  summary="How a private, trusted address reaches this machine."
+                  points={[
+                    {
+                      title: "A private network between your devices",
+                      body: "Tailscale links your devices into one encrypted peer-to-peer network, so nothing is exposed to the open internet.",
+                    },
+                    {
+                      title: "A name that stays put",
+                      body: (
+                        <>
+                          MagicDNS gives each device a stable hostname such as{" "}
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] text-foreground">
+                            my-server.ts.net
+                          </code>
+                          , instead of an IP address that changes.
+                        </>
+                      ),
+                    },
+                    {
+                      title: "A real certificate",
+                      body: "Tailscale provisions a trusted certificate for that name, so the browser shows verified HTTPS.",
+                    },
+                  ]}
+                />
               </div>
               <p className="text-xs text-muted-foreground/80 leading-relaxed max-w-xl mt-1">
                 {isLoadingTailscale
@@ -520,159 +403,44 @@ export function ConnectionsSettings() {
         </div>
       </SettingsSection>
 
+      <RemoteAccessSection />
+
       <SettingsSection
         title="Remote Environments"
         headerAction={
-          <Dialog
-            onOpenChange={(open) => {
-              if (open) setGuideStep(1);
-            }}
-          >
-            <DialogTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  className="size-5 text-muted-foreground hover:text-foreground"
-                >
-                  <InfoIcon className="size-3.5" />
-                </Button>
-              }
-            />
-            <DialogContent className="max-w-[520px]">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-[18px]">
-                  <MonitorIcon className="size-5 text-foreground" />
-                  Connections Guide
-                </DialogTitle>
-                <DialogDescription className="text-[13px]">
-                  Setup Steps — Step {guideStep} of 4
-                </DialogDescription>
-              </DialogHeader>
-              <DialogPanel className="space-y-6 pt-5 pb-3">
-                {guideStep === 1 && (
-                  <div className="space-y-4 text-center py-4">
-                    <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-foreground">
-                      <MonitorIcon className="size-8" />
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="text-[16px] font-bold text-foreground">
-                        1. Expose Host Environment
-                      </h4>
-                      <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                        Navigate to the target remote server's settings panel, switch to{" "}
-                        <strong>Connections</strong>, and enable the <strong>Network Access</strong>{" "}
-                        toggle.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {guideStep === 2 && (
-                  <div className="space-y-4 text-center py-4">
-                    <div className="mx-auto size-16 rounded-full bg-success/10 flex items-center justify-center border border-success/20 text-success">
-                      <ShieldCheckIcon className="size-8" />
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="text-[16px] font-bold text-foreground">
-                        2. Configure Secure Mesh (Tailscale)
-                      </h4>
-                      <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                        Ensure Tailscale is installed and running on both devices to map a secure
-                        encrypted connection without firewall modifications.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {guideStep === 3 && (
-                  <div className="space-y-4 text-center py-4">
-                    <div className="mx-auto size-16 rounded-full bg-info/10 flex items-center justify-center border border-info/20 text-info">
-                      <Link2Icon className="size-8" />
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="text-[16px] font-bold text-foreground">
-                        3. Connect on Client Editor
-                      </h4>
-                      <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                        On your local machine, choose <strong>Add environment</strong>, enter the
-                        remote server IP or MagicDNS address, and press connect.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {guideStep === 4 && (
-                  <div className="space-y-4 text-center py-4">
-                    <div className="mx-auto size-16 rounded-full bg-success/10 flex items-center justify-center border border-success/20 text-success">
-                      <LockIcon className="size-8" />
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="text-[16px] font-bold text-foreground">
-                        4. Authorize Session
-                      </h4>
-                      <p className="text-[13px] text-muted-foreground leading-relaxed px-6">
-                        Input the pairing authorization codes to complete credentials exchange.
-                        Connections are end-to-end encrypted.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Navigation Controls */}
-                <div className="flex items-center justify-between pt-5 border-t border-border/40">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setGuideStep((s) => Math.max(1, s - 1))}
-                    className={cn(
-                      "text-xs h-8 gap-1 pl-1.5 pr-2.5",
-                      guideStep === 1 && "invisible",
-                    )}
-                  >
-                    <ChevronLeftIcon className="size-4" />
-                    Back
-                  </Button>
-
-                  {/* Pagination Dots */}
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4].map((step) => (
-                      <span
-                        key={step}
-                        onClick={() => setGuideStep(step)}
-                        className={cn(
-                          "size-1.5 rounded-full transition-all cursor-pointer",
-                          guideStep === step
-                            ? "bg-primary scale-125"
-                            : "bg-muted-foreground/30 hover:bg-muted-foreground/50",
-                        )}
-                      />
-                    ))}
-                  </div>
-
-                  {guideStep < 4 ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setGuideStep((s) => Math.min(4, s + 1))}
-                      className="text-xs h-8 gap-1 pl-2.5 pr-1.5"
-                    >
-                      Next
-                      <ChevronRightIcon className="size-4" />
-                    </Button>
-                  ) : (
-                    <DialogClose
-                      render={
-                        <Button size="sm" variant="secondary" className="text-xs h-8">
-                          Finish
-                        </Button>
-                      }
-                    />
-                  )}
-                </div>
-              </DialogPanel>
-            </DialogContent>
-          </Dialog>
+          <ConnectionGuideDialog
+            triggerLabel="How connections work"
+            title="Connect to another machine"
+            summary="Four steps, in order."
+            points={[
+              {
+                title: "Let the other machine in",
+                body: (
+                  <>
+                    On the machine you want to reach, open <strong>Connections</strong> in settings
+                    and make a pairing link under <strong>Let another device in</strong>.
+                  </>
+                ),
+              },
+              {
+                title: "Put both on one network",
+                body: "Run Tailscale on both devices for an encrypted connection with no firewall changes, or use the same local network.",
+              },
+              {
+                title: "Add it here",
+                body: (
+                  <>
+                    Choose <strong>Add environment</strong>, enter the other machine's address, and
+                    continue.
+                  </>
+                ),
+              },
+              {
+                title: "Approve the pairing",
+                body: "Paste the pairing code from the other machine to finish. The connection is encrypted.",
+              },
+            ]}
+          />
         }
       >
         {hasCloudPublicConfig() ? <ManagedCloudConnections /> : null}

@@ -14,7 +14,7 @@ export function SetupCard({
     <section
       aria-labelledby={labelledBy}
       // setup-typography keeps setup on its bundled fonts whatever the app uses.
-      className="setup-typography w-full max-w-[960px] rounded-lg border border-white/20 bg-black/60 p-6 shadow-2xl shadow-black/60 backdrop-blur-3xl sm:rounded-lg sm:p-10"
+      className="setup-typography w-full max-w-[960px] rounded-lg border border-white/20 bg-black/[.62] p-6 shadow-2xl shadow-black/60 sm:rounded-lg sm:p-10"
       style={{ fontFamily: "var(--font-sans)" }}
     >
       <div role="img" aria-label={`Setup step ${step} of 3`} className="mb-7 flex max-w-24 gap-1.5">

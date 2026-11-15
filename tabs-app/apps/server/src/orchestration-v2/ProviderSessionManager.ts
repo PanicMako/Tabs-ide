@@ -1,4 +1,5 @@
 import * as KeyedLock from "@tabs/shared/KeyedLock";
+import * as ProviderInstallationGate from "../provider/ProviderInstallationGate.ts";
 import { resolveProjectSettings } from "@tabs/shared/projectSettings";
 import {
   ModelSelection,
@@ -1786,55 +1787,58 @@ export const layerWithOptions = (
                 }
               });
               const sessionScope = yield* Scope.make();
-              const runtime = yield* adapter
-                .openSession({
-                  threadId: input.threadId,
-                  providerSessionId: input.providerSessionId,
-                  modelSelection: input.modelSelection,
-                  runtimePolicy: input.runtimePolicy,
-                  ...(input.resumeFromSession === undefined
-                    ? {}
-                    : { resumeFromSession: input.resumeFromSession }),
-                  ...(input.initialNativeThreadId === undefined
-                    ? {}
-                    : { initialNativeThreadId: input.initialNativeThreadId }),
-                  ...(input.initialProviderItemIdentityVersion === undefined
-                    ? {}
-                    : {
-                        initialProviderItemIdentityVersion:
-                          input.initialProviderItemIdentityVersion,
-                      }),
-                })
-                .pipe(
-                  Effect.provideService(Scope.Scope, sessionScope),
-                  Effect.tapError(() =>
-                    Scope.close(sessionScope, Exit.void).pipe(
-                      Effect.ignore,
-                      Effect.andThen(dropReservation),
-                      // Revoke only a credential this open freshly minted: a
-                      // reused credential is held by another live provider
-                      // process and must survive this open's failure.
-                      Effect.andThen(
-                        prepared.issued
-                          ? clearMcpSession(input.threadId, mcpCredentialId)
-                          : Effect.void,
+              const runtime = yield* ProviderInstallationGate.executeWhenGated(
+                input.modelSelection.instanceId,
+                adapter
+                  .openSession({
+                    threadId: input.threadId,
+                    providerSessionId: input.providerSessionId,
+                    modelSelection: input.modelSelection,
+                    runtimePolicy: input.runtimePolicy,
+                    ...(input.resumeFromSession === undefined
+                      ? {}
+                      : { resumeFromSession: input.resumeFromSession }),
+                    ...(input.initialNativeThreadId === undefined
+                      ? {}
+                      : { initialNativeThreadId: input.initialNativeThreadId }),
+                    ...(input.initialProviderItemIdentityVersion === undefined
+                      ? {}
+                      : {
+                          initialProviderItemIdentityVersion:
+                            input.initialProviderItemIdentityVersion,
+                        }),
+                  })
+                  .pipe(
+                    Effect.provideService(Scope.Scope, sessionScope),
+                    Effect.tapError(() =>
+                      Scope.close(sessionScope, Exit.void).pipe(
+                        Effect.ignore,
+                        Effect.andThen(dropReservation),
+                        // Revoke only a credential this open freshly minted: a
+                        // reused credential is held by another live provider
+                        // process and must survive this open's failure.
+                        Effect.andThen(
+                          prepared.issued
+                            ? clearMcpSession(input.threadId, mcpCredentialId)
+                            : Effect.void,
+                        ),
                       ),
                     ),
+                    Effect.onInterrupt(() => dropReservation),
+                    Effect.mapError(
+                      (cause) =>
+                        new ProviderSessionOpenError({
+                          instanceId: input.modelSelection.instanceId,
+                          providerSessionId: input.providerSessionId,
+                          cause,
+                        }),
+                    ),
+                    withMetrics({
+                      counter: providerSessionsTotal,
+                      attributes: { provider: adapter.driver, operation: "open" },
+                    }),
                   ),
-                  Effect.onInterrupt(() => dropReservation),
-                  Effect.mapError(
-                    (cause) =>
-                      new ProviderSessionOpenError({
-                        instanceId: input.modelSelection.instanceId,
-                        providerSessionId: input.providerSessionId,
-                        cause,
-                      }),
-                  ),
-                  withMetrics({
-                    counter: providerSessionsTotal,
-                    attributes: { provider: adapter.driver, operation: "open" },
-                  }),
-                );
+              );
               const eventSubscribers = yield* Ref.make<
                 ReadonlyMap<number, Queue.Queue<ProviderSessionEventSignal, Cause.Done>>
               >(new Map());

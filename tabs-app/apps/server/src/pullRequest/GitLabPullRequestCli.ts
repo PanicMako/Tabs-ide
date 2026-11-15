@@ -10,8 +10,11 @@ import type {
   PullRequestInvolvement,
   PullRequestListState,
   PullRequestMergeCapabilities,
+  PullRequestActor,
   PullRequestMergeMethod,
   PullRequestReaction,
+  PullRequestReferenceCandidate,
+  PullRequestReferenceSigil,
   PullRequestReactionContent,
   PullRequestReviewCommentDraft,
   PullRequestReviewPosition,
@@ -310,6 +313,30 @@ export class GitLabPullRequestCli extends Context.Service<
       readonly repository: string;
       readonly number: number;
     }) => Effect.Effect<PullRequestReviewerCandidateList, GitLabPullRequestCliError>;
+
+    /** People to offer when narrowing a listing by author or completing an `@mention`. */
+    readonly searchRepositoryAuthors: (input: {
+      readonly cwd: string;
+      readonly repository: string;
+      readonly query?: string | undefined;
+    }) => Effect.Effect<
+      { readonly items: ReadonlyArray<PullRequestActor>; readonly truncated: boolean },
+      GitLabPullRequestCliError
+    >;
+
+    /** Issues (`#`) or merge requests (`!`) a composer can link, recently updated first. */
+    readonly searchRepositoryReferences: (input: {
+      readonly cwd: string;
+      readonly repository: string;
+      readonly query?: string | undefined;
+      readonly sigil?: PullRequestReferenceSigil | undefined;
+    }) => Effect.Effect<
+      {
+        readonly items: ReadonlyArray<PullRequestReferenceCandidate>;
+        readonly truncated: boolean;
+      },
+      GitLabPullRequestCliError
+    >;
 
     readonly setReviewerRequest: (input: {
       readonly cwd: string;
@@ -1317,6 +1344,106 @@ export const make = Effect.gen(function* () {
               );
         }),
       ),
+
+    searchRepositoryAuthors: (input) => {
+      const search = input.query?.trim() ?? "";
+      return api({
+        cwd: input.cwd,
+        path: `projects/${projectPath(input.repository)}/users?${query([
+          ["per_page", "50"],
+          ...(search.length > 0 ? ([["search", search]] as Array<[string, string]>) : []),
+        ])}`,
+      }).pipe(
+        Effect.flatMap((result) => {
+          const decoded = Schema.decodeUnknownResult(
+            Schema.fromJsonString(
+              Schema.Array(
+                Schema.Struct({
+                  username: Schema.String.check(Schema.isNonEmpty()),
+                  name: Schema.optional(Schema.NullOr(Schema.String)),
+                  avatar_url: Schema.optional(Schema.NullOr(Schema.String)),
+                }),
+              ),
+            ),
+          )(result.stdout.trim());
+          return Result.isSuccess(decoded)
+            ? Effect.succeed({
+                items: decoded.success.map(
+                  (user): PullRequestActor => ({
+                    login: user.username,
+                    name: user.name ?? null,
+                    avatarUrl: user.avatar_url ?? null,
+                  }),
+                ),
+                truncated: decoded.success.length >= 50,
+              })
+            : Effect.fail(
+                new GitLabMergeRequestReadError({
+                  command: "glab",
+                  cwd: input.cwd,
+                  operation: "searchRepositoryAuthors",
+                  cause: decoded.failure,
+                }),
+              );
+        }),
+      );
+    },
+
+    searchRepositoryReferences: (input) => {
+      const search = input.query?.trim() ?? "";
+      const merge = input.sigil === "!";
+      return api({
+        cwd: input.cwd,
+        path: `projects/${projectPath(input.repository)}/${merge ? "merge_requests" : "issues"}?${query(
+          [
+            ["per_page", "20"],
+            ["order_by", "updated_at"],
+            ["state", "all"],
+            ...(search.length > 0 ? ([["search", search]] as Array<[string, string]>) : []),
+          ],
+        )}`,
+      }).pipe(
+        Effect.flatMap((result) => {
+          const decoded = Schema.decodeUnknownResult(
+            Schema.fromJsonString(
+              Schema.Array(
+                Schema.Struct({
+                  iid: Schema.Int.check(Schema.isGreaterThan(0)),
+                  title: Schema.String,
+                  state: Schema.String,
+                }),
+              ),
+            ),
+          )(result.stdout.trim());
+          return Result.isSuccess(decoded)
+            ? Effect.succeed({
+                items: decoded.success.map(
+                  (row): PullRequestReferenceCandidate => ({
+                    reference: `${merge ? "!" : "#"}${row.iid}`,
+                    kind: merge ? "change-request" : "issue",
+                    number: row.iid,
+                    title: row.title,
+                    state:
+                      row.state === "merged"
+                        ? "merged"
+                        : row.state === "closed"
+                          ? "closed"
+                          : "open",
+                  }),
+                ),
+                truncated: decoded.success.length >= 20,
+              })
+            : Effect.fail(
+                new GitLabMergeRequestReadError({
+                  command: "glab",
+                  cwd: input.cwd,
+                  operation: "searchRepositoryReferences",
+                  cause: decoded.failure,
+                }),
+              );
+        }),
+      );
+    },
 
     listReviewerCandidates: (input) =>
       Effect.all([mergeRequestDetail(input), projectUsers(input)], { concurrency: 2 }).pipe(

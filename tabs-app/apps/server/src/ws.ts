@@ -15,7 +15,11 @@ import { GitCommandError as LegacyGitCommandError } from "./git/Errors.ts";
 import { CoreWsRpcGroup, TestingWsRpcGroup, WorkspaceCompatibilityRpcGroup } from "@tabs/contracts";
 import { TestingRuntime } from "./testing/TestingRuntime.ts";
 import { testingRpcHandlers } from "./testing/TestingRpcHandlers.ts";
-import { OrchestrationDispatchCommandError } from "@tabs/contracts";
+import {
+  OrchestrationDispatchCommandError,
+  PullRequestOperationError,
+  type ThreadPullRequestKey,
+} from "@tabs/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 
@@ -135,6 +139,8 @@ import * as ServerConfig from "./config.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
+import * as SecretCheck from "./secrets/SecretCheck.ts";
+import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts";
@@ -227,6 +233,7 @@ import { linkCreatedPullRequest } from "./git/linkCreatedPullRequest.ts";
 import * as ReviewService from "./review/ReviewService.ts";
 import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
+import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
 import { projectMutationOperation } from "./project/ProjectMutation.ts";
 import * as ProjectSetupScriptRunner from "./project/ProjectSetupScriptRunner.ts";
@@ -1248,6 +1255,8 @@ const layerWsRpc = (
         const currentSessionId = currentSession.sessionId;
         const sql = yield* SqlClient.SqlClient;
         const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+        const nativeChildWork = yield* NativeChildWorkQuery.NativeChildWorkQuery;
+        const secretCheck = yield* SecretCheck.SecretCheck;
         const intakeContext = yield* Effect.context<
           | ThreadManagementService.ThreadManagementService
           | ThreadLaunchService.ThreadLaunchService
@@ -1281,6 +1290,7 @@ const layerWsRpc = (
         const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
         const secretRequests = yield* SecretRequests.SecretRequests;
         const pullRequests = yield* PullRequestService.PullRequestService;
+        const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
         const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
         const deviceService = yield* DeviceService.DeviceService;
         const deviceHostContext =
@@ -1301,6 +1311,22 @@ const layerWsRpc = (
                 ),
                 Effect.orElseSucceed(() => null),
               );
+        // A guide is stored per host, repository and number; a reference that cannot be named
+        // that way cannot have one.
+        const withReviewGuideKey = <A, E, R>(
+          input: PullRequestRef,
+          use: (key: ThreadPullRequestKey) => Effect.Effect<A, E, R>,
+        ): Effect.Effect<A, E | PullRequestOperationError, R> =>
+          Effect.gen(function* () {
+            const key = yield* resolvePullRequestSyncKey(input);
+            if (key === null) {
+              return yield* new PullRequestOperationError({
+                operation: "reviewGuide",
+                detail: "Could not identify this pull request's host.",
+              });
+            }
+            return yield* use(key);
+          });
         const usage = yield* UsageService.UsageService;
         const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
         const projectSetupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
@@ -1577,7 +1603,7 @@ const layerWsRpc = (
                 if (racedImport !== null) return { threadId, imported: false } as const;
                 return yield* new AcpRegistryOperationError({
                   reason: "session_import_failed",
-                  message: "Could not create a T3 thread for the ACP session.",
+                  message: "Could not create a Tabs thread for the ACP session.",
                   cause: launched.failure,
                 });
               }
@@ -1618,7 +1644,8 @@ const layerWsRpc = (
               if (importedThread !== null) {
                 return yield* new AcpRegistryOperationError({
                   reason: "session_delete_failed",
-                  message: "Delete the imported T3 thread before deleting its native ACP session.",
+                  message:
+                    "Delete the imported Tabs thread before deleting its native ACP session.",
                 });
               }
               yield* manager.deleteSession({
@@ -1963,6 +1990,12 @@ const layerWsRpc = (
                   ? { "orchestration_v2.source_thread_id": command.sourceThreadId }
                   : {}),
               },
+            ),
+          [ORCHESTRATION_V2_WS_METHODS.getNativeChildWork]: (input) =>
+            observeRpcEffect(
+              ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
+              nativeChildWork.getNativeChildWork(input),
+              { "rpc.aggregate": "orchestration" },
             ),
           [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: (input) =>
             observeRpcEffect(
@@ -2815,6 +2848,10 @@ const layerWsRpc = (
                 "rpc.aggregate": "server",
               },
             ),
+          [WS_METHODS.serverCheckSecretSource]: ({ source }) =>
+            observeRpcEffect(WS_METHODS.serverCheckSecretSource, secretCheck.check(source), {
+              "rpc.aggregate": "server",
+            }),
           [WS_METHODS.serverDiscoverSourceControl]: (_input) =>
             observeRpcEffect(
               WS_METHODS.serverDiscoverSourceControl,
@@ -3044,6 +3081,12 @@ const layerWsRpc = (
                 "rpc.aggregate": "pull-requests",
               },
             ),
+          [WS_METHODS.pullRequestsDiff]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.pullRequestsDiff,
+              withPullRequestViewer(input, pullRequests.diff(input)),
+              { "rpc.aggregate": "pull-requests" },
+            ),
           [WS_METHODS.pullRequestsDiffFileContents]: (input) =>
             observeRpcEffect(
               WS_METHODS.pullRequestsDiffFileContents,
@@ -3120,6 +3163,24 @@ const layerWsRpc = (
               withPullRequestViewer(input, pullRequests.setThreadResolution(input)),
               { "rpc.aggregate": "pull-requests" },
             ),
+          [WS_METHODS.pullRequestsReviewGuide]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.pullRequestsReviewGuide,
+              withPullRequestViewer(
+                input,
+                withReviewGuideKey(input, (key) => reviewGuides.get(input, key)),
+              ),
+              { "rpc.aggregate": "pull-requests" },
+            ),
+          [WS_METHODS.pullRequestsGenerateReviewGuide]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.pullRequestsGenerateReviewGuide,
+              withPullRequestViewer(
+                input,
+                withReviewGuideKey(input, (key) => reviewGuides.generate(input, key)),
+              ),
+              { "rpc.aggregate": "pull-requests" },
+            ),
           [WS_METHODS.pullRequestsSetReaction]: (input) =>
             observeRpcEffect(
               WS_METHODS.pullRequestsSetReaction,
@@ -3168,6 +3229,18 @@ const layerWsRpc = (
             observeRpcEffect(
               WS_METHODS.pullRequestsLabelCandidates,
               withPullRequestViewer(input, pullRequests.labelCandidates(input)),
+              { "rpc.aggregate": "pull-requests" },
+            ),
+          [WS_METHODS.pullRequestsAuthorCandidates]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.pullRequestsAuthorCandidates,
+              withPullRequestViewer(input, pullRequests.authorCandidates(input)),
+              { "rpc.aggregate": "pull-requests" },
+            ),
+          [WS_METHODS.pullRequestsReferenceCandidates]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.pullRequestsReferenceCandidates,
+              withPullRequestViewer(input, pullRequests.referenceCandidates(input)),
               { "rpc.aggregate": "pull-requests" },
             ),
           [WS_METHODS.pullRequestsSetLabels]: (input) =>

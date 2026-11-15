@@ -51,6 +51,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { ServerPresetFormFields, resolvePresetIconElement } from "./ServerPresetFormFields";
 
 import { projectsAtom } from "../state/threads";
+import { useKeybindings } from "../state/settings";
+import { WorkspaceProjectScripts } from "./chat/WorkspaceProjectScripts";
 import { useAtomValue } from "@effect/atom-react";
 import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { isTemporaryWorkspaceTool, keepWorkspaceTool } from "../temporaryWorkspaceTools";
@@ -407,6 +409,7 @@ export function ProjectWorkspaceSettingsSection({
   const [extensionToggleBusy, setExtensionToggleBusy] = useState(false);
   const { confirmDialog } = useConfirm();
   const activeProjectId = useWorkspaceActiveProjectId();
+  const keybindings = useKeybindings();
   const activeProject = useAtomValue(projectsAtom, (state) =>
     activeProjectId ? (state.find((project) => project.id === activeProjectId) ?? null) : null,
   );
@@ -1166,6 +1169,19 @@ export function ProjectWorkspaceSettingsSection({
           title="Workspace"
           description={`Configure tools, browser tabs, and terminals for ${activeProject.name || "this project"}.`}
         />
+
+        <SettingsSection
+          title="Actions"
+          description="Commands for this project: run them from the chat header, at worktree setup, or when a thread settles."
+        >
+          <WorkspaceProjectScripts
+            displayMode="list"
+            project={activeProject}
+            keybindings={keybindings}
+            // The list edits actions; running them happens from a thread.
+            onRunScript={() => {}}
+          />
+        </SettingsSection>
 
         {projectSettings?.tools.some(isTemporaryWorkspaceTool) && (
           <SettingsSection

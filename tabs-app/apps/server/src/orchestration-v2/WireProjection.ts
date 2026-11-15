@@ -108,13 +108,14 @@ export function projectTurnItemForWire(item: OrchestrationV2TurnItem): Orchestra
     }
     case "command_execution": {
       const { output, ...projected } = item;
-      // Clients used this preview to recognize provider-reported failures. Keep
-      // the outcome without retaining or serializing the output that proved it.
+      // A successful `cat` or search can print "ENOENT" or "exit code 2" as plain text, so
+      // output text decides only when the provider reported no exit code. The exit code wins.
       const failed =
-        item.outputIndicatesFailure === true ||
-        (item.exitCode !== undefined && item.exitCode !== 0) ||
-        (output !== undefined &&
-          toolOutputIndicatesFailure(output.slice(0, MAX_DETAIL_STRING_BYTES)));
+        item.exitCode === undefined
+          ? item.outputIndicatesFailure === true ||
+            (output !== undefined &&
+              toolOutputIndicatesFailure(output.slice(0, MAX_DETAIL_STRING_BYTES)))
+          : item.exitCode !== 0;
       return {
         ...projected,
         ...(failed ? { outputIndicatesFailure: true } : {}),

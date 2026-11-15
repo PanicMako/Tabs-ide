@@ -1,3 +1,4 @@
+import { WallpaperPrintPicker } from "./WallpaperPrintPicker";
 import "./setup-typography.css";
 import "./wallpaper-gallery.css";
 import {
@@ -18,6 +19,7 @@ import { Input } from "../ui/input";
 import { SegmentedControl } from "../ui/segmented-control";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { WallpaperImportDialog } from "./WallpaperImportDialog";
+import type { WallpaperScope } from "./wallpapers";
 import {
   WALLPAPERS,
   WALLPAPER_CATEGORIES,
@@ -34,9 +36,13 @@ export interface WallpaperGalleryModalProps {
   readonly activeWallpaperUrl: string;
   readonly threadId?: string | null;
   readonly isThreadSpecific?: boolean;
+  /** The project the chat belongs to; lets a wallpaper apply to just that project. */
+  readonly projectId?: string | null;
+  readonly isProjectSpecific?: boolean;
   readonly theme?: "light" | "dark";
-  readonly onSelectWallpaper: (wallpaper: WallpaperOption, scope: "global" | "thread") => void;
+  readonly onSelectWallpaper: (wallpaper: WallpaperOption, scope: WallpaperScope) => void;
   readonly onClearThreadWallpaper?: () => void;
+  readonly onClearProjectWallpaper?: () => void;
   readonly onClose: () => void;
   readonly onDisableWallpaper?: () => void;
   readonly onPlaySound?: () => void;
@@ -50,9 +56,12 @@ export function WallpaperGalleryModal({
   activeWallpaperUrl,
   threadId = null,
   isThreadSpecific = false,
+  projectId = null,
+  isProjectSpecific = false,
   theme,
   onSelectWallpaper,
   onClearThreadWallpaper,
+  onClearProjectWallpaper,
   onClose,
   onDisableWallpaper,
   onPlaySound,
@@ -60,15 +69,16 @@ export function WallpaperGalleryModal({
 }: WallpaperGalleryModalProps) {
   const [category, setCategory] = useState<WallpaperCategory>("All");
   const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<"thread" | "global">(threadId ? "thread" : "global");
+  const defaultScope: WallpaperScope = projectId ? "project" : threadId ? "thread" : "global";
+  const [scope, setScope] = useState<WallpaperScope>(defaultScope);
   const [showImport, setShowImport] = useState(false);
   const [imported, setImported] = useState<WallpaperOption[]>([]);
   const heading = useRef<HTMLHeadingElement>(null);
   const importOpener = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    setScope(threadId ? "thread" : "global");
-  }, [threadId]);
+    setScope(defaultScope);
+  }, [defaultScope]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -155,6 +165,9 @@ export function WallpaperGalleryModal({
                     {active.description}
                   </span>
                 </figcaption>
+                {!setupTypography && (
+                  <WallpaperPrintPicker className="border-t border-border pt-3" />
+                )}
               </figure>
             )}
             <section aria-label="Browse wallpapers" className="wallpaper-gallery-library">
@@ -205,28 +218,32 @@ export function WallpaperGalleryModal({
                 </Button>
               </div>
 
-              {threadId && (
+              {(threadId || projectId) && (
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
                   <SegmentedControl
                     size="sm"
                     aria-label="Apply wallpaper to"
                     value={scope}
-                    onValueChange={setScope}
+                    onValueChange={(value) => setScope(value as WallpaperScope)}
                     options={[
-                      { value: "thread", label: "This thread" },
-                      { value: "global", label: "Workspace" },
+                      ...(threadId ? [{ value: "thread", label: "This thread" }] : []),
+                      ...(projectId ? [{ value: "project", label: "This project" }] : []),
+                      { value: "global", label: "Everywhere" },
                     ]}
                   />
-                  {isThreadSpecific && onClearThreadWallpaper && (
+                  {((scope === "thread" && isThreadSpecific && onClearThreadWallpaper) ||
+                    (scope === "project" && isProjectSpecific && onClearProjectWallpaper)) && (
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        onClearThreadWallpaper();
+                        if (scope === "thread") onClearThreadWallpaper?.();
+                        else onClearProjectWallpaper?.();
                         onClose();
                       }}
                     >
-                      <RotateCcwIcon aria-hidden="true" /> Use workspace wallpaper
+                      <RotateCcwIcon aria-hidden="true" />{" "}
+                      {scope === "thread" ? "Use project wallpaper" : "Use the shared wallpaper"}
                     </Button>
                   )}
                 </div>
@@ -315,7 +332,9 @@ export function WallpaperGalleryModal({
               ? "Select a scene to preview it in setup."
               : scope === "thread"
                 ? "Selection applies to this thread."
-                : "Selection updates the workspace wallpaper."}
+                : scope === "project"
+                  ? "Selection applies to every thread in this project."
+                  : "Selection updates the wallpaper shared by all projects."}
           </p>
           <div className="flex flex-wrap gap-2">
             {onDisableWallpaper && (

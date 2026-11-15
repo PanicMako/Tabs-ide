@@ -1,10 +1,12 @@
 import * as TestingRuntime from "./testing/TestingRuntime.ts";
+import * as ExtensionBrokerRoutes from "./extensionBrokerRoutes.ts";
 import type { RelayManagedEndpointRuntimeConfig } from "@tabs/contracts/relay";
 import * as Clock from "effect/Clock";
 import * as Random from "effect/Random";
 import * as Semaphore from "effect/Semaphore";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
+import * as DelegatedTaskQuestionReactor from "./orchestration-v2/DelegatedTaskQuestionReactor.ts";
 import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeHttp from "node:http";
@@ -38,6 +40,8 @@ import * as PullRequestProviderRegistry from "./pullRequest/PullRequestProviderR
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as PullRequestFilesViewed from "./persistence/PullRequestFilesViewed.ts";
+import * as PullRequestReviewGuides from "./persistence/PullRequestReviewGuides.ts";
+import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as ProviderEventIngestor from "./orchestration-v2/ProviderEventIngestor.ts";
@@ -57,6 +61,13 @@ import * as BitbucketApi from "./sourceControl/BitbucketApi.ts";
 import * as GitHubCli from "./sourceControl/GitHubCli.ts";
 import * as GitLabCli from "./sourceControl/GitLabCli.ts";
 import * as ForgejoCli from "./sourceControl/ForgejoCli.ts";
+import * as OriginCli from "./sourceControl/OriginCli.ts";
+import {
+  CURSOR_ORIGIN_WEB_BASE_URL,
+  originRepositoryFromRemote,
+} from "./sourceControl/originPullRequests.ts";
+import * as GitCafeApi from "./sourceControl/GitCafeApi.ts";
+import * as GitCafeCredentials from "./sourceControl/GitCafeCredentials.ts";
 import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import * as ProviderInstanceRegistryHydration from "./provider/ProviderInstanceRegistryHydration.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
@@ -81,6 +92,13 @@ import * as AntigravityInstallation from "./provider/AntigravityInstallation.ts"
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
 import * as ProviderAdapterRegistry from "./orchestration-v2/ProviderAdapterRegistry.ts";
+import * as CodexManagedTokenBroker from "./provider/CodexManagedTokenBroker.ts";
+import * as SecretCheck from "./secrets/SecretCheck.ts";
+import * as SecretResolver from "./secrets/SecretResolver.ts";
+import * as DocumentText from "./provider/DocumentText.ts";
+import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
+import * as ProjectSettingsOverrideSweep from "./provider/ProjectSettingsOverrideSweep.ts";
+import * as ProviderInstallationGate from "./provider/ProviderInstallationGate.ts";
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderUsageLimitsIngestion from "./provider/ProviderUsageLimitsIngestion.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
@@ -157,6 +175,11 @@ import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as ResourceCleanupService from "./orchestration-v2/ResourceCleanupService.ts";
 import * as ThreadSettlementService from "./orchestration-v2/ThreadSettlementService.ts";
+import * as SpeechModelStore from "./speech/SpeechModelStore.ts";
+import * as SpeechService from "./speech/SpeechService.ts";
+import * as CloudSpeech from "./speech/CloudSpeech.ts";
+import { speechHttpApiLayer } from "./speech/http.ts";
+import { speechStreamRouteLayer } from "./speech/stream.ts";
 import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
 import * as RunFinalizationService from "./orchestration-v2/RunFinalizationService.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
@@ -264,6 +287,11 @@ const layerSourceControlProviderRegistry = SourceControlProviderRegistry.layer.p
       GitHubCli.layer,
       GitLabCli.layer,
       ForgejoCli.layer,
+      OriginCli.layer.pipe(Layer.provide(Layer.mergeAll(FetchHttpClient.layer, VcsProcess.layer))),
+      GitCafeApi.layer.pipe(
+        Layer.provideMerge(GitCafeCredentials.layer),
+        Layer.provide(Layer.mergeAll(FetchHttpClient.layer, VcsProcess.layer)),
+      ),
     ),
   ),
   Layer.provideMerge(GitVcsDriver.layer),
@@ -276,6 +304,11 @@ const layerRepositoryIdentityResolver = Layer.effect(
     const registry = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
     return yield* RepositoryIdentityResolver.make({
       refine: Effect.fn(function* (identity: RepositoryIdentity) {
+        // Origin's browser pages live on cursor.com, not on the git host the remote names.
+        if (identity.provider === "cursor-origin") {
+          const path = originRepositoryFromRemote(identity.locator.remoteUrl);
+          return path ? { ...identity, webUrl: `${CURSOR_ORIGIN_WEB_BASE_URL}/${path}` } : identity;
+        }
         const remote = ForgejoCli.parseForgejoRemote(identity.locator.remoteUrl);
         if (
           !remote ||
@@ -313,6 +346,14 @@ const layerPullRequestService = PullRequestService.layer.pipe(
   Layer.provide(PullRequestReadCache.layer),
   Layer.provide(layerSourceControlProviderRegistry),
   Layer.provide(SourceControlRateLimit.layer),
+);
+
+// Writes pull request review guides with the writing model and keeps them per pull request.
+const layerPullRequestReviewGuide = PullRequestReviewGuideService.layer.pipe(
+  Layer.provide(PullRequestReviewGuides.layer),
+  Layer.provide(layerPullRequestService),
+  Layer.provide(layerServerSettings),
+  Layer.provide(TextGeneration.layer.pipe(Layer.provide(layerSourceControlProviderRegistry))),
 );
 
 const layerGitManager = GitManager.layer.pipe(
@@ -516,7 +557,7 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
 
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   AgentAwarenessRelay.layer,
-  // Asks T3 Connect to deliver webhooks it held while this environment was offline.
+  // Asks Tabs Connect to deliver webhooks it held while this environment was offline.
   HeldHooksWaker.layer,
   layerThreadSettlementWorker,
   Layer.effectDiscard(StorageCleanup.make.pipe(Effect.flatMap((service) => service.start()))).pipe(
@@ -543,11 +584,23 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
     Layer.provide(layerPullRequestService),
     Layer.provide(ProjectionStoreV2.layer),
   ),
+  // Wakes a delegated task's parent (an Overmind lead included) when the task
+  // blocks on a question or approval; terminal results use completion delivery.
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const service = yield* DelegatedTaskQuestionReactor.DelegatedTaskQuestionReactor;
+      yield* service.start();
+    }),
+  ).pipe(Layer.provide(DelegatedTaskQuestionReactor.layer), Layer.provide(ProjectionStoreV2.layer)),
   // Subscribes to `account.rate-limits.updated` so usage bars track live
   // telemetry instead of waiting for the next status probe.
   ProviderUsageLimitsIngestion.layer,
   layerProviderInstallationRefresh,
   ReplayMarkers.layer,
+  // Drops overrides of projects that no longer exist.
+  Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),
+  // Reads what a provider-native subagent's children did, on demand.
+  NativeChildWorkQuery.layer,
 ).pipe(
   // Core Services
   Layer.provideMerge(layerOrchestrationApplication),
@@ -577,7 +630,18 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   // through this layer. Built-in drivers come from `BUILT_IN_DRIVERS`;
   // `providerInstances` hydration merges `settings.providers.<kind>`
   // with explicit `providerInstances` entries on boot.
+  // Below hydration, which supplies the mutator a checked secret rebuilds instances through.
+  Layer.provideMerge(SecretCheck.layer),
   Layer.provideMerge(ProviderInstanceRegistryHydration.layer),
+  // One gate for the server: layers memoize by reference, so session opens, text
+  // generation and provider updates all share it.
+  Layer.provideMerge(ProviderInstallationGate.layer),
+  // Document text extraction (docx, xlsx, ...) runs in an isolated worker process.
+  Layer.provideMerge(DocumentText.layer),
+  // Secrets that settings point at (1Password) are read on demand and held for the server's life.
+  Layer.provideMerge(SecretResolver.layer),
+  // Private socket Codex asks for managed ChatGPT tokens, so none sit in its environment.
+  Layer.provideMerge(CodexManagedTokenBroker.layer),
   Layer.provideMerge(
     Layer.mergeAll(
       AntigravityInstallation.AntigravityInstallation.layer,
@@ -663,6 +727,7 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(OrchestrationHttp.layer),
       Layer.provide(PullRequestHttp.layer),
       Layer.provide(ProjectHttp.layer),
+      Layer.provide(speechHttpApiLayer),
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(WebhookRoute.layer.pipe(Layer.provide(RelayDeliveryProof.layer))),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
@@ -671,9 +736,12 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
+    // Read-only project file and Git status for extensions, desktop-only.
+    ExtensionBrokerRoutes.layer,
     DeviceHubProxy.layer,
     ServerHttp.layerStaticAndDevRoute,
     Ws.layer.pipe(Layer.tap(() => Effect.logDebug("startup phase: WebSocket routes constructed"))),
+    speechStreamRouteLayer,
   ),
   // The MCP session registry is provided globally (shared with V2 provider
   // sessions) rather than inline here. The orchestrator toolkit resolves
@@ -688,6 +756,14 @@ const layerMakeRoutes = Layer.mergeAll(
   // Both transports consume the same service instance, so caches single-flight across clients
   // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
   Layer.provide(layerPullRequestService),
+  Layer.provide(layerPullRequestReviewGuide),
+  Layer.provide(
+    SpeechService.layer.pipe(
+      Layer.provide(layerServerSettings),
+      Layer.provide(SpeechModelStore.layer),
+    ),
+  ),
+  Layer.provide(CloudSpeech.layer),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),
   Layer.provide(layerCommandReadiness),
@@ -867,12 +943,14 @@ const layerMakeServer = Layer.unwrap(
                     ),
                   }),
                   Effect.tap((recovered) =>
-                    recovered ? Effect.logInfo("T3 Connect managed tunnel recovered") : Effect.void,
+                    recovered
+                      ? Effect.logInfo("Tabs Connect managed tunnel recovered")
+                      : Effect.void,
                   ),
                   Effect.catchCause((cause) =>
                     Cause.hasInterrupts(cause)
                       ? Effect.interrupt
-                      : Effect.logWarning("Failed to recover the T3 Connect managed tunnel", {
+                      : Effect.logWarning("Failed to recover the Tabs Connect managed tunnel", {
                           cause,
                         }),
                   ),
@@ -891,9 +969,9 @@ const layerMakeServer = Layer.unwrap(
             const wantsCliLink = hasCloudPublicConfig
               ? yield* CloudCliState.readCliDesiredCloudLink.pipe(
                   Effect.catch((cause) =>
-                    Effect.logWarning("Failed to read the desired T3 Connect link", { cause }).pipe(
-                      Effect.as(false),
-                    ),
+                    Effect.logWarning("Failed to read the desired Tabs Connect link", {
+                      cause,
+                    }).pipe(Effect.as(false)),
                   ),
                 )
               : false;
@@ -903,7 +981,7 @@ const layerMakeServer = Layer.unwrap(
             const desiredCliLinkMode = wantsCliLink
               ? yield* CloudCliState.readCliDesiredLinkMode.pipe(
                   Effect.catch((cause) =>
-                    Effect.logWarning("Failed to read the desired T3 Connect link mode", {
+                    Effect.logWarning("Failed to read the desired Tabs Connect link mode", {
                       cause,
                     }).pipe(Effect.as("managed" as const)),
                   ),
@@ -916,7 +994,7 @@ const layerMakeServer = Layer.unwrap(
                 ? false
                 : yield* cloudLink.startManagedTunnelIfOriginConfirmed(localOrigin).pipe(
                     Effect.catch((cause) =>
-                      Effect.logWarning("Failed to start the confirmed T3 Connect tunnel", {
+                      Effect.logWarning("Failed to start the confirmed Tabs Connect tunnel", {
                         cause,
                       }).pipe(Effect.as(false)),
                     ),
@@ -929,12 +1007,12 @@ const layerMakeServer = Layer.unwrap(
                 Effect.tap((started) =>
                   started
                     ? Effect.logWarning(
-                        "T3 Connect started the stored tunnel without relay confirmation",
+                        "Tabs Connect started the stored tunnel without relay confirmation",
                       )
                     : Effect.void,
                 ),
                 Effect.catch((cause) =>
-                  Effect.logWarning("Failed to start the stored T3 Connect tunnel", { cause }),
+                  Effect.logWarning("Failed to start the stored Tabs Connect tunnel", { cause }),
                 ),
                 Effect.asVoid,
               );
@@ -949,13 +1027,13 @@ const layerMakeServer = Layer.unwrap(
             ).pipe(
               Effect.tap((result) =>
                 result.status === "ready"
-                  ? Effect.logInfo("T3 Connect managed tunnel recovery registered")
+                  ? Effect.logInfo("Tabs Connect managed tunnel recovery registered")
                   : Effect.void,
               ),
               Effect.catchCause((cause) =>
                 Cause.hasInterrupts(cause)
                   ? Effect.interrupt
-                  : Effect.logWarning("Failed to register T3 Connect managed tunnel recovery", {
+                  : Effect.logWarning("Failed to register Tabs Connect managed tunnel recovery", {
                       cause,
                     }).pipe(Effect.as({ status: "unavailable" as const })),
               ),
@@ -1000,10 +1078,10 @@ const layerMakeServer = Layer.unwrap(
                   Effect.tap((mode) =>
                     mode === null
                       ? Effect.void
-                      : Effect.logInfo("T3 Connect desired link reconciled on startup"),
+                      : Effect.logInfo("Tabs Connect desired link reconciled on startup"),
                   ),
                   Effect.catch((cause) =>
-                    Effect.logWarning("Failed to reconcile T3 Connect desired link on startup", {
+                    Effect.logWarning("Failed to reconcile Tabs Connect desired link on startup", {
                       cause,
                     }).pipe(Effect.as(null)),
                   ),

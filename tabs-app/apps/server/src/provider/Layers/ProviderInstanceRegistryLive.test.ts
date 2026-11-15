@@ -1,3 +1,5 @@
+import { AcpRegistryCatalog } from "../acp/AcpRegistrySupport.ts";
+import * as IdAllocator from "../../orchestration-v2/IdAllocator.ts";
 import * as Stream from "effect/Stream";
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import * as ServerSettingsModule from "../../serverSettings.ts";
@@ -134,6 +136,8 @@ describe("ProviderInstanceRegistryLive — multi-instance codex slice", () => {
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
     Layer.provideMerge(CodexResetCredit.layerTest),
+    Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
+    Layer.provideMerge(IdAllocator.layer),
   );
 
   it.live("boots two independent codex instances from a ProviderInstanceConfigMap", () =>
@@ -281,6 +285,8 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
     Layer.provideMerge(CodexResetCredit.layerTest),
+    Layer.provideMerge(Layer.mock(AcpRegistryCatalog)({})),
+    Layer.provideMerge(IdAllocator.layer),
   );
 
   it.live("boots one instance of every shipped driver from a single config map", () =>

@@ -4,6 +4,7 @@ import {
   validateServerProviderModelList,
   type ServerProvider,
 } from "@tabs/contracts";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import { makeDeepSeekOpenRouterAdapterV2 } from "../../orchestration-v2/Adapters/DeepSeekOpenRouterAdapterV2";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -38,7 +39,7 @@ export async function discoverOpenRouterModels(
   settings: OpenRouterSettings,
   fetchImpl: typeof fetch = fetch,
 ) {
-  const apiKey = settings.apiKey.trim();
+  const apiKey = settingsSecretLiteral(settings.apiKey).trim();
   if (!apiKey) return { kind: "missing" as const, models: [] };
   const baseUrl = (settings.baseUrl.trim() || "https://openrouter.ai/api/v1").replace(/\/+$/u, "");
   // The user-scoped endpoint applies the account's provider preferences,
@@ -165,7 +166,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
         ...nativeAdapter,
         openSession: (input: Parameters<typeof nativeAdapter.openSession>[0]) =>
           Effect.gen(function* () {
-            if (!effectiveConfig.apiKey.trim()) {
+            if (!settingsSecretLiteral(effectiveConfig.apiKey).trim()) {
               return yield* new ProviderAdapterOpenSessionError({
                 driver: DRIVER_KIND,
                 providerSessionId: input.providerSessionId,
@@ -230,7 +231,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
             ),
           ),
           engine:
-            effectiveConfig.enabled && effectiveConfig.apiKey.trim()
+            effectiveConfig.enabled && settingsSecretLiteral(effectiveConfig.apiKey).trim()
               ? probeEngine.pipe(Effect.orElseSucceed(() => null))
               : Effect.succeed(null),
         },

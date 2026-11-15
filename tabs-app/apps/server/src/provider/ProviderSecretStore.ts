@@ -9,7 +9,10 @@ export type ProviderSecretName =
   | "antigravity.api-key"
   | "openrouter.api-key"
   | "opencode.server-password"
-  | "kilo.server-password";
+  | "kilo.server-password"
+  | "voice.openai-api-key"
+  | "voice.xai-api-key"
+  | "voice.openrouter-api-key";
 
 function keychainLocation(name: ProviderSecretName): { service: string; account: string } {
   if (name === "copilot.github-token") {

@@ -112,7 +112,7 @@ const PI_REQUEST_TIMEOUT_MS = 15_000;
 const PI_SESSION_TIMEOUT_MS = 60_000;
 const PI_SKILL_DISCOVERY_TIMEOUT_MS = 4_000;
 const PI_UNSOLICITED_ACTIVITY_ERROR =
-  "Pi started agent work outside an active T3 turn. The session was stopped to prevent invisible tool execution.";
+  "Pi started agent work outside an active Tabs turn. The session was stopped to prevent invisible tool execution.";
 const SETTLE_PROBE_MAX_ATTEMPTS = 3;
 const SETTLE_PROBE_RETRY_DELAY = Duration.millis(100);
 
@@ -476,7 +476,7 @@ export function makePiAdapterV2(
       // Keep that intent beyond turn finalization so the later stdout close is
       // not mistaken for an unexpected transport failure.
       let stopRequested = false;
-      // Pi extensions can trigger an agent turn after the owning T3 turn has
+      // Pi extensions can trigger an agent turn after the owning Tabs turn has
       // settled. Until orchestration has a first-class provider-initiated run,
       // stop that runtime before it can execute tools without a timeline owner.
       let unsolicitedActivityDetected = false;

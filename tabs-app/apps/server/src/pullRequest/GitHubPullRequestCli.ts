@@ -23,6 +23,7 @@ import {
   type PullRequestAction,
   type PullRequestStackHead,
   type PullRequestActor,
+  type PullRequestReferenceCandidate,
   type PullRequestFileViewed,
   type PullRequestInvolvement,
   type PullRequestListFilters,
@@ -130,6 +131,21 @@ import type { ProviderChangeRequestSummary, ProviderListCursor } from "./PullReq
  * Names the read that produced unusable output, so a failure reports the call it came from
  * rather than borrowing another operation's message.
  */
+const GitHubIssueSearchRow = Schema.Struct({
+  number: Schema.Int.check(Schema.isGreaterThan(0)),
+  title: Schema.String,
+  state: Schema.String,
+  pull_request: Schema.optional(
+    Schema.Struct({ merged_at: Schema.optional(Schema.NullOr(Schema.String)) }),
+  ),
+});
+
+const GitHubUserRow = Schema.Struct({
+  login: Schema.String.check(Schema.isNonEmpty()),
+  avatar_url: Schema.optional(Schema.NullOr(Schema.String)),
+  type: Schema.optional(Schema.String),
+});
+
 export class GitHubPullRequestReadError extends Schema.TaggedError<GitHubPullRequestReadError>()(
   "GitHubPullRequestReadError",
   {
@@ -723,6 +739,31 @@ export class GitHubPullRequestCli extends Context.Service<
       readonly host: string;
       readonly number: number;
     }) => Effect.Effect<PullRequestReviewerCandidateList, GitHubPullRequestCliError>;
+
+    /** People to offer when narrowing a listing by author. */
+    readonly searchRepositoryAuthors: (input: {
+      readonly cwd: string;
+      readonly repository: string;
+      readonly host: string;
+      readonly query?: string | undefined;
+    }) => Effect.Effect<
+      { readonly items: ReadonlyArray<PullRequestActor>; readonly truncated: boolean },
+      GitHubPullRequestCliError
+    >;
+
+    /** Issues and pull requests a composer can link when `#` is typed. */
+    readonly searchRepositoryReferences: (input: {
+      readonly cwd: string;
+      readonly repository: string;
+      readonly host: string;
+      readonly query?: string | undefined;
+    }) => Effect.Effect<
+      {
+        readonly items: ReadonlyArray<PullRequestReferenceCandidate>;
+        readonly truncated: boolean;
+      },
+      GitHubPullRequestCliError
+    >;
 
     readonly setReviewerRequest: (input: {
       readonly cwd: string;
@@ -2585,6 +2626,92 @@ export const make = Effect.gen(function* () {
         query: REVIEWER_CANDIDATES_GRAPHQL_QUERY,
         decode: decodeReviewerCandidatesJson,
       });
+    },
+
+    searchRepositoryReferences: (input) => {
+      const { owner, name } = parseRepositorySelector(input.repository);
+      const query = input.query?.trim() ?? "";
+      // The search qualifiers are fixed here; typed text only ever lands in the free-text part.
+      const text = query.replace(/[^\p{L}\p{N}_ .-]/gu, " ").trim();
+      const q = `repo:${owner}/${name} ${text} sort:updated-desc`.replace(/\s+/gu, " ").trim();
+      const path = `search/issues?${new URLSearchParams({ q, per_page: "20" })}`;
+      return github.execute({ cwd: input.cwd, args: ["api", "--hostname", input.host, path] }).pipe(
+        Effect.flatMap((result) => {
+          const decoded = Schema.decodeUnknownResult(
+            Schema.fromJsonString(Schema.Struct({ items: Schema.Array(GitHubIssueSearchRow) })),
+          )(result.stdout.trim());
+          if (Result.isFailure(decoded))
+            return Effect.fail(
+              new GitHubPullRequestReadError({
+                command: "gh",
+                cwd: input.cwd,
+                operation: "searchRepositoryReferences",
+                cause: decoded.failure,
+              }),
+            );
+          const rows = decoded.success.items;
+          return Effect.succeed({
+            items: rows.map(
+              (row): PullRequestReferenceCandidate => ({
+                reference: `#${row.number}`,
+                kind: row.pull_request === undefined ? "issue" : "change-request",
+                number: row.number,
+                title: row.title,
+                state:
+                  row.pull_request?.merged_at != null
+                    ? "merged"
+                    : row.state === "closed"
+                      ? "closed"
+                      : "open",
+              }),
+            ),
+            truncated: rows.length >= 20,
+          });
+        }),
+      );
+    },
+
+    searchRepositoryAuthors: (input) => {
+      const { owner, name } = parseRepositorySelector(input.repository);
+      const query = input.query?.trim() ?? "";
+      // Before anything is typed the repository's own people stand in; a search reaches the
+      // host's whole user base, so it only narrows once there is something to match.
+      const search = query.length > 0;
+      const path = search
+        ? `search/users?${new URLSearchParams({ q: `${query} in:login type:user`, per_page: "20" })}`
+        : `repos/${owner}/${name}/assignees?per_page=50`;
+      return github.execute({ cwd: input.cwd, args: ["api", "--hostname", input.host, path] }).pipe(
+        Effect.flatMap((result) => {
+          const decoded = Schema.decodeUnknownResult(
+            Schema.fromJsonString(
+              search
+                ? Schema.Struct({ items: Schema.Array(GitHubUserRow) })
+                : Schema.Array(GitHubUserRow),
+            ),
+          )(result.stdout.trim());
+          if (Result.isFailure(decoded))
+            return Effect.fail(
+              new GitHubPullRequestReadError({
+                command: "gh",
+                cwd: input.cwd,
+                operation: "searchRepositoryAuthors",
+                cause: decoded.failure,
+              }),
+            );
+          const rows = "items" in decoded.success ? decoded.success.items : decoded.success;
+          return Effect.succeed({
+            items: rows.map(
+              (row): PullRequestActor => ({
+                login: row.login,
+                name: null,
+                avatarUrl: row.avatar_url ?? null,
+                ...(row.type === "Bot" ? { isBot: true } : {}),
+              }),
+            ),
+            truncated: rows.length >= (search ? 20 : 50),
+          });
+        }),
+      );
     },
 
     setReviewerRequest: (input) => {

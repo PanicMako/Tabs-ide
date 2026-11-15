@@ -100,3 +100,8 @@
     background: CanvasText;
   }
 }
+
+/* The read receipt is only shown over a wallpaper; see settings/wallpaper-labs.css. */
+.user-message-receipt {
+  display: none;
+}

@@ -3,6 +3,7 @@ import { KeyRound, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
+import { AccountAvatar } from "./AccountAvatar";
 import { Banner, Card, PanelToolbar, SectionLabel, Select } from "./gitPrimitives";
 
 function AccountRow({
@@ -20,9 +21,7 @@ function AccountRow({
 }) {
   return (
     <div className="flex items-center gap-3 px-2 py-2.5 border-b border-border/50 last:border-0">
-      <span className="w-8 h-8 rounded-lg bg-muted/50 border border-border flex items-center justify-center text-xs font-mono font-semibold text-foreground/90 shrink-0">
-        {a.login[0]?.toUpperCase()}
-      </span>
+      <AccountAvatar login={a.login} src={a.avatarUrl} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="text-xs font-mono text-foreground/90 flex items-center gap-2">
           {a.login}

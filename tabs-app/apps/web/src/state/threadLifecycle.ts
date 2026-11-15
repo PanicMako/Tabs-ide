@@ -79,7 +79,7 @@ export const threadLifecycleActions = {
     );
   },
   unsettle(threadId: ThreadId): void {
-    update(threadId, { settledAt: null }, "Returned to Unsettled manually");
+    update(threadId, { settledAt: null }, "Reopened manually");
   },
   snooze(threadId: ThreadId, snoozedUntil: string): void {
     update(threadId, { snoozedUntil, settledAt: null }, "Snoozed");
@@ -102,7 +102,7 @@ export const threadLifecycleActions = {
     if (changed) publish(next);
   },
   activate(threadId: ThreadId): void {
-    update(threadId, { settledAt: null, snoozedUntil: null }, "Returned to Unsettled: new message");
+    update(threadId, { settledAt: null, snoozedUntil: null }, "Reopened: new message");
   },
 };
 

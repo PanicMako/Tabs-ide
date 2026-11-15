@@ -1,4 +1,7 @@
+import { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import { WorkspaceCompatibilityRpcs } from "./workspaceCompatibilityRpc.ts";
+import { SecretReference } from "./secretReference.ts";
+import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { TESTING_WS_METHODS, TestingRpcs } from "./testingRpc.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
@@ -178,6 +181,8 @@ import {
   PullRequestPreview,
   PullRequestChecks,
   PullRequestDiffFileContentsInput,
+  PullRequestDiffInput,
+  PullRequestDiffResult,
   PullRequestDiffFileContentsResult,
   PullRequestFilesViewedResult,
   PullRequestInvalidateInput,
@@ -196,6 +201,10 @@ import {
   PullRequestSummary,
   PullRequestReviewerCandidateList,
   PullRequestReviewerRequestInput,
+  PullRequestAuthorCandidateList,
+  PullRequestAuthorSearchInput,
+  PullRequestReferenceCandidateList,
+  PullRequestReferenceSearchInput,
   PullRequestLabelCandidateList,
   PullRequestLabelChangeInput,
   PullRequestSetFilesViewedInput,
@@ -215,6 +224,7 @@ import {
 import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationGetWorkflowScriptError,
+  OrchestrationV2GetNativeChildWorkError,
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2GetThreadProjectionError,
@@ -486,6 +496,7 @@ export const WS_METHODS = {
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
   serverDiscoverSourceControl: "server.discoverSourceControl",
+  serverCheckSecretSource: "server.checkSecretSource",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -540,6 +551,7 @@ export const WS_METHODS = {
   pullRequestsChecks: "pullRequests.checks",
   pullRequestsActivity: "pullRequests.activity",
   pullRequestsThreadComments: "pullRequests.threadComments",
+  pullRequestsDiff: "pullRequests.diff",
   pullRequestsDiffFileContents: "pullRequests.diffFileContents",
   pullRequestsFilesViewed: "pullRequests.filesViewed",
   pullRequestsSetFilesViewed: "pullRequests.setFilesViewed",
@@ -551,11 +563,15 @@ export const WS_METHODS = {
   pullRequestsReplyToThread: "pullRequests.replyToThread",
   pullRequestsSetThreadResolution: "pullRequests.setThreadResolution",
   pullRequestsSetReaction: "pullRequests.setReaction",
+  pullRequestsReviewGuide: "pullRequests.reviewGuide",
+  pullRequestsGenerateReviewGuide: "pullRequests.generateReviewGuide",
   pullRequestsInvalidate: "pullRequests.invalidate",
   pullRequestsSubscribeRefreshes: "pullRequests.subscribeRefreshes",
   pullRequestsReviewerCandidates: "pullRequests.reviewerCandidates",
   pullRequestsRequestReviewers: "pullRequests.requestReviewers",
   pullRequestsLabelCandidates: "pullRequests.labelCandidates",
+  pullRequestsAuthorCandidates: "pullRequests.authorCandidates",
+  pullRequestsReferenceCandidates: "pullRequests.referenceCandidates",
   pullRequestsSetLabels: "pullRequests.setLabels",
 
   // Source control methods
@@ -770,6 +786,12 @@ const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
   }),
   success: ServerSettings,
   error: Schema.Union([ServerSettingsError, EnvironmentAuthorizationError]),
+});
+
+const WsServerCheckSecretSourceRpc = Rpc.make(WS_METHODS.serverCheckSecretSource, {
+  payload: Schema.Struct({ source: SecretReference }),
+  success: SecretSourceCheckResult,
+  error: EnvironmentAuthorizationError,
 });
 
 const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourceControl, {
@@ -1029,6 +1051,13 @@ const WsPullRequestsThreadCommentsRpc = Rpc.make(WS_METHODS.pullRequestsThreadCo
   error: PullRequestRpcError,
 });
 
+/** One slice of a change request's patch; the next slice's cursor comes back with it. */
+const WsPullRequestsDiffRpc = Rpc.make(WS_METHODS.pullRequestsDiff, {
+  payload: PullRequestDiffInput,
+  success: PullRequestDiffResult,
+  error: PullRequestRpcError,
+});
+
 const WsPullRequestsDiffFileContentsRpc = Rpc.make(WS_METHODS.pullRequestsDiffFileContents, {
   payload: PullRequestDiffFileContentsInput,
   success: PullRequestDiffFileContentsResult,
@@ -1095,6 +1124,18 @@ const WsPullRequestsSetReactionRpc = Rpc.make(WS_METHODS.pullRequestsSetReaction
   error: PullRequestRpcError,
 });
 
+const WsPullRequestsReviewGuideRpc = Rpc.make(WS_METHODS.pullRequestsReviewGuide, {
+  payload: PullRequestRef,
+  success: PullRequestReviewGuideResult,
+  error: PullRequestRpcError,
+});
+
+const WsPullRequestsGenerateReviewGuideRpc = Rpc.make(WS_METHODS.pullRequestsGenerateReviewGuide, {
+  payload: PullRequestRef,
+  success: PullRequestReviewGuideResult,
+  error: PullRequestRpcError,
+});
+
 const WsPullRequestsInvalidateRpc = Rpc.make(WS_METHODS.pullRequestsInvalidate, {
   payload: PullRequestInvalidateInput,
   success: Schema.Void,
@@ -1129,6 +1170,20 @@ const WsPullRequestsRequestReviewersRpc = Rpc.make(WS_METHODS.pullRequestsReques
 const WsPullRequestsLabelCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsLabelCandidates, {
   payload: PullRequestRef,
   success: PullRequestLabelCandidateList,
+  error: PullRequestRpcError,
+});
+
+/** Read while somebody types in the author filter. */
+const WsPullRequestsAuthorCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsAuthorCandidates, {
+  payload: PullRequestAuthorSearchInput,
+  success: PullRequestAuthorCandidateList,
+  error: PullRequestRpcError,
+});
+
+/** Read while somebody types `#` or `!` in a comment composer. */
+const WsPullRequestsReferenceCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsReferenceCandidates, {
+  payload: PullRequestReferenceSearchInput,
+  success: PullRequestReferenceCandidateList,
   error: PullRequestRpcError,
 });
 
@@ -1687,6 +1742,15 @@ const WsOrchestrationV2GetThreadProjectionRpc = Rpc.make(
   },
 );
 
+const WsOrchestrationV2GetNativeChildWorkRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
+  {
+    payload: OrchestrationV2RpcSchemas.getNativeChildWork.input,
+    success: OrchestrationV2RpcSchemas.getNativeChildWork.output,
+    error: Schema.Union([OrchestrationV2GetNativeChildWorkError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorkflowScript,
   {
@@ -1926,6 +1990,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,
   WsServerDiscoverSourceControlRpc,
+  WsServerCheckSecretSourceRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,
@@ -1974,6 +2039,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsPullRequestsChecksRpc,
   WsPullRequestsActivityRpc,
   WsPullRequestsThreadCommentsRpc,
+  WsPullRequestsDiffRpc,
   WsPullRequestsDiffFileContentsRpc,
   WsPullRequestsFilesViewedRpc,
   WsPullRequestsSetFilesViewedRpc,
@@ -1985,11 +2051,15 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsPullRequestsReplyToThreadRpc,
   WsPullRequestsSetThreadResolutionRpc,
   WsPullRequestsSetReactionRpc,
+  WsPullRequestsReviewGuideRpc,
+  WsPullRequestsGenerateReviewGuideRpc,
   WsPullRequestsInvalidateRpc,
   WsPullRequestsSubscribeRefreshesRpc,
   WsPullRequestsReviewerCandidatesRpc,
   WsPullRequestsRequestReviewersRpc,
   WsPullRequestsLabelCandidatesRpc,
+  WsPullRequestsAuthorCandidatesRpc,
+  WsPullRequestsReferenceCandidatesRpc,
   WsPullRequestsSetLabelsRpc,
   WsSourceControlLookupRepositoryRpc,
   WsSourceControlCloneRepositoryRpc,
@@ -2080,6 +2150,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
+  WsOrchestrationV2GetNativeChildWorkRpc,
   WsOrchestrationV2GetTurnItemRpc,
   WsOrchestrationV2GetTurnDiffRpc,
   WsOrchestrationV2GetFullThreadDiffRpc,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildSidebarThreadTree,
+  listSidebarDescendants,
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
   getProjectSortTimestamp,
@@ -726,5 +728,53 @@ describe("normalizeThreadRenameTitle", () => {
       status: "valid",
       title: "New Custom Name",
     });
+  });
+});
+
+describe("sidebar thread tree", () => {
+  const node = (id: string, parent: string | null, createdAt: string) => ({
+    id: id as never,
+    environmentId: undefined,
+    isSubagent: parent !== null,
+    parentThreadId: parent as never,
+    createdAt,
+  });
+
+  it("nests sub-threads under their parent, oldest first", () => {
+    const tree = buildSidebarThreadTree([
+      node("lead", null, "2026-01-01T00:00:03Z"),
+      node("b", "lead", "2026-01-01T00:00:02Z"),
+      node("a", "lead", "2026-01-01T00:00:01Z"),
+      node("solo", null, "2026-01-01T00:00:00Z"),
+    ]);
+    expect(tree.roots.map((t) => t.id)).toEqual(["lead", "solo"]);
+    expect(tree.childrenByParent.get("lead" as never)?.map((t) => t.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps a sub-thread at the top level when its parent is not listed", () => {
+    const tree = buildSidebarThreadTree([node("orphan", "gone", "2026-01-01T00:00:00Z")]);
+    expect(tree.roots.map((t) => t.id)).toEqual(["orphan"]);
+  });
+
+  it("surfaces parent cycles instead of dropping them", () => {
+    const tree = buildSidebarThreadTree([
+      node("x", "y", "2026-01-01T00:00:00Z"),
+      node("y", "x", "2026-01-01T00:00:01Z"),
+    ]);
+    expect(tree.roots.length).toBeGreaterThan(0);
+  });
+
+  it("lists descendants depth-first", () => {
+    const tree = buildSidebarThreadTree([
+      node("lead", null, "2026-01-01T00:00:00Z"),
+      node("a", "lead", "2026-01-01T00:00:01Z"),
+      node("a1", "a", "2026-01-01T00:00:02Z"),
+      node("b", "lead", "2026-01-01T00:00:03Z"),
+    ]);
+    expect(listSidebarDescendants(tree, "lead" as never).map((t) => t.id)).toEqual([
+      "a",
+      "a1",
+      "b",
+    ]);
   });
 });

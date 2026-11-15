@@ -69,8 +69,9 @@ import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanc
 import { t3OrchestrationSystemPrompt } from "../../provider/T3OrchestrationInstructions.ts";
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import * as OpenCodeRuntime from "../../provider/opencodeRuntime.ts";
+import { readableProviderErrorMessage } from "../../provider/providerErrorMessage.ts";
 import * as IdAllocator from "../IdAllocator.ts";
-import { makeProviderFailure } from "../ProviderFailure.ts";
+import { makeProviderFailure, makeProviderRetryTurnItem } from "../ProviderFailure.ts";
 import { turnScopedSelectionTransition } from "../ProviderSelectionTransition.ts";
 import { providerMessageTextWithAttachmentPaths } from "../AttachmentPrompt.ts";
 import * as ProviderAdapter from "../ProviderAdapter.ts";
@@ -271,6 +272,50 @@ function accumulateOpenCodeStepUsage(
   accumulator.reasoningTokens += part.tokens.reasoning;
 }
 
+interface OpenCodeProviderRetry {
+  readonly failure: OrchestrationV2ProviderFailure;
+  readonly retry: {
+    readonly attempt: number;
+    readonly maxAttempts: null;
+    readonly retryDelayMs: number | null;
+  };
+  readonly startedAt: DateTime.Utc;
+  readonly itemOrdinal: number;
+}
+
+type OpenCodeRetryStatus = {
+  readonly attempt?: number;
+  readonly message?: string;
+  readonly next?: number;
+  readonly action?: {
+    readonly reason?: string;
+    readonly title?: string;
+    readonly message?: string;
+    readonly link?: string;
+  };
+};
+
+/**
+ * OpenCode retries a refused model call forever with backoff. A usage or plan
+ * limit never clears by retrying, so the turn must end instead of sitting on
+ * "Working" with nothing shown.
+ */
+export function openCodeRetryIsLimit(status: OpenCodeRetryStatus): boolean {
+  const reason = status.action?.reason ?? "";
+  if (/limit|quota|billing|credit|subscri/i.test(reason)) return true;
+  return /usage exceeded|quota|insufficient (?:credit|balance|funds)|billing|subscribe/i.test(
+    status.message ?? "",
+  );
+}
+
+/** One readable line: what OpenCode said, then what it suggests, then where to go. */
+export function openCodeRetryMessage(status: OpenCodeRetryStatus): string {
+  const base = (status.message ?? "").trim() || "The model provider refused the request";
+  const advice = status.action?.message?.trim();
+  const link = status.action?.link?.trim();
+  return [`${base.replace(/\.$/, "")}.`, advice, link].filter(Boolean).join(" ");
+}
+
 interface ActiveOpenCodeTurn {
   readonly usage: OpenCodeTurnTokenUsageAccumulator;
   readonly isRoot: boolean;
@@ -300,6 +345,10 @@ interface ActiveOpenCodeTurn {
   admissionGeneration: number;
   admissionReconciliationGeneration: number | null;
   admissionPending: boolean;
+  /** Set while OpenCode auto-compacts after an overflow; fails the turn only if it idles uncompacted. */
+  contextOverflow: OrchestrationV2ProviderFailure | null;
+  /** The visible "retrying" row while OpenCode backs off a failed model call. */
+  providerRetry: OpenCodeProviderRetry | null;
   admissionAccepted: boolean;
   admissionMessageObserved: boolean;
   idleDuringAdmission: boolean;
@@ -893,7 +942,14 @@ function providerRef(
 function openCodeErrorMessage(event: Extract<OpenCodeEvent, { type: "session.error" }>): string {
   const error = event.properties.error;
   if (error === undefined) return "OpenCode session failed without an error payload.";
-  return recordString(error.data, "message") ?? error.name;
+  const statusCode = recordValue(error.data, "statusCode");
+  return (
+    readableProviderErrorMessage(
+      recordString(error.data, "message"),
+      typeof statusCode === "number" ? statusCode : undefined,
+      recordString(error.data, "responseBody"),
+    ) ?? error.name
+  );
 }
 
 function terminalStatusForError(
@@ -1040,6 +1096,7 @@ export function makeOpenCodeAdapterV2(
         let nativeStreamFailure: OrchestrationV2ProviderFailure | null = null;
         const threads = new Map<string, OpenCodeThreadState>();
         const appliedPermissions = new Map<string, string>();
+        const variantCache: OpenCodeRuntime.OpenCodeVariantCache = new Map();
         const commandReceipts = new Map<string, Deferred.Deferred<void>>();
         const commandControllers = new Map<string, Set<AbortController>>();
         const pendingRequests = new Map<string, PendingOpenCodeRequest>();
@@ -1186,6 +1243,32 @@ export function makeOpenCodeAdapterV2(
           turn.itemOrdinals.set(nativeItemId, ordinal);
           return ordinal;
         };
+
+        const emitProviderRetry = Effect.fnUntraced(function* (
+          state: OpenCodeThreadState,
+          turn: ActiveOpenCodeTurn,
+          status: "running" | "completed" | "failed" | "interrupted" | "cancelled",
+        ) {
+          const retry = turn.providerRetry;
+          if (retry === null) return;
+          yield* emitProviderEvent({
+            type: "turn_item.updated",
+            driver: OPENCODE_PROVIDER,
+            turnItem: makeProviderRetryTurnItem({
+              idAllocator,
+              driver: OPENCODE_PROVIDER,
+              threadId: turn.threadId,
+              runId: turn.runId,
+              nodeId: turn.rootNodeId,
+              providerThreadId: state.providerThread.id,
+              providerTurnId: turn.providerTurnId,
+              ...retry,
+              status,
+              updatedAt: yield* DateTime.now,
+            }),
+          });
+          if (status !== "running") turn.providerRetry = null;
+        });
 
         const emitProviderTurn = (
           state: OpenCodeThreadState,
@@ -2099,7 +2182,16 @@ export function makeOpenCodeAdapterV2(
             status = "failed";
             terminal = { failure: nativeStreamFailure, threadDisposition: "broken" };
           }
+          if (status === "completed" && turn.contextOverflow !== null) {
+            status = "failed";
+            terminal = { failure: turn.contextOverflow };
+          }
           turn.finalized = true;
+          yield* emitProviderRetry(
+            state,
+            turn,
+            status === "completed" ? "completed" : status === "failed" ? "failed" : "interrupted",
+          );
           const completedAt = yield* DateTime.now;
           for (const part of turn.parts.values()) {
             if (part.type === "text" || part.type === "reasoning") {
@@ -2317,6 +2409,8 @@ export function makeOpenCodeAdapterV2(
             admissionGeneration: 0,
             admissionReconciliationGeneration: null,
             admissionPending: false,
+            contextOverflow: null,
+            providerRetry: null,
             admissionAccepted: true,
             admissionMessageObserved: true,
             idleDuringAdmission: false,
@@ -2616,6 +2710,7 @@ export function makeOpenCodeAdapterV2(
             case "session.compacted": {
               const state = threads.get(event.properties.sessionID);
               if (state?.activeTurn !== undefined && state.activeTurn !== null) {
+                state.activeTurn.contextOverflow = null;
                 yield* emitCompactionItem(state, state.activeTurn);
               }
               return;
@@ -2684,6 +2779,47 @@ export function makeOpenCodeAdapterV2(
               }
               const state = threads.get(sessionId);
               if (state === undefined) return;
+              if (event.properties.status.type === "retry" && state.activeTurn !== null) {
+                const turn = state.activeTurn;
+                const retryStatus = event.properties.status as OpenCodeRetryStatus;
+                const limit = openCodeRetryIsLimit(retryStatus);
+                const now = yield* DateTime.now;
+                const failure = makeProviderFailure({
+                  message: openCodeRetryMessage(retryStatus),
+                  code: retryStatus.action?.reason ?? null,
+                  class: limit ? "usage_limit" : "provider_error",
+                  retryable: !limit,
+                });
+                const delay =
+                  typeof retryStatus.next === "number"
+                    ? Math.max(0, retryStatus.next - DateTime.toEpochMillis(now))
+                    : null;
+                turn.providerRetry = {
+                  failure,
+                  retry: {
+                    attempt: Math.max(
+                      1,
+                      retryStatus.attempt ?? (turn.providerRetry?.retry.attempt ?? 0) + 1,
+                    ),
+                    maxAttempts: null,
+                    retryDelayMs: delay,
+                  },
+                  startedAt: turn.providerRetry?.startedAt ?? now,
+                  itemOrdinal:
+                    turn.providerRetry?.itemOrdinal ??
+                    itemOrdinal(turn, `terminal-failure:${turn.providerTurnId}`),
+                };
+                if (!limit) {
+                  yield* emitProviderRetry(state, turn, "running");
+                  return;
+                }
+                // Stop OpenCode's endless backoff; the limit is reported on the turn.
+                yield* sdkCall("session.abort", { sessionID: sessionId }, (signal) =>
+                  client.session.abort({ sessionID: sessionId }, { signal }),
+                ).pipe(Effect.timeout("5 seconds"), Effect.ignore({ log: true }));
+                yield* finalizeTurn(state, turn, "failed", { failure });
+                return;
+              }
               if (event.properties.status.type === "busy") {
                 yield* updateProviderThread(state, { status: "active" });
                 return;
@@ -2718,6 +2854,20 @@ export function makeOpenCodeAdapterV2(
               return;
             }
             case "session.error": {
+              const overflowTurn =
+                event.properties.error?.name === "ContextOverflowError" &&
+                event.properties.sessionID !== undefined
+                  ? threads.get(event.properties.sessionID)?.activeTurn
+                  : undefined;
+              if (overflowTurn !== undefined && overflowTurn !== null) {
+                // OpenCode stays busy and auto-compacts; the turn fails only if it idles uncompacted.
+                overflowTurn.contextOverflow = makeProviderFailure({
+                  message: openCodeErrorMessage(event),
+                  code: "ContextOverflowError",
+                  class: "provider_error",
+                });
+                return;
+              }
               const states =
                 event.properties.sessionID === undefined
                   ? Array.from(threads.values()).filter((state) => state.activeTurn !== null)
@@ -2725,6 +2875,8 @@ export function makeOpenCodeAdapterV2(
                       (state): state is OpenCodeThreadState => state !== undefined,
                     );
               const message = openCodeErrorMessage(event);
+              const error = event.properties.error;
+              const usageLimit = error?.name === "APIError" && error.data.statusCode === 429;
               if (
                 !isMessageAbortedError(event) &&
                 (event.properties.sessionID === undefined ||
@@ -2741,8 +2893,8 @@ export function makeOpenCodeAdapterV2(
                     {
                       failure: makeProviderFailure({
                         message,
-                        code: event.properties.error?.name ?? null,
-                        class: "provider_error",
+                        code: error?.name ?? null,
+                        class: usageLimit ? "usage_limit" : "provider_error",
                       }),
                       threadDisposition:
                         event.properties.sessionID === undefined ? "broken" : "reusable",
@@ -3009,12 +3161,24 @@ export function makeOpenCodeAdapterV2(
         const submitPrompt = Effect.fn("OpenCode.submitPrompt")(function* (
           state: OpenCodeThreadState,
           turn: ActiveOpenCodeTurn,
-          payload: Parameters<typeof client.session.promptAsync>[0] & {
+          inputPayload: Parameters<typeof client.session.promptAsync>[0] & {
             messageID: string;
             sessionID: string;
           },
           abortController: AbortController,
         ) {
+          const { variant, ...payloadWithoutVariant } = inputPayload;
+          const selectedVariant = yield* OpenCodeRuntime.resolveOpenCodeVariant(
+            client,
+            inputPayload.model,
+            variant,
+            abortController.signal,
+            variantCache,
+          );
+          const payload = {
+            ...payloadWithoutVariant,
+            ...(selectedVariant === undefined ? {} : { variant: selectedVariant }),
+          };
           const text = payload.parts
             ?.filter((part) => part.type === "text")
             .map((part) => part.text)
@@ -3296,6 +3460,8 @@ export function makeOpenCodeAdapterV2(
                 admissionGeneration: state.nextAdmissionGeneration++,
                 admissionReconciliationGeneration: null,
                 admissionPending: !isCompaction,
+                contextOverflow: null,
+                providerRetry: null,
                 admissionAccepted: isCompaction,
                 admissionMessageObserved: false,
                 idleDuringAdmission: false,
@@ -3327,7 +3493,10 @@ export function makeOpenCodeAdapterV2(
                     ),
                 ).pipe(
                   Effect.tap(() =>
-                    turn.interrupted || turn.finalized || nativeStreamFailure !== null
+                    turn.interrupted ||
+                    turn.finalized ||
+                    turn.contextOverflow !== null ||
+                    nativeStreamFailure !== null
                       ? Effect.void
                       : emitCompactionItem(state, turn),
                   ),

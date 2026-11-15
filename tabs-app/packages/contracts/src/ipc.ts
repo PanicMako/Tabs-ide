@@ -1,8 +1,37 @@
+import type { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import type {
   StorageInventory,
   StorageCleanResult,
   ManagedWorktree,
 } from "./workspaceMaintenance.ts";
+import type {
+  PullRequestAuthorCandidateList,
+  PullRequestAuthorSearchInput,
+  PullRequestActionInput,
+  PullRequestActivity,
+  PullRequestCommentInput,
+  PullRequestCommentUpdateInput,
+  PullRequestDetail,
+  PullRequestDiffInput,
+  PullRequestDiffResult,
+  PullRequestListInput,
+  PullRequestListResult,
+  PullRequestLabelCandidateList,
+  PullRequestReferenceCandidateList,
+  PullRequestReferenceSearchInput,
+  PullRequestFilesViewedResult,
+  PullRequestInvalidateInput,
+  PullRequestSetFilesViewedInput,
+  PullRequestReactionInput,
+  PullRequestPreview,
+  PullRequestRef,
+  PullRequestSubmitReviewInput,
+  PullRequestThreadReplyInput,
+  PullRequestThreadResolutionInput,
+  PullRequestReviewerCandidateList,
+} from "./pullRequest.ts";
+import type { SecretReference } from "./secretReference.ts";
+import type { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import type {
   ScheduledTaskListResult,
   ScheduledTaskUpsertInput,
@@ -175,7 +204,7 @@ import type {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project.ts";
-import type { ProviderInstanceId } from "./providerInstance.ts";
+import type { ProviderInstanceId, ProviderInstanceMutation } from "./providerInstance.ts";
 import type {
   ServerConfig,
   ServerProcessDiagnosticsResult,
@@ -270,6 +299,8 @@ import type {
 import type {
   OrchestrationV2Command,
   OrchestrationV2GetOlderSettledThreadsInput,
+  OrchestrationV2GetNativeChildWorkInput,
+  OrchestrationV2GetNativeChildWorkResult,
   OrchestrationV2GetThreadFamilyInput,
   OrchestrationV2GetThreadProjectionInput,
   OrchestrationV2OlderSettledThreadsPage,
@@ -1704,7 +1735,10 @@ export interface LocalApi {
     removeKeybinding: (input: ServerRemoveKeybindingInput) => Promise<ServerRemoveKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
+    /** Creates, replaces or removes one `providerInstances` entry atomically. */
+    mutateProviderInstance: (mutation: ProviderInstanceMutation) => Promise<ServerSettings>;
     discoverSourceControl: () => Promise<SourceControlDiscoveryResult>;
+    checkSecretSource: (source: SecretReference) => Promise<SecretSourceCheckResult>;
     getTraceDiagnostics: () => Promise<ServerTraceDiagnosticsResult>;
     getProcessDiagnostics: () => Promise<ServerProcessDiagnosticsResult>;
     getProcessResourceHistory: (
@@ -1833,6 +1867,44 @@ export interface EnvironmentApi {
       },
     ) => () => void;
   };
+  /** The host-side pull request reads that feed suggestion menus. */
+  pullRequests: {
+    authorCandidates: (
+      input: PullRequestAuthorSearchInput,
+    ) => Promise<PullRequestAuthorCandidateList>;
+    labelCandidates: (input: PullRequestRef) => Promise<PullRequestLabelCandidateList>;
+    reviewerCandidates: (input: PullRequestRef) => Promise<PullRequestReviewerCandidateList>;
+    /** Pull requests of the hosts the git layer cannot serve: Forgejo, GitCafe and Cursor Origin. */
+    list: (input: PullRequestListInput) => Promise<PullRequestListResult>;
+    detail: (input: PullRequestRef) => Promise<PullRequestDetail>;
+    activity: (input: PullRequestRef) => Promise<PullRequestActivity>;
+    diff: (input: PullRequestDiffInput) => Promise<PullRequestDiffResult>;
+    runAction: (input: PullRequestActionInput) => Promise<void>;
+    comment: (input: PullRequestCommentInput) => Promise<void>;
+    submitReview: (input: PullRequestSubmitReviewInput) => Promise<void>;
+    replyToThread: (input: PullRequestThreadReplyInput) => Promise<void>;
+    setThreadResolution: (input: PullRequestThreadResolutionInput) => Promise<void>;
+    /** Rewrites one of the viewer's own conversation comments; the host refuses anyone else's. */
+    updateComment: (input: PullRequestCommentUpdateInput) => Promise<void>;
+    /** Drops what the server holds for pull requests, so the next read asks the host again. */
+    invalidate: (input: PullRequestInvalidateInput) => Promise<void>;
+    /** Which files of a change request the reader has cleared, as the host remembers them. */
+    filesViewed: (input: PullRequestRef) => Promise<PullRequestFilesViewedResult>;
+    /** Clears files or puts them back; a burst of presses may arrive as one call. */
+    setFilesViewed: (input: PullRequestSetFilesViewedInput) => Promise<void>;
+    /** Adds or removes the reader's reaction on a comment or review. */
+    setReaction: (input: PullRequestReactionInput) => Promise<void>;
+    /** The small card a pull request link shows on hover. */
+    preview: (input: PullRequestRef) => Promise<PullRequestPreview>;
+    /** The review guide stored for a pull request, and the run writing or failing one. */
+    reviewGuide: (input: PullRequestRef) => Promise<PullRequestReviewGuideResult>;
+    /** Starts writing a review guide; the guide arrives through `reviewGuide` when done. */
+    generateReviewGuide: (input: PullRequestRef) => Promise<PullRequestReviewGuideResult>;
+    /** Issues and change requests a composer can link when `#` or `!` is typed. */
+    referenceCandidates: (
+      input: PullRequestReferenceSearchInput,
+    ) => Promise<PullRequestReferenceCandidateList>;
+  };
   git: {
     resolvePullRequest: (input: GitPullRequestRefInput) => Promise<GitResolvePullRequestResult>;
     listPullRequests: (input: GitListPullRequestsInput) => Promise<GitListPullRequestsResult>;
@@ -1873,6 +1945,9 @@ export interface EnvironmentApi {
     getThreadFamily: (
       input: OrchestrationV2GetThreadFamilyInput,
     ) => Promise<OrchestrationV2ThreadFamily>;
+    getNativeChildWork: (
+      input: OrchestrationV2GetNativeChildWorkInput,
+    ) => Promise<OrchestrationV2GetNativeChildWorkResult>;
     getOlderSettledThreads: (
       input: OrchestrationV2GetOlderSettledThreadsInput,
     ) => Promise<OrchestrationV2OlderSettledThreadsPage>;
@@ -2102,6 +2177,11 @@ export interface DesktopCodeHostState {
 export interface DesktopCodeHostEnsureSessionInput {
   projectId: string;
   workspaceRoot: string;
+  /**
+   * Load the workbench in the background without showing it, so opening the
+   * Code tool later finds an editor that is already up.
+   */
+  prewarm?: boolean;
 }
 
 export interface DesktopCodeHostActivateSessionInput {

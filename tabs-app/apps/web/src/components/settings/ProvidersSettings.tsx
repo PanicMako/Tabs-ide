@@ -1,9 +1,12 @@
 import { SettingsPageTitle } from "./SettingsLayout";
+import { isSecretReference, settingsSecretLiteral } from "@tabs/contracts";
+import { SecretProvidersSettings } from "./SecretProvidersSettings";
 import { providerNextAction, isProviderDetectionPending } from "./providerNextAction";
 import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
 import { AntigravityAccount } from "./AntigravityAccount";
 import { ProviderInstallProgress } from "./ProviderInstallProgress";
 import { ProviderDirectory } from "./ProviderDirectory";
+import { CustomAgentProviders } from "./CustomAgentProviders";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import {
@@ -57,6 +60,10 @@ import {
   OpenAI,
   OpenCodeIcon,
   OpenRouterIcon,
+  FxIcon,
+  KiroIcon,
+  PiIcon,
+  MuseIcon,
 } from "~/components/Icons";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -119,11 +126,15 @@ const PROVIDER_ICONS_BY_KIND: Record<string, any> = {
   cursor: CursorIcon,
   copilot: CopilotIcon,
   grok: GrokIcon,
+  kiro: KiroIcon,
+  fx: FxIcon,
   opencode: OpenCodeIcon,
   kilo: KiloIcon,
   droid: DroidIcon,
   antigravity: AntigravityIcon,
   openrouter: OpenRouterIcon,
+  pi: PiIcon,
+  muse: MuseIcon,
 };
 
 interface InstallProviderSettings {
@@ -227,6 +238,36 @@ export const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     hasBinaryPath: false,
     hasApiKey: true,
   },
+  {
+    provider: "pi",
+    title: "Pi",
+    icon: PiIcon,
+    binaryPlaceholder: "pi",
+    binaryDescription: "Path to the Pi coding agent binary",
+    installCommand: "npm install -g @earendil-works/pi-coding-agent",
+  },
+  {
+    provider: "kiro",
+    title: "Kiro",
+    icon: KiroIcon,
+    binaryPlaceholder: "kiro-cli",
+    binaryDescription: "Path to the Kiro CLI binary. Sign in with kiro-cli login first.",
+  },
+  {
+    provider: "fx",
+    title: "fx",
+    icon: FxIcon,
+    binaryPlaceholder: "fx",
+    binaryDescription:
+      "Path to the fx binary. All fx instances on this machine share its fx login.",
+  },
+  {
+    provider: "muse",
+    title: "Muse Code",
+    icon: MuseIcon,
+    binaryPlaceholder: "muse",
+    binaryDescription: "Path to the Muse Code binary. Sign in with muse login first.",
+  },
 ];
 
 if (import.meta.env.DEV && PROVIDER_SETTINGS.length !== PROVIDER_SETTINGS_KEYS.length) {
@@ -239,6 +280,8 @@ const PROVIDER_LOGIN_COMMAND: Partial<Record<ProviderSettingsKey, string>> = {
   cursor: "cursor-agent login",
   copilot: "copilot login",
   grok: "grok login",
+  kiro: "kiro-cli login",
+  fx: "fx login",
   opencode: "opencode auth login",
   kilo: "kilo auth login",
   droid: "droid auth login",
@@ -1624,9 +1667,16 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-foreground">API key</span>
                                 {"apiKey" in providerCard.providerConfig &&
-                                providerCard.providerConfig.apiKey ? (
+                                isSecretReference(providerCard.providerConfig.apiKey) ? (
+                                  <span className="max-w-[60%] truncate text-xs text-muted-foreground">
+                                    Read from {providerCard.providerConfig.apiKey.reference}
+                                  </span>
+                                ) : "apiKey" in providerCard.providerConfig &&
+                                  settingsSecretLiteral(providerCard.providerConfig.apiKey) ? (
                                   <RedactedSensitiveText
-                                    value={providerCard.providerConfig.apiKey}
+                                    value={settingsSecretLiteral(
+                                      providerCard.providerConfig.apiKey,
+                                    )}
                                     ariaLabel={`Toggle ${providerDisplayName} API key visibility`}
                                     revealTooltip="Click to reveal API key"
                                     hideTooltip="Click to hide API key"
@@ -1639,7 +1689,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                                 type="password"
                                 value={
                                   "apiKey" in providerCard.providerConfig
-                                    ? providerCard.providerConfig.apiKey
+                                    ? settingsSecretLiteral(providerCard.providerConfig.apiKey)
                                     : ""
                                 }
                                 onPersist={(val) =>
@@ -2382,6 +2432,11 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
           });
         })()}
       </div>
+      <CustomAgentProviders
+        instances={settings.providerInstances ?? {}}
+        serverProviders={serverProviders}
+      />
+      <SecretProvidersSettings />
     </div>
   );
 }

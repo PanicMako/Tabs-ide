@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { ensureNativeApi } from "../nativeApi";
 
 export const AUTO_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes threshold
+// The server already checks every provider when it boots. This refresh only picks up changes,
+// so it waits until the app is idle instead of competing with the first message and first paint.
+export const STARTUP_REFRESH_DELAY_MS = 20_000;
 export const LAST_MODEL_REFRESH_KEY = "tabs_last_models_refresh_time";
 
 /**
@@ -24,8 +27,9 @@ export function useAutoRefreshModelsOnStartup() {
       return;
     }
 
-    // Non-blocking background execution after initial render
-    const timer = setTimeout(() => {
+    // Non-blocking background execution once startup work has settled.
+    let idleHandle: number | undefined;
+    const run = () => {
       try {
         const api = ensureNativeApi();
         api.server
@@ -40,8 +44,18 @@ export function useAutoRefreshModelsOnStartup() {
       } catch (err) {
         console.warn("[ModelDiscovery] Native API error on startup refresh:", err);
       }
-    }, 1500);
+    };
+    const timer = setTimeout(() => {
+      if (typeof window.requestIdleCallback === "function") {
+        idleHandle = window.requestIdleCallback(run, { timeout: 10_000 });
+      } else {
+        run();
+      }
+    }, STARTUP_REFRESH_DELAY_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (idleHandle !== undefined) window.cancelIdleCallback?.(idleHandle);
+    };
   }, []);
 }

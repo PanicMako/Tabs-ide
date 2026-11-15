@@ -21,6 +21,8 @@ import type { GitHubViewerAccess, GitHubWorkflowRunApproval } from "./gitHubPull
 const CAPABILITIES: PullRequestCapabilities = {
   diff: true,
   comment: true,
+  mentions: true,
+  referenceSigils: ["#"],
   actions: [
     "merge",
     "ready",
@@ -559,6 +561,14 @@ export const make = Effect.gen(function* () {
 
     listReviewerCandidates: (input) =>
       cli.listReviewerCandidates(input).pipe(Effect.mapError(fail("listReviewerCandidates"))),
+
+    searchRepositoryReferences: (input) =>
+      cli
+        .searchRepositoryReferences(input)
+        .pipe(Effect.mapError(fail("searchRepositoryReferences"))),
+
+    searchRepositoryAuthors: (input) =>
+      cli.searchRepositoryAuthors(input).pipe(Effect.mapError(fail("searchRepositoryAuthors"))),
 
     setReviewerRequest: (input) =>
       cli

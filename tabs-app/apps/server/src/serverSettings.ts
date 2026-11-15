@@ -10,6 +10,7 @@
  *
  * @module ServerSettings
  */
+import { secretProviderDefinitions } from "./secrets/secretProviderDefinitions.ts";
 import {
   DEFAULT_TEXT_GENERATION_MODEL,
   DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER,
@@ -159,6 +160,7 @@ const BITBUCKET_SECRET_NAMES = {
   apiToken: "bitbucket-api-token",
 } as const;
 const BITBUCKET_SECRET_FIELDS = ["accessToken", "apiToken"] as const;
+const GITCAFE_SECRET_NAME = "gitcafe-token";
 
 const redactSecret = (value: string) => (value.length > 0 ? SECRET_REDACTED : "");
 
@@ -169,11 +171,60 @@ function redactProviderEnvironmentVariable(
     const { valueRedacted: _omit, ...rest } = variable;
     return rest;
   }
+  // A secret reference is not itself a secret: it is stored and shown as written.
+  if (typeof variable.value !== "string") return variable;
   return {
     ...variable,
     value: "",
     ...(variable.value.length > 0 || variable.valueRedacted ? { valueRedacted: true } : {}),
   };
+}
+
+const secretProviderConfigGuards = new Map(
+  secretProviderDefinitions.definitions.map((definition) => [
+    definition.kind as string,
+    Schema.is(definition.configSchema),
+  ]),
+);
+
+// A newer kind's config may hold credentials this build cannot recognize, so it never leaves the server.
+function withoutUnknownSecretProviderConfigs(
+  secretProviders: ServerSettings["secretProviders"],
+): ServerSettings["secretProviders"] {
+  return Object.fromEntries(
+    Object.entries(secretProviders).map(([id, entry]) => {
+      if (secretProviderConfigGuards.has(entry.kind)) return [id, entry];
+      const { config: _config, ...envelope } = entry;
+      return [id, envelope];
+    }),
+  ) as ServerSettings["secretProviders"];
+}
+
+// Rejects a kind this server has not loaded rather than storing a config it cannot check.
+function ensureSecretProviderWritesAllowed(
+  patch: ServerSettingsPatch,
+  settingsPath: string,
+): Effect.Effect<void, ServerSettingsError> {
+  for (const [id, entry] of Object.entries(patch.secretProviders ?? {})) {
+    if (entry === null) continue;
+    const isConfig = secretProviderConfigGuards.get(entry.kind);
+    const problem =
+      isConfig === undefined
+        ? `Unsupported secret provider kind: ${entry.kind}.`
+        : isConfig(entry.config)
+          ? undefined
+          : `Invalid ${entry.kind} config for secret provider ${id}.`;
+    if (problem !== undefined) {
+      return Effect.fail(
+        new ServerSettingsError({
+          settingsPath,
+          operation: "write-secret-provider",
+          cause: new Error(problem),
+        }),
+      );
+    }
+  }
+  return Effect.void;
 }
 
 export function redactServerSettingsForClient(settings: ServerSettings): ServerSettings {
@@ -203,7 +254,15 @@ export function redactServerSettingsForClient(settings: ServerSettings): ServerS
     accessToken: redactSecret(settings.bitbucket.accessToken),
     apiToken: redactSecret(settings.bitbucket.apiToken),
   };
-  return { ...settings, providerInstances, usageLimitSources, bitbucket };
+  const gitcafe = { ...settings.gitcafe, token: redactSecret(settings.gitcafe.token) };
+  return {
+    ...settings,
+    providerInstances,
+    usageLimitSources,
+    bitbucket,
+    gitcafe,
+    secretProviders: withoutUnknownSecretProviderConfigs(settings.secretProviders),
+  };
 }
 
 export function applyProviderInstanceMutation(
@@ -698,7 +757,25 @@ const make = Effect.gen(function* () {
         bitbucket[field] = SECRET_REDACTED;
         moved = true;
       }
-      return moved ? { ...settings, bitbucket } : settings;
+      const gitcafeToken = settings.gitcafe.token;
+      let gitcafe = settings.gitcafe;
+      if (gitcafeToken.length > 0 && gitcafeToken !== SECRET_REDACTED) {
+        const stored = yield* secretStore
+          .set(GITCAFE_SECRET_NAME, textEncoder.encode(gitcafeToken))
+          .pipe(
+            Effect.as(true),
+            Effect.catch(() =>
+              Effect.logWarning("failed to move a GitCafe token into the secret store").pipe(
+                Effect.as(false),
+              ),
+            ),
+          );
+        if (stored) {
+          gitcafe = { ...gitcafe, token: SECRET_REDACTED };
+          moved = true;
+        }
+      }
+      return moved ? { ...settings, bitbucket, gitcafe } : settings;
     });
 
   const loadSettingsFromDisk = Effect.gen(function* () {
@@ -873,11 +950,26 @@ const make = Effect.gen(function* () {
           );
         bitbucket[field] = Option.isSome(secret) ? textDecoder.decode(secret.value) : "";
       }
+      let gitcafe = settings.gitcafe;
+      if (gitcafe.token === SECRET_REDACTED) {
+        const secret = yield* secretStore
+          .get(GITCAFE_SECRET_NAME)
+          .pipe(
+            Effect.mapError(
+              (cause) => new ServerSettingsError({ settingsPath, operation: "read-secret", cause }),
+            ),
+          );
+        gitcafe = {
+          ...gitcafe,
+          token: Option.isSome(secret) ? textDecoder.decode(secret.value) : "",
+        };
+      }
       return {
         ...settings,
         providerInstances: providerInstances as ServerSettings["providerInstances"],
         usageLimitSources: usageLimitSources as ServerSettings["usageLimitSources"],
         bitbucket,
+        gitcafe,
       };
     });
 
@@ -932,6 +1024,18 @@ const make = Effect.gen(function* () {
             continue;
           }
 
+          if (typeof variable.value !== "string") {
+            changes.push({
+              kind: "remove",
+              secretName,
+              operation: "remove-secret",
+              providerInstanceId: instanceId,
+              environmentVariable: variable.name,
+            });
+            environment.push(variable);
+            continue;
+          }
+
           nextSecretKeys.add(secretName);
           // Match the provider environment's last-value-wins behavior for duplicate names.
           const previous = variable.valueRedacted
@@ -940,7 +1044,10 @@ const make = Effect.gen(function* () {
               )
             : undefined;
           const inlineValue =
-            previous?.sensitive && !previous.valueRedacted && previous.value.length > 0
+            previous?.sensitive &&
+            !previous.valueRedacted &&
+            typeof previous.value === "string" &&
+            previous.value.length > 0
               ? previous.value
               : undefined;
           const value = inlineValue ?? variable.value;
@@ -1038,12 +1145,38 @@ const make = Effect.gen(function* () {
         bitbucket[field] = SECRET_REDACTED;
       }
 
+      let gitcafe = next.gitcafe;
+      {
+        let value = gitcafe.token;
+        if (value === SECRET_REDACTED) {
+          const inline = current.gitcafe.token;
+          value = inline === SECRET_REDACTED ? SECRET_REDACTED : inline;
+        }
+        if (value !== SECRET_REDACTED) {
+          if (value.length === 0) {
+            changes.push({
+              kind: "remove",
+              secretName: GITCAFE_SECRET_NAME,
+              operation: "remove-secret",
+            });
+          } else {
+            changes.push({
+              kind: "write",
+              secretName: GITCAFE_SECRET_NAME,
+              value: textEncoder.encode(value),
+            });
+            gitcafe = { ...gitcafe, token: SECRET_REDACTED };
+          }
+        }
+      }
+
       return {
         settings: {
           ...next,
           providerInstances: providerInstances as ServerSettings["providerInstances"],
           usageLimitSources: usageLimitSources as ServerSettings["usageLimitSources"],
           bitbucket,
+          gitcafe,
         },
         changes,
       };
@@ -1284,7 +1417,9 @@ const make = Effect.gen(function* () {
     ),
     updateSettings: (patch) =>
       updateAndPersistSettings((current) =>
-        Effect.succeed(applyServerSettingsPatch(current, patch)),
+        ensureSecretProviderWritesAllowed(patch, settingsPath).pipe(
+          Effect.as(applyServerSettingsPatch(current, patch)),
+        ),
       ),
     updateProviderInstance: (mutation, patch = {}) =>
       updateAndPersistSettings((current) =>

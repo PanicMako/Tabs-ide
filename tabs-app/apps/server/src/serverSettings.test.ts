@@ -319,4 +319,30 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         assert.isTrue(Option.isNone(yield* secrets.get("bitbucket-access-token")));
       }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
+
+  it.effect(
+    "keeps the GitCafe token in the secret store and tells clients only that one is set",
+    () =>
+      Effect.gen(function* () {
+        const serverSettings = yield* ServerSettingsService;
+        const secrets = yield* ServerSecretStore.ServerSecretStore;
+        const serverConfig = yield* ServerConfig;
+        const fileSystem = yield* FileSystem.FileSystem;
+
+        const saved = yield* serverSettings.updateSettings({ gitcafe: { token: "cafe-secret" } });
+        assert.equal(saved.gitcafe.token, "cafe-secret");
+        const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+        assert.equal(raw.includes("cafe-secret"), false);
+        const forClient = redactServerSettingsForClient(saved).gitcafe;
+        assert.equal(forClient.token.includes("cafe-secret"), false);
+        assert.isAbove(forClient.token.length, 0);
+
+        // The marker keeps the saved token; an empty token removes it.
+        const kept = yield* serverSettings.updateSettings({ gitcafe: { token: forClient.token } });
+        assert.equal(kept.gitcafe.token, "cafe-secret");
+        const cleared = yield* serverSettings.updateSettings({ gitcafe: { token: "" } });
+        assert.equal(cleared.gitcafe.token, "");
+        assert.isTrue(Option.isNone(yield* secrets.get("gitcafe-token")));
+      }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
 });

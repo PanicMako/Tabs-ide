@@ -1,4 +1,5 @@
 import { runProcess } from "../../processRunner.ts";
+import { githubGraphql, resolveGitHubRepository } from "./GitHubDirect.ts";
 
 export type GitPushAccess = "write" | "read_only" | "unknown";
 
@@ -47,6 +48,35 @@ export async function resolvePushAccess(
   if (!remoteUrl || !remoteUrl.includes("github.com")) {
     setCachedPushAccess(cwd, "unknown");
     return "unknown";
+  }
+
+  // Over a warm connection instead of a `gh` process; any failure falls through to the CLI,
+  // which owns the error classification below.
+  try {
+    const repository = await resolveGitHubRepository(cwd);
+    if (repository !== null) {
+      const body = await githubGraphql({
+        cwd,
+        host: repository.host,
+        query:
+          "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){viewerPermission}}",
+        variables: { owner: repository.owner, name: repository.name },
+      });
+      const permission = (
+        JSON.parse(body) as { data?: { repository?: { viewerPermission?: string | null } | null } }
+      ).data?.repository?.viewerPermission;
+      if (typeof permission === "string") {
+        const direct: GitPushAccess = ["ADMIN", "MAINTAIN", "WRITE"].includes(
+          permission.toUpperCase(),
+        )
+          ? "write"
+          : "read_only";
+        setCachedPushAccess(cwd, direct);
+        return direct;
+      }
+    }
+  } catch {
+    // Fall back to the CLI.
   }
 
   try {

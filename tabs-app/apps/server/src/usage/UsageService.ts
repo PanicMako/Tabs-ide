@@ -2,7 +2,7 @@
  * UsageService - scans provider transcripts and returns priced usage buckets.
  *
  * The scan reads native session files and databases, including work driven
- * outside T3 Code. Cursor's local records provide only partial coverage.
+ * outside Tabs. Cursor's local records provide only partial coverage.
  *
  * JSONL transcripts are append-only, so parsed records are memoised per file by
  * `(size, mtime)`. A cold 30-day scan of ~1.4 GB lands around 2-3 seconds; warm
@@ -12,6 +12,7 @@
  *
  * @module UsageService
  */
+import { resolveInstanceEnvironment } from "../provider/ProviderInstanceSecrets.ts";
 import * as NodeOS from "node:os";
 
 import {
@@ -47,6 +48,7 @@ import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { writeFileStringAtomically } from "../atomicWrite.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath } from "../pathExpansion.ts";
+import { museSessionDirectories, piSessionDirectories } from "./usageProviderDirectories.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
@@ -309,7 +311,7 @@ export const make = Effect.gen(function* () {
       fileName?: string;
     }> = [];
     const seen = new Set<string>();
-    for (const driver of ["claudeAgent", "codex", "grok"] as const) {
+    for (const driver of ["claudeAgent", "codex", "grok", "pi", "muse"] as const) {
       // Disabled accounts still have history. Explicit default slots replace
       // the legacy settings, just as they do in the provider registry.
       const instances: Array<
@@ -324,7 +326,10 @@ export const make = Effect.gen(function* () {
         });
       }
       for (const instance of instances) {
-        const environment = mergeProviderInstanceEnvironment(instance.environment, hostEnvironment);
+        const environment = mergeProviderInstanceEnvironment(
+          (yield* resolveInstanceEnvironment(instance.environment)).environment,
+          hostEnvironment,
+        );
         const provider = driver === "claudeAgent" ? "claude" : driver;
         let home: string;
         if (driver === "codex") {
@@ -348,45 +353,74 @@ export const make = Effect.gen(function* () {
           home = configured
             ? expandHomePath(configured)
             : environment.CLAUDE_CONFIG_DIR?.trim() || path.join(NodeOS.homedir(), ".claude");
-        } else {
+        } else if (driver === "grok") {
           home = expandHomePath(
             environment.GROK_HOME?.trim() || path.join(NodeOS.homedir(), ".grok"),
           );
+        } else if (driver === "pi") {
+          home = "";
+        } else {
+          home = "";
         }
-        const directory = path.resolve(home, provider === "claude" ? "projects" : "sessions");
-        const sourceKey = provider + "\0" + directory;
-        const previous = sourceCache.get(sourceKey);
-        // Keep canonical paths and source fingerprints stable after root cleanup,
-        // including aliases and clients merging pre-cleanup environment summaries.
-        const dir = yield* fileSystem
-          .realPath(directory)
-          .pipe(Effect.orElseSucceed(() => previous?.dir ?? directory));
-        const currentVolumeId = yield* Effect.promise(() => readDirectoryVolumeId(dir));
-        const hasRetainedHistory = [...fileCache.entries()].some(
-          ([filePath, entry]) =>
-            entry.provider === provider &&
-            entry.mtimeMs >= retentionCutoffMs &&
-            entry.records.length + entry.tailRecords.length > 0 &&
-            isWithinDirectory(filePath, dir),
-        );
-        // A recreated directory still reports the retained history under its old identity.
-        const volumeId =
-          previous?.dir === dir && (hasRetainedHistory || !currentVolumeId)
-            ? previous.volumeId || currentVolumeId
-            : currentVolumeId;
-        if (previous?.dir !== dir || previous.volumeId !== volumeId) {
-          sourceCache.set(sourceKey, { dir, volumeId });
-          cacheDirty = true;
+        // Pi can hold sessions in its own directory and in a --session-dir its launches use.
+        const candidates: Array<{ readonly directory: string; readonly fileName?: string }> =
+          driver === "pi"
+            ? piSessionDirectories({
+                config: instance.config,
+                environment,
+                hostHome: NodeOS.homedir(),
+                platform,
+                path,
+              }).map((directory) => ({ directory }))
+            : driver === "muse"
+              ? yield* museSessionDirectories({
+                  config: instance.config,
+                  environment,
+                  hostHome: NodeOS.homedir(),
+                  path,
+                })
+              : [
+                  {
+                    directory: path.resolve(home, provider === "claude" ? "projects" : "sessions"),
+                  },
+                ];
+        for (const candidate of candidates) {
+          const directory = candidate.directory;
+          const sourceKey = provider + "\0" + directory;
+          const previous = sourceCache.get(sourceKey);
+          // Keep canonical paths and source fingerprints stable after root cleanup,
+          // including aliases and clients merging pre-cleanup environment summaries.
+          const dir = yield* fileSystem
+            .realPath(directory)
+            .pipe(Effect.orElseSucceed(() => previous?.dir ?? directory));
+          const currentVolumeId = yield* Effect.promise(() => readDirectoryVolumeId(dir));
+          const hasRetainedHistory = [...fileCache.entries()].some(
+            ([filePath, entry]) =>
+              entry.provider === provider &&
+              entry.mtimeMs >= retentionCutoffMs &&
+              entry.records.length + entry.tailRecords.length > 0 &&
+              isWithinDirectory(filePath, dir),
+          );
+          // A recreated directory still reports the retained history under its old identity.
+          const volumeId =
+            previous?.dir === dir && (hasRetainedHistory || !currentVolumeId)
+              ? previous.volumeId || currentVolumeId
+              : currentVolumeId;
+          if (previous?.dir !== dir || previous.volumeId !== volumeId) {
+            sourceCache.set(sourceKey, { dir, volumeId });
+            cacheDirty = true;
+          }
+          const key = `${provider}\0${dir}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          dirs.push({
+            provider,
+            dir,
+            volumeId,
+            ...(provider === "grok" ? { fileName: "updates.jsonl" } : {}),
+            ...(candidate.fileName === undefined ? {} : { fileName: candidate.fileName }),
+          });
         }
-        const key = `${provider}\0${dir}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        dirs.push({
-          provider,
-          dir,
-          volumeId,
-          ...(provider === "grok" ? { fileName: "updates.jsonl" } : {}),
-        });
       }
     }
     return dirs;

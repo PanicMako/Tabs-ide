@@ -21,6 +21,8 @@
  *
  * @module provider/Drivers/CodexDriver
  */
+import * as CodexManagedTokenBroker from "../CodexManagedTokenBroker.ts";
+import { applyCodexModelManifest } from "../codexModelManifest.ts";
 import { CodexSettings, ProviderDriverKind } from "@tabs/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -122,6 +124,7 @@ export type CodexDriverEnv =
   | ServerSettings.ServerSettingsService
   | ServerSecretStore.ServerSecretStore
   | ServerEnvironment.ServerEnvironmentIdentity
+  | CodexManagedTokenBroker.CodexManagedTokenBroker
   | CodexInstallation.CodexInstallation;
 
 export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
@@ -226,7 +229,7 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
             checkCodexProviderStatus(effectiveConfig, undefined, processEnv),
             modelManifest.current,
             (draft, manifest) =>
-              stampIdentity(ModelManifest.applyModelManifest(draft, manifest, DRIVER_KIND)),
+              stampIdentity(applyCodexModelManifest(draft, manifest, DRIVER_KIND)),
             { concurrent: true },
           ),
         ),
@@ -243,7 +246,7 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
             makePendingCodexProvider(settings.provider),
             modelManifest.current,
             (draft, manifest) =>
-              stampIdentity(ModelManifest.applyModelManifest(draft, manifest, DRIVER_KIND)),
+              stampIdentity(applyCodexModelManifest(draft, manifest, DRIVER_KIND)),
           ),
         checkProvider,
         enrichSnapshot: ({ settings, snapshot, publishSnapshot }) =>

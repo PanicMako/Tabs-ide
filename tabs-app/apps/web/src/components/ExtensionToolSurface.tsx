@@ -12,6 +12,9 @@ export function ExtensionToolSurface(props: {
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  // The native view paints over this region once it attaches; until then the
+  // region would be an unexplained blank, so say what is happening.
+  const [opening, setOpening] = useState(true);
   const { input } = props;
   const overlaySuspended = useRef(false);
   const publishBoundsRef = useRef<(() => void) | null>(null);
@@ -57,6 +60,7 @@ export function ExtensionToolSurface(props: {
     let disposed = false;
     let activated = false;
     let frame = 0;
+    setOpening(true);
     const publishBounds = () => {
       frame = 0;
       if (!activated || disposed) return;
@@ -106,6 +110,7 @@ export function ExtensionToolSurface(props: {
         activated = true;
         activationRef.current = activationId;
         scheduleBounds();
+        setOpening(false);
       })
       .catch((cause) => {
         if (!disposed) {
@@ -140,6 +145,20 @@ export function ExtensionToolSurface(props: {
         className="relative min-h-0 flex-1"
         aria-label={`${props.label} extension content`}
       />
+      {opening && !error ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-1 w-28 overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-muted-foreground/40" />
+            </div>
+            <p className="text-sm text-muted-foreground">Opening {props.label}…</p>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <div
           role="alert"

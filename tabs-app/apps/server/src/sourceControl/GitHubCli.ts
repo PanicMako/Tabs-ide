@@ -1,3 +1,4 @@
+import { directGraphqlFromGhArgs } from "../git/Services/GitHubDirect.ts";
 import * as Cache from "effect/Cache";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
@@ -592,6 +593,29 @@ export const make = Effect.gen(function* () {
               GITHUB_ENTERPRISE_TOKEN: token,
               GH_DEBUG: "",
             };
+      // Plain `gh api graphql` reads go over the in-process connection: starting `gh` costs
+      // ~0.35s a call, and a page makes several. Anything it cannot reproduce exactly, and any
+      // GraphQL error, returns null here and runs through the CLI below as it always did.
+      const directBody =
+        input.acceptNotModified === true
+          ? null
+          : yield* Effect.promise(() =>
+              directGraphqlFromGhArgs({
+                cwd: input.cwd,
+                args: input.args,
+                stdin: input.stdin,
+                ...(token === undefined ? {} : { token }),
+              }),
+            );
+      if (directBody !== null) {
+        return {
+          exitCode: 0,
+          stdout: directBody,
+          stderr: "",
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        } as unknown as VcsProcess.VcsProcessOutput;
+      }
       const result = yield* process
         .run({
           operation: "GitHubCli.execute",

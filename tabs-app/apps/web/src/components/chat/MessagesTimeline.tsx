@@ -21,10 +21,10 @@ import {
 } from "react";
 import { deriveTimelineEntries, formatElapsed } from "../../session-logic";
 import { isScrollContainerNearBottom } from "../../chat-scroll";
-import { AnimatedHeight } from "../AnimatedHeight";
 import { RenderErrorBoundary } from "../RenderErrorBoundary";
 import { CHAT_TIMELINE_ANCHOR_OFFSET } from "./timelineScrollAnchoring";
 import { TaskProgressCard } from "./TaskProgressCard";
+import { WorkLogGroup } from "./WorkLogGroup";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import ChatMarkdown from "../ChatMarkdown";
@@ -41,7 +41,6 @@ import { formatWorkspaceRelativePath } from "~/filePathDisplay";
 import {
   BotIcon,
   CheckIcon,
-  ChevronDownIcon,
   CircleAlertIcon,
   EyeIcon,
   FileTextIcon,
@@ -60,6 +59,7 @@ import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { UserReadReceipt, seenUserMessageIds } from "./UserReadReceipt";
 import { computeMessageDurationStart, normalizeCompactToolLabel } from "./MessagesTimeline.logic";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import {
@@ -79,8 +79,6 @@ import { parseScopedThreadKey } from "@tabs/client-runtime/environment";
 import { AssistantCitationSource, type AssistantCitationRequest } from "./AssistantCitationSource";
 import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
-
-const MAX_VISIBLE_WORK_LOG_ENTRIES = 6;
 
 interface MessagesTimelineProps {
   hasMessages: boolean;
@@ -236,6 +234,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     return positionedRows;
   }, [timelineEntries, completionDividerBeforeEntryId, isWorking, activeTurnStartedAt]);
 
+  const seenPromptIds = useMemo(() => seenUserMessageIds(rows), [rows]);
+
   const { target: citationTarget } = useAssistantCitationTarget({
     request: citationRequest ?? null,
     entries: timelineEntries as any,
@@ -310,141 +310,23 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     >
       {row.kind === "work" &&
         (() => {
-          const groupId = row.id;
-          const groupedEntries = row.groupedEntries;
-          const isExpanded = expandedWorkGroups[groupId] ?? false;
-
-          // Split entries into task lifecycle entries and regular tool entries
+          // Task lifecycle entries render in the tasks card; the work log shows tool steps.
           const taskActivityKinds = new Set(["task.started", "task.progress", "task.completed"]);
-          const regularEntries = groupedEntries.filter(
+          const steps = row.groupedEntries.filter(
             (entry) =>
               !entry.taskId &&
               !taskActivityKinds.has(
                 (entry as unknown as { activityKind?: string }).activityKind ?? "",
               ),
           );
-
-          const hasOverflow = regularEntries.length > MAX_VISIBLE_WORK_LOG_ENTRIES;
-          const visibleEntries =
-            hasOverflow && !isExpanded
-              ? regularEntries.slice(-MAX_VISIBLE_WORK_LOG_ENTRIES)
-              : regularEntries;
-          const hiddenCount = regularEntries.length - visibleEntries.length;
-          const onlyToolEntries = regularEntries.every((entry) => entry.tone === "tool");
-          const groupLabel = onlyToolEntries ? "Tool call" : "Work log";
-
-          // Collect all log entry texts for copying (uses same label as rendered rows)
-          const allLogsText = regularEntries
-            .map((e) => {
-              const heading = toolWorkEntryHeading(e);
-              const detail = e.command ?? e.detail ?? null;
-              return detail ? `${heading} — ${detail}` : heading;
-            })
-            .join("\n");
-
+          if (steps.length === 0) return null;
           return (
-            <div className="space-y-2">
-              {regularEntries.length > 0 && (
-                <div className="w-full">
-                  {/* ── Prototype-style: icon + label header row ── */}
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onToggleWorkGroup(groupId)}
-                      aria-expanded={isExpanded}
-                      className="flex items-center gap-2 group/header rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                    >
-                      {onlyToolEntries ? (
-                        <WrenchIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
-                      ) : (
-                        <TerminalIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
-                      )}
-                      <span className="text-xs font-sans font-medium text-muted-foreground/70 group-hover/header:text-foreground transition-colors">
-                        {groupLabel}
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-1.5">
-                      <MessageCopyButton text={allLogsText} variant="ghost" size="icon-xs" />
-                      {hasOverflow && (
-                        <button
-                          type="button"
-                          aria-expanded={isExpanded}
-                          aria-label={
-                            isExpanded
-                              ? `Hide details for ${groupLabel}`
-                              : `View details for ${groupLabel}`
-                          }
-                          className="flex items-center gap-1 rounded-md text-[11px] font-mono text-muted-foreground/40 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
-                          onClick={() => onToggleWorkGroup(groupId)}
-                        >
-                          <span>{isExpanded ? "Hide details" : `View details`}</span>
-                          <ChevronDownIcon
-                            className={cn(
-                              "size-3 transition-transform duration-200 motion-reduce:transition-none",
-                              isExpanded && "rotate-180",
-                            )}
-                          />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Numbered monospace log card ── */}
-                  <div
-                    className={cn(
-                      "rounded-lg border border-border/40 bg-card/50 p-4 flex flex-col gap-2.5",
-                      hasOverflow && "cursor-pointer hover:border-border/60 transition-colors",
-                    )}
-                    onClick={() => hasOverflow && onToggleWorkGroup(groupId)}
-                  >
-                    <AnimatedHeight>
-                      <div className="flex flex-col gap-2.5">
-                        {visibleEntries.map((workEntry, idx) => {
-                          const heading = toolWorkEntryHeading(workEntry);
-                          const detail = workEntry.command ?? workEntry.detail ?? null;
-                          const entryNum =
-                            hasOverflow && !isExpanded
-                              ? regularEntries.length - visibleEntries.length + idx + 1
-                              : idx + 1;
-                          return (
-                            <div
-                              key={`work-row:${workEntry.id}`}
-                              className="flex items-center gap-3.5 text-xs font-sans leading-relaxed"
-                            >
-                              <span className="font-mono text-[11px] text-muted-foreground/25 select-none shrink-0">
-                                [{String(entryNum).padStart(2, "0")}]
-                              </span>
-                              <div className="min-w-0 flex-1 truncate flex items-center gap-2">
-                                <span className="font-sans font-medium text-foreground/85">
-                                  {heading}
-                                </span>
-                                {detail && (
-                                  <>
-                                    <span className="text-muted-foreground/30">•</span>
-                                    <span className="font-mono text-[11px] text-muted-foreground/55 truncate">
-                                      {detail}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </AnimatedHeight>
-                    {/* Blinking cursor — only while actively working */}
-                    {isWorking && (
-                      <div className="flex items-start gap-4 text-sm font-mono leading-relaxed">
-                        <span className="text-muted-foreground/20 select-none shrink-0">
-                          [{String(regularEntries.length + 1).padStart(2, "0")}]
-                        </span>
-                        <span className="inline-block h-3.5 w-2 animate-pulse bg-muted-foreground/30" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <WorkLogGroup
+              entries={steps}
+              expanded={expandedWorkGroups[row.id] ?? false}
+              onToggle={() => onToggleWorkGroup(row.id)}
+              active={isWorking && rows.at(-1)?.id === row.id}
+            />
           );
         })()}
 
@@ -470,6 +352,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           return (
             <UserMessageLayout
               scrollContainer={scrollContainer}
+              receipt={<UserReadReceipt seen={seenPromptIds.has(row.message.id)} />}
               actions={
                 <>
                   <div className="flex items-center gap-1.5">
@@ -568,7 +451,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
               {/* Prototype-style: left-border accent with single-pass hover sweep + scroll-driven light bar + tiny provider header + softer body text + hover-reveal copy */}
               <AssistantMessageBorder scrollContainer={scrollContainer}>
                 {/* Tiny provider header: icon + label (brightens on hover) */}
-                <div className="mb-1.5 flex items-center gap-1.5 text-muted-foreground/30 transition-colors duration-200 group-hover:text-foreground/75">
+                <div
+                  data-assistant-provider="true"
+                  title={providerLabel}
+                  className="mb-1.5 flex items-center gap-1.5 text-muted-foreground/30 transition-colors duration-200 group-hover:text-foreground/75"
+                >
                   <ProviderIconComp className="size-3" />
                   <span className="font-mono text-[10px]">{providerLabel}</span>
                 </div>
@@ -588,7 +475,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   </AssistantCitationSource>
                 </div>
                 {/* Action footer: copy + timestamp (visible on hover, focus-within, and touch/pointer-coarse) */}
-                <div className="-ml-1.5 mt-1 flex items-center gap-1.5 opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+                <div
+                  data-assistant-footer="true"
+                  className="-ml-1.5 mt-1 flex items-center gap-1.5 opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                >
                   <MessageCopyButton text={messageText} variant="ghost" size="icon-xs" />
                   <p className="text-[10px] text-muted-foreground/30 transition-colors duration-150 hover:text-foreground/60 cursor-default">
                     {formatMessageMeta(

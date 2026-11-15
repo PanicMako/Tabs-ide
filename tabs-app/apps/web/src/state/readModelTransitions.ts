@@ -19,6 +19,7 @@ import {
 } from "@tabs/contracts";
 import { resolveModelSlugForProvider } from "@tabs/shared/model";
 import { type ChatMessage, type Project, type Thread, type QueuedRunItem } from "../types";
+import { activitiesFromTurnItems, mergeTurnItemActivities } from "./turnItemActivities";
 
 function toIsoDate(val: unknown): string {
   if (!val) return new Date().toISOString();
@@ -730,6 +731,7 @@ function mapThreadFromV2Shell(
   return {
     id: shell.id,
     isSubagent: shell.lineage.relationshipToParent === "subagent",
+    parentThreadId: shell.lineage.parentThreadId ?? null,
     environmentId: environmentId ?? existing?.environmentId,
     codexThreadId: null,
     projectId: shell.projectId,
@@ -1210,6 +1212,7 @@ export function applyThreadProjection(
     lastVisitedAt: existing?.lastVisitedAt ?? updatedAtIso,
     archivedAt: projection.thread.archivedAt ? toIsoDate(projection.thread.archivedAt) : null,
     isSubagent: projection.thread.lineage?.relationshipToParent === "subagent",
+    parentThreadId: projection.thread.lineage?.parentThreadId ?? null,
     settledOverride: projection.thread.settledOverride ?? null,
     settledAt: projection.thread.settledAt ? toIsoDate(projection.thread.settledAt) : null,
     unsettledAt: projection.thread.unsettledAt ? toIsoDate(projection.thread.unsettledAt) : null,
@@ -1233,7 +1236,13 @@ export function applyThreadProjection(
       checkpointRef: cp.ref,
       files: cp.files.map((f) => ({ ...f })),
     })),
-    activities: existing?.activities ?? [],
+    // Tool calls, commands and errors live in the projection's turn items, not its messages.
+    activities: mergeTurnItemActivities(
+      existing?.activities,
+      activitiesFromTurnItems(
+        (projection.visibleTurnItems ?? []).map((row) => row.item as Record<string, unknown>),
+      ),
+    ),
     queuedRuns,
     activeRunId,
     activeRunUserMessageId,

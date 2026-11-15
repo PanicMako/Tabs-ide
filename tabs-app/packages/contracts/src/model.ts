@@ -154,7 +154,10 @@ const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const COPILOT_DRIVER_KIND = ProviderDriverKind.make("copilot");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const KIRO_DRIVER_KIND = ProviderDriverKind.make("kiro");
+const FX_DRIVER_KIND = ProviderDriverKind.make("fx");
 const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
+const MUSE_DRIVER_KIND = ProviderDriverKind.make("muse");
 const ACP_REGISTRY_DRIVER_KIND = ProviderDriverKind.make("acpRegistry");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
@@ -172,12 +175,17 @@ export const DEFAULT_TEXT_GENERATION_MODEL = "gpt-6-luna";
 export const DEFAULT_TEXT_GENERATION_REASONING_EFFORT = "low";
 /** Keep the native Antigravity session's selected default model. */
 export const ANTIGRAVITY_DEFAULT_MODEL = "antigravity-default";
+/** Let Muse pick the account's default model. Never send this ID to Muse. */
+export const MUSE_DEFAULT_MODEL = "default";
 
 export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, string>> = {
+  [MUSE_DRIVER_KIND]: MUSE_DEFAULT_MODEL,
   [CODEX_DRIVER_KIND]: DEFAULT_MODEL,
   [CLAUDE_DRIVER_KIND]: "claude-sonnet-5",
   [CURSOR_DRIVER_KIND]: "auto",
   [GROK_DRIVER_KIND]: "grok-build",
+  [KIRO_DRIVER_KIND]: "default",
+  [FX_DRIVER_KIND]: "default",
   [ACP_REGISTRY_DRIVER_KIND]: "default",
   [PI_DRIVER_KIND]: "default",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
@@ -256,6 +264,8 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [CURSOR_DRIVER_KIND]: "Cursor",
   [COPILOT_DRIVER_KIND]: "GitHub Copilot",
   [GROK_DRIVER_KIND]: "Grok",
+  [KIRO_DRIVER_KIND]: "Kiro",
+  [FX_DRIVER_KIND]: "fx",
   [OPENCODE_DRIVER_KIND]: "OpenCode",
   [DROID_DRIVER_KIND]: "Factory Droid",
   [ANTIGRAVITY_DRIVER_KIND]: "Antigravity",

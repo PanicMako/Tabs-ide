@@ -1,4 +1,4 @@
-// Adapted from T3 Code PRs #25423 and #25790 (MIT). Runtime codecs remain unchanged.
+// Adapted from Tabs PRs #25423 and #25790 (MIT). Runtime codecs remain unchanged.
 import * as Predicate from "effect/Predicate";
 import { Tool } from "effect/unstable/ai";
 

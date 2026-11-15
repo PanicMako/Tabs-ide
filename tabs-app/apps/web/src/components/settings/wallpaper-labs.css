@@ -273,3 +273,463 @@
 [data-agent-wallpaper="active"][data-theme="light"] [data-wallpaper-empty-heading="true"]::before {
   background: radial-gradient(ellipse, rgba(255, 255, 255, 0.88), transparent 70%);
 }
+
+/* ── GLASS (both themes) ──────────────────────────────────────────────────
+ * Message text, the provider avatar, the hover actions and the wallpaper dock all sit on frosted
+ * glass: a heavy Gaussian blur of whatever is behind (wallpaper and print), extra saturation so
+ * colour stays alive, a soft sheen, a fine light edge and a little depth. Each sheet hugs its own
+ * content and uses the app's corner radii.
+ *
+ * Each sheet is painted by a ::before layer, not by the element itself. An element with its own
+ * backdrop-filter becomes a "backdrop root", and anything inside it can then only blur that
+ * element's contents, never the wallpaper. With the glass on a sibling layer, the avatar and the
+ * hover chip blur the real wallpaper too.
+ */
+[data-agent-wallpaper="active"]:not([data-theme="light"]) {
+  --glass-fill: rgba(255, 255, 255, 0.06);
+  --glass-sheen-gradient: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.04) 60%
+  );
+  --glass-backdrop: blur(30px) saturate(1.8) brightness(0.86);
+  --glass-edge: rgba(255, 255, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.3);
+  --glass-depth: 0 14px 36px -12px rgba(0, 0, 0, 0.45);
+  --glass-fill-strong: rgba(24, 28, 40, 0.42);
+  --glass-backdrop-strong: blur(48px) saturate(1.9) brightness(0.8);
+}
+[data-agent-wallpaper="active"][data-theme="light"] {
+  --glass-fill: rgba(255, 255, 255, 0.28);
+  --glass-sheen-gradient: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.18) 65%
+  );
+  --glass-backdrop: blur(30px) saturate(1.6) brightness(1.06);
+  --glass-edge: rgba(255, 255, 255, 0.8);
+  --glass-highlight: rgba(255, 255, 255, 0.95);
+  --glass-depth: 0 14px 36px -14px rgba(30, 41, 80, 0.28);
+  --glass-fill-strong: rgba(255, 255, 255, 0.62);
+  --glass-backdrop-strong: blur(48px) saturate(1.7) brightness(1.08);
+}
+
+[data-agent-wallpaper="active"] [data-assistant-rail],
+[data-agent-wallpaper="active"] .user-message-content,
+[data-agent-wallpaper="active"] .user-message-actions,
+[data-agent-wallpaper="active"] [data-assistant-provider],
+[data-agent-wallpaper="active"] [data-assistant-footer],
+[data-agent-wallpaper="active"] .wallpaper-dock,
+[data-agent-wallpaper="active"] .wallpaper-dock-panel {
+  isolation: isolate;
+}
+[data-agent-wallpaper="active"] [data-assistant-rail]::before,
+[data-agent-wallpaper="active"] .user-message-content::before,
+[data-agent-wallpaper="active"] .user-message-actions::before,
+[data-agent-wallpaper="active"] [data-assistant-provider]::before,
+[data-agent-wallpaper="active"] [data-assistant-footer]::before,
+[data-agent-wallpaper="active"] .wallpaper-dock::before,
+[data-agent-wallpaper="active"] .wallpaper-dock-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: var(--glass-fill);
+  background-image: var(--glass-sheen-gradient);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-depth);
+}
+/* The avatar overlaps the bubble and the print behind it, so it blurs and tints harder. */
+[data-agent-wallpaper="active"] [data-assistant-provider]::before {
+  background-color: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-backdrop-strong);
+  backdrop-filter: var(--glass-backdrop-strong);
+}
+
+/* ── CHAT LAYOUT OVER A WALLPAPER ──────────────────────────────────────────
+ * Only active while a wallpaper is on; with it off, messages look exactly as before.
+ *   - Each message is a bubble hugging its own text, using the app radius except for one tighter
+ *     corner where it "comes from" (agent bottom-left, you bottom-right).
+ *   - The provider is a small round avatar on the bubble's corner, not a text row.
+ *   - Copy and time stay hidden until you hover, and float below the bubble instead of
+ *     reserving empty space.
+ *   - Your prompts carry a double tick that turns blue once the agent has seen them.
+ */
+[data-agent-wallpaper="active"] [data-assistant-rail],
+[data-agent-wallpaper="active"] .user-message-content {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--radius-surface);
+}
+[data-agent-wallpaper="active"] [data-assistant-rail] {
+  margin-top: 1rem;
+  margin-left: 1rem;
+  padding: 0.8rem 1.35rem 0.65rem 1.5rem;
+  border-bottom-left-radius: var(--radius-tile);
+}
+[data-agent-wallpaper="active"] .user-message-content {
+  padding: 0.7rem 2.7rem 0.7rem 1.35rem;
+  border-right: none;
+  border-bottom-right-radius: var(--radius-tile);
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .user-message-content {
+  color: #ffffff;
+}
+[data-agent-wallpaper="active"][data-theme="light"] .user-message-content {
+  color: #0f172a;
+}
+/* Labels, copy buttons and timestamps are dim by design; on glass they need real contrast. */
+[data-agent-wallpaper="active"] [data-assistant-rail] [class*="text-muted-foreground/30"],
+[data-agent-wallpaper="active"] .user-message-actions [class*="text-muted-foreground/30"] {
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+[data-agent-wallpaper="active"] [data-assistant-rail] [class*="text-foreground/75"] {
+  color: color-mix(in srgb, var(--foreground) 85%, transparent);
+}
+/* A heavy dark text shadow muddied the type; the glass now provides the contrast. */
+[data-agent-wallpaper="active"] .chat-markdown,
+[data-agent-wallpaper="active"] [data-assistant-rail],
+[data-agent-wallpaper="active"] .user-message-content {
+  text-shadow: none !important;
+}
+
+/* Provider avatar. */
+[data-agent-wallpaper="active"] [data-assistant-provider] {
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  z-index: 2;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+}
+[data-agent-wallpaper="active"] [data-assistant-provider] svg {
+  width: 1rem;
+  height: 1rem;
+}
+/* The provider name stays available to screen readers and as a tooltip, but takes no space. */
+[data-agent-wallpaper="active"] [data-assistant-provider] > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Hover actions: copy and time, floating just below the bubble. */
+[data-agent-wallpaper="active"] [data-assistant-footer],
+[data-agent-wallpaper="active"] .user-message-actions {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  bottom: auto;
+  z-index: 3;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  gap: 0.35rem;
+  padding: 0.25rem 0.8rem 0.25rem 0.45rem;
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+  pointer-events: none;
+}
+[data-agent-wallpaper="active"] [data-assistant-footer] {
+  left: 1.1rem;
+}
+[data-agent-wallpaper="active"] .user-message-actions {
+  right: 0.2rem;
+}
+[data-agent-wallpaper="active"] .group:hover [data-assistant-footer],
+[data-agent-wallpaper="active"] [data-assistant-footer]:focus-within,
+[data-agent-wallpaper="active"] .user-message-frame:hover .user-message-actions,
+[data-agent-wallpaper="active"] .user-message-frame:focus-within .user-message-actions {
+  pointer-events: auto;
+}
+/* The timeline clips its overflow (overflow-x-hidden makes the vertical axis clip too). The newest
+ * message's chip floats below its bubble, past the end of the list, so room is reserved there;
+ * otherwise the latest reply's copy and time were cut off. */
+[data-agent-wallpaper="active"] [data-timeline-root="true"] {
+  padding-bottom: 3rem;
+}
+
+/* The chip sits a little below the bubble. An invisible bridge across that gap keeps the pointer
+ * "inside" the message while it travels there, so the chip no longer vanishes before you reach
+ * it (which made selecting and copying a prompt impossible). */
+[data-agent-wallpaper="active"] [data-assistant-footer]::after,
+[data-agent-wallpaper="active"] .user-message-actions::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.8rem;
+  height: 0.8rem;
+}
+/* The hover chip hangs below its bubble, so each bubble leaves room for it above whatever comes
+ * next (including the next message's avatar, which sits on its bubble's top corner). */
+[data-agent-wallpaper="active"] [data-assistant-rail],
+[data-agent-wallpaper="active"] .user-message-frame {
+  margin-bottom: 1.75rem;
+}
+
+/* While a message is hovered or focused it rises above its neighbours' glass. */
+[data-agent-wallpaper="active"] [data-assistant-rail]:hover,
+[data-agent-wallpaper="active"] [data-assistant-rail]:focus-within,
+[data-agent-wallpaper="active"] .user-message-frame:hover,
+[data-agent-wallpaper="active"] .user-message-frame:focus-within {
+  z-index: 20;
+}
+/* Nothing above the prompt is reserved for those hover actions any more. */
+[data-agent-wallpaper="active"] .user-message-frame {
+  padding-top: 0;
+}
+
+/* The copy button stays a plain icon: no highlight disc, just a brighter glyph on hover. */
+[data-agent-wallpaper="active"] [data-message-copy] {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+[data-agent-wallpaper="active"] [data-message-copy]:hover {
+  color: var(--foreground);
+}
+
+/* Double tick on your prompts. */
+[data-agent-wallpaper="active"] .user-message-receipt {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.55rem;
+  display: inline-flex;
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  transition: color 300ms ease;
+}
+[data-agent-wallpaper="active"] .user-message-receipt[data-seen="true"] {
+  color: var(--info);
+}
+
+/* ── WALLPAPER DOCK ────────────────────────────────────────────────────────
+ * The controls in the agent chat: one glass capsule of neutral icon buttons, collapsible to a
+ * single button, with glass tooltips and a glass print menu.
+ */
+.wallpaper-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: var(--radius-surface);
+  color: var(--foreground);
+}
+.wallpaper-dock-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-control);
+  color: color-mix(in srgb, var(--foreground) 76%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.wallpaper-dock-button svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.wallpaper-dock-button:hover,
+.wallpaper-dock-button.is-open {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.wallpaper-dock-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wallpaper-dock-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* Tooltips are small glass chips to the left of the button. */
+.wallpaper-dock-button[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: calc(100% + 0.7rem);
+  top: 50%;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground);
+  background-color: var(--glass-fill-strong);
+  background-image: var(--glass-sheen-gradient);
+  -webkit-backdrop-filter: var(--glass-backdrop-strong);
+  backdrop-filter: var(--glass-backdrop-strong);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    var(--glass-depth);
+  opacity: 0;
+  transform: translate(4px, -50%);
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+.wallpaper-dock-button[data-tip]:hover::after,
+.wallpaper-dock-button[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.wallpaper-dock-divider {
+  width: 1.25rem;
+  height: 1px;
+  margin: 0.2rem 0;
+  background-color: var(--glass-edge);
+}
+
+/* Print menu. */
+.wallpaper-dock-panel {
+  position: absolute;
+  bottom: 0;
+  right: calc(100% + 0.9rem);
+  z-index: 50;
+  width: 14.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-surface);
+  color: var(--foreground);
+}
+.wallpaper-dock-panel > * {
+  position: relative;
+}
+.wallpaper-dock-panel-title {
+  padding: 0.25rem 0.75rem 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+}
+.wallpaper-dock-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wallpaper-dock-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+  text-align: left;
+  color: color-mix(in srgb, var(--foreground) 82%, transparent);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.wallpaper-dock-item:hover,
+.wallpaper-dock-item[aria-pressed="true"] {
+  background-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  color: var(--foreground);
+}
+.wallpaper-dock-item svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.wallpaper-dock-segment {
+  display: flex;
+  margin: 0.5rem 0.25rem 0.25rem;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+}
+.wallpaper-dock-segment > button {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--foreground) 65%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.wallpaper-dock-segment > button[aria-checked="true"] {
+  background-color: var(--foreground);
+  color: var(--background);
+}
+.wallpaper-dock-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.25rem 0.25rem 0;
+  padding: 0.4rem 0.5rem 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, var(--foreground) 82%, transparent);
+  cursor: pointer;
+}
+
+/* Provider banners keep a solid, neutral backing in both themes. */
+[data-agent-wallpaper="active"][data-theme="light"] [role="alert"] {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) [role="alert"] {
+  background-color: rgba(14, 16, 26, 0.88) !important;
+}
+
+/* ── TOOL CALLS OVER A WALLPAPER ───────────────────────────────────────────
+ * The work log is the same frosted sheet as the chat bubbles: the shared glass tokens (a faint
+ * fill, a diagonal sheen, a saturated Gaussian blur, a hairline edge with a top highlight and a
+ * soft depth shadow). It is painted on the box itself because nothing inside needs to blur the
+ * wallpaper, and its head is a div so the global wallpaper `header` rule cannot touch it.
+ */
+[data-agent-wallpaper="active"] [data-work-log] {
+  background-color: var(--glass-fill);
+  background-image: var(--glass-sheen-gradient);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  border-color: transparent;
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-depth);
+  color: var(--foreground);
+}
+[data-agent-wallpaper="active"] [data-work-log] [data-work-log-head] {
+  border-bottom-color: var(--glass-edge);
+}
+[data-agent-wallpaper="active"] [data-work-log] [class*="text-muted-foreground"] {
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+[data-agent-wallpaper="active"] [data-work-log] [class*="text-foreground/"] {
+  color: var(--foreground);
+}
+[data-agent-wallpaper="active"] [data-work-log] .text-destructive,
+[data-agent-wallpaper="active"] [data-work-log] [class*="text-destructive/"] {
+  color: var(--text-danger);
+}
+/* Step tiles and file chips keep a quiet glass of their own instead of the solid app surfaces. */
+[data-agent-wallpaper="active"] [data-work-log] [data-step-kind] > span:first-child {
+  background-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+[data-agent-wallpaper="active"] [data-work-log] [class*="bg-background"],
+[data-agent-wallpaper="active"] [data-work-log] [class*="bg-card"] {
+  background-color: color-mix(in srgb, var(--foreground) 8%, transparent) !important;
+}

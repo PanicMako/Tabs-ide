@@ -54,6 +54,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
   { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
+  { key: "mod+shift+d", command: "composer.dictation", when: "!terminalFocus" },
   { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+l", command: "chat.newLocal", when: "!terminalFocus" },
   { key: "mod+shift+f", command: "editor.openFavorite" },

@@ -46,6 +46,8 @@ const testLayer = (
     restart: () => Effect.succeed({} as any),
     close: () => Effect.void,
     closeIdle: () => Effect.void,
+    closeOnSettle: () => Effect.void,
+    getShell: () => Effect.succeed("/bin/zsh"),
     subscribe: () => Effect.succeed(() => {}),
     subscribeMetadata: () => Effect.succeed(() => {}),
   } as any);
@@ -112,6 +114,7 @@ describe("ProjectSetupScriptRunner", () => {
       terminalId: "setup-default-setup",
       cwd: "/repo/worktrees/a",
       worktreePath: "/repo/worktrees/a",
+      stopOnSettle: false,
       env: {
         COLORTERM: "",
         FORCE_COLOR: "0",
@@ -121,11 +124,6 @@ describe("ProjectSetupScriptRunner", () => {
         TABS_WORKTREE_PATH: "/repo/worktrees/a",
         T3CODE_WORKTREE_PATH: "/repo/worktrees/a",
       },
-    });
-    expect(write).toHaveBeenCalledWith({
-      threadId: "thread-1",
-      terminalId: "setup-default-setup",
-      data: "npm install\r",
     });
   });
 

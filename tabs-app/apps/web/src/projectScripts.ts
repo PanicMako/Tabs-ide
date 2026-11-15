@@ -6,6 +6,56 @@ import {
 } from "@tabs/contracts";
 import { Schema } from "effect";
 
+export interface ProjectScriptInput {
+  readonly name: ProjectScript["name"];
+  readonly command: ProjectScript["command"];
+  readonly icon: ProjectScript["icon"];
+  readonly runOnWorktreeCreate: ProjectScript["runOnWorktreeCreate"];
+  readonly waitForSetup: boolean;
+  readonly runOnSettle: boolean;
+  readonly stopOnSettle?: boolean;
+  readonly previewUrl: Exclude<ProjectScript["previewUrl"], undefined> | null;
+  readonly autoOpenPreview: boolean;
+}
+
+/** Builds the stored script from every editor field, so saving never drops a setting. */
+export function buildProjectScript(id: string, input: ProjectScriptInput): ProjectScript {
+  return {
+    id,
+    name: input.name,
+    command: input.command,
+    icon: input.icon,
+    runOnWorktreeCreate: input.runOnWorktreeCreate,
+    ...(input.runOnWorktreeCreate && input.waitForSetup ? { async: false } : {}),
+    ...(input.runOnSettle ? { runOnSettle: true } : {}),
+    ...(input.stopOnSettle ? { stopOnSettle: true } : {}),
+    ...(input.previewUrl === null
+      ? {}
+      : { previewUrl: input.previewUrl, autoOpenPreview: input.autoOpenPreview }),
+  };
+}
+
+/** A project has one setup and one settle action; the saved one takes the role from the rest. */
+export function releaseClaimedRoles(
+  script: ProjectScript,
+  saved: Pick<ProjectScriptInput, "runOnWorktreeCreate" | "runOnSettle">,
+): ProjectScript {
+  const releaseSetup = saved.runOnWorktreeCreate && script.runOnWorktreeCreate;
+  const releaseSettle = saved.runOnSettle && script.runOnSettle === true;
+  if (!releaseSetup && !releaseSettle) return script;
+  return {
+    ...script,
+    ...(releaseSetup ? { runOnWorktreeCreate: false } : {}),
+    ...(releaseSettle ? { runOnSettle: false } : {}),
+  };
+}
+
+export {
+  projectScriptMenuLabel,
+  projectScriptTerminalInput,
+  settleProjectScript,
+} from "@tabs/shared/projectScripts";
+
 function normalizeScriptId(value: string): string {
   const cleaned = value
     .trim()
@@ -87,9 +137,10 @@ export function projectScriptRuntimeEnv(
   return env;
 }
 
-export function primaryProjectScript(scripts: ProjectScript[]): ProjectScript | null {
-  const regular = scripts.find((script) => !script.runOnWorktreeCreate);
-  return regular ?? scripts[0] ?? null;
+export function primaryProjectScript(scripts: ReadonlyArray<ProjectScript>): ProjectScript | null {
+  // A settle action is cleanup, never the one-click run.
+  const regular = scripts.find((script) => !script.runOnWorktreeCreate && !script.runOnSettle);
+  return regular ?? scripts.find((script) => !script.runOnSettle) ?? null;
 }
 
 export function setupProjectScript(scripts: ProjectScript[]): ProjectScript | null {

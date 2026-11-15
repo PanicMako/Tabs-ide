@@ -1688,10 +1688,7 @@ label:has(> select#reasoning-effort) select {
    min column width is the longest word. */
 .chat-markdown table {
   width: 100%;
-  min-width: max-content;
   border-collapse: collapse;
-  overflow-wrap: normal;
-  word-break: normal;
   font-size: 0.75rem;
 }
 
@@ -1712,18 +1709,15 @@ label:has(> select#reasoning-effort) select {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-/* Collapsed (default): single-line cells truncate so arbitrary chat content
-   cannot blow the column out; the footer toggle expands cells to wrap. */
-.chat-markdown .chat-markdown-table-container[data-expanded="false"] th,
-.chat-markdown .chat-markdown-table-container[data-expanded="false"] td {
-  overflow: hidden;
-  max-width: 24rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Cells always wrap to the pane width, so text and inline code are never cut off at the edge.
+   Long paths and identifiers break anywhere rather than forcing the table to scroll. */
+.chat-markdown .chat-markdown-table-container th,
+.chat-markdown .chat-markdown-table-container td {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
-
-.chat-markdown .chat-markdown-table-container[data-expanded="true"] td {
-  max-width: 24rem;
+.chat-markdown .chat-markdown-table-container td code {
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -3063,7 +3057,12 @@ html[data-reduced-motion="reduce"] .new-thread-action::before {
     color-mix(in srgb, var(--foreground) 3%, var(--card))
   );
 }
-html :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) textarea {
+/* A boxed field gets the joined radius. A borderless editor that sits directly on the surface
+ * (`data-plain`) has no box to round, and a radius on it only clips its own caret and first
+ * glyph at the left edge. */
+html
+  :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"])
+  textarea:not([data-plain]) {
   border-radius: var(--radius-joined) !important;
 }
 [data-slot="dialog-header"] {
@@ -3080,4 +3079,30 @@ html :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) textarea 
 /* An external header owns the top gutter. A header inside the panel does not. */
 [data-slot="dialog-popup"]:has(> [data-slot="dialog-header"]) [data-slot="dialog-panel"] {
   padding-top: 4px;
+}
+
+/* ── Readable text floor ───────────────────────────────────────────────────
+ * Faint grey and plain red text fell under 3:1 on dark surfaces and over wallpapers. Danger text
+ * mixes toward the foreground, so it lightens on dark themes and darkens on light ones. Very low
+ * alpha muted text is raised to a legible minimum. Whole-token matches only, so hover: and focus:
+ * variants keep their own colors. Unlayered on purpose: it must outrank Tailwind's utilities. */
+:root {
+  --text-danger: color-mix(in oklab, var(--destructive) 62%, var(--foreground));
+}
+.text-destructive,
+[class~="text-destructive/50"],
+[class~="text-destructive/60"],
+[class~="text-destructive/70"],
+[class~="text-destructive/75"],
+[class~="text-destructive/80"],
+[class~="text-destructive/90"] {
+  color: var(--text-danger);
+}
+[class~="text-muted-foreground/20"],
+[class~="text-muted-foreground/25"],
+[class~="text-muted-foreground/30"],
+[class~="text-muted-foreground/35"],
+[class~="text-muted-foreground/40"],
+[class~="text-muted-foreground/45"] {
+  color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
 }

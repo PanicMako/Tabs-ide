@@ -12,6 +12,7 @@ import "./git/GitToolV2.css";
 import {
   gitBranchesQueryOptions,
   gitEnvironmentQueryOptions,
+  gitAllPullRequestsQueryOptions,
   gitHistoryQueryOptions,
   gitHubLogoutMutationOptions,
   gitHubSwitchAccountMutationOptions,
@@ -152,6 +153,16 @@ export function GitToolV2({
   );
 
   const [historyLimit, setHistoryLimit] = useState(50);
+
+  // Every panel's data is warmed as soon as the tool opens, so a click on Stashes, History or
+  // Pull requests finds it already held instead of starting a read. These share query keys with
+  // the panels' own reads, so nothing is fetched twice.
+  useEffect(() => {
+    if (!cwd) return;
+    void queryClient.prefetchQuery(gitStashListQueryOptions(cwd, environmentId));
+    void queryClient.prefetchQuery(gitHistoryQueryOptions({ cwd, limit: 50, environmentId }));
+    void queryClient.prefetchQuery(gitAllPullRequestsQueryOptions(cwd, "all", environmentId));
+  }, [cwd, environmentId, queryClient]);
 
   // Queries
   const gitStatusQuery = useQuery(gitStatusQueryOptions(cwd, environmentId));

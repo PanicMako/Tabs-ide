@@ -44,6 +44,10 @@
       "types": "./src/model.ts",
       "import": "./src/model.ts"
     },
+    "./overmind": {
+      "types": "./src/overmind.ts",
+      "import": "./src/overmind.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"
@@ -55,6 +59,10 @@
     "./projectScripts": {
       "types": "./src/projectScripts.ts",
       "import": "./src/projectScripts.ts"
+    },
+    "./speech": {
+      "types": "./src/speech.ts",
+      "import": "./src/speech.ts"
     },
     "./tabsProjectFile": {
       "types": "./src/tabsProjectFile.ts",
@@ -96,6 +104,26 @@
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
     },
+    "./pullRequestComposerTrigger": {
+      "types": "./src/pullRequestComposerTrigger.ts",
+      "default": "./src/pullRequestComposerTrigger.ts"
+    },
+    "./secretProviders/definition": {
+      "types": "./src/secretProviders/definition.ts",
+      "default": "./src/secretProviders/definition.ts"
+    },
+    "./secretProviders/onePassword": {
+      "types": "./src/secretProviders/onePassword.ts",
+      "default": "./src/secretProviders/onePassword.ts"
+    },
+    "./secretProviders/storedReference": {
+      "types": "./src/secretProviders/storedReference.ts",
+      "default": "./src/secretProviders/storedReference.ts"
+    },
+    "./secretProviders/registry": {
+      "types": "./src/secretProviders/registry.ts",
+      "default": "./src/secretProviders/registry.ts"
+    },
     "./semver": {
       "types": "./src/semver.ts",
       "import": "./src/semver.ts"
@@ -107,6 +135,10 @@
     "./cliArgs": {
       "types": "./src/cliArgs.ts",
       "import": "./src/cliArgs.ts"
+    },
+    "./themeCss": {
+      "types": "./src/themeCss.ts",
+      "import": "./src/themeCss.ts"
     },
     "./serverSettings": {
       "types": "./src/serverSettings.ts",

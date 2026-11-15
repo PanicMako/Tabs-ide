@@ -9,9 +9,11 @@ import {
   GrokIcon,
   type Icon,
   KiloIcon,
+  MuseIcon,
   OpenAI,
   OpenCodeIcon,
   OpenRouterIcon,
+  PiIcon,
 } from "../Icons";
 
 export type UsageProviderPresentation = {
@@ -50,6 +52,16 @@ export const PROVIDER_PRESENTATION = {
     label: "Grok Build",
     color: "color-mix(in oklab, var(--foreground) 72%, var(--background))",
     mark: GrokIcon,
+  },
+  pi: {
+    label: "Pi",
+    color: "color-mix(in oklab, var(--foreground) 60%, var(--background))",
+    mark: PiIcon,
+  },
+  muse: {
+    label: "Muse Code",
+    color: "color-mix(in oklab, var(--foreground) 48%, var(--background))",
+    mark: MuseIcon,
   },
   opencode: {
     label: "OpenCode",

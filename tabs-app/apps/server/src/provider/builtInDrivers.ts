@@ -25,11 +25,16 @@ import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
 import { CopilotDriver, type CopilotDriverEnv } from "./Drivers/CopilotDriver.ts";
 import { CursorDriver, type CursorDriverEnv } from "./Drivers/CursorDriver.ts";
 import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver.ts";
+import { FxDriver, type FxDriverEnv } from "./Drivers/FxDriver.ts";
 import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver.ts";
+import { KiroDriver, type KiroDriverEnv } from "./Drivers/KiroDriver.ts";
 import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver.ts";
 import { DroidDriver, type DroidDriverEnv } from "./Drivers/DroidDriver.ts";
 import { AntigravityDriver, type AntigravityDriverEnv } from "./Drivers/AntigravityDriver.ts";
 import { OpenRouterDriver } from "./Drivers/OpenRouterDriver.ts";
+import { PiDriver, type PiDriverEnv } from "./Drivers/PiDriver.ts";
+import { MuseDriver, type MuseDriverEnv } from "./Drivers/MuseDriver.ts";
+import { AcpRegistryDriver, type AcpRegistryDriverEnv } from "./Drivers/AcpRegistryDriver.ts";
 import type { AnyProviderDriver } from "./ProviderDriver.ts";
 
 /**
@@ -43,10 +48,15 @@ export type BuiltInDriversEnv =
   | CopilotDriverEnv
   | CursorDriverEnv
   | GrokDriverEnv
+  | FxDriverEnv
   | KiloDriverEnv
+  | KiroDriverEnv
   | OpenCodeDriverEnv
   | DroidDriverEnv
-  | AntigravityDriverEnv;
+  | AntigravityDriverEnv
+  | PiDriverEnv
+  | MuseDriverEnv
+  | AcpRegistryDriverEnv;
 
 /**
  * Ordered list of built-in drivers. Order matters only for tie-breaking in
@@ -59,9 +69,14 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   CursorDriver,
   CopilotDriver,
   GrokDriver,
+  KiroDriver,
+  FxDriver,
   OpenCodeDriver,
   KiloDriver,
   DroidDriver,
   AntigravityDriver,
   OpenRouterDriver,
+  PiDriver,
+  MuseDriver,
+  AcpRegistryDriver,
 ];

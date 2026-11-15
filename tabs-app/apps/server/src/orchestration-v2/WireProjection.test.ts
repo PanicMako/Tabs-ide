@@ -346,6 +346,17 @@ describe("orchestration V2 wire projection", () => {
     });
   });
 
+  it("trusts a zero exit code over failure phrases printed by a successful command", () => {
+    const item = {
+      ...base,
+      type: "command_execution" as const,
+      input: "cat docs/NOTES.md",
+      output: "Handles ENOENT and file not found; exit code 2 means bad usage.",
+      exitCode: 0,
+    };
+    expect(projectTurnItemForWire(item)).not.toHaveProperty("outputIndicatesFailure");
+  });
+
   it("omits inline file bodies but preserves file identity and change counts", () => {
     const item = {
       ...base,

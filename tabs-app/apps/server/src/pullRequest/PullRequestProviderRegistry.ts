@@ -10,6 +10,13 @@ import * as GitHubGraphQlBudget from "../sourceControl/githubGraphQlBudget.ts";
 import * as GitLabCli from "../sourceControl/GitLabCli.ts";
 import * as ForgejoCli from "../sourceControl/ForgejoCli.ts";
 import * as ForgejoPullRequestProvider from "./ForgejoPullRequestProvider.ts";
+import * as OriginPullRequestProvider from "./OriginPullRequestProvider.ts";
+import * as OriginCli from "../sourceControl/OriginCli.ts";
+import * as GitCafePullRequestProvider from "./GitCafePullRequestProvider.ts";
+import * as GitCafeApi from "../sourceControl/GitCafeApi.ts";
+import * as GitCafeCredentials from "../sourceControl/GitCafeCredentials.ts";
+import * as VcsProcess from "../vcs/VcsProcess.ts";
+import { FetchHttpClient } from "effect/unstable/http";
 import * as AzureDevOpsPullRequestCli from "./AzureDevOpsPullRequestCli.ts";
 import * as AzureDevOpsPullRequestProvider from "./AzureDevOpsPullRequestProvider.ts";
 import * as BitbucketPullRequestApi from "./BitbucketPullRequestApi.ts";
@@ -51,6 +58,8 @@ export const make = Effect.map(
     GitHubPullRequestProvider.make,
     GitLabPullRequestProvider.make,
     ForgejoPullRequestProvider.make,
+    GitCafePullRequestProvider.make,
+    OriginPullRequestProvider.make,
     BitbucketPullRequestProvider.make,
     AzureDevOpsPullRequestProvider.make,
   ]),
@@ -66,6 +75,15 @@ export const layer = Layer.effect(PullRequestProviderRegistry, make).pipe(
   ),
   Layer.provide(GitLabPullRequestCli.layer.pipe(Layer.provide(GitLabCli.layer))),
   Layer.provide(ForgejoCli.layer),
+  Layer.provide(
+    OriginCli.layer.pipe(Layer.provide(Layer.mergeAll(FetchHttpClient.layer, VcsProcess.layer))),
+  ),
+  Layer.provide(
+    GitCafeApi.layer.pipe(
+      Layer.provide(GitCafeCredentials.layer),
+      Layer.provide(Layer.mergeAll(FetchHttpClient.layer, VcsProcess.layer)),
+    ),
+  ),
   Layer.provide(BitbucketPullRequestApi.layer.pipe(Layer.provide(BitbucketApi.layer))),
   Layer.provide(AzureDevOpsPullRequestCli.layer.pipe(Layer.provide(AzureDevOpsCli.layer))),
 );

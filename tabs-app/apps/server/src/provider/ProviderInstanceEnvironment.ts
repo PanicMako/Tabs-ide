@@ -1,7 +1,7 @@
-import type { ProviderInstanceEnvironment } from "@tabs/contracts";
+import type { ResolvedProviderInstanceEnvironment } from "@tabs/contracts";
 
 export function mergeProviderInstanceEnvironment(
-  environment: ProviderInstanceEnvironment | undefined,
+  environment: ResolvedProviderInstanceEnvironment | undefined,
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   if (!environment || environment.length === 0) {

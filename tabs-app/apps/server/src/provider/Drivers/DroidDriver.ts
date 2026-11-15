@@ -4,6 +4,7 @@ import {
   type ProviderOptionDescriptor,
   type ServerProvider,
 } from "@tabs/contracts";
+import { settingsSecretLiteral } from "@tabs/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -148,7 +149,7 @@ export const DroidDriver: ProviderDriver<DroidSettings, any> = {
                   return {
                     ...healthWithoutMessage,
                     status: "ready" as const,
-                    auth: effectiveConfig.apiKey.trim()
+                    auth: settingsSecretLiteral(effectiveConfig.apiKey).trim()
                       ? {
                           status: "authenticated" as const,
                           type: "apiKey",
@@ -203,7 +204,12 @@ export const DroidDriver: ProviderDriver<DroidSettings, any> = {
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,
-        initialSnapshot: () => checkProvider,
+        // Starting the server must not wait for the full probe: enumerating a Droid's
+        // models launches its agent and makes dozens of ACP round trips (seconds), and
+        // the HTTP listener and the whole UI sit behind provider construction. Begin
+        // from the cheap health check; the forced refresh that follows fills in models.
+        initialSnapshot: () =>
+          checkHealth.pipe(Effect.map((health) => ({ ...health, models: [] }))),
         checkProvider,
         enrichSnapshot: ({ snapshot: currentSnapshot }) => Effect.succeed(currentSnapshot),
         refreshInterval: SNAPSHOT_REFRESH_INTERVAL,

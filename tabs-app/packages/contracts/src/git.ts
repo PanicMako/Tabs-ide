@@ -13,6 +13,7 @@ import {
   SourceControlProviderKind,
 } from "./sourceControl.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { PullRequestReaction } from "./pullRequest.ts";
 import { VcsDriverKind } from "./vcs.ts";
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
@@ -147,6 +148,8 @@ export const GitPullRequestComment = Schema.Struct({
   body: Schema.String,
   createdAt: Schema.String,
   url: Schema.optional(Schema.String),
+  /** Absent where the host did not report reactions, which is not the same as none. */
+  reactions: Schema.optional(Schema.Array(PullRequestReaction)),
 });
 export const GitPullRequestReview = Schema.Struct({
   id: TrimmedNonEmptyStringSchema,
@@ -154,6 +157,7 @@ export const GitPullRequestReview = Schema.Struct({
   body: Schema.String,
   state: Schema.String,
   submittedAt: Schema.optional(Schema.NullOr(Schema.String)),
+  reactions: Schema.optional(Schema.Array(PullRequestReaction)),
 });
 export const GitPullRequestReaction = Schema.Struct({
   content: TrimmedNonEmptyStringSchema,
@@ -240,6 +244,8 @@ export const GitResolvedPullRequest = Schema.Struct({
   createdAt: Schema.optional(Schema.String),
   updatedAt: Schema.optional(Schema.String),
   body: Schema.optional(Schema.String),
+  /** Reactions on the description itself. */
+  reactions: Schema.optional(Schema.Array(PullRequestReaction)),
   reviewers: Schema.optional(Schema.Array(GitPullRequestActor)),
   checks: Schema.optional(Schema.Array(GitPullRequestCheck)),
   comments: Schema.optional(Schema.Array(GitPullRequestComment)),
@@ -1050,6 +1056,8 @@ export const GitHubAccount = Schema.Struct({
   login: TrimmedNonEmptyStringSchema,
   active: Schema.Boolean,
   scopes: Schema.Array(Schema.String),
+  /** The profile picture as a `data:` URL, so it shows whatever the page may load from. */
+  avatarUrl: Schema.optional(Schema.String),
 });
 export const GitEnvironmentResult = Schema.Struct({
   git: Schema.Struct({
@@ -1168,6 +1176,10 @@ export const GitPullRequestCapabilities = Schema.Struct({
   search: Schema.Boolean,
   actions: Schema.Array(GitPullRequestAction),
   mergeMethods: Schema.Array(Schema.Literals(["merge", "squash", "rebase"])),
+  /** The host completes `@login` in comment composers. */
+  mentions: Schema.optional(Schema.Boolean),
+  /** The sigils whose references the host completes: `#` for issues, `!` for merge requests. */
+  referenceSigils: Schema.optional(Schema.Array(Schema.Literals(["#", "!"]))),
 });
 export const GitListPullRequestsResult = Schema.Struct({
   pullRequests: Schema.Array(GitResolvedPullRequest),

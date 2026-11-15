@@ -124,6 +124,8 @@ export interface Project {
 
 export interface Thread {
   isSubagent?: boolean;
+  /** The thread that delegated this one, when it is a sub-thread. */
+  parentThreadId?: ThreadId | null;
   id: ThreadId;
   environmentId?: EnvironmentId | undefined;
   codexThreadId: string | null;
