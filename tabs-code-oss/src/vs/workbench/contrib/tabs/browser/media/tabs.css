@@ -27,7 +27,7 @@ html.tabs-embedded-workbench .monaco-workbench.modern-ui .part.editor:not(.modal
 /* Transient overlays need tighter corners than full workspace panels. */
 html.tabs-embedded-workbench .monaco-workbench :is(.monaco-dialog-box, .monaco-menu-container, .monaco-hover),
 html.tabs-embedded-workbench :is(.monaco-menu-container, .monaco-menu, .monaco-select-box-dropdown-container, .monaco-hover, .context-view.monaco-component .monaco-dialog-box),
-html.tabs-embedded-workbench .monaco-workbench :is(.quick-input-widget, .suggest-widget, .suggest-details, .parameter-hints-widget, .find-widget, .rename-box, .colorpicker-widget, .debug-hover-widget, .debug-toolbar, .notifications-center, .notification-toast, .notifications-list-container) {
+html.tabs-embedded-workbench .monaco-workbench :is(.quick-input-widget, .suggest-widget, .suggest-details, .parameter-hints-widget, .find-widget, .rename-box, .colorpicker-widget, .debug-hover-widget, .debug-toolbar, .notifications-center, .notification-toast, .notifications-list-container, .simple-find-part, .standalone-colorpicker, .inlineSuggestionsHints.withBorder) {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 

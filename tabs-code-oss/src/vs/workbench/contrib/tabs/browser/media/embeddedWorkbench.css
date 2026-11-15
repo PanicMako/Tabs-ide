@@ -583,6 +583,24 @@ html.tabs-embedded-workbench.tabs-rail-lit.tabs-rail-spotlight .monaco-workbench
 }
 
 /* The virtualized action row owns its height; let the action fill its width. */
+/* Source Control rows: upstream pins the label to a 22px box and top-aligns it, so when the
+ * row is taller (Tabs density) the text and its status badge sit above the highlight's centre.
+ * Centre every segment on the row, and drop the 3px nudge that only fits the 22px layout. */
+html.tabs-embedded-workbench .monaco-workbench .scm-view .monaco-list-row :is(.resource, .resource-group, .history-item, .history-item-change),
+html.tabs-embedded-workbench .monaco-workbench .scm-view .monaco-list-row .resource > .name {
+	display: flex;
+	align-items: center;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label {
+	height: 100%;
+	align-items: center;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .scm-view .monaco-list-row .resource > .decoration-icon.codicon {
+	margin-top: 0;
+}
+
 html.tabs-embedded-workbench .monaco-workbench .part.sidebar .scm-view :is(.button-container, .scm-input) {
 	flex: 1;
 	min-width: 0;
