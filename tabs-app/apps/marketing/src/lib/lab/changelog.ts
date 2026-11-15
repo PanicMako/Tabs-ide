@@ -23,7 +23,11 @@ export interface GitHubLikeRelease {
 
 const RELEASES = "https://github.com/PanicMako/Tabs-ide/releases/tag/";
 
-export const semver = (tag: string) => tag.replace(/^v/, "").split(".").map((n) => Number.parseInt(n, 10) || 0);
+export const semver = (tag: string) =>
+  tag
+    .replace(/^v/, "")
+    .split(".")
+    .map((n) => Number.parseInt(n, 10) || 0);
 export const compareTags = (a: string, b: string) => {
   const [x, y] = [semver(a), semver(b)];
   for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return y[i]! - x[i]!;
@@ -34,13 +38,21 @@ export const kindOf = (tag: string): ReleaseKind => {
   return minor === 0 && patch === 0 ? "major" : patch === 0 ? "feature" : "patch";
 };
 export const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 /** Turn a GitHub release body (Markdown) into a headline, summary and bullet sections. */
 export function fromGitHub(r: GitHubLikeRelease): LabRelease {
   const body = (r.body ?? "").replace(/\r/g, "");
   const lines = body.split("\n");
-  const h2 = lines.find((l) => /^##\s+/.test(l))?.replace(/^##\s+/, "").trim();
+  const h2 = lines
+    .find((l) => /^##\s+/.test(l))
+    ?.replace(/^##\s+/, "")
+    .trim();
   const summary =
     lines.find((l) => l.trim() && !/^#|^[-*]\s|^\*\*Full Changelog/.test(l.trim()))?.trim() ??
     "Release notes are on GitHub.";
@@ -59,7 +71,12 @@ export function fromGitHub(r: GitHubLikeRelease): LabRelease {
         current = { title: "What changed", items: [] };
         sections.push(current);
       }
-      current.items.push(b[1]!.replace(/\*\*(.*?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1").trim());
+      current.items.push(
+        b[1]!
+          .replace(/\*\*(.*?)\*\*/g, "$1")
+          .replace(/`([^`]+)`/g, "$1")
+          .trim(),
+      );
     }
   }
   const cleaned = sections.filter((s) => s.items.length);
@@ -88,18 +105,28 @@ export function mergeInto(base: LabRelease[], github: GitHubLikeRelease[]): LabR
   return [...byTag.values()].sort((a, b) => compareTags(a.tag, b.tag));
 }
 
-
 /** Latest releases from the site's API (or GitHub), merged into `base`. Null when offline. */
 export async function liveReleases(base: LabRelease[]): Promise<LabRelease[] | null> {
   const sources: Array<() => Promise<GitHubLikeRelease[] | undefined>> = [
-    async () => { const r = await fetch("/api/releases?per_page=10", { signal: AbortSignal.timeout(4000) }); return r.ok ? r.json() : undefined; },
-    async () => { const r = await fetch("https://api.github.com/repos/PanicMako/Tabs-ide/releases?per_page=10", { signal: AbortSignal.timeout(5000), headers: { Accept: "application/vnd.github+json" } }); return r.ok ? r.json() : undefined; },
+    async () => {
+      const r = await fetch("/api/releases?per_page=10", { signal: AbortSignal.timeout(4000) });
+      return r.ok ? r.json() : undefined;
+    },
+    async () => {
+      const r = await fetch(
+        "https://api.github.com/repos/PanicMako/Tabs-ide/releases?per_page=10",
+        { signal: AbortSignal.timeout(5000), headers: { Accept: "application/vnd.github+json" } },
+      );
+      return r.ok ? r.json() : undefined;
+    },
   ];
   for (const s of sources) {
     try {
       const data = await s();
       if (Array.isArray(data) && data.length) return mergeInto(base, data);
-    } catch { /* next source */ }
+    } catch {
+      /* next source */
+    }
   }
   return null;
 }

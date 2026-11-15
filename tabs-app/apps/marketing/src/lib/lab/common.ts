@@ -50,7 +50,10 @@ export function magnetic(root: ParentNode = document) {
 }
 
 /** Split [data-split] headings into lines/words and reveal them on scroll. */
-export function splitReveals(root: ParentNode = document, opts: { y?: string; stagger?: number } = {}) {
+export function splitReveals(
+  root: ParentNode = document,
+  opts: { y?: string; stagger?: number } = {},
+) {
   root.querySelectorAll<HTMLElement>("[data-split]").forEach((el) => {
     if (reduced) return;
     const mode = el.dataset.split || "words";
@@ -101,7 +104,12 @@ export function counters(root: ParentNode = document) {
       v: end,
       duration: reduced ? 0 : 1.6,
       ease: "power3.out",
-      onUpdate: () => { el.textContent = String(Math.round(o.v)).padStart(el.dataset.pad ? Number(el.dataset.pad) : 1, "0"); },
+      onUpdate: () => {
+        el.textContent = String(Math.round(o.v)).padStart(
+          el.dataset.pad ? Number(el.dataset.pad) : 1,
+          "0",
+        );
+      },
       scrollTrigger: { trigger: el, start: "top 90%", once: true },
     });
   });

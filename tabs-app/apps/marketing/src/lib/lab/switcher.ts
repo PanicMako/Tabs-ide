@@ -13,22 +13,49 @@ export interface Project {
 
 export const PROJECTS: Record<ProjectId, Project> = {
   studio: {
-    name: "studio-site", hue: "#0E2AF3", branch: "design/hero",
-    agent: { id: "claude", name: "Claude", thread: "Tighten the hero spacing on mobile", status: "Editing Hero.tsx" },
-    dock: [{ name: "Dev server", detail: "bun dev" }, { name: "Preview", detail: "localhost:4321" }],
+    name: "studio-site",
+    hue: "#0E2AF3",
+    branch: "design/hero",
+    agent: {
+      id: "claude",
+      name: "Claude",
+      thread: "Tighten the hero spacing on mobile",
+      status: "Editing Hero.tsx",
+    },
+    dock: [
+      { name: "Dev server", detail: "bun dev" },
+      { name: "Preview", detail: "localhost:4321" },
+    ],
     git: { add: 12, del: 4, files: 2 },
     url: "localhost:4321",
   },
   product: {
-    name: "next-product", hue: "#FF5B2E", branch: "feat/usage-limits",
-    agent: { id: "codex", name: "Codex", thread: "Why does the usage test fail on CI?", status: "Tests passing" },
-    dock: [{ name: "API", detail: "pnpm dev:api" }, { name: "Tests", detail: "pnpm test --watch" }],
+    name: "next-product",
+    hue: "#FF5B2E",
+    branch: "feat/usage-limits",
+    agent: {
+      id: "codex",
+      name: "Codex",
+      thread: "Why does the usage test fail on CI?",
+      status: "Tests passing",
+    },
+    dock: [
+      { name: "API", detail: "pnpm dev:api" },
+      { name: "Tests", detail: "pnpm test --watch" },
+    ],
     git: { add: 3, del: 1, files: 1 },
     url: "localhost:3000/billing",
   },
   weekend: {
-    name: "weekend-idea", hue: "#18B47B", branch: "main",
-    agent: { id: "opencode", name: "OpenCode", thread: "Scaffold a CLI that renames photos", status: "Waiting for you" },
+    name: "weekend-idea",
+    hue: "#18B47B",
+    branch: "main",
+    agent: {
+      id: "opencode",
+      name: "OpenCode",
+      thread: "Scaffold a CLI that renames photos",
+      status: "Waiting for you",
+    },
     dock: [{ name: "Run", detail: "cargo run -- ~/Photos" }],
     git: { add: 48, del: 0, files: 5 },
     url: "github.com/you/photo-renamer",

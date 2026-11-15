@@ -13,7 +13,10 @@ function fromCurated(c: ChangelogRelease): LabRelease {
     summary: c.summary,
     highlights: c.highlights,
     // Older entries repeat their highlights as the only category; don't show them twice.
-    sections: c.categories.filter((s) => !(s.items.length === c.highlights.length && s.items.every((i, k) => i === c.highlights[k]))),
+    sections: c.categories.filter(
+      (s) =>
+        !(s.items.length === c.highlights.length && s.items.every((i, k) => i === c.highlights[k])),
+    ),
     url: `${RELEASES}${c.tag}`,
   };
 }

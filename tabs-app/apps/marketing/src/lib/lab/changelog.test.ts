@@ -4,7 +4,11 @@ import { mergeReleases } from "./changelog-curated";
 
 describe("lab changelog", () => {
   it("orders tags by semver, not by string", () => {
-    expect(["v1.3.9", "v1.3.34", "v2.0.0"].sort(compareTags)).toEqual(["v2.0.0", "v1.3.34", "v1.3.9"]);
+    expect(["v1.3.9", "v1.3.34", "v2.0.0"].sort(compareTags)).toEqual([
+      "v2.0.0",
+      "v1.3.34",
+      "v1.3.9",
+    ]);
   });
 
   it("classifies releases by version shape", () => {
@@ -27,14 +31,17 @@ describe("lab changelog", () => {
   });
 
   it("adds releases the curated list has not caught up with, newest first", () => {
-    const list = mergeReleases([{ tag_name: "v99.0.1", published_at: "2027-01-01T00:00:00Z", body: "## Hello\n\nHi." }]);
+    const list = mergeReleases([
+      { tag_name: "v99.0.1", published_at: "2027-01-01T00:00:00Z", body: "## Hello\n\nHi." },
+    ]);
     expect(list[0]!.tag).toBe("v99.0.1");
     expect(list[0]!.title).toBe("Hello");
   });
 
   it("skips prereleases", () => {
-    const list = mergeReleases([{ tag_name: "v99.0.0", published_at: "2027-01-01T00:00:00Z", prerelease: true }]);
+    const list = mergeReleases([
+      { tag_name: "v99.0.0", published_at: "2027-01-01T00:00:00Z", prerelease: true },
+    ]);
     expect(list.some((r) => r.tag === "v99.0.0")).toBe(false);
   });
 });
-
