@@ -8,15 +8,15 @@ Exchange packages).
 
 ## Where we are (API 1.10)
 
-| Surface | Status |
-| --- | --- |
-| Toolbar tools (`contributes.tools`) | Shipped. A sandboxed HTML view per tool. |
-| Logic commands (`contributes.commands`) | Shipped. Pure JSON commands in a QuickJS worker. |
-| Agent tools (`aiCallable` + `ai-tools` grant) | Shipped. Exposed through the Tabs MCP server. |
-| Quick Actions entries (`contributes.quickActions`) | Shipped in 1.8. Launcher entries that open a tool. |
-| Color themes (`contributes.themes`) | Shipped in 1.9. Hex-only palettes in Settings → Themes. |
-| Command Palette entries (`contributes.paletteCommands`) | Shipped in 1.9 (open a tool) and 1.10 (run a logic command). |
-| Brokers | Storage, read-only workspace, git status, HTTPS GET, credential attach. |
+| Surface                                                 | Status                                                                  |
+| ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Toolbar tools (`contributes.tools`)                     | Shipped. A sandboxed HTML view per tool.                                |
+| Logic commands (`contributes.commands`)                 | Shipped. Pure JSON commands in a QuickJS worker.                        |
+| Agent tools (`aiCallable` + `ai-tools` grant)           | Shipped. Exposed through the Tabs MCP server.                           |
+| Quick Actions entries (`contributes.quickActions`)      | Shipped in 1.8. Launcher entries that open a tool.                      |
+| Color themes (`contributes.themes`)                     | Shipped in 1.9. Hex-only palettes in Settings → Themes.                 |
+| Command Palette entries (`contributes.paletteCommands`) | Shipped in 1.9 (open a tool) and 1.10 (run a logic command).            |
+| Brokers                                                 | Storage, read-only workspace, git status, HTTPS GET, credential attach. |
 
 ## Principles
 

@@ -9,9 +9,7 @@
     "tabs": ">=2.4.0 <3.0.0",
     "api": "^1.10.0"
   },
-  "capabilities": [
-    "profile-storage"
-  ],
+  "capabilities": ["profile-storage"],
   "contributes": {
     "tools": [
       {
@@ -34,21 +32,14 @@
         "id": "open-notes",
         "title": "Workbench Extras: Open scratch notes",
         "description": "Per-project notes kept in this extension's storage",
-        "keywords": [
-          "notes",
-          "scratch",
-          "jot"
-        ],
+        "keywords": ["notes", "scratch", "jot"],
         "tool": "notes"
       },
       {
         "id": "show-tip",
         "title": "Workbench Extras: Show a tip",
         "description": "A quick tip, shown right in the notification",
-        "keywords": [
-          "tip",
-          "help"
-        ],
+        "keywords": ["tip", "help"],
         "command": "tip"
       }
     ],
