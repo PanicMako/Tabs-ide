@@ -82,5 +82,8 @@
     "workerDirectory": [
       "apps/web/public"
     ]
+  },
+  "patchedDependencies": {
+    "@muse-code/sdk@1.4.6": "patches/@muse-code%2Fsdk@1.4.6.patch"
   }
 }
