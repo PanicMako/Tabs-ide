@@ -9,6 +9,10 @@
  * sub-thread can never leave the plan "busy" forever, and tasks that might
  * edit the same files never run at the same time.
  */
+import type { SubagentRole } from "@tabs/contracts";
+
+import { splitClaudeUltrathinkPrefix } from "./model.ts";
+import { READ_ONLY_SUBAGENT_ROLES, SUBAGENT_ROLES } from "./subagents.ts";
 
 export const OVERMIND_DEFAULT_LIMITS = {
   /** Most sub-threads running at once. Bounds spend and machine load. */
@@ -40,16 +44,10 @@ export const OVERMIND_LIMIT_CEILINGS: OvermindLimits = {
   maxTotalTokens: 50_000_000,
 };
 
-export type OvermindTaskRole =
-  | "implementation"
-  | "research"
-  | "review"
-  | "design"
-  | "test"
-  | "general";
+export type OvermindTaskRole = SubagentRole;
 
 /** Roles that only read. They may share files with anyone. */
-const READ_ONLY_ROLES: ReadonlySet<OvermindTaskRole> = new Set(["research", "review"]);
+const READ_ONLY_ROLES = READ_ONLY_SUBAGENT_ROLES;
 
 export interface OvermindTaskSpec {
   readonly id: string;
@@ -523,6 +521,43 @@ export function buildOvermindTaskPrompt(input: {
 
 export const OVERMIND_TITLE_PREFIX = "Overmind · ";
 
+const OVERMIND_ROLE_SET: ReadonlySet<string> = new Set<string>(SUBAGENT_ROLES);
+
+/**
+ * Sub-thread title for one task. The key segment carries the task id and its
+ * role (`Overmind · api:design · Build the API`) so the UI can group tasks by
+ * type from the row alone; task ids never contain ":", so it stays unambiguous.
+ */
+export function formatOvermindTaskTitle(
+  task: Pick<OvermindTaskSpec, "id" | "role" | "title">,
+): string {
+  return `${OVERMIND_TITLE_PREFIX}${task.id}:${task.role} · ${task.title}`;
+}
+
+/** Task id and role from a title's key segment; titles from before roles have no role. */
+function parseOvermindTaskKey(segment: string): {
+  readonly taskKey: string;
+  readonly role: OvermindTaskRole | null;
+} {
+  const colon = segment.indexOf(":");
+  if (colon === -1) return { taskKey: segment, role: null };
+  const role = segment.slice(colon + 1);
+  return {
+    taskKey: segment.slice(0, colon),
+    role: OVERMIND_ROLE_SET.has(role) ? (role as OvermindTaskRole) : null,
+  };
+}
+
+/**
+ * Sub-thread titles carry the plan's task key (`Overmind · api:design · Build the API`)
+ * so the lead can find its tasks again. People only need the readable part.
+ */
+export function overmindDisplayTitle(title: string): string {
+  if (!title.startsWith(OVERMIND_TITLE_PREFIX)) return title;
+  const [, ...rest] = title.slice(OVERMIND_TITLE_PREFIX.length).split(" · ");
+  return rest.join(" · ").trim() || title;
+}
+
 /**
  * Progress line for the lead thread's sidebar, read from the sub-thread rows
  * the UI already has. Null when none of them belongs to an Overmind plan.
@@ -569,6 +604,8 @@ export function summarizeOvermindSubagents(
 export interface OvermindTaskRow {
   /** The plan's task id, parsed from the sub-thread title. */
   readonly taskKey: string;
+  /** Task type, or null for titles written before roles were recorded. */
+  readonly role: OvermindTaskRole | null;
   readonly title: string;
   readonly status: string;
   readonly subagentId: string;
@@ -589,9 +626,11 @@ export function listOvermindTasks(
   const rows: OvermindTaskRow[] = [];
   for (const agent of subagents) {
     if (agent.title?.startsWith(OVERMIND_TITLE_PREFIX) !== true) continue;
-    const [taskKey = "", ...rest] = agent.title.slice(OVERMIND_TITLE_PREFIX.length).split(" · ");
+    const [keySegment = "", ...rest] = agent.title.slice(OVERMIND_TITLE_PREFIX.length).split(" · ");
+    const { taskKey, role } = parseOvermindTaskKey(keySegment);
     rows.push({
       taskKey,
+      role,
       title: rest.join(" · ") || taskKey,
       status: agent.status,
       subagentId: agent.id,
@@ -602,23 +641,91 @@ export function listOvermindTasks(
   return rows;
 }
 
-/** Text a lead thread receives when the user starts Overmind from the UI. */
-export interface OvermindWorkerChoice {
-  readonly providerInstanceId: string;
-  readonly model: string;
+/** Rows that need a person or failed come first, then live work, then finished. */
+function overmindStatusRank(status: string): number {
+  switch (status) {
+    case "waiting":
+      return 0;
+    case "failed":
+    case "interrupted":
+    case "cancelled":
+      return 1;
+    case "running":
+    case "starting":
+      return 2;
+    case "pending":
+    case "queued":
+      return 3;
+    case "idle":
+      return 4;
+    case "completed":
+      return 5;
+    default:
+      return 2;
+  }
 }
 
-export function buildOvermindStartMessage(goal: string, workers?: OvermindWorkerChoice): string {
-  const lines = [
-    "Use Overmind for this goal: split it into independent tasks, run them in parallel with the overmind_advance tool, then merge, verify and report the combined result.",
+export interface OvermindTaskGroup {
+  /** Null collects tasks whose title carries no role. */
+  readonly role: OvermindTaskRole | null;
+  readonly tasks: ReadonlyArray<OvermindTaskRow>;
+  readonly done: number;
+}
+
+/**
+ * Tasks grouped by type in a fixed role order (untyped last), each group
+ * ordered by what needs looking at first. Plan order breaks ties.
+ */
+export function groupOvermindTasks(
+  rows: ReadonlyArray<OvermindTaskRow>,
+): ReadonlyArray<OvermindTaskGroup> {
+  const order: ReadonlyArray<OvermindTaskRole | null> = [...SUBAGENT_ROLES, null];
+  return order.flatMap((role) => {
+    const tasks = rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.role === role)
+      .sort(
+        (a, b) =>
+          overmindStatusRank(a.row.status) - overmindStatusRank(b.row.status) || a.index - b.index,
+      )
+      .map(({ row }) => row);
+    if (tasks.length === 0) return [];
+    return [{ role, tasks, done: tasks.filter((task) => task.status === "completed").length }];
+  });
+}
+
+export const OVERMIND_ROLES: ReadonlyArray<OvermindTaskRole> = SUBAGENT_ROLES;
+
+const OVERMIND_START_LEAD = "Use Overmind for this goal:";
+const OVERMIND_GOAL_MARKER = "\n\nGoal: ";
+
+/**
+ * The goal of a message `buildOvermindStartMessage` wrote, or null for any
+ * other text. The instructions around it are for the lead model only: the
+ * chat, copy and thread titles show just what the person asked for.
+ */
+export function parseOvermindStartMessage(text: string): string | null {
+  // An Overmind start sent at ultrathink carries the `Ultrathink:` line on top.
+  const body = splitClaudeUltrathinkPrefix(text).body;
+  if (!body.startsWith(OVERMIND_START_LEAD)) return null;
+  const marker = body.indexOf(OVERMIND_GOAL_MARKER);
+  if (marker === -1) return null;
+  const goal = body.slice(marker + OVERMIND_GOAL_MARKER.length).trim();
+  return goal === "" ? null : goal;
+}
+
+/** What a person reads for a message: the goal of an Overmind start, else the text. */
+export function overmindVisibleMessageText(text: string): string {
+  return parseOvermindStartMessage(text) ?? text;
+}
+
+/** Text a lead thread receives when the user starts Overmind from the UI. */
+export function buildOvermindStartMessage(goal: string): string {
+  return [
+    `${OVERMIND_START_LEAD} split it into independent tasks, run them in parallel with the overmind_advance tool, then merge, verify and report the combined result.`,
+    'Give every task a short lowercase id (for example "api"), a plain-language title a person would write, and a role (implementation, research, review, design, test or general) that matches the work; the user may run each role on its own model.',
     "Call overmind_advance yourself; do not do the tasks in this thread and do not use native subagents. Each task becomes its own nested sub-thread. The tool may carry an MCP prefix or be lazy-loaded: look for it before concluding it is missing.",
-  ];
-  if (workers) {
-    lines.push(
-      "",
-      `Run every sub-task on provider instance "${workers.providerInstanceId}" with model "${workers.model}": set providerInstanceId and model on each task in the plan. Keep planning, merging and verifying in this thread.`,
-    );
-  }
-  lines.push("", `Goal: ${goal.trim()}`);
-  return lines.join("\n");
+    "",
+    `Goal: ${goal.trim()}`,
+  ].join("\n");
 }

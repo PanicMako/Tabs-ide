@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  overmindDisplayTitle,
   blockOvermindDependents,
   buildOvermindTaskPrompt,
   clampOvermindLimits,
@@ -17,7 +18,11 @@ import {
   totalOvermindTokens,
   summarizeOvermindSubagents,
   listOvermindTasks,
+  formatOvermindTaskTitle,
+  groupOvermindTasks,
   buildOvermindStartMessage,
+  overmindVisibleMessageText,
+  parseOvermindStartMessage,
   validateOvermindPlan,
   type OvermindTaskSpec,
   type OvermindTaskState,
@@ -305,6 +310,8 @@ describe("overmind task rows", () => {
     const text = buildOvermindStartMessage("  ship it ");
     expect(text).toContain("overmind_advance");
     expect(text).toContain("Goal: ship it");
+    expect(text).toContain("role");
+    expect(text).not.toContain("<!--");
   });
 });
 
@@ -342,5 +349,89 @@ describe("overmind attention and idle handling", () => {
         { title: "Overmind · c · C", status: "running" },
       ]),
     ).toEqual({ total: 3, done: 0, failed: 0, active: 2, attention: 1 });
+  });
+});
+
+describe("overmind task types in titles", () => {
+  it("round-trips the role through the sub-thread title", () => {
+    const title = formatOvermindTaskTitle({ id: "ui", role: "design", title: "Build the UI" });
+    expect(title).toBe("Overmind · ui:design · Build the UI");
+    expect(overmindDisplayTitle(title)).toBe("Build the UI");
+    const [row] = listOvermindTasks([{ id: "n1", title, status: "running" }]);
+    expect(row).toMatchObject({ taskKey: "ui", role: "design", title: "Build the UI" });
+  });
+
+  it("reads titles without a role, or with an unknown one, as untyped", () => {
+    const rows = listOvermindTasks([
+      { id: "n1", title: "Overmind · api · Build the API", status: "running" },
+      { id: "n2", title: "Overmind · db:wizard · Migrate", status: "running" },
+    ]);
+    expect(rows.map((row) => [row.taskKey, row.role])).toEqual([
+      ["api", null],
+      ["db", null],
+    ]);
+  });
+
+  it("groups by role in a fixed order with untyped last, needing-attention first", () => {
+    const rows = listOvermindTasks([
+      { id: "1", title: "Overmind · old · Legacy", status: "running" },
+      { id: "2", title: "Overmind · a:design · Header", status: "completed" },
+      { id: "3", title: "Overmind · b:implementation · API", status: "running" },
+      { id: "4", title: "Overmind · c:design · Footer", status: "failed" },
+      { id: "5", title: "Overmind · d:design · Nav", status: "waiting" },
+    ]);
+    const groups = groupOvermindTasks(rows);
+    expect(
+      groups.map((group) => [group.role, group.done, group.tasks.map((t) => t.taskKey)]),
+    ).toEqual([
+      ["implementation", 0, ["b"]],
+      ["design", 1, ["d", "c", "a"]],
+      [null, 0, ["old"]],
+    ]);
+  });
+});
+
+describe("overmindDisplayTitle", () => {
+  it("drops the plan prefix and task key", () => {
+    expect(overmindDisplayTitle("Overmind · api · Build the API")).toBe("Build the API");
+    expect(overmindDisplayTitle("Overmind · api")).toBe("Overmind · api");
+    expect(overmindDisplayTitle("Fix login")).toBe("Fix login");
+  });
+});
+
+describe("overmind start message parsing", () => {
+  it("recovers the goal from the start message, including multi-line goals", () => {
+    expect(parseOvermindStartMessage(buildOvermindStartMessage("  analyse the codebase "))).toBe(
+      "analyse the codebase",
+    );
+    const multi = buildOvermindStartMessage("Ship billing\n\n- API\n- UI");
+    expect(parseOvermindStartMessage(multi)).toBe("Ship billing\n\n- API\n- UI");
+  });
+
+  it("recovers the goal from a start message sent at ultrathink", () => {
+    expect(
+      parseOvermindStartMessage(`Ultrathink:\n${buildOvermindStartMessage("Ship billing")}`),
+    ).toBe("Ship billing");
+    expect(overmindVisibleMessageText(`Ultrathink:\n${buildOvermindStartMessage("Ship")}`)).toBe(
+      "Ship",
+    );
+  });
+
+  it("reads the start message of earlier releases", () => {
+    const released = [
+      "Use Overmind for this goal: split it into independent tasks, run them in parallel with the overmind_advance tool, then merge, verify and report the combined result.",
+      "Call overmind_advance yourself; do not do the tasks in this thread.",
+      "",
+      'Run every sub-task on provider instance "codex" with model "m": set providerInstanceId and model on each task in the plan.',
+      "",
+      "Goal: old goal",
+    ].join("\n");
+    expect(parseOvermindStartMessage(released)).toBe("old goal");
+  });
+
+  it("leaves other text alone", () => {
+    expect(parseOvermindStartMessage("Use Overmind for this goal")).toBeNull();
+    expect(parseOvermindStartMessage("Goal: x")).toBeNull();
+    expect(overmindVisibleMessageText("hello")).toBe("hello");
   });
 });
