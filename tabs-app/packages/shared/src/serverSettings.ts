@@ -291,6 +291,8 @@ export function applyServerSettingsPatch(
     projectSettingsOverrides: projectSettingsOverridesPatch,
     // Replaced whole, so a reset or a removed color does not survive a merge.
     userTheme: userThemePatch,
+    // Replaced whole, so a cleared role override does not survive a merge.
+    subagentModels: subagentModelsPatch,
     // Already translated into `projectSettingsOverrides` above; the legacy
     // maps are derived views and must never be merged directly.
     projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
@@ -338,6 +340,7 @@ export function applyServerSettingsPatch(
   const nextWithReplacementsBase = {
     ...next,
     ...(userThemePatch !== undefined ? { userTheme: userThemePatch } : {}),
+    ...(subagentModelsPatch !== undefined ? { subagentModels: subagentModelsPatch } : {}),
     ...(defaultThreadEnvModePatch !== undefined
       ? { defaultThreadEnvMode: defaultThreadEnvModePatch ?? "local" }
       : {}),

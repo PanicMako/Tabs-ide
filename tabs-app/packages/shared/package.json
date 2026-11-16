@@ -48,6 +48,10 @@
       "types": "./src/overmind.ts",
       "import": "./src/overmind.ts"
     },
+    "./subagents": {
+      "types": "./src/subagents.ts",
+      "import": "./src/subagents.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"
