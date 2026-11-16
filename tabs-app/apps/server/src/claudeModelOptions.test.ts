@@ -128,6 +128,19 @@ describe("compileClaudeModelSelection", () => {
     expect(defaultSelection.promptEffort).toBeUndefined();
   });
 
+  it("keeps Ultracode on while a message runs at ultrathink", () => {
+    // Overmind, Ultrathink and Ultracode can all be on at once: the first two
+    // ride in the prompt, Ultracode is a session setting, so none overrides another.
+    expect(
+      compileClaudeModelSelection(
+        selection("claude-opus-5-5", [
+          { id: "effort", value: "ultrathink" },
+          { id: "ultracode", value: true },
+        ]),
+      ),
+    ).toMatchObject({ promptEffort: "ultrathink", settings: { ultracode: true } });
+  });
+
   it("preserves explicit SDK effort without injecting a prompt", () => {
     expect(
       compileClaudeModelSelection(selection("claude-sonnet-4-6", [{ id: "effort", value: "low" }])),
