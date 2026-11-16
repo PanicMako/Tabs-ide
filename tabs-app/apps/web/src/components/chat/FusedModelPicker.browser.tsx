@@ -354,6 +354,10 @@ test("uses the available model-list height beside a long provider rail", async (
     await expect
       .poll(() => document.querySelector<HTMLElement>("[data-fused-model-list]")?.clientHeight ?? 0)
       .toBeGreaterThan(380);
+    const showMore = page.getByRole("button", { name: /Show \d+ more/i });
+    if (await showMore.query()) {
+      await showMore.click();
+    }
     const panel = document.querySelector<HTMLElement>("[data-fused-picker-panel]")!;
     expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(560);
     const list = panel.querySelector<HTMLElement>("[data-fused-model-list]")!;

@@ -45,6 +45,7 @@ import { cn } from "~/lib/utils";
 import { getProviderModels, getProviderSnapshot } from "../../providerModels";
 import { PROVIDER_OPTIONS, type ProviderPickerKind } from "../../session-logic";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
+import { curateModels } from "./fusedModelCuration";
 import { getPinnedModels, isPinnedModel, togglePinnedModel } from "../../modelPinning";
 import {
   applyCustomModelOrdering,
@@ -426,6 +427,28 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
     ) ?? null;
 
   const leverDescriptor = booleanFastModeDescriptor ?? selectFastModeDescriptor ?? null;
+  // Other on/off options (e.g. Ultracode) live beside the lever so rows keep their full name.
+  const sideToggleDescriptors = booleanDescriptors.filter(
+    (d) => d.id !== "fastMode" && d.id !== "fast",
+  );
+  const sidePrimarySelect = selectDescriptors.find(
+    (d) =>
+      d.id === "reasoningEffort" ||
+      d.id === "effort" ||
+      d.id === "reasoning" ||
+      d.id === "variant" ||
+      d.id.toLowerCase().includes("effort") ||
+      d.id.toLowerCase().includes("reasoning") ||
+      d.id.toLowerCase().includes("variant"),
+  );
+  const sideSelectDescriptors = selectDescriptors.filter(
+    (d) =>
+      d.id !== sidePrimarySelect?.id &&
+      d.id !== "serviceTier" &&
+      d.id !== "service_tier" &&
+      d.id !== "tier" &&
+      !d.options.some((o) => (o.id ?? (o as any).value) === "fast" && d.options.length <= 2),
+  );
 
   const isUltra = useMemo(() => {
     if (booleanFastModeDescriptor) {
@@ -543,10 +566,31 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
           ? "min-w-[34rem]"
           : "min-w-[30rem]";
 
+  // Default shortlist: newest model per family (plus pinned/selected), unless the
+  // user has curated this provider themselves or is searching.
+  const [showAllModels, setShowAllModels] = useState(false);
+  const providerPrefs =
+    activeTab === "pinned" ? undefined : settings.providerModelPreferences?.[activeTab as any];
+  const userCurated =
+    (providerPrefs?.hiddenModels?.length ?? 0) > 0 || (providerPrefs?.modelOrder?.length ?? 0) > 0;
+  const curation = useMemo(() => {
+    if (activeTab === "pinned" || userCurated || searchQuery.trim() || showAllModels) {
+      return { shown: models, hidden: 0 };
+    }
+    return curateModels(models, (m) => {
+      const providerId = (m as { providerId?: string }).providerId ?? activeTab;
+      return (
+        m.slug === props.model ||
+        (m.thinkingVariants?.some((v) => v.model.slug === props.model) ?? false) ||
+        isPinnedModel(pinnedList, providerId, m.slug)
+      );
+    });
+  }, [activeTab, userCurated, searchQuery, showAllModels, models, props.model, pinnedList]);
+
   // Filter models based on search query
   const filteredModels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return models;
+    if (!query) return curation.shown as typeof models;
     return models.filter((m) => {
       const cleanName = getCleanModelName(m.name, activeTab).toLowerCase();
       const fullName = m.name.toLowerCase();
@@ -561,7 +605,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         providerName.includes(query)
       );
     });
-  }, [models, searchQuery, activeTab]);
+  }, [models, curation, searchQuery, activeTab]);
 
   // Group filtered models hierarchically by subProvider or provider name
   const groupedModels = useMemo(() => {
@@ -1087,25 +1131,79 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                       })}
                     </div>
                   ))}
+                  {curation.hidden > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllModels(true)}
+                      className="mx-2 mt-1 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    >
+                      Show {curation.hidden} more {curation.hidden === 1 ? "model" : "models"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           {/* Interactive GSAP Pull-Cord Lamp Toggle on the Right */}
-          {leverDescriptor && (
-            <PullCordToggle
-              label={
-                leverDescriptor.id === "serviceTier" ||
-                leverDescriptor.id === "service_tier" ||
-                leverDescriptor.id === "tier"
-                  ? "FAST MODE"
-                  : leverDescriptor.label
-              }
-              engaged={isUltra}
-              themeColor={activeColor}
-              onChange={handleFastModeChange}
-            />
+          {(leverDescriptor ||
+            sideToggleDescriptors.length > 0 ||
+            sideSelectDescriptors.length > 0) && (
+            // One column right of the divider: model on/off options and pickers on top, Fast mode below.
+            <div className="flex w-40 shrink-0 flex-col items-stretch gap-3 self-stretch border-l border-border/50 px-3 py-4 dark:border-white/8">
+              {(sideToggleDescriptors.length > 0 || sideSelectDescriptors.length > 0) && (
+                <div className="flex flex-col items-center gap-2">
+                  {sideToggleDescriptors.map((descriptor) => (
+                    <OptionToggle
+                      key={descriptor.id}
+                      id={descriptor.id}
+                      label={descriptor.id === "thinking" ? "Think" : descriptor.label}
+                      engaged={descriptor.currentValue === true}
+                      onChange={(value) => handleBooleanChange(descriptor, value)}
+                    />
+                  ))}
+                  {sideSelectDescriptors.map((descriptor) => {
+                    const currentVal = getProviderOptionCurrentValue(descriptor);
+                    const index = Math.max(
+                      0,
+                      descriptor.options.findIndex((o) => o.id === currentVal),
+                    );
+                    const next = descriptor.options[(index + 1) % descriptor.options.length];
+                    const shown = descriptor.options[index]?.label ?? String(currentVal ?? "");
+                    return (
+                      <button
+                        key={descriptor.id}
+                        type="button"
+                        title={`${descriptor.label}: ${shown} (click to cycle)`}
+                        onClick={() => next && handleSelectChange(descriptor, next.id)}
+                        className="flex min-w-0 items-center justify-between gap-2 self-stretch rounded-xl border border-border/60 bg-muted/30 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-accent/50"
+                      >
+                        <span className="truncate text-muted-foreground">{descriptor.label}</span>
+                        <span className="shrink-0 font-mono font-medium text-foreground">
+                          {shown}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {leverDescriptor && (
+                <div className="flex flex-1 items-center justify-center">
+                  <PullCordToggle
+                    label={
+                      leverDescriptor.id === "serviceTier" ||
+                      leverDescriptor.id === "service_tier" ||
+                      leverDescriptor.id === "tier"
+                        ? "FAST MODE"
+                        : leverDescriptor.label
+                    }
+                    engaged={isUltra}
+                    themeColor={activeColor}
+                    onChange={handleFastModeChange}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </MenuPopup>
@@ -1479,9 +1577,12 @@ const ModelRow = memo(function ModelRow(props: {
             textShadow: props.ultra ? `0 0 8px ${props.themeColor.hex}99` : undefined,
           }}
         >
-          {nativeThinkingLevel
-            ? props.model.name.replace(/\s*\((High|Medium|Low)\)$/, "")
-            : props.model.name}
+          {getCleanModelName(
+            nativeThinkingLevel
+              ? props.model.name.replace(/\s*\((High|Medium|Low)\)$/, "")
+              : props.model.name,
+            props.activeTab ?? null,
+          )}
         </span>
         {nativeThinkingLevel ? (
           <span className="shrink-0 rounded-md border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
@@ -1497,80 +1598,6 @@ const ModelRow = memo(function ModelRow(props: {
               auto
             </span>
           )}
-
-        {/* Inline Secondary Select badges (e.g. 200k, 1M context window) */}
-        {props.isActive &&
-          secondarySelects.map((descriptor) => {
-            const currentVal = getProviderOptionCurrentValue(descriptor);
-            const nextIndex =
-              (descriptor.options.findIndex((o) => o.id === currentVal) + 1) %
-              descriptor.options.length;
-            const nextOption = descriptor.options[nextIndex] ?? descriptor.options[0];
-            const rawVal =
-              descriptor.options.find((o) => o.id === currentVal)?.label ?? currentVal ?? "";
-            const displayVal = String(rawVal);
-            const isHighTier =
-              displayVal.toLowerCase().includes("1m") ||
-              displayVal.toLowerCase().includes("large") ||
-              displayVal.toLowerCase().includes("max");
-            return (
-              <button
-                key={descriptor.id}
-                type="button"
-                title={`${descriptor.label}: ${displayVal} (Click to cycle)`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (nextOption) props.onSelectChange(descriptor, nextOption.id);
-                }}
-                className={cn(
-                  "shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-mono font-medium tracking-wide transition-all duration-150 cursor-pointer select-none",
-                  isHighTier
-                    ? "bg-violet-500/15 border border-violet-500/30 text-violet-600 dark:text-violet-300 hover:bg-violet-500/25"
-                    : "bg-foreground/[0.05] dark:bg-white/[0.07] border border-foreground/[0.08] dark:border-white/10 text-muted-foreground/85 dark:text-zinc-300 hover:text-foreground dark:hover:text-white hover:bg-foreground/[0.08] dark:hover:bg-white/[0.12]",
-                  "hover:scale-[1.04] active:scale-[0.96]",
-                )}
-              >
-                <span>{displayVal}</span>
-                {descriptor.options.length > 1 && (
-                  <span className="text-[7.5px] opacity-40 leading-none">⇄</span>
-                )}
-              </button>
-            );
-          })}
-
-        {/* Inline Boolean toggle badges (e.g. THINK) */}
-        {props.isActive &&
-          booleans.map((descriptor) => {
-            const isTrue = descriptor.currentValue === true;
-            return (
-              <button
-                key={descriptor.id}
-                type="button"
-                title={`${descriptor.label}: ${isTrue ? "On" : "Off"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  props.onBooleanChange(descriptor, !isTrue);
-                }}
-                className={cn(
-                  "shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-semibold tracking-wider uppercase transition-all duration-150 cursor-pointer select-none",
-                  isTrue
-                    ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
-                    : "bg-foreground/[0.04] dark:bg-white/[0.05] border border-foreground/[0.08] dark:border-white/10 text-muted-foreground/70 dark:text-zinc-500 hover:text-foreground dark:hover:text-zinc-300 hover:bg-foreground/[0.07]",
-                  "hover:scale-[1.04] active:scale-[0.96]",
-                )}
-              >
-                <span
-                  className={cn(
-                    "size-1.5 rounded-full transition-all",
-                    isTrue
-                      ? "bg-emerald-500 dark:bg-emerald-400"
-                      : "bg-muted-foreground/30 dark:bg-zinc-600",
-                  )}
-                />
-                <span>{descriptor.id === "thinking" ? "THINK" : descriptor.label}</span>
-              </button>
-            );
-          })}
       </div>
 
       {/* Horizontal aligned track container */}
@@ -1853,7 +1880,7 @@ const PullCordToggle = memo(function PullCordToggle(props: {
   const isLightOn = props.engaged;
 
   return (
-    <div className="flex w-[88px] flex-col items-center justify-center border-l border-border/50 pl-5 dark:border-white/8 select-none shrink-0">
+    <div className="flex w-[88px] flex-col items-center justify-center select-none shrink-0">
       {/* Top Header Badge */}
       <div className="flex flex-col items-center gap-1 mb-2">
         <span
@@ -1973,3 +2000,41 @@ const COSMIC_KEYFRAMES = `
   50% { filter: drop-shadow(0 0 14px rgba(255, 230, 0, 0.8)) drop-shadow(0 0 20px rgba(255, 105, 180, 0.6)); }
 }
 `;
+
+/** Each on/off option gets its own tint, the way each surface does. */
+const OPTION_TOGGLE_TINTS: Record<string, string> = {
+  ultracode: "#a78bfa",
+  thinking: "#ffc46b",
+};
+
+/**
+ * An on/off model option (Ultracode, Think) as plain words, lettered like the
+ * surface launcher: light italic at rest, upright and bold on hover, and filled
+ * with its tint while it is on.
+ */
+const OptionToggle = memo(function OptionToggle(props: {
+  id: string;
+  label: string;
+  engaged: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const tint = OPTION_TOGGLE_TINTS[props.id.toLowerCase()] ?? "#6aa8ff";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.engaged}
+      aria-label={props.label}
+      onClick={(event) => {
+        event.stopPropagation();
+        props.onChange(!props.engaged);
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      data-engaged={props.engaged ? "true" : "false"}
+      style={{ "--option-tint": tint } as React.CSSProperties}
+      className="option-toggle w-fit select-none rounded-full px-3.5 outline-none focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <span className="option-toggle-label">{props.label}</span>
+    </button>
+  );
+});
