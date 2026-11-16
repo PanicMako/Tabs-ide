@@ -61,6 +61,7 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
   public readonly setModelCalls: Array<string | undefined> = [];
   public readonly setPermissionModeCalls: Array<string> = [];
   public readonly setMaxThinkingTokensCalls: Array<number | null> = [];
+  public readonly applyFlagSettingsCalls: Array<Record<string, unknown>> = [];
   public closeCalls = 0;
 
   emit(message: SDKMessage): void {
@@ -111,6 +112,10 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
 
   readonly setMaxThinkingTokens = async (maxThinkingTokens: number | null): Promise<void> => {
     this.setMaxThinkingTokensCalls.push(maxThinkingTokens);
+  };
+
+  readonly applyFlagSettings = async (settings: Record<string, unknown>): Promise<void> => {
+    this.applyFlagSettingsCalls.push(settings);
   };
 
   readonly close = (): void => {
@@ -613,6 +618,101 @@ describe("ClaudeAdapterLive", () => {
 
       const createInput = harness.getLastCreateQueryInput();
       assert.equal(createInput?.options.settings, undefined);
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("forwards claude ultracode boolean option into SDK settings", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: "claudeAgent" as ProviderDriverKind,
+        modelSelection: createModelSelection("claudeAgent" as ProviderInstanceId, "claude-opus-5", [
+          { id: "ultracode", value: true },
+        ]),
+        runtimeMode: "full-access",
+      });
+
+      const createInput = harness.getLastCreateQueryInput();
+      assert.deepEqual(createInput?.options.settings, {
+        ultracode: true,
+      });
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("keeps legacy effort=ultracode in SDK settings", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: "claudeAgent" as ProviderDriverKind,
+        modelSelection: createModelSelection("claudeAgent" as ProviderInstanceId, "claude-opus-5", [
+          { id: "effort", value: "ultracode" },
+        ]),
+        runtimeMode: "full-access",
+      });
+
+      const createInput = harness.getLastCreateQueryInput();
+      assert.deepEqual(createInput?.options.settings, {
+        ultracode: true,
+      });
+      assert.equal(createInput?.options.effort, "xhigh");
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("applies ultracode flag dynamically on turn when toggled", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: "claudeAgent" as ProviderDriverKind,
+        modelSelection: createModelSelection("claudeAgent" as ProviderInstanceId, "claude-opus-5", [
+          { id: "ultracode", value: false },
+        ]),
+        runtimeMode: "full-access",
+      });
+
+      assert.equal(harness.query.applyFlagSettingsCalls.length, 0);
+
+      yield* adapter.sendTurn({
+        threadId: THREAD_ID,
+        input: "hello",
+        attachments: [],
+        modelSelection: createModelSelection("claudeAgent" as ProviderInstanceId, "claude-opus-5", [
+          { id: "ultracode", value: true },
+        ]),
+      });
+
+      assert.equal(harness.query.applyFlagSettingsCalls.length, 1);
+      assert.deepEqual(harness.query.applyFlagSettingsCalls[0], {
+        ultracode: true,
+      });
+
+      yield* adapter.sendTurn({
+        threadId: THREAD_ID,
+        input: "hello again",
+        attachments: [],
+        modelSelection: createModelSelection("claudeAgent" as ProviderInstanceId, "claude-opus-5", [
+          { id: "ultracode", value: false },
+        ]),
+      });
+
+      assert.equal(harness.query.applyFlagSettingsCalls.length, 2);
+      assert.deepEqual(harness.query.applyFlagSettingsCalls[1], {
+        ultracode: null,
+      });
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),

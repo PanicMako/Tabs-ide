@@ -43,6 +43,7 @@ import {
   ProviderItemId,
   type ProviderRuntimeEvent,
   type ProviderRuntimeTurnStatus,
+  type ModelSelection,
   type ProviderSendTurnInput,
   type ProviderSession,
   type ThreadTokenUsageSnapshot,
@@ -63,7 +64,10 @@ type ProviderComposerCapabilities = any;
 type ProviderListCommandsInput = any;
 type ProviderListSkillsInput = any;
 type ProviderListSkillsResult = any;
-import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
+import {
+  getModelSelectionBooleanOptionValue,
+  getModelSelectionStringOptionValue,
+} from "@tabs/shared/model";
 import type { ProviderListModelsResult } from "../Services/ProviderAdapter.ts";
 import {
   getClaudeModelCapabilities,
@@ -842,6 +846,18 @@ function resolveSelectedClaudeThinkingToggle(
   return getModelCapabilities("claudeAgent", model)?.supportsThinkingToggle
     ? selectedThinking
     : undefined;
+}
+
+function resolveSelectedClaudeUltracode(
+  caps: any,
+  modelSelection: ModelSelection | null | undefined,
+  effort: string | null | undefined,
+): boolean {
+  const explicitToggle = getModelSelectionBooleanOptionValue(modelSelection, "ultracode");
+  if (typeof explicitToggle === "boolean") {
+    return explicitToggle;
+  }
+  return effort === "ultracode" && hasEffortLevel(caps, "xhigh");
 }
 
 function asCanonicalTurnId(value: TurnId): TurnId {
@@ -5187,7 +5203,7 @@ export function makeClaudeAdapter(
           modelSelection?.options?.find((o) => o.id === "thinking")?.value as boolean | undefined,
         );
         const effectiveEffort = getEffectiveClaudeCodeEffort(effort, modelSelection?.model);
-        const ultracode = effort === "ultracode" && hasEffortLevel(caps, "xhigh");
+        const ultracode = resolveSelectedClaudeUltracode(caps, modelSelection, effort);
         const permissionMode =
           (input.runtimeMode as any) === "auto"
             ? "auto"
@@ -5729,8 +5745,11 @@ export function makeClaudeAdapter(
           const rawEffort = getModelSelectionStringOptionValue(modelSelection, "effort");
           const validEffort = resolveClaudeEffort(turnCaps, rawEffort) ?? null;
           const requestedEffort = getEffectiveClaudeCodeEffort(validEffort, modelSelection.model);
-          const requestedUltracode =
-            validEffort === "ultracode" && hasEffortLevel(turnCaps, "xhigh");
+          const requestedUltracode = resolveSelectedClaudeUltracode(
+            turnCaps,
+            modelSelection,
+            validEffort,
+          );
           const requestedFastMode =
             modelSelection.options?.find((o) => o.id === "fastMode")?.value === true &&
             turnCaps.supportsFastMode;
