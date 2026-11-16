@@ -1,3 +1,4 @@
+import { overmindVisibleMessageText } from "@tabs/shared/overmind";
 import type { TimelineEntry } from "../../session-logic";
 
 export interface TimelineMinimapItem {
@@ -32,7 +33,7 @@ export function deriveTimelineMinimapItems(
     items.push({
       id: row.id,
       rowIndex: index,
-      userText: row.message.text ?? null,
+      userText: row.message.text == null ? null : overmindVisibleMessageText(row.message.text),
       assistantText: resolveFinalAssistantTextForTurn(rows, index),
     });
   }

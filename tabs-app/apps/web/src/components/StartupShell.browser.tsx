@@ -57,7 +57,7 @@ it("brings the workspace up from the bottom after the mascot gag", async () => {
     const workspace = page.getByRole("button", { name: "Workspace loaded" });
     await expect.element(workspace).toBeInTheDocument();
     const layer = workspace.element().parentElement!;
-    expect(getComputedStyle(layer).display).toBe("contents");
+    expect(getComputedStyle(layer).display).toBe("block");
     updateStartupSplash({ ready: true });
     await expect.poll(() => layer.dataset.rising, { timeout: 8_000 }).toBe("true");
     expect(getComputedStyle(layer).position).toBe("fixed");

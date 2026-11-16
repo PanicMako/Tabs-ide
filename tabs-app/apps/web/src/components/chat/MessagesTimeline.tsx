@@ -46,6 +46,7 @@ import {
   FileTextIcon,
   GlobeIcon,
   HammerIcon,
+  NetworkIcon,
   type LucideIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -416,6 +417,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 </>
               }
             >
+              {displayedUserMessage.overmind && (
+                <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                  <NetworkIcon aria-hidden="true" className="size-3" />
+                  Overmind goal
+                </p>
+              )}
               {(displayedUserMessage.visibleText.trim().length > 0 ||
                 terminalContexts.length > 0) && (
                 <UserMessageBody

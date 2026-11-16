@@ -1,3 +1,4 @@
+import { overmindVisibleMessageText } from "@tabs/shared/overmind";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -423,7 +424,8 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
             const isScheduled = Boolean(item.scheduledFor);
             const scheduledDate = item.scheduledFor ? new Date(item.scheduledFor) : null;
             const expanded = expandedId === item.id;
-            const normalized = item.text.trim().replace(/\s+/g, " ");
+            const visibleText = overmindVisibleMessageText(item.text);
+            const normalized = visibleText.trim().replace(/\s+/g, " ");
             const snippet =
               normalized.length > 120
                 ? `${normalized.slice(0, 117)}…`
@@ -470,7 +472,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                     aria-hidden="true"
                   />
                 </button>
-                {expanded && <p className="queue-message-text">{item.text}</p>}
+                {expanded && <p className="queue-message-text">{visibleText}</p>}
 
                 {item.dispatchError && (
                   <p

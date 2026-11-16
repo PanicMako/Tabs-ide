@@ -1,4 +1,6 @@
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
+import { overmindDisplayTitle } from "@tabs/shared/overmind";
+import { splitSidebarHelpers } from "../lib/threadTree";
 import { openLink } from "../browserLinkTarget";
 import {
   ArrowLeftIcon,
@@ -1467,7 +1469,8 @@ export default function Sidebar() {
           ) ?? null)
         : null;
     const shouldShowThreadPanel = project.expanded || pinnedCollapsedThread !== null;
-    const threadTree = buildSidebarThreadTree(projectThreads);
+    // Plain sub-agents are reached from their parent's Agents pane; Overmind tasks stay nested.
+    const threadTree = buildSidebarThreadTree(splitSidebarHelpers(projectThreads).listed);
     const { hasHiddenThreads, visibleThreads } = getVisibleThreadsForProject({
       threads: threadTree.roots,
       activeThreadId,
@@ -1693,7 +1696,9 @@ export default function Sidebar() {
                   </div>
                 </div>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-xs">{thread.title}</span>
+                <span className="min-w-0 flex-1 truncate text-xs">
+                  {overmindDisplayTitle(thread.title)}
+                </span>
               )}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">

@@ -1,5 +1,6 @@
 import { resolveToolbarStyle } from "../lib/toolbarStyles";
-import { buildThreadTree } from "../lib/threadTree";
+import { overmindDisplayTitle } from "@tabs/shared/overmind";
+import { buildThreadTree, markActiveThreadPath, splitSidebarHelpers } from "../lib/threadTree";
 import {
   WorkspaceToolActions,
   KeepWorkspaceToolDialog,
@@ -386,6 +387,8 @@ import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
 import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
 import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
+import { SidebarSquircleIcon } from "./SidebarSquircleIcon";
+import { NewThreadComposeIcon } from "./NewThreadComposeIcon";
 import { CodeHeaderBar } from "./code/CodeHeaderBar";
 import { useCodeAssistantPanels } from "./code/useCodeAssistantPanels";
 import {
@@ -405,6 +408,66 @@ import { isUnderStartupTransform } from "../lib/startupStaging";
 
 /** Horizontal step per nesting level in the thread list; the tree guides are drawn against it. */
 const THREAD_TREE_INDENT_PX = 20;
+/** Vertical centre of a row's title (py-2 plus half a 20px line), where its branch meets it. */
+const THREAD_TREE_TITLE_CENTER_PX = 18;
+/** The list's row gap (space-y-0.5), which each guide bridges upward. */
+const THREAD_TREE_ROW_GAP_PX = 2;
+const THREAD_TREE_BRANCH_RADIUS_PX = 7;
+// Opaque mixes, so segments that meet never double up into brighter joins.
+const THREAD_TREE_LINE = "color-mix(in srgb, var(--foreground) 20%, var(--background))";
+const THREAD_TREE_LINE_LIT = "color-mix(in srgb, var(--foreground) 78%, var(--background))";
+
+/**
+ * One nested row's tree guide: the rail from the sibling above, a rounded
+ * branch into the title, and (unless last) the rail on to the next sibling.
+ * Segments abut exactly, so the rail reads as one unbroken line, and each part
+ * lights on its own so only the path down to the open thread is bright.
+ */
+function ThreadTreeGuide(props: {
+  readonly last: boolean;
+  readonly railLit: boolean;
+  readonly branchLit: boolean;
+  readonly branchY: number;
+}) {
+  const left = -9;
+  const radius = THREAD_TREE_BRANCH_RADIUS_PX;
+  const upper = props.railLit || props.branchLit ? THREAD_TREE_LINE_LIT : THREAD_TREE_LINE;
+  const lower = props.railLit ? THREAD_TREE_LINE_LIT : THREAD_TREE_LINE;
+  const branch = props.branchLit ? THREAD_TREE_LINE_LIT : THREAD_TREE_LINE;
+  return (
+    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0">
+      {/* Rounded branch into the title, drawn first so a lit rail stays unbroken over it. */}
+      <span
+        className="absolute border-b border-l transition-colors duration-150"
+        style={{
+          left,
+          top: props.branchY - radius,
+          width: 7,
+          height: radius + 1,
+          borderColor: branch,
+          borderBottomLeftRadius: radius,
+        }}
+      />
+      {/* Rail from the sibling above down to the branch. */}
+      <span
+        className="absolute w-px transition-colors duration-150"
+        style={{
+          left,
+          top: -THREAD_TREE_ROW_GAP_PX,
+          height: THREAD_TREE_ROW_GAP_PX + props.branchY - (props.last ? radius : 0),
+          backgroundColor: upper,
+        }}
+      />
+      {/* Rail on to the next sibling. */}
+      {!props.last && (
+        <span
+          className="absolute bottom-0 w-px transition-colors duration-150"
+          style={{ left, top: props.branchY, backgroundColor: lower }}
+        />
+      )}
+    </span>
+  );
+}
 
 const GIT_WORKSPACE_MODE_STORAGE_KEY = "tabs:git-workspace-mode";
 
@@ -1887,18 +1950,33 @@ function AgentsThreadList(props: {
     showSnoozedView,
     view,
   ]);
+  // Plain sub-agents are helpers of the thread that started them, reached from
+  // its Agents pane; only Overmind tasks show up as nested threads here.
+  const sidebarThreadPool = view === "archived" ? searchedArchivedThreads : searchedActiveThreads;
+  const { listed: listedSidebarThreads, helpersByParent: sidebarHelpers } = useMemo(
+    () => splitSidebarHelpers(sidebarThreadPool),
+    [sidebarThreadPool],
+  );
   const visibleThreads = useMemo(() => {
     const seenSections = new Set<string>();
+    const listedIds = new Set(listedSidebarThreads.map((thread) => thread.id));
     return buildThreadTree(
-      threadSections,
-      view === "archived" ? searchedArchivedThreads : searchedActiveThreads,
+      threadSections.map((section) => ({
+        ...section,
+        threads: section.threads.filter((thread) => listedIds.has(thread.id)),
+      })),
+      listedSidebarThreads,
       collapsedParents,
     ).map((entry) => {
       const first = !seenSections.has(entry.section);
       seenSections.add(entry.section);
       return { ...entry, first };
     });
-  }, [threadSections, view, searchedArchivedThreads, searchedActiveThreads, collapsedParents]);
+  }, [threadSections, listedSidebarThreads, collapsedParents]);
+  const threadPathMark = useMemo(
+    () => markActiveThreadPath(visibleThreads, sidebarThreadPool, props.activeThreadId),
+    [visibleThreads, sidebarThreadPool, props.activeThreadId],
+  );
   const loadedSettledCount = activeThreads.filter((thread) =>
     isSettled(thread, thread.updatedAt ?? thread.createdAt),
   ).length;
@@ -1920,70 +1998,61 @@ function AgentsThreadList(props: {
       {/* ── Sidebar ── */}
       <div
         className={cn(
-          "agents-tab flex shrink-0 flex-col border-r border-border/60 bg-card/30 transition-[width] duration-200 ease-in-out",
-          collapsed ? "w-12" : "w-72",
+          "agents-tab flex shrink-0 flex-col bg-card/30 transition-[width] duration-200 ease-in-out",
+          collapsed ? "w-[52px]" : "w-72",
         )}
         data-collapsed={collapsed ? "true" : "false"}
       >
         {/* ── Header ── */}
         {collapsed ? (
-          // Collapsed: Bot icon that crossfades to ChevronRight on hover = expand button
-          <div className="flex shrink-0 flex-col items-center gap-2 border-b border-border/40 py-3">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Expand sidebar"
-                    onClick={toggleCollapsed}
-                    className="group relative flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-                  />
-                }
-              >
-                <BotIcon className="size-4 transition-opacity duration-150 group-hover:opacity-0" />
-                <ChevronRightIcon className="absolute size-4 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-              </TooltipTrigger>
-              <TooltipPopup side="right" align="center">
-                <span className="font-medium">{props.project.name}</span>
-                <span className="ml-1.5 text-muted-foreground">Expand sidebar</span>
-              </TooltipPopup>
-            </Tooltip>
-            {/* New thread icon */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="New thread"
-                    onClick={props.onCreateThread}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-muted/20 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-                  />
-                }
-              >
-                <PlusIcon className="size-4" />
-              </TooltipTrigger>
-              <TooltipPopup side="right" align="center">
-                {newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"}
-              </TooltipPopup>
-            </Tooltip>
-          </div>
+          // Collapsed: Agents icon that crossfades to PanelLeftIcon on hover = expand button
+          <>
+            <div className="flex h-[48px] shrink-0 items-center justify-center border-b border-border/40">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Expand sidebar"
+                      onClick={toggleCollapsed}
+                      className="group relative flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+                    />
+                  }
+                >
+                  <AssistantBubbleIcon className="size-5 transition-opacity duration-150 group-hover:opacity-0" />
+                  <SidebarSquircleIcon className="absolute size-5 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
+                </TooltipTrigger>
+                <TooltipPopup side="right" align="center">
+                  <span className="font-medium">{props.project.name}</span>
+                  <span className="ml-1.5 text-muted-foreground">Expand sidebar</span>
+                </TooltipPopup>
+              </Tooltip>
+            </div>
+            <div className="flex shrink-0 items-center justify-center pt-2">
+              {/* New thread icon */}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="New thread"
+                      onClick={props.onCreateThread}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-muted/20 text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+                    />
+                  }
+                >
+                  <NewThreadComposeIcon className="size-5" />
+                </TooltipTrigger>
+                <TooltipPopup side="right" align="center">
+                  {newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"}
+                </TooltipPopup>
+              </Tooltip>
+            </div>
+          </>
         ) : (
           // Expanded header
-          <div className="shrink-0 px-3 pb-2 pt-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                  AGENTS
-                </div>
-                <div
-                  className="truncate text-sm font-semibold tracking-tight text-foreground"
-                  title={props.project.name}
-                >
-                  {props.project.name.toLowerCase().includes("tabs")
-                    ? "Tabs IDE"
-                    : props.project.name}
-                </div>
-              </div>
+          <div className="shrink-0 px-3 pb-2 pt-2">
+            <div className="mb-3 flex h-8 min-w-0 items-center gap-2">
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -1991,16 +2060,41 @@ function AgentsThreadList(props: {
                       type="button"
                       aria-label="Collapse sidebar"
                       onClick={toggleCollapsed}
-                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:outline-none"
                     />
                   }
                 >
-                  <PanelLeftCloseIcon className="size-4" />
+                  <SidebarSquircleIcon className="size-5" />
                 </TooltipTrigger>
-                <TooltipPopup side="bottom" align="center">
+                <TooltipPopup side="bottom" align="start">
                   Collapse sidebar
                 </TooltipPopup>
               </Tooltip>
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm">
+                <span className="shrink-0 font-medium text-muted-foreground/80">Agents</span>
+                <span
+                  className="shrink-0 select-none font-normal text-muted-foreground/40"
+                  aria-hidden="true"
+                >
+                  /
+                </span>
+                <ProjectFavicon
+                  project={{
+                    workspaceRoot: props.project.cwd,
+                    title: props.project.name,
+                    faviconPath: props.project.faviconPath,
+                    projectIcon: props.project.projectIcon,
+                    environmentId: props.project.environmentId,
+                  }}
+                  className="size-4 shrink-0"
+                />
+                <span
+                  className="truncate font-semibold tracking-tight text-foreground"
+                  title={props.project.name}
+                >
+                  {props.project.name}
+                </span>
+              </div>
             </div>
 
             <button
@@ -2014,13 +2108,10 @@ function AgentsThreadList(props: {
               className="new-thread-action group relative flex min-h-10 w-full min-w-0 items-center p-[2.5px] transition-transform active:scale-[0.985]"
             >
               <span className="new-thread-action-face flex min-h-10 w-full min-w-0 items-center justify-start gap-2.5 px-3.5 py-2">
-                <PlusIcon
-                  strokeWidth={2.5}
-                  className="size-[18px] shrink-0 transition-transform group-hover:scale-110"
-                />
+                <NewThreadComposeIcon className="size-[20px] shrink-0 -translate-y-px" />
                 <span
                   data-new-thread-label
-                  className="min-w-0 truncate text-left text-sm font-normal"
+                  className="min-w-0 truncate text-left text-sm font-normal leading-none"
                 >
                   New Thread
                 </span>
@@ -2308,14 +2399,30 @@ function AgentsThreadList(props: {
                       marginLeft: `${depth * THREAD_TREE_INDENT_PX}px`,
                       width: `calc(100% - ${depth * THREAD_TREE_INDENT_PX}px)`,
                     }}
-                    className="relative flex h-7 items-center rounded-lg px-2.5 text-left text-sm text-muted-foreground/70 hover:bg-accent/30 hover:text-foreground before:pointer-events-none before:absolute before:-top-0.5 before:-left-[9px] before:h-[calc(0.875rem+2px)] before:w-[9px] before:rounded-bl-md before:border-b before:border-l before:border-foreground/25"
+                    className="relative flex h-7 items-center rounded-lg px-2.5 text-left text-sm text-muted-foreground/70 hover:bg-accent/30 hover:text-foreground"
                   >
+                    <ThreadTreeGuide last railLit={false} branchLit={false} branchY={14} />
                     {entry.count} nested
                   </button>
                 );
               }
               const lastChild = entry.lastChild;
               const active = props.activeThreadId === thread.id;
+              const pathMark = threadPathMark(thread.id);
+              const helpers = sidebarHelpers.get(thread.id) ?? [];
+              const workingHelpers = helpers.filter(
+                (helper) => deriveThreadAttention(helper)?.spin === true,
+              ).length;
+              const waitingHelpers = helpers.filter((helper) => {
+                const helperAttention = deriveThreadAttention(helper);
+                return helperAttention !== null && helperAttention.spin !== true;
+              }).length;
+              const helperLabel =
+                waitingHelpers > 0
+                  ? `${waitingHelpers} sub-agent${waitingHelpers === 1 ? "" : "s"} need${waitingHelpers === 1 ? "s" : ""} you`
+                  : workingHelpers > 0
+                    ? `${workingHelpers} sub-agent${workingHelpers === 1 ? "" : "s"} working`
+                    : null;
               const isArchived = thread.archivedAt !== null;
               const isRenaming = renamingThreadId === thread.id;
               const lifecycleEntry = thread;
@@ -2360,7 +2467,7 @@ function AgentsThreadList(props: {
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold leading-5 text-foreground">
-                          {thread.title}
+                          {overmindDisplayTitle(thread.title)}
                         </span>
                         <span className="block truncate text-[10px] text-muted-foreground/70">
                           {thread.modelSelection.instanceId} · {thread.modelSelection.model}
@@ -2491,21 +2598,27 @@ function AgentsThreadList(props: {
                     className={cn(
                       "group relative flex items-center rounded-lg transition-all duration-150",
                       collapsed ? "justify-center" : "",
-                      // Tree guide: an elbow into the title's centre, and a line down to the next sibling.
-                      depth > 0 &&
-                        !collapsed &&
-                        "before:pointer-events-none before:absolute before:-top-0.5 before:-left-[9px] before:h-[calc(1.125rem+2px)] before:w-[9px] before:rounded-bl-md before:border-b before:border-l before:border-foreground/25",
-                      depth > 0 &&
-                        !collapsed &&
-                        !lastChild &&
-                        "after:pointer-events-none after:absolute after:top-[1.125rem] after:-left-[9px] after:h-[calc(100%-1.125rem+2px)] after:border-l after:border-foreground/25",
                       "bg-transparent hover:bg-accent/30",
                       !collapsed && section === "settled" && "opacity-75",
                     )}
                   >
                     {/* Single tall left line marks the open thread; the row itself stays unfilled. */}
-                    {active && !collapsed && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-foreground" />
+                    {depth > 0 && !collapsed && (
+                      <ThreadTreeGuide
+                        last={lastChild}
+                        railLit={pathMark.railLit}
+                        branchLit={pathMark.elbowLit}
+                        branchY={THREAD_TREE_TITLE_CENTER_PX}
+                      />
+                    )}
+                    {/* An open nested thread keeps the bar on its family's top thread; its own row is marked by the lit guide. */}
+                    {!collapsed && ((active && depth === 0) || pathMark.familyBar) && (
+                      <span
+                        className={cn(
+                          "absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full",
+                          active ? "bg-foreground" : "bg-foreground/55",
+                        )}
+                      />
                     )}
                     {collapsed ? (
                       // ── Icon-rail: provider logo chip + tooltip matching prototype ──
@@ -2736,7 +2849,7 @@ function AgentsThreadList(props: {
                                         : "text-muted-foreground/60 group-hover:text-foreground",
                                   )}
                                 >
-                                  {thread.title}
+                                  {overmindDisplayTitle(thread.title)}
                                 </div>
                                 {entry.childCount > 0 && (
                                   <span
@@ -2788,6 +2901,16 @@ function AgentsThreadList(props: {
                                                 ? "Pinned"
                                                 : "Active"))}
                                   </span>
+                                  {helperLabel !== null && (
+                                    <span
+                                      className={cn(
+                                        "shrink-0",
+                                        waitingHelpers > 0 && "text-foreground/80",
+                                      )}
+                                    >
+                                      · {helperLabel}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </TooltipTrigger>
@@ -2796,7 +2919,7 @@ function AgentsThreadList(props: {
                               <div className="hidden space-y-2 text-xs">
                                 <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-2">
                                   <p className="font-semibold leading-5 text-foreground">
-                                    {thread.title}
+                                    {overmindDisplayTitle(thread.title)}
                                   </p>
                                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
                                     {accessibleState}
@@ -9790,7 +9913,7 @@ export function DesktopCustomEmbedTool(props: {
     createEmptyBrowserSessionState(props.project.id, props.sessionId),
   );
   const [browserScopedState, setBrowserScopedState] = useProjectBrowserState(sessionKey);
-  const isChromeExpanded = browserState.chromeExpanded ?? false;
+  const isChromeExpanded = browserState.chromeExpanded ?? true;
   const setIsChromeExpanded = useCallback(
     (expanded: boolean) => {
       workspaceShellActions.setBrowserChromeExpanded(props.project.id, expanded, props.sessionId);
