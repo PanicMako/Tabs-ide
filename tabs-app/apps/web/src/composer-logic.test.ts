@@ -4,6 +4,7 @@ import {
   expandAssistantCitationsForProvider,
   serializeAssistantCitation,
 } from "@tabs/shared/assistantCitations";
+import { buildOvermindStartMessage } from "@tabs/shared/overmind";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +14,9 @@ import {
   expandCollapsedComposerCursor,
   formatAssistantCitationForComposer,
   isCollapsedCursorAdjacentToInlineToken,
+  isOvermindComposerPrompt,
+  overmindSendText,
+  parseOvermindSlashCommand,
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
 } from "./composer-logic";
@@ -351,5 +355,54 @@ describe("assistant citation cursor offsets", () => {
     );
 
     expect(result).toEqual({ text: `(),${citationSource}!`, cursor: 1 });
+  });
+});
+
+describe("parseOvermindSlashCommand", () => {
+  it("returns the goal after /overmind", () => {
+    expect(parseOvermindSlashCommand("/overmind ship the billing rewrite")).toBe(
+      "ship the billing rewrite",
+    );
+    expect(parseOvermindSlashCommand("  /Overmind  a\nmultiline goal ")).toBe("a\nmultiline goal");
+  });
+
+  it("ignores a bare command and other text", () => {
+    expect(parseOvermindSlashCommand("/overmind")).toBeNull();
+    expect(parseOvermindSlashCommand("/overmind   ")).toBeNull();
+    expect(parseOvermindSlashCommand("please /overmind this")).toBeNull();
+    expect(parseOvermindSlashCommand("/overminds x")).toBeNull();
+  });
+});
+
+describe("overmind under ultrathink", () => {
+  it("reads /overmind under the Ultrathink line", () => {
+    expect(isOvermindComposerPrompt("Ultrathink:\n/overmind")).toBe(true);
+    expect(parseOvermindSlashCommand("Ultrathink:\n/overmind ship billing")).toBe("ship billing");
+    expect(isOvermindComposerPrompt("Ultrathink:\nplease /overmind")).toBe(false);
+  });
+
+  it("keeps the Ultrathink line on top of the start message it sends", () => {
+    expect(overmindSendText("Ultrathink:\n/overmind ship billing")).toBe(
+      `Ultrathink:\n${buildOvermindStartMessage("ship billing")}`,
+    );
+    expect(overmindSendText("/overmind ship billing")).toBe(
+      buildOvermindStartMessage("ship billing"),
+    );
+    expect(overmindSendText("Ultrathink:\n/overmind")).toBeNull();
+    expect(overmindSendText("Ultrathink:\nship billing")).toBeNull();
+  });
+});
+
+describe("isOvermindComposerPrompt", () => {
+  it("is true from the moment /overmind is typed, with or without a goal", () => {
+    expect(isOvermindComposerPrompt("/overmind")).toBe(true);
+    expect(isOvermindComposerPrompt("/overmind ")).toBe(true);
+    expect(isOvermindComposerPrompt("  /Overmind ship it")).toBe(true);
+  });
+
+  it("is false for other text", () => {
+    expect(isOvermindComposerPrompt("/overminds")).toBe(false);
+    expect(isOvermindComposerPrompt("use /overmind")).toBe(false);
+    expect(isOvermindComposerPrompt("")).toBe(false);
   });
 });

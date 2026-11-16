@@ -114,6 +114,7 @@ describe("terminalContext", () => {
     expect(deriveDisplayedUserMessageState(prompt)).toEqual({
       visibleText: "Investigate this",
       copyText: prompt,
+      overmind: false,
       contextCount: 1,
       previewTitle: "Terminal 1 lines 12-13\n12 | git status\n13 | On branch main",
       contexts: [
@@ -206,5 +207,28 @@ describe("terminalContext", () => {
         [makeContext()],
       ),
     ).toBe("Investigate @terminal-1:12-13 carefully");
+  });
+});
+
+describe("Overmind start messages", () => {
+  it("shows only the goal and copies it back as a command", async () => {
+    const { buildOvermindStartMessage } = await import("@tabs/shared/overmind");
+    const state = deriveDisplayedUserMessageState(
+      buildOvermindStartMessage("analyse the codebase"),
+    );
+    expect(state.overmind).toBe(true);
+    expect(state.visibleText).toBe("analyse the codebase");
+    expect(state.copyText).toBe("/overmind analyse the codebase");
+    expect(deriveDisplayedUserMessageState("hello").overmind).toBe(false);
+  });
+
+  it("shows the goal of a start sent at ultrathink and copies the Ultrathink line back", async () => {
+    const { buildOvermindStartMessage } = await import("@tabs/shared/overmind");
+    const state = deriveDisplayedUserMessageState(
+      `Ultrathink:\n${buildOvermindStartMessage("ship billing")}`,
+    );
+    expect(state.overmind).toBe(true);
+    expect(state.visibleText).toBe("ship billing");
+    expect(state.copyText).toBe("Ultrathink:\n/overmind ship billing");
   });
 });

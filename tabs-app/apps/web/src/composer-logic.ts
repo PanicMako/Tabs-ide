@@ -3,6 +3,8 @@ import {
   serializeAssistantCitation,
   withAssistantCitationComment,
 } from "@tabs/shared/assistantCitations";
+import { splitClaudeUltrathinkPrefix } from "@tabs/shared/model";
+import { buildOvermindStartMessage } from "@tabs/shared/overmind";
 import {
   splitPromptIntoComposerSegments,
   type ComposerPromptSegment,
@@ -10,7 +12,7 @@ import {
 import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "./lib/terminalContext";
 
 export type ComposerTriggerKind = "path" | "slash-command" | "slash-model" | "skill";
-export type ComposerSlashCommand = "model" | "plan" | "default";
+export type ComposerSlashCommand = "model" | "plan" | "default" | "overmind";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -19,7 +21,7 @@ export interface ComposerTrigger {
   rangeEnd: number;
 }
 
-const SLASH_COMMANDS: readonly ComposerSlashCommand[] = ["model", "plan", "default"];
+const SLASH_COMMANDS: readonly ComposerSlashCommand[] = ["model", "plan", "default", "overmind"];
 const isInlineTokenSegment = (segment: ComposerPromptSegment): boolean => segment.type !== "text";
 
 export function formatAssistantCitationForComposer(citation: AssistantCitation, comment = "") {
@@ -272,9 +274,35 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   };
 }
 
-export function parseStandaloneComposerSlashCommand(
-  text: string,
-): Exclude<ComposerSlashCommand, "model"> | null {
+/**
+ * True while the composer text is an `/overmind` command, with or without a goal
+ * yet. The `Ultrathink:` line the effort picker writes on top does not count.
+ */
+export function isOvermindComposerPrompt(text: string): boolean {
+  return /^\s*\/overmind(?:\s|$)/i.test(splitClaudeUltrathinkPrefix(text).body);
+}
+
+/** `/overmind <goal>` sends the goal as an Overmind plan; returns the goal, or null. */
+export function parseOvermindSlashCommand(text: string): string | null {
+  const match = /^\/overmind\s+([\s\S]*\S)\s*$/i.exec(
+    splitClaudeUltrathinkPrefix(text).body.trim(),
+  );
+  return match?.[1] ?? null;
+}
+
+/**
+ * What an `/overmind <goal>` prompt sends: the lead's start message, with the
+ * `Ultrathink:` line kept on top so the lead plans at ultrathink. Null for any
+ * other prompt.
+ */
+export function overmindSendText(text: string): string | null {
+  const goal = parseOvermindSlashCommand(text);
+  if (goal === null) return null;
+  const ultrathink = splitClaudeUltrathinkPrefix(text).prefix !== "";
+  return `${ultrathink ? "Ultrathink:\n" : ""}${buildOvermindStartMessage(goal)}`;
+}
+
+export function parseStandaloneComposerSlashCommand(text: string): "plan" | "default" | null {
   const match = /^\/(plan|default)\s*$/i.exec(text.trim());
   if (!match) {
     return null;

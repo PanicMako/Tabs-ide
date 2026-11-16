@@ -1,3 +1,5 @@
+import { splitClaudeUltrathinkPrefix } from "@tabs/shared/model";
+import { parseOvermindStartMessage } from "@tabs/shared/overmind";
 import { type ThreadId } from "@tabs/contracts";
 
 export interface TerminalContextSelection {
@@ -24,6 +26,8 @@ export interface ExtractedTerminalContexts {
 export interface DisplayedUserMessageState {
   visibleText: string;
   copyText: string;
+  /** The message starts an Overmind plan; `visibleText` is just its goal. */
+  overmind: boolean;
   contextCount: number;
   previewTitle: string | null;
   contexts: ParsedTerminalContextEntry[];
@@ -236,9 +240,15 @@ export function extractTrailingTerminalContexts(prompt: string): ExtractedTermin
 
 export function deriveDisplayedUserMessageState(prompt: string): DisplayedUserMessageState {
   const extractedContexts = extractTrailingTerminalContexts(prompt);
+  // The lead's Overmind instructions stay behind the scenes; people see their goal.
+  const overmindGoal = parseOvermindStartMessage(extractedContexts.promptText);
+  // A copy sent at ultrathink keeps its Ultrathink line, so pasting it resends the same way.
+  const ultrathinkLine =
+    splitClaudeUltrathinkPrefix(extractedContexts.promptText).prefix !== "" ? "Ultrathink:\n" : "";
   return {
-    visibleText: extractedContexts.promptText,
-    copyText: prompt,
+    visibleText: overmindGoal ?? extractedContexts.promptText,
+    copyText: overmindGoal === null ? prompt : `${ultrathinkLine}/overmind ${overmindGoal}`,
+    overmind: overmindGoal !== null,
     contextCount: extractedContexts.contextCount,
     previewTitle: extractedContexts.previewTitle,
     contexts: extractedContexts.contexts,
