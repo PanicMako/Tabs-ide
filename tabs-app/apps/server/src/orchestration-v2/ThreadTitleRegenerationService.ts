@@ -1,3 +1,4 @@
+import { overmindVisibleMessageText } from "@tabs/shared/overmind";
 import { resolveProjectSettings } from "@tabs/shared/projectSettings";
 import {
   CommandId,
@@ -93,7 +94,11 @@ const make = Effect.gen(function* () {
         context =
           message === undefined
             ? { message: "", attachments: [] }
-            : { message: message.text, attachments: message.attachments };
+            : // Title an Overmind plan by its goal, not the lead's instructions.
+              {
+                message: overmindVisibleMessageText(message.text),
+                attachments: message.attachments,
+              };
       } else {
         context = formatThreadTitleContext(
           projection.messages.filter((message) => !message.streaming),

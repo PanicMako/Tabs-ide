@@ -26,6 +26,13 @@ interface ProviderSnapshotState {
   readonly enrichmentGeneration: number;
 }
 
+// Every driver kicks off its own first health probe when it is built. Left
+// unbounded, all of them spawn CLIs/servers in the same instant and starve the
+// app's own startup (backend listen, editor workbench). Share a small gate so
+// they run a couple at a time; the registry's refresh can still go first.
+const STARTUP_PROBE_CONCURRENCY = 2;
+const startupProbeGate = Semaphore.makeUnsafe(STARTUP_PROBE_CONCURRENCY);
+
 function withUsageLimits(
   snapshot: ServerProvider,
   usageLimits: ServerProvider["usageLimits"],
@@ -75,6 +82,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     enrichmentGeneration: 0,
   });
   const settingsRef = yield* Ref.make(initialSettings);
+  const hasProbedRef = yield* Ref.make(false);
   const enrichmentFiberRef = yield* Ref.make<Fiber.Fiber<void, unknown> | null>(null);
   const scope = yield* Effect.scope;
 
@@ -151,6 +159,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     }
 
     const probedSnapshot = yield* input.checkProvider;
+    yield* Ref.set(hasProbedRef, true);
     const { snapshot: nextSnapshot, generation: nextGeneration } = yield* Ref.modify(
       snapshotStateRef,
       (state) => {
@@ -270,10 +279,17 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     ),
   ).pipe(Effect.forkScoped);
 
-  yield* applySnapshot(initialSettings, { forceRefresh: true }).pipe(
-    Effect.ignoreCause({ log: true }),
-    Effect.forkScoped,
-  );
+  // Skip the initial probe if something else (the registry's startup refresh)
+  // already probed this provider while we waited for a startup slot.
+  yield* startupProbeGate
+    .withPermits(1)(
+      Ref.get(hasProbedRef).pipe(
+        Effect.flatMap((probed) =>
+          probed ? Effect.void : applySnapshot(initialSettings, { forceRefresh: true }),
+        ),
+      ),
+    )
+    .pipe(Effect.ignoreCause({ log: true }), Effect.forkScoped);
 
   const resolveMaintenance: ServerProviderShape["resolveMaintenance"] =
     input.resolveMaintenance ??

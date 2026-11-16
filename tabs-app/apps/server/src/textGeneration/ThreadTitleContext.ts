@@ -1,3 +1,4 @@
+import { overmindVisibleMessageText } from "@tabs/shared/overmind";
 import type { ChatAttachment } from "@tabs/contracts";
 import { assistantCitationsToPlainText } from "@tabs/shared/assistantCitations";
 
@@ -39,7 +40,11 @@ export function formatThreadTitleContext(messages: ReadonlyArray<ThreadTitleMess
   const contentsFor = (section: (typeof sections)[number]) => {
     const cached = formatted.get(section.index);
     if (cached !== undefined) return cached;
-    const text = assistantCitationsToPlainText(section.message.text).trim();
+    const text = assistantCitationsToPlainText(
+      section.message.role === "user"
+        ? overmindVisibleMessageText(section.message.text)
+        : section.message.text,
+    ).trim();
     const names = section.message.attachments?.map((attachment) => attachment.name).join(", ");
     const contents = [text, ...(names ? [`[Attachments: ${names}]`] : [])]
       .filter(Boolean)

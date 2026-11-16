@@ -694,8 +694,8 @@ export const connectCommand = Command.make("connect", {
           const platform = yield* HostProcessPlatform;
           yield* Console.log(
             platform === "darwin"
-              ? "\n✓ Background service ready\n\nT3 Code is set to run while you are logged in to this Mac. The server establishes the Tabs Connect link on startup."
-              : "\n✓ Background service ready\n\nT3 Code is set to keep running after you log out. The server establishes the Tabs Connect link on startup.",
+              ? "\n✓ Background service ready\n\nTabs is set to run while you are logged in to this Mac. The server establishes the Tabs Connect link on startup."
+              : "\n✓ Background service ready\n\nTabs is set to keep running after you log out. The server establishes the Tabs Connect link on startup.",
           );
           return;
         }

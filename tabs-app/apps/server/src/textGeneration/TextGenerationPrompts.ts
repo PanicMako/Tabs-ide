@@ -517,7 +517,7 @@ export function buildReviewGuidePrompt(input: {
     "How to write it:",
     "- Order stops by how a reviewer should read the change, not by file name. Start with the core idea, then what depends on it.",
     "- Each stop has a short title and a summary that says what changed and why it matters in plain language.",
-    "- excerpts name a changed file, the side (\"new\" for the added/current code, \"old\" for removed code) and a line range of at most 25 lines that sits inside the diff's changed lines. Add a one-line caption.",
+    '- excerpts name a changed file, the side ("new" for the added/current code, "old" for removed code) and a line range of at most 25 lines that sits inside the diff\'s changed lines. Add a one-line caption.',
     "- notes are specific observations anchored to one line inside an excerpt: a title and a short body. Only note what is worth a reviewer's attention.",
     "- attention is null unless the stop carries a real tradeoff, contract change, product decision, risk or accessibility concern; then give its kind and one sentence.",
     "- files lists other changed files that belong to the stop, with an optional short note. questions are things the author should answer.",
@@ -534,7 +534,11 @@ export function buildReviewGuidePrompt(input: {
     "Description:",
     limitSection(input.description.trim().length > 0 ? input.description : "(none)", 6_000),
     ...(input.settledReview.trim().length > 0
-      ? ["", "Review conversation already settled (do not raise it again):", limitSection(input.settledReview, 4_000)]
+      ? [
+          "",
+          "Review conversation already settled (do not raise it again):",
+          limitSection(input.settledReview, 4_000),
+        ]
       : []),
     "",
     "Changed files:",
