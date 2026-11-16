@@ -988,6 +988,111 @@ describe("OrchestratorMcpService provider resolution", () => {
     }),
   );
 
+  it.effect("runs a sub-agent on the user's model for its role, whatever the lead asks for", () =>
+    Effect.gen(function* () {
+      const dispatched = yield* Ref.make<ReadonlyArray<unknown>>([]);
+      const task = {
+        id: taskId,
+        threadId: parentThreadId,
+        runId: parentRunId,
+        parentNodeId,
+        origin: "app_owned",
+        createdBy: "agent",
+        driver: ProviderDriverKind.make("antigravity"),
+        providerInstanceId: antigravityInstanceId,
+        providerThreadId: null,
+        childThreadId,
+        nativeTaskRef: null,
+        prompt: "Restyle the header.",
+        title: null,
+        model: "ant-model",
+        status: "running",
+        result: null,
+        startedAt: null,
+        completedAt: null,
+      };
+      let delegated = false;
+      const layerDependencies = Layer.mergeAll(
+        NodeServices.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          getThreadRecords: (threadId) =>
+            Effect.succeed(
+              threadId === parentThreadId
+                ? parentProjection(delegated ? [task] : [])
+                : childProjection,
+            ),
+          dispatch: (command) =>
+            Ref.update(dispatched, (commands) => [...commands, command]).pipe(
+              Effect.andThen(
+                Effect.sync(() => {
+                  delegated = true;
+                }),
+              ),
+              Effect.as({
+                sequence: 1,
+                storedEvents: [
+                  {
+                    sequence: 1,
+                    commandId: null,
+                    event: { type: "subagent.updated", payload: task },
+                  },
+                ],
+              } as never),
+            ),
+        }),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({
+          getProviders: Effect.succeed([
+            providerSnapshot({
+              instanceId: codexInstanceId,
+              driver: ProviderDriverKind.make("codex"),
+              model: "gpt-5.4",
+            }),
+            providerSnapshot({
+              instanceId: antigravityInstanceId,
+              driver: ProviderDriverKind.make("antigravity"),
+              model: "ant-model",
+            }),
+          ]),
+        }),
+        adapterRegistryLayer([codexInstanceId, antigravityInstanceId]),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      );
+
+      yield* Effect.gen(function* () {
+        const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+        yield* service.delegateTask(
+          scope,
+          {
+            task: "Restyle the header.",
+            role: "design",
+            target: { providerInstanceId: codexInstanceId, model: "gpt-5.4" },
+            mode: "async",
+            clientRequestId: "delegate-staffed-design-1",
+          },
+          {
+            subagentModels: {
+              enabled: true,
+              workers: { instanceId: codexInstanceId, model: "gpt-5.4" },
+              roles: { design: { instanceId: antigravityInstanceId, model: "ant-model" } },
+            },
+          },
+        );
+        const commands = yield* Ref.get(dispatched);
+        assert.equal(commands.length, 1);
+        const request = commands[0] as {
+          task: string;
+          modelSelection: { instanceId: string; model: string };
+        };
+        assert.equal(request.modelSelection.instanceId, antigravityInstanceId);
+        assert.equal(request.modelSelection.model, "ant-model");
+        assert.isTrue(request.task.startsWith("You are the design sub-agent for this task."));
+        assert.isTrue(request.task.endsWith("\n\nRestyle the header."));
+      }).pipe(Effect.provide(OrchestratorMcpService.layer.pipe(Layer.provide(layerDependencies))));
+    }),
+  );
+
   it.effect("rejects delegation to a provider without a registered adapter", () =>
     Effect.gen(function* () {
       const forkOnlyInstanceId = ProviderInstanceId.make("forkOnly");

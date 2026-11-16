@@ -58,8 +58,10 @@ import {
   type ScheduledTaskUpsertInput,
   type ServerProvider,
   ThreadId,
+  type SubagentModelSettings,
 } from "@tabs/contracts";
 import { runRanAfter } from "@tabs/shared/orchestrationV2ThreadError";
+import { applySubagentModel, buildSubagentTaskPrompt } from "@tabs/shared/subagents";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
@@ -122,9 +124,11 @@ export interface OrchestratorMcpServiceShape {
   readonly delegateTask: (
     scope: McpInvocationScope,
     input: OrchestratorMcpDelegateTaskInput,
-    /** Server-side callers only (Overmind): run the child in this checkout. */
     options?: {
+      /** Server-side callers only (Overmind): run the child in this checkout. */
       readonly workspace?: { readonly worktreePath: string; readonly branch: string | null };
+      /** The user's sub-agent models; while enabled they replace `input.target`. */
+      readonly subagentModels?: SubagentModelSettings | undefined;
     },
   ) => Effect.Effect<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure>;
   /**
@@ -606,9 +610,7 @@ function threadTitle(input: {
 }
 
 function taskPrompt(input: OrchestratorMcpDelegateTaskInput): string {
-  return input.role === undefined || input.role === "general"
-    ? input.task
-    : `Act as the ${input.role} sub-agent for this task.\n\n${input.task}`;
+  return buildSubagentTaskPrompt(input.role, input.task);
 }
 
 function threadSettlement(
@@ -1779,7 +1781,7 @@ const make = Effect.gen(function* () {
         const providers = yield* loadProviders;
         const target = yield* resolveTargetRechecking({
           parent,
-          target: input.target,
+          target: applySubagentModel(options?.subagentModels, input.role, input.target),
           providers,
         });
         const runtimeMode = yield* resolveRuntimeMode(parent.thread.runtimeMode, input.runtimeMode);

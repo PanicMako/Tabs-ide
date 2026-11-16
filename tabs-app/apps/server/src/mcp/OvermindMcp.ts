@@ -3,6 +3,7 @@ import {
   type ProviderInstanceId,
   type OrchestratorMcpOvermindAdvanceInput,
   type OrchestratorMcpOvermindAdvanceResult,
+  type SubagentModelSettings,
 } from "@tabs/contracts";
 import {
   blockOvermindDependents,
@@ -20,6 +21,7 @@ import {
   summarizeOvermindProgress,
   totalOvermindTokens,
   validateOvermindPlan,
+  formatOvermindTaskTitle,
   type OvermindLimits,
   type OvermindObservation,
   type OvermindTaskSpec,
@@ -64,6 +66,8 @@ export interface OvermindDriverDeps {
   /** Provisions and merges isolated worktrees; absent means tasks share the lead's checkout. */
   readonly host?: OvermindWorkspaceHost | undefined;
   readonly leadCwd?: string | null | undefined;
+  /** The user's sub-agent models, by role; they override what the plan asks for. */
+  readonly settings?: SubagentModelSettings | undefined;
 }
 
 const MAX_RECORDS = 64;
@@ -341,6 +345,7 @@ export const advanceOvermind = (
         retryReason: state.error,
         isolated: workspace !== null,
       });
+      // The user's sub-agent models, when set, replace this in delegateTask.
       const model = plan.models.get(task.id);
       const providerInstanceId = plan.providers.get(task.id) as ProviderInstanceId | undefined;
       const dispatched = yield* service
@@ -348,7 +353,7 @@ export const advanceOvermind = (
           scope,
           {
             task: prompt,
-            title: `Overmind · ${task.id} · ${task.title}`,
+            title: formatOvermindTaskTitle(task),
             role: task.role,
             mode: "async",
             clientRequestId: overmindClientRequestId(input.planId, task.id, attempt),
@@ -361,9 +366,12 @@ export const advanceOvermind = (
                   },
                 }),
           },
-          workspace === null
-            ? undefined
-            : { workspace: { worktreePath: workspace.path, branch: workspace.branch } },
+          {
+            subagentModels: deps.settings,
+            ...(workspace === null
+              ? {}
+              : { workspace: { worktreePath: workspace.path, branch: workspace.branch } }),
+          },
         )
         .pipe(
           Effect.map((success) => ({ ok: true as const, taskId: success.taskId as string })),

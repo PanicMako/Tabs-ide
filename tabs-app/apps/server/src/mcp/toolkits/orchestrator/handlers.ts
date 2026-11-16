@@ -1,10 +1,11 @@
 import { OrchestratorMcpFailure } from "@tabs/contracts";
+import { describeSubagentModelsForLead } from "@tabs/shared/subagents";
 import { OrchestratorToolkit } from "./tools.ts";
 import * as Effect from "effect/Effect";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
-import { resolveOvermindDeps } from "../../OvermindHandlerDeps.ts";
+import { loadSubagentModels, resolveOvermindDeps } from "../../OvermindHandlerDeps.ts";
 import { advanceOvermind } from "../../OvermindMcp.ts";
 import * as ThreadMetadataMcpService from "../../ThreadMetadataMcpService.ts";
 
@@ -13,13 +14,16 @@ const handlers = {
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.capabilities(scope, input);
+      const capabilities = yield* service.capabilities(scope, input);
+      const subagentModels = yield* loadSubagentModels;
+      return { ...capabilities, subagentModels: describeSubagentModelsForLead(subagentModels) };
     }),
   delegate_task: (input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.delegateTask(scope, input);
+      const subagentModels = yield* loadSubagentModels;
+      return yield* service.delegateTask(scope, input, { subagentModels });
     }),
   overmind_advance: (input) =>
     Effect.gen(function* () {

@@ -1,3 +1,4 @@
+import { applySubagentModel } from "@tabs/shared/subagents";
 import { assert, describe, it } from "@effect/vitest";
 import { OrchestratorMcpFailure } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
@@ -92,6 +93,77 @@ describe("advanceOvermind", () => {
       const done = yield* advanceOvermind(service, scope, { planId: "p1" } as never, 20);
       assert.isTrue(done.settled);
       assert.equal(done.outcome, "succeeded");
+    }),
+  );
+
+  it.effect("hands the user's sub-agent models to delegation, which applies them by role", () =>
+    Effect.gen(function* () {
+      resetOvermindRecordsForTest();
+      const requested: unknown[] = [];
+      const applied: unknown[] = [];
+      const service = {
+        ...fakeService(new Map(), []),
+        delegateTask: (
+          _scope: unknown,
+          input: { target?: never; role?: never },
+          options?: { subagentModels?: never },
+        ) =>
+          Effect.sync(() => {
+            requested.push({ role: input.role, target: input.target });
+            applied.push(applySubagentModel(options?.subagentModels, input.role, input.target));
+            return { taskId: `node:${requested.length}` };
+          }),
+      } as unknown as OrchestratorMcpServiceShape;
+      yield* advanceOvermind(
+        service,
+        scope,
+        {
+          planId: "w",
+          goal: "g",
+          tasks: [
+            {
+              id: "a",
+              title: "A",
+              prompt: "x",
+              files: ["a/"],
+              model: "opus",
+              providerInstanceId: "claudeAgent",
+            },
+            { id: "b", title: "B", prompt: "y", role: "review" },
+            { id: "c", title: "C", prompt: "z", role: "research" },
+          ],
+        } as never,
+        0,
+        {
+          settings: {
+            enabled: true,
+            workers: {
+              instanceId: "opencode",
+              model: "cheap",
+              options: [{ id: "effort", value: "low" }],
+            },
+            roles: { review: { instanceId: "codex", model: "strong" } },
+          } as never,
+        },
+      );
+      // The plan's own choice still reaches delegation; the user's choice wins there.
+      assert.deepEqual(requested[0], {
+        role: "implementation",
+        target: { providerInstanceId: "claudeAgent", model: "opus" },
+      });
+      assert.deepEqual(applied, [
+        {
+          providerInstanceId: "opencode",
+          model: "cheap",
+          options: [{ id: "effort", value: "low" }],
+        },
+        { providerInstanceId: "codex", model: "strong" },
+        {
+          providerInstanceId: "opencode",
+          model: "cheap",
+          options: [{ id: "effort", value: "low" }],
+        },
+      ]);
     }),
   );
 
@@ -260,10 +332,13 @@ describe("advanceOvermind isolation, budget and restart", () => {
         assert.equal(first.tasks.find((t) => t.id === "a")?.isolation, "worktree");
         assert.equal(first.tasks.find((t) => t.id === "r")?.isolation, "shared");
         assert.isTrue(first.notes.some((n) => n.includes("uncommitted")));
-        assert.deepEqual(workspaces.find((w) => w.title?.includes("· a ·"))?.workspace, {
-          worktreePath: "/wt/a-1",
-          branch: "overmind/p1-a-1",
-        });
+        assert.deepEqual(
+          workspaces.find((w) => w.title?.includes("· a:implementation ·"))?.workspace,
+          {
+            worktreePath: "/wt/a-1",
+            branch: "overmind/p1-a-1",
+          },
+        );
         for (const task of first.tasks) if (task.taskId) statuses.set(task.taskId, "completed");
         const done = yield* advanceOvermind(service, scope, { planId: "p1" } as never, 5, { host });
         assert.deepEqual(calls.integrated, ["overmind/p1-a-1"]);
