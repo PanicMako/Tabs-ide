@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { excerptLines, isGuideStale } from "./guideExcerpt.logic";
 
-const PATCH = ["@@ -1,3 +1,4 @@", " keep", "-removed", "+added one", "+added two", " tail"].join("\n");
+const PATCH = ["@@ -1,3 +1,4 @@", " keep", "-removed", "+added one", "+added two", " tail"].join(
+  "\n",
+);
 
 describe("excerptLines", () => {
   it("returns the new side's added and kept lines in range", () => {

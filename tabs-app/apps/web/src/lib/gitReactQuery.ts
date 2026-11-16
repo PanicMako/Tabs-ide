@@ -82,7 +82,8 @@ export function gitEnvironmentQueryOptions(cwd: string | null, environmentId?: s
     // soon while any account still lacks them.
     refetchInterval: (query) =>
       query.state.data?.gitHub.accounts.some(
-        (account) => account.scopes.length === 0 ||
+        (account) =>
+          account.scopes.length === 0 ||
           (account.host === "github.com" && account.avatarUrl === undefined),
       )
         ? 3_000
@@ -320,7 +321,10 @@ function writePrListSnapshot(
 ) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(prListSnapshotKey(environmentId, cwd, state), JSON.stringify(value));
+    window.localStorage.setItem(
+      prListSnapshotKey(environmentId, cwd, state),
+      JSON.stringify(value),
+    );
   } catch {
     // Quota or private mode: the snapshot is only a head start.
   }

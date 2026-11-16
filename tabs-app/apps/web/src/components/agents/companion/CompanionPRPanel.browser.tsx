@@ -70,6 +70,10 @@ vi.mock("../../../lib/gitReactQuery", () => ({
     enabled: reference !== null,
     queryFn: async () => ({ pullRequest: fixture.pr, capabilities: fixture.capabilities }),
   }),
+  gitEnvironmentQueryOptions: (_cwd: string | null) => ({
+    queryKey: ["git-environment", _cwd],
+    queryFn: async () => ({ gitHub: { activeLogin: "developer", accounts: [] } }),
+  }),
 }));
 it.each([360, 900])("keeps PR summaries readable and actions accessible at %ipx", async (width) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

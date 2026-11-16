@@ -27,9 +27,15 @@ describe("files viewed logic", () => {
   });
 
   it("applies one press on top of the held answer", () => {
-    const next = withFileViewed({ files: [{ path: "a.ts", state: "viewed" }], truncated: true }, "a.ts", false);
+    const next = withFileViewed(
+      { files: [{ path: "a.ts", state: "viewed" }], truncated: true },
+      "a.ts",
+      false,
+    );
     expect(next).toEqual({ files: [{ path: "a.ts", state: "unviewed" }], truncated: true });
-    expect(withFileViewed(undefined, "z.ts", true).files).toEqual([{ path: "z.ts", state: "viewed" }]);
+    expect(withFileViewed(undefined, "z.ts", true).files).toEqual([
+      { path: "z.ts", state: "viewed" },
+    ]);
   });
 
   it("counts how many of the listed paths are viewed", () => {

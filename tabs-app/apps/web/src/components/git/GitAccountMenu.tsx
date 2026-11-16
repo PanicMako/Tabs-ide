@@ -1,11 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  DownloadIcon,
-  LogOutIcon,
-  UserPlusIcon,
-} from "lucide-react";
+import { CheckIcon, ChevronDownIcon, DownloadIcon, LogOutIcon, UserPlusIcon } from "lucide-react";
 
 import {
   gitEnvironmentQueryOptions,
@@ -45,12 +39,20 @@ export function GitAccountMenu(props: {
 
   // `gh auth switch --user` takes the credential's own label, which differs from the profile
   // login after a rename, so that is what is sent.
-  const cliAccount = (account: { host: string; login: string; authLogin?: string | undefined }) => ({
+  const cliAccount = (account: {
+    host: string;
+    login: string;
+    authLogin?: string | undefined;
+  }) => ({
     host: account.host,
     login: account.authLogin ?? account.login,
   });
 
-  const handleSwitch = (account: { host: string; login: string; authLogin?: string | undefined }) => {
+  const handleSwitch = (account: {
+    host: string;
+    login: string;
+    authLogin?: string | undefined;
+  }) => {
     if (account.login === activeLogin) return;
     switchMutation.mutate(cliAccount(account), {
       onSuccess: () => toastManager.add({ type: "success", title: `Switched to ${account.login}` }),
@@ -63,7 +65,11 @@ export function GitAccountMenu(props: {
     });
   };
 
-  const handleLogout = (account: { host: string; login: string; authLogin?: string | undefined }) => {
+  const handleLogout = (account: {
+    host: string;
+    login: string;
+    authLogin?: string | undefined;
+  }) => {
     logoutMutation.mutate(cliAccount(account), {
       onSuccess: () => toastManager.add({ type: "success", title: `Signed ${account.login} out` }),
       onError: (error) =>

@@ -351,11 +351,7 @@ function EditableComment({
       {draft === null ? (
         <div className="pl-7">
           <div className="text-xs text-foreground/90">
-            <ChatMarkdown
-              text={comment.body}
-              cwd={cwd ?? undefined}
-              decorateLink={decorateLink}
-            />
+            <ChatMarkdown text={comment.body} cwd={cwd ?? undefined} decorateLink={decorateLink} />
           </div>
           {comment.reactions !== undefined ? (
             <PullRequestReactionBar
@@ -485,7 +481,11 @@ export function PullRequestActivityView({
                   </div>
                   {review.body ? (
                     <div className="text-xs text-foreground/90 pl-7">
-                      <ChatMarkdown text={review.body} cwd={cwd ?? undefined} decorateLink={decorateLink} />
+                      <ChatMarkdown
+                        text={review.body}
+                        cwd={cwd ?? undefined}
+                        decorateLink={decorateLink}
+                      />
                     </div>
                   ) : null}
                   {review.reactions !== undefined ? (

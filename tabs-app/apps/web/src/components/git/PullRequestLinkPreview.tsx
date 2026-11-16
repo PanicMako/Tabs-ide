@@ -53,9 +53,7 @@ export function PullRequestLinkPreview({
             </p>
             <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
               <span>{preview.isDraft ? "Draft" : STATE_LABEL[preview.state]}</span>
-              <span>
-                {preview.author ? `by @${preview.author.login}` : "by a deleted account"}
-              </span>
+              <span>{preview.author ? `by @${preview.author.login}` : "by a deleted account"}</span>
               <time dateTime={preview.createdAt}>
                 {new Date(preview.createdAt).toLocaleDateString()}
               </time>

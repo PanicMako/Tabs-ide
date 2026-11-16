@@ -10,7 +10,10 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { excerptLines, isGuideStale } from "./guideExcerpt.logic";
 
-const ATTENTION_LABEL: Record<NonNullable<PullRequestReviewGuideStop["attention"]>["kind"], string> = {
+const ATTENTION_LABEL: Record<
+  NonNullable<PullRequestReviewGuideStop["attention"]>["kind"],
+  string
+> = {
   tradeoff: "Tradeoff",
   contract: "Contract",
   product: "Product",
@@ -204,7 +207,10 @@ export function PullRequestGuideTab({
           lines worth a reviewer&apos;s attention. It runs once you ask and takes a minute or two.
         </p>
         {failure ? (
-          <p role="alert" className="mx-auto max-w-md break-words text-xs text-destructive-foreground">
+          <p
+            role="alert"
+            className="mx-auto max-w-md break-words text-xs text-destructive-foreground"
+          >
             {failure}
           </p>
         ) : null}

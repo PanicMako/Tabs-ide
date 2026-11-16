@@ -646,8 +646,9 @@ function GitPRsPanel({
   ]);
 
   // Grouped by involvement only in the repository-wide list: "This branch" is one row.
-  const viewerLogin = useQuery(gitEnvironmentQueryOptions(cwd || null, environmentId)).data?.gitHub
-    .activeLogin ?? null;
+  const viewerLogin =
+    useQuery(gitEnvironmentQueryOptions(cwd || null, environmentId)).data?.gitHub.activeLogin ??
+    null;
   const groupedPrs = useMemo(
     () =>
       viewMode === "all" && involvement === "all"
@@ -916,397 +917,121 @@ function GitPRsPanel({
                 </div>
               ) : null}
               {group.rows.map((pr) => (
-            <div
-              key={pr.n}
-              onPointerEnter={() => prefetchOnIntent(pr.n)}
-              onPointerLeave={() => prefetchOnIntent(null)}
-              onFocusCapture={() => prefetchOnIntent(pr.n)}
-            >
-            <Card
-              className={
-                compact ? "companion-pr-card" : "p-3.5 hover:bg-muted/20 transition-colors"
-              }
-            >
-              <div className={compact ? "companion-pr-summary" : "flex items-center gap-3"}>
-                <Badge
-                  variant={
-                    pr.state === "open"
-                      ? "success"
-                      : pr.state === "merged"
-                        ? "secondary"
-                        : pr.state === "closed"
-                          ? "destructive"
-                          : "outline"
-                  }
+                <div
+                  key={pr.n}
+                  onPointerEnter={() => prefetchOnIntent(pr.n)}
+                  onPointerLeave={() => prefetchOnIntent(null)}
+                  onFocusCapture={() => prefetchOnIntent(pr.n)}
                 >
-                  #{pr.n} {pr.state}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <div
+                  <Card
                     className={
-                      compact
-                        ? "companion-pr-title"
-                        : "text-xs font-semibold text-foreground/90 truncate"
+                      compact ? "companion-pr-card" : "p-3.5 hover:bg-muted/20 transition-colors"
                     }
                   >
-                    {pr.title}{" "}
-                    {pr.isDraft ? <span className="text-muted-foreground">(draft)</span> : null}
-                  </div>
-                  <div className="text-[10px] font-mono text-muted-foreground/70 truncate">
-                    {pr.branch}
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                    {pr.author ? <span>by @{pr.author}</span> : null}
-                    {pr.checksState ? (
+                    <div className={compact ? "companion-pr-summary" : "flex items-center gap-3"}>
                       <Badge
                         variant={
-                          pr.checksState === "passing"
+                          pr.state === "open"
                             ? "success"
-                            : pr.checksState === "failing"
-                              ? "destructive"
-                              : "outline"
+                            : pr.state === "merged"
+                              ? "secondary"
+                              : pr.state === "closed"
+                                ? "destructive"
+                                : "outline"
                         }
                       >
-                        Checks {pr.checksState}
+                        #{pr.n} {pr.state}
                       </Badge>
-                    ) : null}
-                    {pr.reviewDecision ? (
-                      <Badge variant="outline">{pr.reviewDecision.replaceAll("_", " ")}</Badge>
-                    ) : null}
-                    {pr.stackMembership ? (
-                      <Badge
-                        variant="outline"
-                        className="gap-1 text-[11px] font-normal cursor-pointer hover:bg-muted/60"
-                        title={`Stack #${pr.stackMembership.number} · Layer ${pr.stackMembership.position} of ${pr.stackMembership.size}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedPrNumber(pr.n);
-                          setDetailTab("summary");
-                        }}
-                      >
-                        <Layers className="size-3 text-foreground" aria-hidden="true" />
-                        {pr.stackMembership.position}/{pr.stackMembership.size}
-                      </Badge>
-                    ) : null}
-                    {pr.mergeability === "conflicting" ? (
-                      <Badge variant="destructive">Conflicts</Badge>
-                    ) : null}
-                    {pr.changedFiles !== undefined ? <span>{pr.changedFiles} files</span> : null}
-                    {pr.additions !== undefined ? (
-                      <span className="text-diff-addition font-medium">+{pr.additions}</span>
-                    ) : null}
-                    {pr.deletions !== undefined ? (
-                      <span className="text-diff-deletion font-medium">−{pr.deletions}</span>
-                    ) : null}
-                    {pr.labels.slice(0, 3).map((label) => (
-                      <Badge key={label.name} variant="secondary">
-                        {label.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className={compact ? "companion-pr-actions" : "flex items-center gap-2"}>
-                  {(() => {
-                    const linkedThreads = findThreadsForPullRequest(threads, {
-                      number: pr.n,
-                      url: pr.url,
-                    }).filter((t) => !environmentId || t.environmentId === environmentId);
-                    if (linkedThreads.length === 0) return null;
-                    return (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 text-xs text-foreground border-primary/30 bg-primary/5 hover:bg-primary/10 h-7 px-2 shrink-0"
-                        title={
-                          linkedThreads.length === 1
-                            ? `Open linked agent thread: ${linkedThreads[0]!.title}`
-                            : `${linkedThreads.length} linked agent threads`
-                        }
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const target = linkedThreads[0]!;
-                          if (target.environmentId) {
-                            void navigate({
-                              to: "/$environmentId/$threadId",
-                              params: {
-                                environmentId: target.environmentId,
-                                threadId: target.id,
-                              },
-                            });
-                          } else {
-                            void navigate({
-                              to: "/$threadId",
-                              params: { threadId: target.id },
-                            });
-                          }
-                        }}
-                      >
-                        <Bot className="size-3.5 shrink-0" />
-                        <span className="truncate max-w-32">
-                          {linkedThreads.length === 1
-                            ? linkedThreads[0]!.title
-                            : `${linkedThreads.length} threads`}
-                        </span>
-                      </Button>
-                    );
-                  })()}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-expanded={expandedPrNumber === pr.n}
-                    onClick={() => {
-                      setExpandedPrNumber((current) => (current === pr.n ? null : pr.n));
-                      setDetailTab("summary");
-                      setSelectedFilePath(null);
-                    }}
-                  >
-                    {expandedPrNumber === pr.n ? <ChevronDown /> : <ChevronRight />}
-                    Details
-                  </Button>
-                  {pr.state === "open" && !pr.isDraft && supportsAction("merge") && (
-                    <Button
-                      size="sm"
-                      disabled={pr.mergeability === "conflicting" || pr.checksState === "failing"}
-                      title={
-                        pr.mergeability === "conflicting"
-                          ? "Resolve merge conflicts before merging"
-                          : pr.checksState === "failing"
-                            ? "Fix failing checks before merging"
-                            : undefined
-                      }
-                      onClick={() => {
-                        setMergeIntent("merge");
-                        const methods = capabilities?.mergeMethods ?? ["squash", "merge", "rebase"];
-                        if (!methods.includes(mergeMethod)) {
-                          setMergeMethod(methods[0] ?? "squash");
-                        }
-                        setMergePr(pr);
-                      }}
-                    >
-                      <GitMerge /> Merge…
-                    </Button>
-                  )}
-                  <SecondaryActions compact={compact} number={pr.n}>
-                    {pr.state === "open" && supportsAction("enable_auto_merge") ? (
-                      pr.autoMergeEnabled && supportsAction("disable_auto_merge") ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={pendingAction !== null}
-                          onClick={() => void mutatePullRequest(pr.n, "disable_auto_merge")}
-                        >
-                          Disable auto-merge
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={pendingAction !== null}
-                          onClick={() => {
-                            setMergeIntent("auto_merge");
-                            const methods = capabilities?.mergeMethods ?? ["squash", "merge"];
-                            if (!methods.includes(mergeMethod))
-                              setMergeMethod(methods[0] ?? "merge");
-                            setMergePr(pr);
-                          }}
-                        >
-                          Enable auto-merge…
-                        </Button>
-                      )
-                    ) : null}
-                    {pr.state === "open" && supportsAction("close") ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={pendingAction !== null}
-                        onClick={() => void mutatePullRequest(pr.n, "close")}
-                      >
-                        Close
-                      </Button>
-                    ) : pr.state === "closed" && supportsAction("reopen") ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={pendingAction !== null}
-                        onClick={() => void mutatePullRequest(pr.n, "reopen")}
-                      >
-                        Reopen
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        void openLink(pr.url).catch((error) => {
-                          toastManager.add({
-                            type: "error",
-                            title: "Unable to open pull request",
-                            description: toGitUserFacingErrorMessage(error),
-                          });
-                        });
-                      }}
-                    >
-                      Open
-                      {pr.provider ? ` on ${formatProviderName(pr.provider)}` : " pull request"}
-                    </Button>
-                  </SecondaryActions>
-                </div>
-              </div>
-              {expandedPrNumber === pr.n ? (
-                <div className="mt-3 border-t border-border/60 pt-3">
-                  {detailQuery.isLoading ? (
-                    <GitCheckingState message={`Loading pull request #${pr.n}…`} size={24} />
-                  ) : detailQuery.isError ? (
-                    <div
-                      role="alert"
-                      className="rounded-lg border border-destructive/40 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                    >
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-destructive break-words [overflow-wrap:anywhere]">
-                          {formatPrErrorMessage(detailQuery.error).message}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => detailQuery.refetch()}
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  ) : detailQuery.data?.pullRequest ? (
-                    <div className="space-y-3">
-                      <OrbitGroup
-                        role="tablist"
-                        aria-label={`Pull request #${pr.n} details`}
-                        onKeyDown={handleTabListKeyDown}
-                        className="tabs-segmented inline-flex flex-wrap w-fit"
-                      >
-                        {(
-                          [
-                            ["summary", "Summary", GitPullRequest],
-                            ["code", "Code", FileDiff],
-                            ["guide", "Guide", BookOpen],
-                            ["checks", "Checks", CheckCircle2],
-                            ["commits", "Commits", GitCommit],
-                            ["activity", "Activity", AssistantBubbleIcon],
-                          ] as const
-                        )
-                          .filter(
-                            ([id]) =>
-                              (id !== "code" || detailQuery.data?.capabilities?.diff !== false) &&
-                              // A guide is written from a project's host-backed diff.
-                              (id !== "guide" || reactionRef !== null),
-                          )
-                          .map(([id, label, Icon]) => (
-                            <button
-                              key={id}
-                              id={`pr-${pr.n}-${id}-tab`}
-                              type="button"
-                              role="tab"
-                              aria-controls={`pr-${pr.n}-detail-panel`}
-                              aria-selected={detailTab === id}
-                              tabIndex={detailTab === id ? 0 : -1}
-                              className={cn(
-                                "h-7 px-3 text-xs font-medium rounded-full transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
-                                detailTab === id
-                                  ? "text-foreground font-semibold"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
-                              )}
-                              onClick={() => setDetailTab(id)}
+                        <div
+                          className={
+                            compact
+                              ? "companion-pr-title"
+                              : "text-xs font-semibold text-foreground/90 truncate"
+                          }
+                        >
+                          {pr.title}{" "}
+                          {pr.isDraft ? (
+                            <span className="text-muted-foreground">(draft)</span>
+                          ) : null}
+                        </div>
+                        <div className="text-[10px] font-mono text-muted-foreground/70 truncate">
+                          {pr.branch}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                          {pr.author ? <span>by @{pr.author}</span> : null}
+                          {pr.checksState ? (
+                            <Badge
+                              variant={
+                                pr.checksState === "passing"
+                                  ? "success"
+                                  : pr.checksState === "failing"
+                                    ? "destructive"
+                                    : "outline"
+                              }
                             >
-                              <Icon className="size-3.5 shrink-0" />
-                              <span className="orbit-label">{label}</span>
-                            </button>
-                          ))}
-                      </OrbitGroup>
-                      <div
-                        id={`pr-${pr.n}-detail-panel`}
-                        role="tabpanel"
-                        aria-labelledby={`pr-${pr.n}-${detailTab}-tab`}
-                        tabIndex={0}
-                        className="rounded-lg bg-muted/20 p-3 text-xs"
-                      >
-                        {detailTab === "summary" ? (
-                          <div className="space-y-3">
-                            {detailQuery.data.pullRequest.stack && (
-                              <PullRequestStackView
-                                stack={detailQuery.data.pullRequest.stack}
-                                currentNumber={detailQuery.data.pullRequest.number}
-                                cwd={cwd}
-                                canMerge={supportsAction("stack_merge")}
-                                canRebase={supportsAction("stack_rebase")}
-                                mergeMethod={mergeMethod}
-                                onSelectPullRequest={(prNumber) => {
-                                  setExpandedPrNumber(prNumber);
-                                  setDetailTab("summary");
-                                  setSelectedFilePath(null);
-                                }}
-                                onMutatePullRequest={async (prNumber, action, params) => {
-                                  return await mutatePullRequest(
-                                    prNumber,
-                                    action,
-                                    undefined,
-                                    undefined,
-                                    undefined,
-                                    undefined,
-                                    {
-                                      stackNumber: params.stackNumber,
-                                      expectedStackHeads: params.expectedStackHeads,
-                                      mergeMethod: params.mergeMethod,
-                                    },
-                                  );
-                                }}
-                              />
-                            )}
-                            {detailQuery.data.pullRequest.state === "open" &&
-                            supportsAction(
-                              detailQuery.data.pullRequest.isDraft ? "ready" : "draft",
-                            ) ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={pendingAction !== null}
-                                onClick={() =>
-                                  void mutatePullRequest(
-                                    pr.n,
-                                    detailQuery.data.pullRequest.isDraft ? "ready" : "draft",
-                                  )
-                                }
-                              >
-                                {detailQuery.data.pullRequest.isDraft
-                                  ? "Mark ready for review"
-                                  : "Convert to draft"}
-                              </Button>
-                            ) : null}
-                            {supportsAction("edit_pull_request") ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={pendingAction !== null}
-                                onClick={() =>
-                                  setEditPr({
-                                    number: pr.n,
-                                    title: detailQuery.data.pullRequest.title,
-                                    body: detailQuery.data.pullRequest.body ?? "",
-                                  })
-                                }
-                              >
-                                <Pencil /> Edit title and description
-                              </Button>
-                            ) : null}
-                            <PullRequestThreadIntegration
-                              pr={{
-                                number: pr.n,
-                                title: detailQuery.data.pullRequest.title,
-                                url: detailQuery.data.pullRequest.url || pr.url,
-                                provider: pr.provider,
+                              Checks {pr.checksState}
+                            </Badge>
+                          ) : null}
+                          {pr.reviewDecision ? (
+                            <Badge variant="outline">
+                              {pr.reviewDecision.replaceAll("_", " ")}
+                            </Badge>
+                          ) : null}
+                          {pr.stackMembership ? (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 text-[11px] font-normal cursor-pointer hover:bg-muted/60"
+                              title={`Stack #${pr.stackMembership.number} · Layer ${pr.stackMembership.position} of ${pr.stackMembership.size}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedPrNumber(pr.n);
+                                setDetailTab("summary");
                               }}
-                              reviewThreads={detailQuery.data.pullRequest.reviewThreads ?? []}
-                              threads={threads}
-                              environmentId={environmentId}
-                              onOpenThread={(target) => {
+                            >
+                              <Layers className="size-3 text-foreground" aria-hidden="true" />
+                              {pr.stackMembership.position}/{pr.stackMembership.size}
+                            </Badge>
+                          ) : null}
+                          {pr.mergeability === "conflicting" ? (
+                            <Badge variant="destructive">Conflicts</Badge>
+                          ) : null}
+                          {pr.changedFiles !== undefined ? (
+                            <span>{pr.changedFiles} files</span>
+                          ) : null}
+                          {pr.additions !== undefined ? (
+                            <span className="text-diff-addition font-medium">+{pr.additions}</span>
+                          ) : null}
+                          {pr.deletions !== undefined ? (
+                            <span className="text-diff-deletion font-medium">−{pr.deletions}</span>
+                          ) : null}
+                          {pr.labels.slice(0, 3).map((label) => (
+                            <Badge key={label.name} variant="secondary">
+                              {label.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className={compact ? "companion-pr-actions" : "flex items-center gap-2"}>
+                        {(() => {
+                          const linkedThreads = findThreadsForPullRequest(threads, {
+                            number: pr.n,
+                            url: pr.url,
+                          }).filter((t) => !environmentId || t.environmentId === environmentId);
+                          if (linkedThreads.length === 0) return null;
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-xs text-foreground border-primary/30 bg-primary/5 hover:bg-primary/10 h-7 px-2 shrink-0"
+                              title={
+                                linkedThreads.length === 1
+                                  ? `Open linked agent thread: ${linkedThreads[0]!.title}`
+                                  : `${linkedThreads.length} linked agent threads`
+                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const target = linkedThreads[0]!;
                                 if (target.environmentId) {
                                   void navigate({
                                     to: "/$environmentId/$threadId",
@@ -1322,504 +1047,759 @@ function GitPRsPanel({
                                   });
                                 }
                               }}
-                              onLinkThread={async (targetThreadId, targetEnvId) => {
-                                const envId = (targetEnvId ?? environmentId) as EnvironmentId;
-                                const api = await environmentApi(envId);
-                                let parsedHost = "github.com";
-                                let repository = "";
-                                try {
-                                  const parsed = new URL(
-                                    detailQuery.data.pullRequest.url || pr.url,
-                                  );
-                                  parsedHost = parsed.hostname;
-                                  repository =
-                                    parsed.pathname.replace(/^\//, "").split("/pull/")[0] ?? "";
-                                } catch {}
-                                await api.orchestration.dispatchCommand({
-                                  type: "thread.pull-request.link",
-                                  commandId: newCommandId(),
-                                  threadId: targetThreadId,
-                                  host: parsedHost,
-                                  repository,
-                                  number: pr.n,
-                                  url: detailQuery.data.pullRequest.url || pr.url,
-                                  source: "manual",
-                                });
-                                toastManager.add({
-                                  type: "success",
-                                  title: `Linked thread to PR #${pr.n}`,
-                                });
-                              }}
-                              onUnlinkThread={async (targetThreadId, targetEnvId) => {
-                                const envId = (targetEnvId ?? environmentId) as EnvironmentId;
-                                const api = await environmentApi(envId);
-                                let parsedHost = "github.com";
-                                let repository = "";
-                                try {
-                                  const parsed = new URL(
-                                    detailQuery.data.pullRequest.url || pr.url,
-                                  );
-                                  parsedHost = parsed.hostname;
-                                  repository =
-                                    parsed.pathname.replace(/^\//, "").split("/pull/")[0] ?? "";
-                                } catch {}
-                                await api.orchestration.dispatchCommand({
-                                  type: "thread.pull-request.unlink",
-                                  commandId: newCommandId(),
-                                  threadId: targetThreadId,
-                                  host: parsedHost,
-                                  repository,
-                                  number: pr.n,
-                                });
-                                toastManager.add({
-                                  type: "success",
-                                  title: `Unlinked thread from PR #${pr.n}`,
-                                });
-                              }}
-                              onCreateFixThread={(prompt) => {
-                                void navigator.clipboard?.writeText(prompt);
-                                toastManager.add({
-                                  type: "success",
-                                  title: "Review remarks copied to clipboard",
-                                  description:
-                                    "Prompt copied to clipboard. Ready to create a new thread or paste into an existing thread.",
-                                });
-                                void navigate({ to: "/" });
-                              }}
-                            />
-                            {detailQuery.data.pullRequest.body ? (
-                              <ChatMarkdown
-                                text={detailQuery.data.pullRequest.body}
-                                cwd={cwd}
-                                decorateLink={decorateLink}
-                              />
-                            ) : (
-                              <p className="text-muted-foreground">No description provided.</p>
-                            )}
-                            {detailQuery.data.pullRequest.reactions !== undefined ? (
-                              <PullRequestReactionBar
-                                reactions={detailQuery.data.pullRequest.reactions}
-                                canReact
-                                reference={reactionRef}
-                                onSaved={() => void detailQuery.refetch()}
-                              />
-                            ) : null}
-                            <PullRequestReviewersSection
-                              reviewers={detailQuery.data.pullRequest.reviewers ?? []}
-                              reviews={detailQuery.data.pullRequest.reviews ?? []}
-                              supportsAction={supportsAction}
-                              onAddReviewer={(login) =>
-                                mutatePullRequest(pr.n, "add_reviewer", undefined, login)
-                              }
-                              onRemoveReviewer={(idOrLogin) =>
-                                mutatePullRequest(pr.n, "remove_reviewer", undefined, idOrLogin)
-                              }
-                              isPending={pendingAction !== null}
-                              isOpen={detailQuery.data.pullRequest.state === "open"}
-                              suggestions={suggestions.reviewers}
-                              onRequestSuggestions={suggestions.requestReviewers}
-                            />
-                            <PullRequestLabelsSection
-                              labels={detailQuery.data.pullRequest.labels ?? []}
-                              supportsAction={supportsAction}
-                              onAddLabel={(name) =>
-                                mutatePullRequest(pr.n, "add_label", undefined, name)
-                              }
-                              onRemoveLabel={(name) =>
-                                mutatePullRequest(pr.n, "remove_label", undefined, name)
-                              }
-                              isPending={pendingAction !== null}
-                              isOpen={detailQuery.data.pullRequest.state === "open"}
-                              suggestions={suggestions.labels}
-                              onRequestSuggestions={suggestions.requestLabels}
-                            />
-                          </div>
-                        ) : detailTab === "code" ? (
-                          (() => {
-                            const allFiles = detailQuery.data.pullRequest.files ?? [];
-                            const reviewThreads = detailQuery.data.pullRequest.reviewThreads ?? [];
-
-                            // Filter and sort changed files
-                            const filteredAndSortedFiles = (() => {
-                              let result = allFiles;
-                              if (fileSearchQuery.trim()) {
-                                const q = fileSearchQuery.toLowerCase();
-                                result = result.filter((f) => f.path.toLowerCase().includes(q));
-                              }
-                              return [...result].sort((a, b) => {
-                                if (fileSortMode === "additions")
-                                  return (b.additions ?? 0) - (a.additions ?? 0);
-                                if (fileSortMode === "deletions")
-                                  return (b.deletions ?? 0) - (a.deletions ?? 0);
-                                if (fileSortMode === "status")
-                                  return a.status.localeCompare(b.status);
-                                return a.path.localeCompare(b.path);
-                              });
-                            })();
-
-                            const selectedFile =
-                              filteredAndSortedFiles.find(
-                                (file) => file.path === selectedFilePath,
-                              ) ??
-                              allFiles.find((file) => file.path === selectedFilePath) ??
-                              filteredAndSortedFiles[0] ??
-                              allFiles[0];
-
-                            const selectedThreads = reviewThreads.filter(
-                              (thread) => thread.path === selectedFile?.path,
-                            );
-
-                            const patchLines = selectedFile?.patch
-                              ? parseUnifiedDiff(selectedFile.patch)
-                              : [];
-
-                            if (!selectedFile) {
-                              return (
-                                <p className="text-muted-foreground">
-                                  This provider did not report any changed files.
-                                </p>
-                              );
+                            >
+                              <Bot className="size-3.5 shrink-0" />
+                              <span className="truncate max-w-32">
+                                {linkedThreads.length === 1
+                                  ? linkedThreads[0]!.title
+                                  : `${linkedThreads.length} threads`}
+                              </span>
+                            </Button>
+                          );
+                        })()}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-expanded={expandedPrNumber === pr.n}
+                          onClick={() => {
+                            setExpandedPrNumber((current) => (current === pr.n ? null : pr.n));
+                            setDetailTab("summary");
+                            setSelectedFilePath(null);
+                          }}
+                        >
+                          {expandedPrNumber === pr.n ? <ChevronDown /> : <ChevronRight />}
+                          Details
+                        </Button>
+                        {pr.state === "open" && !pr.isDraft && supportsAction("merge") && (
+                          <Button
+                            size="sm"
+                            disabled={
+                              pr.mergeability === "conflicting" || pr.checksState === "failing"
                             }
-
-                            // Keep track of which thread IDs were rendered against specific diff lines
-                            const renderedThreadIds = new Set<string>();
-
-                            return (
-                              <div className="grid min-h-72 gap-3 md:grid-cols-[minmax(13rem,0.32fr)_minmax(0,1fr)]">
-                                {/* Changed Files Sidebar with Search & Sort */}
-                                <div
-                                  className="flex max-h-[32rem] flex-col overflow-hidden rounded-md border border-border/70 bg-background"
-                                  aria-label="Changed files"
-                                >
-                                  {/* Filter & Sort Bar */}
-                                  <div className="border-b border-border/60 bg-muted/20 p-2 space-y-1.5">
-                                    <div className="relative">
-                                      <Search className="pointer-events-none absolute left-2 top-2 size-3 text-muted-foreground z-10" />
-                                      <input
-                                        type="text"
-                                        value={fileSearchQuery}
-                                        onChange={(e) => setFileSearchQuery(e.target.value)}
-                                        placeholder="Filter files…"
-                                        aria-label="Filter changed files"
-                                        className="h-7 w-full rounded border border-border/70 bg-background pl-7 pr-2 text-[11px] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground">
-                                      <div className="flex items-center gap-1">
-                                        <ArrowUpDown className="size-3" />
-                                        <span>Sort:</span>
-                                      </div>
-                                      <Select
-                                        value={fileSortMode}
-                                        onChange={(e) => setFileSortMode(e.target.value as any)}
-                                        className="h-6 rounded border-border/60 bg-background px-2 text-[10px]"
-                                      >
-                                        <option value="path">Path (A-Z)</option>
-                                        <option value="additions">Most additions</option>
-                                        <option value="deletions">Most deletions</option>
-                                        <option value="status">Status</option>
-                                      </Select>
-                                    </div>
-                                  </div>
-
-                                  {filesViewed.enabled ? (
-                                    <div className="flex items-center justify-between border-b border-border/60 px-2.5 py-1.5 text-[10px] text-muted-foreground">
-                                      <span className="tabular-nums">
-                                        {countViewed(
-                                          allFiles.map((file) => file.path),
-                                          filesViewed.states,
-                                        )}{" "}
-                                        of {allFiles.length} viewed
-                                        {filesViewed.truncated ? " (more files than were read)" : ""}
-                                      </span>
-                                    </div>
-                                  ) : null}
-
-                                  {/* Files List */}
-                                  <div className="flex-1 overflow-auto">
-                                    {filteredAndSortedFiles.length === 0 ? (
-                                      <p className="p-3 text-center text-[11px] text-muted-foreground">
-                                        No files match &quot;{fileSearchQuery}&quot;
-                                      </p>
-                                    ) : (
-                                      filteredAndSortedFiles.map((file) => {
-                                        const fileThreads = reviewThreads.filter(
-                                          (t) => t.path === file.path,
-                                        );
-                                        const unresolvedThreads = fileThreads.filter(
-                                          (t) => !t.resolved,
-                                        );
-                                        const isSelected = selectedFile.path === file.path;
-
-                                        const viewed = filesViewed.isViewed(file.path);
-                                        return (
-                                          <div
-                                            key={file.path}
-                                            className="flex items-stretch border-b border-border/40 last:border-b-0"
-                                          >
-                                          {filesViewed.enabled ? (
-                                            <label
-                                              className="flex shrink-0 cursor-pointer items-start px-2.5 py-2.5"
-                                              title={
-                                                filesViewed.isStale(file.path)
-                                                  ? "Changed since you viewed it"
-                                                  : viewed
-                                                    ? "Viewed"
-                                                    : "Mark as viewed"
-                                              }
-                                            >
-                                              <Checkbox
-                                                checked={viewed}
-                                                aria-label={`Mark ${file.path} as viewed`}
-                                                onCheckedChange={(next) =>
-                                                  filesViewed.setViewed(file.path, next === true)
-                                                }
-                                              />
-                                            </label>
-                                          ) : null}
-                                          <button
-                                            type="button"
-                                            aria-current={isSelected ? "true" : undefined}
-                                            className={`flex min-w-0 flex-1 items-start justify-between gap-2 px-2.5 py-2 text-left transition-colors ${viewed ? "opacity-60" : ""} ${
-                                              isSelected
-                                                ? "bg-accent text-accent-foreground font-medium"
-                                                : "hover:bg-muted/40 text-foreground"
-                                            }`}
-                                            onClick={() => {
-                                              setSelectedFilePath(file.path);
-                                              setInlineLine("");
-                                            }}
-                                          >
-                                            <div className="min-w-0 flex-1">
-                                              <p className="break-all font-mono text-[11px] leading-tight">
-                                                {file.path}
-                                              </p>
-                                              <div className="mt-1 flex items-center gap-1.5 text-[10px]">
-                                                <Badge
-                                                  variant="outline"
-                                                  className="px-1 py-0 text-[9px] font-normal"
-                                                >
-                                                  {file.status}
-                                                </Badge>
-                                                {fileThreads.length > 0 ? (
-                                                  <span
-                                                    className={`flex items-center gap-0.5 rounded px-1 text-[9px] font-medium ${
-                                                      unresolvedThreads.length > 0
-                                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                                                        : "bg-muted text-muted-foreground"
-                                                    }`}
-                                                    title={`${fileThreads.length} discussion${fileThreads.length === 1 ? "" : "s"} (${unresolvedThreads.length} unresolved)`}
-                                                  >
-                                                    <AssistantBubbleIcon className="size-2.5" />
-                                                    {fileThreads.length}
-                                                  </span>
-                                                ) : null}
-                                              </div>
-                                            </div>
-                                            <span className="shrink-0 text-[10px]">
-                                              <span className="text-diff-addition font-medium">
-                                                +{file.additions}
-                                              </span>{" "}
-                                              <span className="text-diff-deletion font-medium">
-                                                −{file.deletions}
-                                              </span>
-                                            </span>
-                                          </button>
-                                          </div>
-                                        );
-                                      })
+                            title={
+                              pr.mergeability === "conflicting"
+                                ? "Resolve merge conflicts before merging"
+                                : pr.checksState === "failing"
+                                  ? "Fix failing checks before merging"
+                                  : undefined
+                            }
+                            onClick={() => {
+                              setMergeIntent("merge");
+                              const methods = capabilities?.mergeMethods ?? [
+                                "squash",
+                                "merge",
+                                "rebase",
+                              ];
+                              if (!methods.includes(mergeMethod)) {
+                                setMergeMethod(methods[0] ?? "squash");
+                              }
+                              setMergePr(pr);
+                            }}
+                          >
+                            <GitMerge /> Merge…
+                          </Button>
+                        )}
+                        <SecondaryActions compact={compact} number={pr.n}>
+                          {pr.state === "open" && supportsAction("enable_auto_merge") ? (
+                            pr.autoMergeEnabled && supportsAction("disable_auto_merge") ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={pendingAction !== null}
+                                onClick={() => void mutatePullRequest(pr.n, "disable_auto_merge")}
+                              >
+                                Disable auto-merge
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={pendingAction !== null}
+                                onClick={() => {
+                                  setMergeIntent("auto_merge");
+                                  const methods = capabilities?.mergeMethods ?? ["squash", "merge"];
+                                  if (!methods.includes(mergeMethod))
+                                    setMergeMethod(methods[0] ?? "merge");
+                                  setMergePr(pr);
+                                }}
+                              >
+                                Enable auto-merge…
+                              </Button>
+                            )
+                          ) : null}
+                          {pr.state === "open" && supportsAction("close") ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pendingAction !== null}
+                              onClick={() => void mutatePullRequest(pr.n, "close")}
+                            >
+                              Close
+                            </Button>
+                          ) : pr.state === "closed" && supportsAction("reopen") ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={pendingAction !== null}
+                              onClick={() => void mutatePullRequest(pr.n, "reopen")}
+                            >
+                              Reopen
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              void openLink(pr.url).catch((error) => {
+                                toastManager.add({
+                                  type: "error",
+                                  title: "Unable to open pull request",
+                                  description: toGitUserFacingErrorMessage(error),
+                                });
+                              });
+                            }}
+                          >
+                            Open
+                            {pr.provider
+                              ? ` on ${formatProviderName(pr.provider)}`
+                              : " pull request"}
+                          </Button>
+                        </SecondaryActions>
+                      </div>
+                    </div>
+                    {expandedPrNumber === pr.n ? (
+                      <div className="mt-3 border-t border-border/60 pt-3">
+                        {detailQuery.isLoading ? (
+                          <GitCheckingState message={`Loading pull request #${pr.n}…`} size={24} />
+                        ) : detailQuery.isError ? (
+                          <div
+                            role="alert"
+                            className="rounded-lg border border-destructive/40 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-destructive break-words [overflow-wrap:anywhere]">
+                                {formatPrErrorMessage(detailQuery.error).message}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => detailQuery.refetch()}
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        ) : detailQuery.data?.pullRequest ? (
+                          <div className="space-y-3">
+                            <OrbitGroup
+                              role="tablist"
+                              aria-label={`Pull request #${pr.n} details`}
+                              onKeyDown={handleTabListKeyDown}
+                              className="tabs-segmented inline-flex flex-wrap w-fit"
+                            >
+                              {(
+                                [
+                                  ["summary", "Summary", GitPullRequest],
+                                  ["code", "Code", FileDiff],
+                                  ["guide", "Guide", BookOpen],
+                                  ["checks", "Checks", CheckCircle2],
+                                  ["commits", "Commits", GitCommit],
+                                  ["activity", "Activity", AssistantBubbleIcon],
+                                ] as const
+                              )
+                                .filter(
+                                  ([id]) =>
+                                    (id !== "code" ||
+                                      detailQuery.data?.capabilities?.diff !== false) &&
+                                    // A guide is written from a project's host-backed diff.
+                                    (id !== "guide" || reactionRef !== null),
+                                )
+                                .map(([id, label, Icon]) => (
+                                  <button
+                                    key={id}
+                                    id={`pr-${pr.n}-${id}-tab`}
+                                    type="button"
+                                    role="tab"
+                                    aria-controls={`pr-${pr.n}-detail-panel`}
+                                    aria-selected={detailTab === id}
+                                    tabIndex={detailTab === id ? 0 : -1}
+                                    className={cn(
+                                      "h-7 px-3 text-xs font-medium rounded-full transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
+                                      detailTab === id
+                                        ? "text-foreground font-semibold"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                                     )}
-                                  </div>
-                                </div>
-
-                                {/* Diff and In-place Annotations View */}
-                                <div className="min-w-0 overflow-hidden rounded-md border border-border/70 bg-background">
-                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-3 py-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span className="break-all font-mono text-[11px] font-semibold">
-                                        {selectedFile.path}
-                                      </span>
-                                      <Badge variant="outline">{selectedFile.status}</Badge>
-                                    </div>
-                                    <span className="text-[11px] text-muted-foreground">
-                                      <span className="text-diff-addition font-medium">
-                                        +{selectedFile.additions}
-                                      </span>{" "}
-                                      <span className="text-diff-deletion font-medium">
-                                        −{selectedFile.deletions}
-                                      </span>
-                                    </span>
-                                  </div>
-
-                                  {selectedFile.patch === null ? (
-                                    <p className="p-4 text-muted-foreground">
-                                      No textual patch is available. The file may be binary or the
-                                      provider may have omitted a very large patch.
-                                    </p>
-                                  ) : (
-                                    <div
-                                      tabIndex={0}
-                                      aria-label={`Patch for ${selectedFile.path}`}
-                                      className="max-h-[32rem] overflow-auto font-mono text-[11px] leading-5"
+                                    onClick={() => setDetailTab(id)}
+                                  >
+                                    <Icon className="size-3.5 shrink-0" />
+                                    <span className="orbit-label">{label}</span>
+                                  </button>
+                                ))}
+                            </OrbitGroup>
+                            <div
+                              id={`pr-${pr.n}-detail-panel`}
+                              role="tabpanel"
+                              aria-labelledby={`pr-${pr.n}-${detailTab}-tab`}
+                              tabIndex={0}
+                              className="rounded-lg bg-muted/20 p-3 text-xs"
+                            >
+                              {detailTab === "summary" ? (
+                                <div className="space-y-3">
+                                  {detailQuery.data.pullRequest.stack && (
+                                    <PullRequestStackView
+                                      stack={detailQuery.data.pullRequest.stack}
+                                      currentNumber={detailQuery.data.pullRequest.number}
+                                      cwd={cwd}
+                                      canMerge={supportsAction("stack_merge")}
+                                      canRebase={supportsAction("stack_rebase")}
+                                      mergeMethod={mergeMethod}
+                                      onSelectPullRequest={(prNumber) => {
+                                        setExpandedPrNumber(prNumber);
+                                        setDetailTab("summary");
+                                        setSelectedFilePath(null);
+                                      }}
+                                      onMutatePullRequest={async (prNumber, action, params) => {
+                                        return await mutatePullRequest(
+                                          prNumber,
+                                          action,
+                                          undefined,
+                                          undefined,
+                                          undefined,
+                                          undefined,
+                                          {
+                                            stackNumber: params.stackNumber,
+                                            expectedStackHeads: params.expectedStackHeads,
+                                            mergeMethod: params.mergeMethod,
+                                          },
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                  {detailQuery.data.pullRequest.state === "open" &&
+                                  supportsAction(
+                                    detailQuery.data.pullRequest.isDraft ? "ready" : "draft",
+                                  ) ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={pendingAction !== null}
+                                      onClick={() =>
+                                        void mutatePullRequest(
+                                          pr.n,
+                                          detailQuery.data.pullRequest.isDraft ? "ready" : "draft",
+                                        )
+                                      }
                                     >
-                                      {patchLines.map((line) => {
-                                        const isInlineCommentOpen =
-                                          inlineLine &&
-                                          ((inlineSide === "right" &&
-                                            line.newLine &&
-                                            String(line.newLine) === inlineLine) ||
-                                            (inlineSide === "left" &&
-                                              line.oldLine &&
-                                              String(line.oldLine) === inlineLine));
-
-                                        // Find threads that attach directly to this line
-                                        const lineThreads = selectedThreads.filter((t) => {
-                                          if (
-                                            t.side === "right" &&
-                                            line.newLine &&
-                                            t.line === line.newLine
-                                          ) {
-                                            renderedThreadIds.add(t.id);
-                                            return true;
-                                          }
-                                          if (
-                                            t.side === "left" &&
-                                            line.oldLine &&
-                                            t.line === line.oldLine
-                                          ) {
-                                            renderedThreadIds.add(t.id);
-                                            return true;
-                                          }
-                                          return false;
+                                      {detailQuery.data.pullRequest.isDraft
+                                        ? "Mark ready for review"
+                                        : "Convert to draft"}
+                                    </Button>
+                                  ) : null}
+                                  {supportsAction("edit_pull_request") ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={pendingAction !== null}
+                                      onClick={() =>
+                                        setEditPr({
+                                          number: pr.n,
+                                          title: detailQuery.data.pullRequest.title,
+                                          body: detailQuery.data.pullRequest.body ?? "",
+                                        })
+                                      }
+                                    >
+                                      <Pencil /> Edit title and description
+                                    </Button>
+                                  ) : null}
+                                  <PullRequestThreadIntegration
+                                    pr={{
+                                      number: pr.n,
+                                      title: detailQuery.data.pullRequest.title,
+                                      url: detailQuery.data.pullRequest.url || pr.url,
+                                      provider: pr.provider,
+                                    }}
+                                    reviewThreads={detailQuery.data.pullRequest.reviewThreads ?? []}
+                                    threads={threads}
+                                    environmentId={environmentId}
+                                    onOpenThread={(target) => {
+                                      if (target.environmentId) {
+                                        void navigate({
+                                          to: "/$environmentId/$threadId",
+                                          params: {
+                                            environmentId: target.environmentId,
+                                            threadId: target.id,
+                                          },
                                         });
+                                      } else {
+                                        void navigate({
+                                          to: "/$threadId",
+                                          params: { threadId: target.id },
+                                        });
+                                      }
+                                    }}
+                                    onLinkThread={async (targetThreadId, targetEnvId) => {
+                                      const envId = (targetEnvId ?? environmentId) as EnvironmentId;
+                                      const api = await environmentApi(envId);
+                                      let parsedHost = "github.com";
+                                      let repository = "";
+                                      try {
+                                        const parsed = new URL(
+                                          detailQuery.data.pullRequest.url || pr.url,
+                                        );
+                                        parsedHost = parsed.hostname;
+                                        repository =
+                                          parsed.pathname.replace(/^\//, "").split("/pull/")[0] ??
+                                          "";
+                                      } catch {}
+                                      await api.orchestration.dispatchCommand({
+                                        type: "thread.pull-request.link",
+                                        commandId: newCommandId(),
+                                        threadId: targetThreadId,
+                                        host: parsedHost,
+                                        repository,
+                                        number: pr.n,
+                                        url: detailQuery.data.pullRequest.url || pr.url,
+                                        source: "manual",
+                                      });
+                                      toastManager.add({
+                                        type: "success",
+                                        title: `Linked thread to PR #${pr.n}`,
+                                      });
+                                    }}
+                                    onUnlinkThread={async (targetThreadId, targetEnvId) => {
+                                      const envId = (targetEnvId ?? environmentId) as EnvironmentId;
+                                      const api = await environmentApi(envId);
+                                      let parsedHost = "github.com";
+                                      let repository = "";
+                                      try {
+                                        const parsed = new URL(
+                                          detailQuery.data.pullRequest.url || pr.url,
+                                        );
+                                        parsedHost = parsed.hostname;
+                                        repository =
+                                          parsed.pathname.replace(/^\//, "").split("/pull/")[0] ??
+                                          "";
+                                      } catch {}
+                                      await api.orchestration.dispatchCommand({
+                                        type: "thread.pull-request.unlink",
+                                        commandId: newCommandId(),
+                                        threadId: targetThreadId,
+                                        host: parsedHost,
+                                        repository,
+                                        number: pr.n,
+                                      });
+                                      toastManager.add({
+                                        type: "success",
+                                        title: `Unlinked thread from PR #${pr.n}`,
+                                      });
+                                    }}
+                                    onCreateFixThread={(prompt) => {
+                                      void navigator.clipboard?.writeText(prompt);
+                                      toastManager.add({
+                                        type: "success",
+                                        title: "Review remarks copied to clipboard",
+                                        description:
+                                          "Prompt copied to clipboard. Ready to create a new thread or paste into an existing thread.",
+                                      });
+                                      void navigate({ to: "/" });
+                                    }}
+                                  />
+                                  {detailQuery.data.pullRequest.body ? (
+                                    <ChatMarkdown
+                                      text={detailQuery.data.pullRequest.body}
+                                      cwd={cwd}
+                                      decorateLink={decorateLink}
+                                    />
+                                  ) : (
+                                    <p className="text-muted-foreground">
+                                      No description provided.
+                                    </p>
+                                  )}
+                                  {detailQuery.data.pullRequest.reactions !== undefined ? (
+                                    <PullRequestReactionBar
+                                      reactions={detailQuery.data.pullRequest.reactions}
+                                      canReact
+                                      reference={reactionRef}
+                                      onSaved={() => void detailQuery.refetch()}
+                                    />
+                                  ) : null}
+                                  <PullRequestReviewersSection
+                                    reviewers={detailQuery.data.pullRequest.reviewers ?? []}
+                                    reviews={detailQuery.data.pullRequest.reviews ?? []}
+                                    supportsAction={supportsAction}
+                                    onAddReviewer={(login) =>
+                                      mutatePullRequest(pr.n, "add_reviewer", undefined, login)
+                                    }
+                                    onRemoveReviewer={(idOrLogin) =>
+                                      mutatePullRequest(
+                                        pr.n,
+                                        "remove_reviewer",
+                                        undefined,
+                                        idOrLogin,
+                                      )
+                                    }
+                                    isPending={pendingAction !== null}
+                                    isOpen={detailQuery.data.pullRequest.state === "open"}
+                                    suggestions={suggestions.reviewers}
+                                    onRequestSuggestions={suggestions.requestReviewers}
+                                  />
+                                  <PullRequestLabelsSection
+                                    labels={detailQuery.data.pullRequest.labels ?? []}
+                                    supportsAction={supportsAction}
+                                    onAddLabel={(name) =>
+                                      mutatePullRequest(pr.n, "add_label", undefined, name)
+                                    }
+                                    onRemoveLabel={(name) =>
+                                      mutatePullRequest(pr.n, "remove_label", undefined, name)
+                                    }
+                                    isPending={pendingAction !== null}
+                                    isOpen={detailQuery.data.pullRequest.state === "open"}
+                                    suggestions={suggestions.labels}
+                                    onRequestSuggestions={suggestions.requestLabels}
+                                  />
+                                </div>
+                              ) : detailTab === "code" ? (
+                                (() => {
+                                  const allFiles = detailQuery.data.pullRequest.files ?? [];
+                                  const reviewThreads =
+                                    detailQuery.data.pullRequest.reviewThreads ?? [];
 
-                                        return (
-                                          <div
-                                            key={line.key}
-                                            className="border-b border-border/20 last:border-b-0"
-                                          >
-                                            {/* Code line row */}
-                                            <div
-                                              className={`grid grid-cols-[2.5rem_2.5rem_minmax(max-content,1fr)] whitespace-pre ${
-                                                line.kind === "addition"
-                                                  ? "bg-diff-addition-line"
-                                                  : line.kind === "deletion"
-                                                    ? "bg-diff-deletion-line"
-                                                    : line.kind === "header"
-                                                      ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold"
-                                                      : ""
-                                              }`}
+                                  // Filter and sort changed files
+                                  const filteredAndSortedFiles = (() => {
+                                    let result = allFiles;
+                                    if (fileSearchQuery.trim()) {
+                                      const q = fileSearchQuery.toLowerCase();
+                                      result = result.filter((f) =>
+                                        f.path.toLowerCase().includes(q),
+                                      );
+                                    }
+                                    return [...result].sort((a, b) => {
+                                      if (fileSortMode === "additions")
+                                        return (b.additions ?? 0) - (a.additions ?? 0);
+                                      if (fileSortMode === "deletions")
+                                        return (b.deletions ?? 0) - (a.deletions ?? 0);
+                                      if (fileSortMode === "status")
+                                        return a.status.localeCompare(b.status);
+                                      return a.path.localeCompare(b.path);
+                                    });
+                                  })();
+
+                                  const selectedFile =
+                                    filteredAndSortedFiles.find(
+                                      (file) => file.path === selectedFilePath,
+                                    ) ??
+                                    allFiles.find((file) => file.path === selectedFilePath) ??
+                                    filteredAndSortedFiles[0] ??
+                                    allFiles[0];
+
+                                  const selectedThreads = reviewThreads.filter(
+                                    (thread) => thread.path === selectedFile?.path,
+                                  );
+
+                                  const patchLines = selectedFile?.patch
+                                    ? parseUnifiedDiff(selectedFile.patch)
+                                    : [];
+
+                                  if (!selectedFile) {
+                                    return (
+                                      <p className="text-muted-foreground">
+                                        This provider did not report any changed files.
+                                      </p>
+                                    );
+                                  }
+
+                                  // Keep track of which thread IDs were rendered against specific diff lines
+                                  const renderedThreadIds = new Set<string>();
+
+                                  return (
+                                    <div className="grid min-h-72 gap-3 md:grid-cols-[minmax(13rem,0.32fr)_minmax(0,1fr)]">
+                                      {/* Changed Files Sidebar with Search & Sort */}
+                                      <div
+                                        className="flex max-h-[32rem] flex-col overflow-hidden rounded-md border border-border/70 bg-background"
+                                        aria-label="Changed files"
+                                      >
+                                        {/* Filter & Sort Bar */}
+                                        <div className="border-b border-border/60 bg-muted/20 p-2 space-y-1.5">
+                                          <div className="relative">
+                                            <Search className="pointer-events-none absolute left-2 top-2 size-3 text-muted-foreground z-10" />
+                                            <input
+                                              type="text"
+                                              value={fileSearchQuery}
+                                              onChange={(e) => setFileSearchQuery(e.target.value)}
+                                              placeholder="Filter files…"
+                                              aria-label="Filter changed files"
+                                              className="h-7 w-full rounded border border-border/70 bg-background pl-7 pr-2 text-[11px] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            />
+                                          </div>
+                                          <div className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground">
+                                            <div className="flex items-center gap-1">
+                                              <ArrowUpDown className="size-3" />
+                                              <span>Sort:</span>
+                                            </div>
+                                            <Select
+                                              value={fileSortMode}
+                                              onChange={(e) =>
+                                                setFileSortMode(e.target.value as any)
+                                              }
+                                              className="h-6 rounded border-border/60 bg-background px-2 text-[10px]"
                                             >
-                                              {(["left", "right"] as const).map((side) => {
-                                                const lineNumber =
-                                                  side === "left" ? line.oldLine : line.newLine;
-                                                return lineNumber &&
-                                                  supportsAction("inline_comment") ? (
-                                                  <button
-                                                    key={side}
-                                                    type="button"
-                                                    className="border-r border-border/40 px-1 text-right text-muted-foreground hover:bg-primary/20 hover:text-foreground focus-visible:z-10 cursor-pointer"
-                                                    aria-label={`Comment on ${side === "left" ? "original" : "new"} line ${lineNumber}`}
-                                                    title={`Click to comment on line ${lineNumber}`}
-                                                    onClick={() => {
-                                                      if (
-                                                        inlineLine === String(lineNumber) &&
-                                                        inlineSide === side
-                                                      ) {
-                                                        setInlineLine("");
-                                                        setInlineBody("");
-                                                      } else {
-                                                        setInlineSide(side);
-                                                        setInlineLine(String(lineNumber));
+                                              <option value="path">Path (A-Z)</option>
+                                              <option value="additions">Most additions</option>
+                                              <option value="deletions">Most deletions</option>
+                                              <option value="status">Status</option>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {filesViewed.enabled ? (
+                                          <div className="flex items-center justify-between border-b border-border/60 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+                                            <span className="tabular-nums">
+                                              {countViewed(
+                                                allFiles.map((file) => file.path),
+                                                filesViewed.states,
+                                              )}{" "}
+                                              of {allFiles.length} viewed
+                                              {filesViewed.truncated
+                                                ? " (more files than were read)"
+                                                : ""}
+                                            </span>
+                                          </div>
+                                        ) : null}
+
+                                        {/* Files List */}
+                                        <div className="flex-1 overflow-auto">
+                                          {filteredAndSortedFiles.length === 0 ? (
+                                            <p className="p-3 text-center text-[11px] text-muted-foreground">
+                                              No files match &quot;{fileSearchQuery}&quot;
+                                            </p>
+                                          ) : (
+                                            filteredAndSortedFiles.map((file) => {
+                                              const fileThreads = reviewThreads.filter(
+                                                (t) => t.path === file.path,
+                                              );
+                                              const unresolvedThreads = fileThreads.filter(
+                                                (t) => !t.resolved,
+                                              );
+                                              const isSelected = selectedFile.path === file.path;
+
+                                              const viewed = filesViewed.isViewed(file.path);
+                                              return (
+                                                <div
+                                                  key={file.path}
+                                                  className="flex items-stretch border-b border-border/40 last:border-b-0"
+                                                >
+                                                  {filesViewed.enabled ? (
+                                                    <label
+                                                      className="flex shrink-0 cursor-pointer items-start px-2.5 py-2.5"
+                                                      title={
+                                                        filesViewed.isStale(file.path)
+                                                          ? "Changed since you viewed it"
+                                                          : viewed
+                                                            ? "Viewed"
+                                                            : "Mark as viewed"
                                                       }
+                                                    >
+                                                      <Checkbox
+                                                        checked={viewed}
+                                                        aria-label={`Mark ${file.path} as viewed`}
+                                                        onCheckedChange={(next) =>
+                                                          filesViewed.setViewed(
+                                                            file.path,
+                                                            next === true,
+                                                          )
+                                                        }
+                                                      />
+                                                    </label>
+                                                  ) : null}
+                                                  <button
+                                                    type="button"
+                                                    aria-current={isSelected ? "true" : undefined}
+                                                    className={`flex min-w-0 flex-1 items-start justify-between gap-2 px-2.5 py-2 text-left transition-colors ${viewed ? "opacity-60" : ""} ${
+                                                      isSelected
+                                                        ? "bg-accent text-accent-foreground font-medium"
+                                                        : "hover:bg-muted/40 text-foreground"
+                                                    }`}
+                                                    onClick={() => {
+                                                      setSelectedFilePath(file.path);
+                                                      setInlineLine("");
                                                     }}
                                                   >
-                                                    {lineNumber}
-                                                  </button>
-                                                ) : (
-                                                  <span
-                                                    key={side}
-                                                    aria-hidden="true"
-                                                    className="border-r border-border/40 px-1 text-right text-muted-foreground select-none"
-                                                  >
-                                                    {lineNumber ?? ""}
-                                                  </span>
-                                                );
-                                              })}
-                                              <span className="px-2">{line.text || " "}</span>
-                                            </div>
-
-                                            {/* In-place Comment Composer below clicked line */}
-                                            {isInlineCommentOpen ? (
-                                              <div className="border-y border-primary/30 bg-primary/5 p-2.5">
-                                                <form
-                                                  className="space-y-2"
-                                                  onSubmit={(e) => {
-                                                    e.preventDefault();
-                                                    const lineNum = Number(inlineLine);
-                                                    if (
-                                                      !Number.isSafeInteger(lineNum) ||
-                                                      lineNum <= 0 ||
-                                                      !inlineBody.trim()
-                                                    )
-                                                      return;
-                                                    void mutatePullRequest(
-                                                      pr.n,
-                                                      "inline_comment",
-                                                      inlineBody.trim(),
-                                                      undefined,
-                                                      {
-                                                        path: selectedFile.path,
-                                                        line: lineNum,
-                                                        side: inlineSide,
-                                                      },
-                                                    ).then((ok) => {
-                                                      if (ok) {
-                                                        setInlineBody("");
-                                                        setInlineLine("");
-                                                      }
-                                                    });
-                                                  }}
-                                                >
-                                                  <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-foreground">
-                                                    <span>
-                                                      Add review comment on line {inlineLine} (
-                                                      {inlineSide === "right" ? "new" : "original"})
+                                                    <div className="min-w-0 flex-1">
+                                                      <p className="break-all font-mono text-[11px] leading-tight">
+                                                        {file.path}
+                                                      </p>
+                                                      <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+                                                        <Badge
+                                                          variant="outline"
+                                                          className="px-1 py-0 text-[9px] font-normal"
+                                                        >
+                                                          {file.status}
+                                                        </Badge>
+                                                        {fileThreads.length > 0 ? (
+                                                          <span
+                                                            className={`flex items-center gap-0.5 rounded px-1 text-[9px] font-medium ${
+                                                              unresolvedThreads.length > 0
+                                                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                                                : "bg-muted text-muted-foreground"
+                                                            }`}
+                                                            title={`${fileThreads.length} discussion${fileThreads.length === 1 ? "" : "s"} (${unresolvedThreads.length} unresolved)`}
+                                                          >
+                                                            <AssistantBubbleIcon className="size-2.5" />
+                                                            {fileThreads.length}
+                                                          </span>
+                                                        ) : null}
+                                                      </div>
+                                                    </div>
+                                                    <span className="shrink-0 text-[10px]">
+                                                      <span className="text-diff-addition font-medium">
+                                                        +{file.additions}
+                                                      </span>{" "}
+                                                      <span className="text-diff-deletion font-medium">
+                                                        −{file.deletions}
+                                                      </span>
                                                     </span>
-                                                    <Button
-                                                      type="button"
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      className="h-5 px-1.5 text-[10px]"
-                                                      onClick={() => {
-                                                        setInlineLine("");
-                                                        setInlineBody("");
-                                                      }}
-                                                    >
-                                                      Cancel
-                                                    </Button>
+                                                  </button>
+                                                </div>
+                                              );
+                                            })
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Diff and In-place Annotations View */}
+                                      <div className="min-w-0 overflow-hidden rounded-md border border-border/70 bg-background">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-3 py-2">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <span className="break-all font-mono text-[11px] font-semibold">
+                                              {selectedFile.path}
+                                            </span>
+                                            <Badge variant="outline">{selectedFile.status}</Badge>
+                                          </div>
+                                          <span className="text-[11px] text-muted-foreground">
+                                            <span className="text-diff-addition font-medium">
+                                              +{selectedFile.additions}
+                                            </span>{" "}
+                                            <span className="text-diff-deletion font-medium">
+                                              −{selectedFile.deletions}
+                                            </span>
+                                          </span>
+                                        </div>
+
+                                        {selectedFile.patch === null ? (
+                                          <p className="p-4 text-muted-foreground">
+                                            No textual patch is available. The file may be binary or
+                                            the provider may have omitted a very large patch.
+                                          </p>
+                                        ) : (
+                                          <div
+                                            tabIndex={0}
+                                            aria-label={`Patch for ${selectedFile.path}`}
+                                            className="max-h-[32rem] overflow-auto font-mono text-[11px] leading-5"
+                                          >
+                                            {patchLines.map((line) => {
+                                              const isInlineCommentOpen =
+                                                inlineLine &&
+                                                ((inlineSide === "right" &&
+                                                  line.newLine &&
+                                                  String(line.newLine) === inlineLine) ||
+                                                  (inlineSide === "left" &&
+                                                    line.oldLine &&
+                                                    String(line.oldLine) === inlineLine));
+
+                                              // Find threads that attach directly to this line
+                                              const lineThreads = selectedThreads.filter((t) => {
+                                                if (
+                                                  t.side === "right" &&
+                                                  line.newLine &&
+                                                  t.line === line.newLine
+                                                ) {
+                                                  renderedThreadIds.add(t.id);
+                                                  return true;
+                                                }
+                                                if (
+                                                  t.side === "left" &&
+                                                  line.oldLine &&
+                                                  t.line === line.oldLine
+                                                ) {
+                                                  renderedThreadIds.add(t.id);
+                                                  return true;
+                                                }
+                                                return false;
+                                              });
+
+                                              return (
+                                                <div
+                                                  key={line.key}
+                                                  className="border-b border-border/20 last:border-b-0"
+                                                >
+                                                  {/* Code line row */}
+                                                  <div
+                                                    className={`grid grid-cols-[2.5rem_2.5rem_minmax(max-content,1fr)] whitespace-pre ${
+                                                      line.kind === "addition"
+                                                        ? "bg-diff-addition-line"
+                                                        : line.kind === "deletion"
+                                                          ? "bg-diff-deletion-line"
+                                                          : line.kind === "header"
+                                                            ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold"
+                                                            : ""
+                                                    }`}
+                                                  >
+                                                    {(["left", "right"] as const).map((side) => {
+                                                      const lineNumber =
+                                                        side === "left"
+                                                          ? line.oldLine
+                                                          : line.newLine;
+                                                      return lineNumber &&
+                                                        supportsAction("inline_comment") ? (
+                                                        <button
+                                                          key={side}
+                                                          type="button"
+                                                          className="border-r border-border/40 px-1 text-right text-muted-foreground hover:bg-primary/20 hover:text-foreground focus-visible:z-10 cursor-pointer"
+                                                          aria-label={`Comment on ${side === "left" ? "original" : "new"} line ${lineNumber}`}
+                                                          title={`Click to comment on line ${lineNumber}`}
+                                                          onClick={() => {
+                                                            if (
+                                                              inlineLine === String(lineNumber) &&
+                                                              inlineSide === side
+                                                            ) {
+                                                              setInlineLine("");
+                                                              setInlineBody("");
+                                                            } else {
+                                                              setInlineSide(side);
+                                                              setInlineLine(String(lineNumber));
+                                                            }
+                                                          }}
+                                                        >
+                                                          {lineNumber}
+                                                        </button>
+                                                      ) : (
+                                                        <span
+                                                          key={side}
+                                                          aria-hidden="true"
+                                                          className="border-r border-border/40 px-1 text-right text-muted-foreground select-none"
+                                                        >
+                                                          {lineNumber ?? ""}
+                                                        </span>
+                                                      );
+                                                    })}
+                                                    <span className="px-2">{line.text || " "}</span>
                                                   </div>
-                                                  <textarea
-                                                    autoFocus
-                                                    required
-                                                    value={inlineBody}
-                                                    onChange={(e) => setInlineBody(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === "Escape") {
-                                                        e.preventDefault();
-                                                        setInlineLine("");
-                                                        setInlineBody("");
-                                                      } else if (
-                                                        (e.metaKey || e.ctrlKey) &&
-                                                        e.key === "Enter"
-                                                      ) {
-                                                        e.preventDefault();
-                                                        const lineNum = Number(inlineLine);
-                                                        if (
-                                                          Number.isSafeInteger(lineNum) &&
-                                                          lineNum > 0 &&
-                                                          inlineBody.trim()
-                                                        ) {
+
+                                                  {/* In-place Comment Composer below clicked line */}
+                                                  {isInlineCommentOpen ? (
+                                                    <div className="border-y border-primary/30 bg-primary/5 p-2.5">
+                                                      <form
+                                                        className="space-y-2"
+                                                        onSubmit={(e) => {
+                                                          e.preventDefault();
+                                                          const lineNum = Number(inlineLine);
+                                                          if (
+                                                            !Number.isSafeInteger(lineNum) ||
+                                                            lineNum <= 0 ||
+                                                            !inlineBody.trim()
+                                                          )
+                                                            return;
                                                           void mutatePullRequest(
                                                             pr.n,
                                                             "inline_comment",
@@ -1836,38 +1816,159 @@ function GitPRsPanel({
                                                               setInlineLine("");
                                                             }
                                                           });
-                                                        }
-                                                      }
-                                                    }}
-                                                    placeholder="Write your review comment… (⌘+Enter to submit, Esc to cancel)"
-                                                    className="min-h-16 w-full rounded-md border border-border bg-background p-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                  />
-                                                  <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-[10px] text-muted-foreground">
-                                                      ⌘+Enter to submit
-                                                    </span>
-                                                    <Button
-                                                      type="submit"
-                                                      size="sm"
-                                                      className="h-7 text-xs"
-                                                      disabled={
-                                                        !inlineBody.trim() || pendingAction !== null
-                                                      }
-                                                    >
-                                                      Comment
-                                                    </Button>
-                                                  </div>
-                                                </form>
-                                              </div>
-                                            ) : null}
+                                                        }}
+                                                      >
+                                                        <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-foreground">
+                                                          <span>
+                                                            Add review comment on line {inlineLine}{" "}
+                                                            (
+                                                            {inlineSide === "right"
+                                                              ? "new"
+                                                              : "original"}
+                                                            )
+                                                          </span>
+                                                          <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-5 px-1.5 text-[10px]"
+                                                            onClick={() => {
+                                                              setInlineLine("");
+                                                              setInlineBody("");
+                                                            }}
+                                                          >
+                                                            Cancel
+                                                          </Button>
+                                                        </div>
+                                                        <textarea
+                                                          autoFocus
+                                                          required
+                                                          value={inlineBody}
+                                                          onChange={(e) =>
+                                                            setInlineBody(e.target.value)
+                                                          }
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === "Escape") {
+                                                              e.preventDefault();
+                                                              setInlineLine("");
+                                                              setInlineBody("");
+                                                            } else if (
+                                                              (e.metaKey || e.ctrlKey) &&
+                                                              e.key === "Enter"
+                                                            ) {
+                                                              e.preventDefault();
+                                                              const lineNum = Number(inlineLine);
+                                                              if (
+                                                                Number.isSafeInteger(lineNum) &&
+                                                                lineNum > 0 &&
+                                                                inlineBody.trim()
+                                                              ) {
+                                                                void mutatePullRequest(
+                                                                  pr.n,
+                                                                  "inline_comment",
+                                                                  inlineBody.trim(),
+                                                                  undefined,
+                                                                  {
+                                                                    path: selectedFile.path,
+                                                                    line: lineNum,
+                                                                    side: inlineSide,
+                                                                  },
+                                                                ).then((ok) => {
+                                                                  if (ok) {
+                                                                    setInlineBody("");
+                                                                    setInlineLine("");
+                                                                  }
+                                                                });
+                                                              }
+                                                            }
+                                                          }}
+                                                          placeholder="Write your review comment… (⌘+Enter to submit, Esc to cancel)"
+                                                          className="min-h-16 w-full rounded-md border border-border bg-background p-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                        />
+                                                        <div className="flex items-center justify-between gap-2">
+                                                          <span className="text-[10px] text-muted-foreground">
+                                                            ⌘+Enter to submit
+                                                          </span>
+                                                          <Button
+                                                            type="submit"
+                                                            size="sm"
+                                                            className="h-7 text-xs"
+                                                            disabled={
+                                                              !inlineBody.trim() ||
+                                                              pendingAction !== null
+                                                            }
+                                                          >
+                                                            Comment
+                                                          </Button>
+                                                        </div>
+                                                      </form>
+                                                    </div>
+                                                  ) : null}
 
-                                            {/* In-place Review Threads on this exact line */}
-                                            {lineThreads.map((thread) => (
-                                              <div
-                                                key={thread.id}
-                                                className="bg-background/80 px-3 py-1"
-                                              >
+                                                  {/* In-place Review Threads on this exact line */}
+                                                  {lineThreads.map((thread) => (
+                                                    <div
+                                                      key={thread.id}
+                                                      className="bg-background/80 px-3 py-1"
+                                                    >
+                                                      <PullRequestReviewThreadCard
+                                                        thread={thread}
+                                                        prNumber={pr.n}
+                                                        cwd={cwd}
+                                                        supportsAction={supportsAction}
+                                                        onMutate={(action, body, value, inline) =>
+                                                          mutatePullRequest(
+                                                            pr.n,
+                                                            action,
+                                                            body,
+                                                            value,
+                                                            inline,
+                                                          )
+                                                        }
+                                                        onFixInThread={handleFixInThread}
+                                                        isPending={pendingAction !== null}
+                                                      />
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+
+                                        {selectedFile.patchTruncated ? (
+                                          <p
+                                            role="status"
+                                            className="border-t border-border/60 px-3 py-2 text-amber-700 dark:text-amber-400 text-xs"
+                                          >
+                                            This patch was truncated to keep the review responsive.
+                                            Open the pull request on the provider for the complete
+                                            diff.
+                                          </p>
+                                        ) : null}
+
+                                        {/* Outdated / File-level Discussions (threads not mapped to a visible line in this patch) */}
+                                        {(() => {
+                                          const unmappedThreads = selectedThreads.filter(
+                                            (t) => !renderedThreadIds.has(t.id),
+                                          );
+                                          if (unmappedThreads.length === 0) return null;
+
+                                          return (
+                                            <section
+                                              aria-label={`Unmapped or outdated discussions for ${selectedFile.path}`}
+                                              className="space-y-2 border-t border-border/60 bg-muted/10 p-3"
+                                            >
+                                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                                <AssistantBubbleIcon className="size-3.5" />
+                                                <span>
+                                                  Outdated or File Discussions (
+                                                  {unmappedThreads.length})
+                                                </span>
+                                              </div>
+                                              {unmappedThreads.map((thread) => (
                                                 <PullRequestReviewThreadCard
+                                                  key={thread.id}
                                                   thread={thread}
                                                   prNumber={pr.n}
                                                   cwd={cwd}
@@ -1884,261 +1985,215 @@ function GitPRsPanel({
                                                   onFixInThread={handleFixInThread}
                                                   isPending={pendingAction !== null}
                                                 />
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      })}
+                                              ))}
+                                            </section>
+                                          );
+                                        })()}
+                                      </div>
                                     </div>
-                                  )}
-
-                                  {selectedFile.patchTruncated ? (
-                                    <p
-                                      role="status"
-                                      className="border-t border-border/60 px-3 py-2 text-amber-700 dark:text-amber-400 text-xs"
-                                    >
-                                      This patch was truncated to keep the review responsive. Open
-                                      the pull request on the provider for the complete diff.
-                                    </p>
-                                  ) : null}
-
-                                  {/* Outdated / File-level Discussions (threads not mapped to a visible line in this patch) */}
-                                  {(() => {
-                                    const unmappedThreads = selectedThreads.filter(
-                                      (t) => !renderedThreadIds.has(t.id),
-                                    );
-                                    if (unmappedThreads.length === 0) return null;
-
-                                    return (
-                                      <section
-                                        aria-label={`Unmapped or outdated discussions for ${selectedFile.path}`}
-                                        className="space-y-2 border-t border-border/60 bg-muted/10 p-3"
-                                      >
-                                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                          <AssistantBubbleIcon className="size-3.5" />
-                                          <span>
-                                            Outdated or File Discussions ({unmappedThreads.length})
-                                          </span>
-                                        </div>
-                                        {unmappedThreads.map((thread) => (
-                                          <PullRequestReviewThreadCard
-                                            key={thread.id}
-                                            thread={thread}
-                                            prNumber={pr.n}
-                                            cwd={cwd}
-                                            supportsAction={supportsAction}
-                                            onMutate={(action, body, value, inline) =>
-                                              mutatePullRequest(pr.n, action, body, value, inline)
-                                            }
-                                            onFixInThread={handleFixInThread}
-                                            isPending={pendingAction !== null}
-                                          />
-                                        ))}
-                                      </section>
-                                    );
-                                  })()}
-                                </div>
-                              </div>
-                            );
-                          })()
-                        ) : detailTab === "guide" ? (
-                          <PullRequestGuideTab
-                            guide={reviewGuide.data?.guide ?? null}
-                            run={reviewGuide.data?.run ?? null}
-                            currentHeadSha={reviewGuide.data?.currentHeadSha ?? null}
-                            isLoading={reviewGuide.isLoading}
-                            writing={reviewGuide.writing}
-                            error={reviewGuide.error}
-                            onWrite={reviewGuide.write}
-                            patchOf={(path) =>
-                              detailQuery.data?.pullRequest.files?.find((file) => file.path === path)
-                                ?.patch
-                            }
-                            onOpenFile={(path) => {
-                              setSelectedFilePath(path);
-                              setDetailTab("code");
-                            }}
-                          />
-                        ) : detailTab === "checks" ? (
-                          <PullRequestChecksView
-                            checks={detailQuery.data.pullRequest.checks ?? []}
-                          />
-                        ) : detailTab === "commits" ? (
-                          <div className="space-y-2">
-                            {(detailQuery.data.pullRequest.commits ?? []).length > 0 ? (
-                              detailQuery.data.pullRequest.commits?.map((commit) => (
-                                <div key={commit.sha} className="flex items-start gap-2">
-                                  <code className="text-muted-foreground">
-                                    {commit.sha.slice(0, 7)}
-                                  </code>
-                                  <span>{commit.subject}</span>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-muted-foreground">No commits reported.</p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <PullRequestActivityView
-                              reviews={detailQuery.data.pullRequest.reviews ?? []}
-                              comments={detailQuery.data.pullRequest.comments ?? []}
-                              cwd={cwd}
-                              reactionRef={reactionRef}
-                              onReactionSaved={() => void detailQuery.refetch()}
-                              decorateLink={decorateLink}
-                              onEditComment={
-                                api && panelProjectId && suggestionTarget.repository
-                                  ? async (comment, body) => {
-                                      try {
-                                        await api.pullRequests.updateComment({
-                                          projectId: panelProjectId,
-                                          repository: suggestionTarget.repository,
-                                          ...(suggestionTarget.host
-                                            ? { host: suggestionTarget.host }
-                                            : {}),
-                                          number: pr.n,
-                                          commentId: comment.id,
-                                          kind: "issue-comment",
-                                          body,
-                                        });
-                                        await detailQuery.refetch();
-                                        return true;
-                                      } catch (error) {
-                                        toastManager.add({
-                                          type: "error",
-                                          title: "Could not edit the comment",
-                                          description:
-                                            error instanceof Error ? error.message : String(error),
-                                        });
-                                        return false;
-                                      }
-                                    }
-                                  : undefined
-                              }
-                            />
-                            {detailQuery.data.pullRequest.state === "open" ? (
-                              <div className="space-y-2 border-t border-border/60 pt-3">
-                                <label
-                                  className="block text-[11px] font-medium"
-                                  htmlFor={`pr-action-${pr.n}`}
-                                >
-                                  Add review feedback
-                                </label>
-                                <PullRequestComposerTextarea
-                                  id={`pr-action-${pr.n}`}
-                                  value={actionBody}
-                                  onValueChange={setActionBody}
-                                  className="min-h-20 w-full rounded-lg border border-border bg-background p-2 text-xs"
-                                  placeholder="Write a comment or review…"
-                                  support={{
-                                    mentions: capabilities?.mentions === true,
-                                    referenceSigils: capabilities?.referenceSigils ?? [],
+                                  );
+                                })()
+                              ) : detailTab === "guide" ? (
+                                <PullRequestGuideTab
+                                  guide={reviewGuide.data?.guide ?? null}
+                                  run={reviewGuide.data?.run ?? null}
+                                  currentHeadSha={reviewGuide.data?.currentHeadSha ?? null}
+                                  isLoading={reviewGuide.isLoading}
+                                  writing={reviewGuide.writing}
+                                  error={reviewGuide.error}
+                                  onWrite={reviewGuide.write}
+                                  patchOf={(path) =>
+                                    detailQuery.data?.pullRequest.files?.find(
+                                      (file) => file.path === path,
+                                    )?.patch
+                                  }
+                                  onOpenFile={(path) => {
+                                    setSelectedFilePath(path);
+                                    setDetailTab("code");
                                   }}
-                                  searchMentions={
-                                    api && panelProjectId && suggestionTarget.repository
-                                      ? (query) =>
-                                          api.pullRequests
-                                            .authorCandidates({
-                                              projectId: panelProjectId,
-                                              repository: suggestionTarget.repository,
-                                              ...(suggestionTarget.host
-                                                ? { host: suggestionTarget.host }
-                                                : {}),
-                                              query,
-                                            })
-                                            .then((list) => list.candidates)
-                                      : undefined
-                                  }
-                                  searchReferences={
-                                    api && panelProjectId && suggestionTarget.repository
-                                      ? (query, sigil) =>
-                                          api.pullRequests
-                                            .referenceCandidates({
-                                              projectId: panelProjectId,
-                                              repository: suggestionTarget.repository,
-                                              ...(suggestionTarget.host
-                                                ? { host: suggestionTarget.host }
-                                                : {}),
-                                              query,
-                                              sigil,
-                                            })
-                                            .then((list) => list.candidates)
-                                      : undefined
-                                  }
                                 />
-                                <div className="flex flex-wrap gap-2">
-                                  {supportsAction("comment") ? (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={!actionBody.trim() || pendingAction !== null}
-                                      onClick={async () => {
-                                        if (
-                                          await mutatePullRequest(
-                                            pr.n,
-                                            "comment",
-                                            actionBody.trim(),
-                                          )
-                                        ) {
-                                          setActionBody("");
+                              ) : detailTab === "checks" ? (
+                                <PullRequestChecksView
+                                  checks={detailQuery.data.pullRequest.checks ?? []}
+                                />
+                              ) : detailTab === "commits" ? (
+                                <div className="space-y-2">
+                                  {(detailQuery.data.pullRequest.commits ?? []).length > 0 ? (
+                                    detailQuery.data.pullRequest.commits?.map((commit) => (
+                                      <div key={commit.sha} className="flex items-start gap-2">
+                                        <code className="text-muted-foreground">
+                                          {commit.sha.slice(0, 7)}
+                                        </code>
+                                        <span>{commit.subject}</span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-muted-foreground">No commits reported.</p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  <PullRequestActivityView
+                                    reviews={detailQuery.data.pullRequest.reviews ?? []}
+                                    comments={detailQuery.data.pullRequest.comments ?? []}
+                                    cwd={cwd}
+                                    reactionRef={reactionRef}
+                                    onReactionSaved={() => void detailQuery.refetch()}
+                                    decorateLink={decorateLink}
+                                    onEditComment={
+                                      api && panelProjectId && suggestionTarget.repository
+                                        ? async (comment, body) => {
+                                            try {
+                                              await api.pullRequests.updateComment({
+                                                projectId: panelProjectId,
+                                                repository: suggestionTarget.repository,
+                                                ...(suggestionTarget.host
+                                                  ? { host: suggestionTarget.host }
+                                                  : {}),
+                                                number: pr.n,
+                                                commentId: comment.id,
+                                                kind: "issue-comment",
+                                                body,
+                                              });
+                                              await detailQuery.refetch();
+                                              return true;
+                                            } catch (error) {
+                                              toastManager.add({
+                                                type: "error",
+                                                title: "Could not edit the comment",
+                                                description:
+                                                  error instanceof Error
+                                                    ? error.message
+                                                    : String(error),
+                                              });
+                                              return false;
+                                            }
+                                          }
+                                        : undefined
+                                    }
+                                  />
+                                  {detailQuery.data.pullRequest.state === "open" ? (
+                                    <div className="space-y-2 border-t border-border/60 pt-3">
+                                      <label
+                                        className="block text-[11px] font-medium"
+                                        htmlFor={`pr-action-${pr.n}`}
+                                      >
+                                        Add review feedback
+                                      </label>
+                                      <PullRequestComposerTextarea
+                                        id={`pr-action-${pr.n}`}
+                                        value={actionBody}
+                                        onValueChange={setActionBody}
+                                        className="min-h-20 w-full rounded-lg border border-border bg-background p-2 text-xs"
+                                        placeholder="Write a comment or review…"
+                                        support={{
+                                          mentions: capabilities?.mentions === true,
+                                          referenceSigils: capabilities?.referenceSigils ?? [],
+                                        }}
+                                        searchMentions={
+                                          api && panelProjectId && suggestionTarget.repository
+                                            ? (query) =>
+                                                api.pullRequests
+                                                  .authorCandidates({
+                                                    projectId: panelProjectId,
+                                                    repository: suggestionTarget.repository,
+                                                    ...(suggestionTarget.host
+                                                      ? { host: suggestionTarget.host }
+                                                      : {}),
+                                                    query,
+                                                  })
+                                                  .then((list) => list.candidates)
+                                            : undefined
                                         }
-                                      }}
-                                    >
-                                      Comment
-                                    </Button>
-                                  ) : null}
-                                  {supportsAction("approve") ? (
-                                    <Button
-                                      size="sm"
-                                      disabled={pendingAction !== null}
-                                      onClick={async () => {
-                                        if (
-                                          await mutatePullRequest(
-                                            pr.n,
-                                            "approve",
-                                            actionBody.trim(),
-                                          )
-                                        ) {
-                                          setActionBody("");
+                                        searchReferences={
+                                          api && panelProjectId && suggestionTarget.repository
+                                            ? (query, sigil) =>
+                                                api.pullRequests
+                                                  .referenceCandidates({
+                                                    projectId: panelProjectId,
+                                                    repository: suggestionTarget.repository,
+                                                    ...(suggestionTarget.host
+                                                      ? { host: suggestionTarget.host }
+                                                      : {}),
+                                                    query,
+                                                    sigil,
+                                                  })
+                                                  .then((list) => list.candidates)
+                                            : undefined
                                         }
-                                      }}
-                                    >
-                                      Approve
-                                    </Button>
-                                  ) : null}
-                                  {supportsAction("request_changes") ? (
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      disabled={!actionBody.trim() || pendingAction !== null}
-                                      onClick={async () => {
-                                        if (
-                                          await mutatePullRequest(
-                                            pr.n,
-                                            "request_changes",
-                                            actionBody.trim(),
-                                          )
-                                        ) {
-                                          setActionBody("");
-                                        }
-                                      }}
-                                    >
-                                      Request changes
-                                    </Button>
+                                      />
+                                      <div className="flex flex-wrap gap-2">
+                                        {supportsAction("comment") ? (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={!actionBody.trim() || pendingAction !== null}
+                                            onClick={async () => {
+                                              if (
+                                                await mutatePullRequest(
+                                                  pr.n,
+                                                  "comment",
+                                                  actionBody.trim(),
+                                                )
+                                              ) {
+                                                setActionBody("");
+                                              }
+                                            }}
+                                          >
+                                            Comment
+                                          </Button>
+                                        ) : null}
+                                        {supportsAction("approve") ? (
+                                          <Button
+                                            size="sm"
+                                            disabled={pendingAction !== null}
+                                            onClick={async () => {
+                                              if (
+                                                await mutatePullRequest(
+                                                  pr.n,
+                                                  "approve",
+                                                  actionBody.trim(),
+                                                )
+                                              ) {
+                                                setActionBody("");
+                                              }
+                                            }}
+                                          >
+                                            Approve
+                                          </Button>
+                                        ) : null}
+                                        {supportsAction("request_changes") ? (
+                                          <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            disabled={!actionBody.trim() || pendingAction !== null}
+                                            onClick={async () => {
+                                              if (
+                                                await mutatePullRequest(
+                                                  pr.n,
+                                                  "request_changes",
+                                                  actionBody.trim(),
+                                                )
+                                              ) {
+                                                setActionBody("");
+                                              }
+                                            }}
+                                          >
+                                            Request changes
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                    </div>
                                   ) : null}
                                 </div>
-                              </div>
-                            ) : null}
+                              )}
+                            </div>
                           </div>
-                        )}
+                        ) : null}
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
+                  </Card>
                 </div>
-              ) : null}
-            </Card>
-            </div>
               ))}
             </Fragment>
           ))}
