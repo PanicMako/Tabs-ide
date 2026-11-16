@@ -1,4 +1,3 @@
-import { buildOvermindStartMessage } from "@tabs/shared/overmind";
 import { WorkspaceAgents, type WorkspaceAgentContext } from "./chat/WorkspaceAgents";
 import { NativeChildWorkDialog } from "./chat/NativeChildWorkDialog";
 import { ensureDraftThreadExists, type DraftThreadCreation } from "../stores/ensureDraftThread";
@@ -92,6 +91,9 @@ import {
   collapseExpandedComposerCursor,
   detectComposerTrigger,
   expandCollapsedComposerCursor,
+  isOvermindComposerPrompt,
+  overmindSendText,
+  parseOvermindSlashCommand,
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
 } from "../composer-logic";
@@ -187,12 +189,15 @@ import { useRightPanelStore, type RightPanelTab } from "../stores/rightPanelStor
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
+import { RuntimeModePicker } from "./chat/RuntimeModePicker";
+import { SettingsNavIcon } from "./settings/SettingsNavIcon";
 import { SchedulePicker } from "./ui/SchedulePicker";
 import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "./ui/dialog";
 import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
 import { isSettled } from "../state/threadLifecycle";
+import { useServerConfig } from "../state/settings";
 import {
   projectScriptCwd,
   projectScriptRuntimeEnv,
@@ -244,7 +249,11 @@ import {
   type TerminalContextDraft,
   type TerminalContextSelection,
 } from "../lib/terminalContext";
-import { deriveLatestContextWindowSnapshot } from "../lib/contextWindow";
+import {
+  deriveLatestContextWindowSnapshot,
+  deriveProjectionContextWindowSnapshot,
+  type ContextWindowSnapshot,
+} from "../lib/contextWindow";
 import { shouldUseCompactComposerFooter } from "./composerFooterLayout";
 import { terminalActions, useThreadTerminalState } from "../state/terminal";
 import { projectsAtom, threadsAtom } from "../state/threads";
@@ -278,6 +287,8 @@ import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { AVAILABLE_PROVIDER_OPTIONS, ProviderModelPicker } from "./chat/ProviderModelPicker";
 import { FusedModelPicker } from "./chat/FusedModelPicker";
 import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
+import { OvermindComposerChip } from "./chat/OvermindComposerChip";
+import { UltrathinkComposerBanner } from "./chat/UltrathinkComposerBanner";
 import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
 import { CompactComposerControlsMenu } from "./chat/CompactComposerControlsMenu";
 import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
@@ -473,6 +484,8 @@ export default function ChatView({
   onToggleMaximize,
   onClosePane,
 }: ChatViewProps) {
+  const serverConfig = useServerConfig();
+  const overmindProviders = serverConfig?.providers;
   const [threadApi, setThreadApi] = useState<Awaited<ReturnType<typeof environmentApi>> | null>(
     null,
   );
@@ -536,6 +549,7 @@ export default function ChatView({
   const queryClient = useQueryClient();
   const composerDraft = useComposerDraft(threadId, environmentId);
   const prompt = composerDraft.prompt;
+  const overmindComposerActive = isOvermindComposerPrompt(prompt);
   const composerImages = composerDraft.images;
   const composerFiles = composerDraft.files;
   const composerTerminalContexts = composerDraft.terminalContexts;
@@ -1323,9 +1337,12 @@ export default function ChatView({
   );
   const projectionKey = JSON.stringify([environmentId, activeThreadId]);
   const [loadedProjectionKey, setLoadedProjectionKey] = useState<string | null>(null);
+  const [projectionContextWindow, setProjectionContextWindow] =
+    useState<ContextWindowSnapshot | null>(null);
   useEffect(() => {
     if (!threadApi || !activeThreadId || !isServerThread) {
       projectionRef.current = null;
+      setProjectionContextWindow(null);
       setWorkspaceAgentContext(null);
       return;
     }
@@ -1336,6 +1353,7 @@ export default function ChatView({
         if (disposed) return;
         if ("kind" in item && item.kind === "snapshot") {
           projectionRef.current = item.projection;
+          setProjectionContextWindow(deriveProjectionContextWindowSnapshot(item.projection));
           setWorkspaceAgentContext({
             thread: item.projection.thread,
             runs: item.projection.runs,
@@ -1350,6 +1368,12 @@ export default function ChatView({
             const next = applyOrchestrationV2ProjectionEvent(current, item.event);
             projectionRef.current = next;
             if (next) {
+              if (
+                next.providerTurns !== current.providerTurns ||
+                next.providerThreads !== current.providerThreads ||
+                next.thread !== current.thread
+              )
+                setProjectionContextWindow(deriveProjectionContextWindowSnapshot(next));
               if (
                 next.subagents !== current.subagents ||
                 next.runs !== current.runs ||
@@ -1376,8 +1400,9 @@ export default function ChatView({
   }, [activeThreadId, environmentId, threadApi, isServerThread, projectionKey]);
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const activeContextWindow = useMemo(
-    () => deriveLatestContextWindowSnapshot(activeThread?.activities ?? []),
-    [activeThread?.activities],
+    () =>
+      projectionContextWindow ?? deriveLatestContextWindowSnapshot(activeThread?.activities ?? []),
+    [projectionContextWindow, activeThread?.activities],
   );
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
 
@@ -2308,6 +2333,13 @@ export default function ChatView({
           command: "model",
           label: "/model",
           description: "Switch response model for this thread",
+        },
+        {
+          id: "slash:overmind",
+          type: "slash-command",
+          command: "overmind",
+          label: "/overmind",
+          description: "Plan a big goal and run it as parallel sub-threads",
         },
         {
           id: "slash:plan",
@@ -4145,8 +4177,10 @@ export default function ChatView({
     const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
     const composerPreviewAnnotationsSnapshot = [...composerPreviewAnnotations];
     const composerReviewCommentsSnapshot = [...composerReviewComments];
+    // The goal seeds the thread title; the sent text keeps any Ultrathink line on top.
+    const overmindGoal = parseOvermindSlashCommand(promptForSend);
     const messageTextWithContexts = appendTerminalContextsToPrompt(
-      promptForSend,
+      overmindSendText(promptForSend) ?? promptForSend,
       composerTerminalContextsSnapshot,
     );
     const messageTextWithPreviewAnnotations = composerPreviewAnnotationsSnapshot.reduce(
@@ -4273,7 +4307,7 @@ export default function ChatView({
           firstComposerImageName = firstComposerImage.name;
         }
       }
-      let titleSeed = trimmed;
+      let titleSeed = overmindGoal ?? trimmed;
       if (!titleSeed) {
         if (firstComposerImageName) {
           titleSeed = `Image: ${firstComposerImageName}`;
@@ -5336,8 +5370,8 @@ export default function ChatView({
         return;
       }
       if (item.type === "slash-command") {
-        if (item.command === "model") {
-          const replacement = "/model ";
+        if (item.command === "model" || item.command === "overmind") {
+          const replacement = item.command === "model" ? "/model " : "/overmind ";
           const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
             snapshot.value,
             trigger.rangeEnd,
@@ -5664,10 +5698,7 @@ export default function ChatView({
           </div>
         )}
         <div
-          className={cn(
-            "group relative isolate rounded-2xl p-0.5 transition-all duration-200",
-            composerProviderState.composerFrameClassName,
-          )}
+          className={cn("group relative isolate rounded-2xl p-0.5 transition-all duration-200")}
           onDragEnter={onComposerDragEnter}
           onDragOver={onComposerDragOver}
           onDragLeave={onComposerDragLeave}
@@ -5697,9 +5728,21 @@ export default function ChatView({
               isDragOverComposer
                 ? "border-foreground/40 bg-accent/30"
                 : "border-border/60 hover:border-border/80 has-focus-visible:border-foreground/30 has-focus-visible:ring-1 has-focus-visible:ring-foreground/20",
+              composerProviderState.composerFrameClassName,
               composerProviderState.composerSurfaceClassName,
+              overmindComposerActive && "overmind-frame",
             )}
           >
+            {/* Overmind and Ultrathink together share one banner: the lead plans at ultrathink. */}
+            {overmindComposerActive ? (
+              <OvermindComposerChip
+                providers={overmindProviders}
+                lead={selectedModelSelection}
+                ultrathink={composerProviderState.ultrathinkActive}
+              />
+            ) : (
+              composerProviderState.ultrathinkActive && <UltrathinkComposerBanner />
+            )}
             {/* Top Toolbar Row inside Prompt Box */}
             <div
               ref={composerFooterRef}
@@ -5779,61 +5822,22 @@ export default function ChatView({
                           : "Default mode — click to enter plan mode"
                       }
                     >
-                      {interactionMode === "plan" ? <ListTodoIcon /> : <BotIcon />}
+                      {interactionMode === "plan" ? (
+                        <ListTodoIcon />
+                      ) : (
+                        <SettingsNavIcon kind="providers" className="size-4" />
+                      )}
                       <span className="sr-only sm:not-sr-only">
                         {interactionMode === "plan" ? "Plan" : "Build"}
                       </span>
                     </Button>
 
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "shrink-0 whitespace-nowrap px-2.5 sm:px-3 text-xs font-medium transition-colors",
-                        runtimeMode === "full-access"
-                          ? "text-foreground/90 font-semibold"
-                          : runtimeMode === "auto-accept-edits"
-                            ? "text-foreground/80 font-medium"
-                            : "text-muted-foreground/70 hover:text-foreground/80",
-                      )}
-                      size="sm"
-                      type="button"
-                      onClick={() => {
-                        const modes = [
-                          "approval-required",
-                          "auto-accept-edits",
-                          "full-access",
-                        ] as const;
-                        const currentMode = runtimeMode || "approval-required";
-                        const nextIndex =
-                          ((modes as readonly string[]).indexOf(currentMode) + 1) % modes.length;
-                        const nextMode = modes[nextIndex];
-                        if (nextMode) {
-                          void handleRuntimeModeChange(nextMode);
-                        }
-                      }}
-                      title={
-                        runtimeMode === "full-access"
-                          ? "Full access — click to require approvals"
-                          : runtimeMode === "auto-accept-edits"
-                            ? "Auto-accept edits — click for full access"
-                            : "Supervised — click for auto-accept edits"
-                      }
-                    >
-                      {runtimeMode === "full-access" ? (
-                        <LockOpenIcon />
-                      ) : runtimeMode === "auto-accept-edits" ? (
-                        <PenIcon />
-                      ) : (
-                        <LockIcon />
-                      )}
-                      <span className="sr-only sm:not-sr-only">
-                        {runtimeMode === "full-access"
-                          ? "Full access"
-                          : runtimeMode === "auto-accept-edits"
-                            ? "Auto-accept edits"
-                            : "Supervised"}
-                      </span>
-                    </Button>
+                    <Separator orientation="vertical" className="mx-0.5 hidden h-4 sm:block" />
+
+                    <RuntimeModePicker
+                      runtimeMode={runtimeMode}
+                      onChange={(mode) => void handleRuntimeModeChange(mode)}
+                    />
 
                     {activePlan || sidebarProposedPlan || planSidebarOpen ? (
                       <>
@@ -6504,7 +6508,7 @@ export default function ChatView({
           className={cn(
             "@container/chat-header transition-colors relative z-30",
             isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5",
-            isElectron ? "drag-region flex min-h-[52px] items-center py-2" : "py-2 sm:py-3",
+            isElectron ? "drag-region flex h-[48px] items-center py-0" : "py-2 sm:py-3",
             isSplitActive && !isActivePane && "opacity-80 hover:opacity-100 transition-opacity",
           )}
         >
@@ -6516,8 +6520,10 @@ export default function ChatView({
             onCompactContext={onCompactContext}
             compactDisabled={compactDisabled}
             compactDisabledReason={compactDisabledReason}
+            overmindProviders={overmindProviders}
+            overmindLead={selectedModelSelection}
             onStartOvermind={(goal) => {
-              setPrompt(buildOvermindStartMessage(goal));
+              setPrompt(`/overmind ${goal.trim()}`);
               window.requestAnimationFrame(() => composerEditorRef.current?.focusAtEnd());
             }}
             agentWorkflow={
@@ -6615,21 +6621,21 @@ export default function ChatView({
         </header>
       )}
 
-      <div className="chat-status-area" data-workspace-open={workspaceActionsOpen || undefined}>
-        {/* Error banner */}
-        <ProviderStatusBanner
-          status={visibleProviderStatus}
-          onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
-        />
-        <ThreadErrorBanner
-          error={activeThread.error}
-          onDismiss={() => setThreadError(activeThread.id, null)}
-        />
-      </div>
       {/* Main content area with optional plan sidebar */}
       <div className="chat-workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Chat column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="chat-status-area" data-workspace-open={workspaceActionsOpen || undefined}>
+            {/* Error banner */}
+            <ProviderStatusBanner
+              status={visibleProviderStatus}
+              onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
+            />
+            <ThreadErrorBanner
+              error={activeThread.error}
+              onDismiss={() => setThreadError(activeThread.id, null)}
+            />
+          </div>
           {threadSurface === "cli" && activeProject && !compact ? (
             <AgentCliSurface
               key={surfaceKey}
