@@ -34,7 +34,12 @@ const PATCH = [
   "",
 ].join("\n");
 
-const input = { projectId: "p1", repository: "o/r", number: 7, host: "github.com" } as PullRequestRef;
+const input = {
+  projectId: "p1",
+  repository: "o/r",
+  number: 7,
+  host: "github.com",
+} as PullRequestRef;
 const key = { host: "github.com", repository: "o/r", number: 7 };
 
 function harness(options: {
@@ -47,7 +52,8 @@ function harness(options: {
       const guide = stored.get(`${k.host}/${k.repository}#${k.number}`);
       return Effect.succeed(guide === undefined ? Option.none() : Option.some(guide));
     },
-    put: (k, guide) => Effect.sync(() => void stored.set(`${k.host}/${k.repository}#${k.number}`, guide)),
+    put: (k, guide) =>
+      Effect.sync(() => void stored.set(`${k.host}/${k.repository}#${k.number}`, guide)),
   });
   const pullRequests = {
     detail: () =>
@@ -67,7 +73,8 @@ function harness(options: {
   } as unknown as ProjectService.ProjectService["Service"];
   const settings = {
     getSettings: Effect.succeed({
-      textGenerationModelSelection: options.model === false ? null : { instanceId: "codex", model: "m" },
+      textGenerationModelSelection:
+        options.model === false ? null : { instanceId: "codex", model: "m" },
     }),
   } as unknown as ServerSettings.ServerSettingsService["Service"];
   const textGeneration = {
@@ -94,49 +101,52 @@ const settle = (service: PullRequestReviewGuideService["Service"]) =>
   });
 
 describe("PullRequestReviewGuideService", () => {
-  it.live("writes a guide in the background, keeps only lines the diff changed, and stores it", () => {
-    const { layer: testLayer, stored } = harness({
-      generate: (request) =>
-        Effect.sync(() => {
-          assert.strictEqual(request.cwd, "/repo");
-          assert.deepStrictEqual([...request.files].sort(), ["src/a.ts", "src/b.ts"]);
-          return {
-            stops: [
-              {
-                title: "Core",
-                summary: "s",
-                attention: null,
-                // Line 2 is added; line 80 is not in the diff and must be dropped.
-                excerpts: [
-                  { path: "src/a.ts", side: "new" as const, start: 2, end: 2, caption: "c" },
-                  { path: "src/a.ts", side: "new" as const, start: 80, end: 81, caption: "x" },
-                ],
-                files: [],
-                notes: [],
-                questions: [],
-              },
-            ],
-          };
-        }),
-    });
-    return Effect.gen(function* () {
-      const service = yield* PullRequestReviewGuideService;
-      const started = yield* service.generate(input, key);
-      assert.strictEqual(started.run?._tag, "Running");
-      assert.strictEqual(started.currentHeadSha, "head1");
-      const done = yield* settle(service);
-      assert.strictEqual(done.run, null);
-      assert.strictEqual(done.guide?.headSha, "head1");
-      const stops = done.guide?.stops ?? [];
-      assert.deepStrictEqual(
-        stops[0]?.excerpts.map((excerpt) => [excerpt.start, excerpt.end]),
-        [[2, 2]],
-      );
-      // The changed file the model did not place is still on the tour.
-      assert.strictEqual(stops.at(-1)?.title, "Other files");
-      assert.strictEqual(stored.size, 1);
-    }).pipe(Effect.provide(testLayer));
-  });
+  it.live(
+    "writes a guide in the background, keeps only lines the diff changed, and stores it",
+    () => {
+      const { layer: testLayer, stored } = harness({
+        generate: (request) =>
+          Effect.sync(() => {
+            assert.strictEqual(request.cwd, "/repo");
+            assert.deepStrictEqual([...request.files].sort(), ["src/a.ts", "src/b.ts"]);
+            return {
+              stops: [
+                {
+                  title: "Core",
+                  summary: "s",
+                  attention: null,
+                  // Line 2 is added; line 80 is not in the diff and must be dropped.
+                  excerpts: [
+                    { path: "src/a.ts", side: "new" as const, start: 2, end: 2, caption: "c" },
+                    { path: "src/a.ts", side: "new" as const, start: 80, end: 81, caption: "x" },
+                  ],
+                  files: [],
+                  notes: [],
+                  questions: [],
+                },
+              ],
+            };
+          }),
+      });
+      return Effect.gen(function* () {
+        const service = yield* PullRequestReviewGuideService;
+        const started = yield* service.generate(input, key);
+        assert.strictEqual(started.run?._tag, "Running");
+        assert.strictEqual(started.currentHeadSha, "head1");
+        const done = yield* settle(service);
+        assert.strictEqual(done.run, null);
+        assert.strictEqual(done.guide?.headSha, "head1");
+        const stops = done.guide?.stops ?? [];
+        assert.deepStrictEqual(
+          stops[0]?.excerpts.map((excerpt) => [excerpt.start, excerpt.end]),
+          [[2, 2]],
+        );
+        // The changed file the model did not place is still on the tour.
+        assert.strictEqual(stops.at(-1)?.title, "Other files");
+        assert.strictEqual(stored.size, 1);
+      }).pipe(Effect.provide(testLayer));
+    },
+  );
 
   it.live("records a failed run with the reason, and clears it when a retry succeeds", () => {
     const { layer: testLayer } = harness({ generate: undefined });
@@ -150,7 +160,10 @@ describe("PullRequestReviewGuideService", () => {
   });
 
   it.live("says so when no writing model is set", () => {
-    const { layer: testLayer } = harness({ generate: () => Effect.succeed({ stops: [] }), model: false });
+    const { layer: testLayer } = harness({
+      generate: () => Effect.succeed({ stops: [] }),
+      model: false,
+    });
     return Effect.gen(function* () {
       const service = yield* PullRequestReviewGuideService;
       yield* service.generate(input, key);
@@ -163,8 +176,18 @@ describe("PullRequestReviewGuideService", () => {
   it("summarises only settled review threads", () => {
     const summary = settledReviewSummary({
       reviewThreads: [
-        { path: "a.ts", isResolved: true, isOutdated: false, comments: [{ author: { login: "me" }, body: "Fix <!-- x -->   this" }] },
-        { path: "b.ts", isResolved: false, isOutdated: false, comments: [{ author: null, body: "open" }] },
+        {
+          path: "a.ts",
+          isResolved: true,
+          isOutdated: false,
+          comments: [{ author: { login: "me" }, body: "Fix <!-- x -->   this" }],
+        },
+        {
+          path: "b.ts",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ author: null, body: "open" }],
+        },
       ],
     } as never);
     assert.strictEqual(summary, "- a.ts (resolved, me): Fix this");

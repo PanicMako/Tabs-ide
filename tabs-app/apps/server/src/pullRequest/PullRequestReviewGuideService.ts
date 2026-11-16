@@ -21,10 +21,7 @@ import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as PullRequestService from "./PullRequestService.ts";
-import {
-  normalizeReviewGuide,
-  parseReviewGuideChange,
-} from "./pullRequestReviewGuideNormalize.ts";
+import { normalizeReviewGuide, parseReviewGuideChange } from "./pullRequestReviewGuideNormalize.ts";
 
 /** Slices of one diff read for a guide: enough for a large change, bounded so a run ends. */
 const MAX_DIFF_SLICES = 8;
@@ -95,7 +92,9 @@ const make = Effect.gen(function* () {
 
   const readStored = (key: ThreadPullRequestKey) =>
     guides.get(key).pipe(
-      Effect.mapError((cause) => fail("reviewGuide", "Could not read the stored review guide.", cause)),
+      Effect.mapError((cause) =>
+        fail("reviewGuide", "Could not read the stored review guide.", cause),
+      ),
       Effect.map(Option.getOrNull),
     );
 
@@ -145,7 +144,9 @@ const make = Effect.gen(function* () {
         readPatch(input),
         pullRequests.activity(input).pipe(Effect.option),
         serverSettings.getSettings.pipe(
-          Effect.mapError((cause) => fail("generateReviewGuide", "Could not read settings.", cause)),
+          Effect.mapError((cause) =>
+            fail("generateReviewGuide", "Could not read settings.", cause),
+          ),
         ),
       ],
       { concurrency: "unbounded" },
@@ -199,7 +200,11 @@ const make = Effect.gen(function* () {
     };
     yield* guides
       .put(key, guide)
-      .pipe(Effect.mapError((cause) => fail("generateReviewGuide", "Could not store the guide.", cause)));
+      .pipe(
+        Effect.mapError((cause) =>
+          fail("generateReviewGuide", "Could not store the guide.", cause),
+        ),
+      );
   });
 
   const generate: PullRequestReviewGuideService["Service"]["generate"] = Effect.fn(
@@ -208,7 +213,10 @@ const make = Effect.gen(function* () {
     const detail = yield* pullRequests.detail(input);
     const headSha = detail.headSha;
     if (headSha === undefined) {
-      return yield* fail("generateReviewGuide", "The host did not report this pull request's head.");
+      return yield* fail(
+        "generateReviewGuide",
+        "The host did not report this pull request's head.",
+      );
     }
     const id = keyString(key);
     const already = (yield* Ref.get(runs)).get(id);
@@ -236,7 +244,10 @@ const make = Effect.gen(function* () {
                   _tag: "Failed",
                   headSha,
                   failedAt,
-                  detail: "detail" in error && error.detail ? error.detail : "The guide could not be written.",
+                  detail:
+                    "detail" in error && error.detail
+                      ? error.detail
+                      : "The guide could not be written.",
                 }),
               ),
             ),

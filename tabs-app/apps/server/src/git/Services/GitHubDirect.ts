@@ -41,9 +41,7 @@ export function parseGitHubRemote(url: string): GitHubRemote | null {
 }
 
 function endpointFor(host: string): string {
-  return host === "github.com"
-    ? "https://api.github.com/graphql"
-    : `https://${host}/api/graphql`;
+  return host === "github.com" ? "https://api.github.com/graphql" : `https://${host}/api/graphql`;
 }
 
 async function tokenFor(host: string, cwd: string): Promise<string | null> {
@@ -216,7 +214,10 @@ export async function directGraphqlFromGhArgs(input: {
       if (equals <= 0) return null;
       const key = value.slice(0, equals);
       const raw = value.slice(equals + 1);
-      if (key.endsWith("[]") || (flag === "-F" && (raw.startsWith("@") || /\{(owner|repo|branch)\}/.test(raw)))) {
+      if (
+        key.endsWith("[]") ||
+        (flag === "-F" && (raw.startsWith("@") || /\{(owner|repo|branch)\}/.test(raw)))
+      ) {
         return null;
       }
       if (key === "query") query = raw;

@@ -127,9 +127,7 @@ function normalizeReactionGroups(
       {
         content,
         count,
-        actors: (group.reactors?.nodes ?? []).flatMap((node) =>
-          node?.login ? [node.login] : [],
-        ),
+        actors: (group.reactors?.nodes ?? []).flatMap((node) => (node?.login ? [node.login] : [])),
         viewerHasReacted: group.viewerHasReacted === true,
       },
     ];
@@ -612,7 +610,13 @@ function decodeGitHubJson<S extends Schema.Top>(
 const PULL_REQUEST_LIST_MAX_FAST_LIMIT = 100;
 function buildPullRequestListQuery(state: "open" | "closed" | "merged" | "all"): string {
   const states =
-    state === "open" ? "[OPEN]" : state === "closed" ? "[CLOSED]" : state === "merged" ? "[MERGED]" : "[OPEN, CLOSED, MERGED]";
+    state === "open"
+      ? "[OPEN]"
+      : state === "closed"
+        ? "[CLOSED]"
+        : state === "merged"
+          ? "[MERGED]"
+          : "[OPEN, CLOSED, MERGED]";
   return `query($owner: String!, $name: String!, $limit: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequests(first: $limit, states: ${states}, orderBy: {field: CREATED_AT, direction: DESC}) {
@@ -1207,9 +1211,7 @@ const makeGitHubCli = Effect.sync(() => {
    * read it replaces, so a failure of the direct path is only ever a slower page.
    */
   const direct = <A, E>(attempt: () => Promise<A>, fallback: Effect.Effect<A, E>) =>
-    Effect.tryPromise({ try: attempt, catch: (error) => error }).pipe(
-      Effect.catch(() => fallback),
-    );
+    Effect.tryPromise({ try: attempt, catch: (error) => error }).pipe(Effect.catch(() => fallback));
 
   const directFiles: GitHubCliShape["getPullRequestFiles"] = (input) =>
     direct(async () => {
@@ -1284,9 +1286,7 @@ const makeGitHubCli = Effect.sync(() => {
         const repository = input.repository
           ? (() => {
               const [owner, name] = input.repository!.split("/");
-              return owner && name
-                ? { host: input.host ?? "github.com", owner, name }
-                : null;
+              return owner && name ? { host: input.host ?? "github.com", owner, name } : null;
             })()
           : await resolveGitHubRepository(input.cwd);
         if (repository === null) throw new Error("no repository");

@@ -219,7 +219,9 @@ layer("GitEnvironmentLive account switching and avatars", (it) => {
           active = args[args.indexOf("--user") + 1]!;
           return ok("");
         }
-        return ok(args[0] === "auth" ? authText(active) : args[0] === "api" ? `${active}\n` : "v 1");
+        return ok(
+          args[0] === "auth" ? authText(active) : args[0] === "api" ? `${active}\n` : "v 1",
+        );
       });
       const environment = yield* GitEnvironment;
       const result = yield* environment.switchAccount({ host: "github.com", login: "beta" });

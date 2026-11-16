@@ -407,9 +407,7 @@ const makeGitEnvironment = Effect.sync(() => {
             : Effect.sync(() => {
                 clearPushAccessCache();
                 clearGitHubReadMemo();
-              }).pipe(
-                Effect.flatMap(() => detect({ cwd: process.cwd() })),
-              ),
+              }).pipe(Effect.flatMap(() => detect({ cwd: process.cwd() }))),
         ),
       ),
     publishRelease: (input) =>

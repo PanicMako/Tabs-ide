@@ -600,7 +600,11 @@ export const makeGitManager = Effect.gen(function* () {
    * on the timescale of an account switch, which clears this memo.
    */
   const resolveAccountForProvider = (provider: string, cwd: string) =>
-    memoizeGitHubRead(`account:${provider}:${cwd}`, 30_000, resolveAccountForProviderUncached(provider, cwd));
+    memoizeGitHubRead(
+      `account:${provider}:${cwd}`,
+      30_000,
+      resolveAccountForProviderUncached(provider, cwd),
+    );
 
   const resolveAccountForProviderUncached = (provider: string, cwd: string) =>
     Effect.gen(function* () {

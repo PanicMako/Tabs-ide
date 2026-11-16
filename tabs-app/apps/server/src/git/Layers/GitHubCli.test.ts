@@ -150,26 +150,30 @@ layer("GitHubCliLive", (it) => {
 
   it.effect("normalizes pull request file patches and binary omissions", () =>
     Effect.gen(function* () {
-      cliOnly([ok(JSON.stringify([
-          [
-            {
-              filename: "src/new.ts",
-              previous_filename: "src/old.ts",
-              status: "renamed",
-              additions: 4,
-              deletions: 2,
-              patch: "@@ -1 +1 @@\n-old\n+new",
-            },
-          ],
-          [
-            {
-              filename: "public/logo.png",
-              status: "modified",
-              additions: 0,
-              deletions: 0,
-            },
-          ],
-        ]))]);
+      cliOnly([
+        ok(
+          JSON.stringify([
+            [
+              {
+                filename: "src/new.ts",
+                previous_filename: "src/old.ts",
+                status: "renamed",
+                additions: 4,
+                deletions: 2,
+                patch: "@@ -1 +1 @@\n-old\n+new",
+              },
+            ],
+            [
+              {
+                filename: "public/logo.png",
+                status: "modified",
+                additions: 0,
+                deletions: 0,
+              },
+            ],
+          ]),
+        ),
+      ]);
 
       const gh = yield* GitHubCli;
       const files = yield* gh.getPullRequestFiles({ cwd: "/repo", reference: "42" });
@@ -206,59 +210,59 @@ layer("GitHubCliLive", (it) => {
       cliOnly([
         ok(
           JSON.stringify({
-          number: 42,
-          title: "Add PR thread creation",
-          url: "https://github.com/pingdotgg/codething-mvp/pull/42",
-          baseRefName: "main",
-          headRefName: "feature/pr-threads",
-          state: "OPEN",
-          mergedAt: null,
-          isCrossRepository: true,
-          headRepository: {
-            nameWithOwner: "octocat/codething-mvp",
-          },
-          headRepositoryOwner: {
-            login: "octocat",
-          },
-          isDraft: false,
-          author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
-          labels: [{ name: "enhancement", color: "84b6eb", description: null }],
-          reviewDecision: "APPROVED",
-          mergeable: "MERGEABLE",
-          statusCheckRollup: [{ name: "CI", status: "COMPLETED", conclusion: "SUCCESS" }],
-          additions: 120,
-          deletions: 18,
-          changedFiles: 7,
-          createdAt: "2026-09-01T10:00:00Z",
-          updatedAt: "2026-09-04T10:00:00Z",
-          body: "Implements the PR workspace.",
-          reviewRequests: [{ login: "reviewer" }],
-          comments: [
-            {
-              id: "comment-1",
-              author: { login: "reviewer" },
-              body: "Looks good.",
-              createdAt: "2026-09-04T09:00:00Z",
+            number: 42,
+            title: "Add PR thread creation",
+            url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+            baseRefName: "main",
+            headRefName: "feature/pr-threads",
+            state: "OPEN",
+            mergedAt: null,
+            isCrossRepository: true,
+            headRepository: {
+              nameWithOwner: "octocat/codething-mvp",
             },
-          ],
-          reviews: [
-            {
-              id: "review-1",
-              author: { login: "reviewer" },
-              body: "Approved.",
-              state: "APPROVED",
-              submittedAt: "2026-09-04T09:30:00Z",
+            headRepositoryOwner: {
+              login: "octocat",
             },
-          ],
-          commits: [
-            {
-              oid: "abcdef1234567890",
-              messageHeadline: "Build PR workspace",
-              authoredDate: "2026-09-03T10:00:00Z",
-              authors: [{ login: "octocat" }],
-            },
-          ],
-        }),
+            isDraft: false,
+            author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
+            labels: [{ name: "enhancement", color: "84b6eb", description: null }],
+            reviewDecision: "APPROVED",
+            mergeable: "MERGEABLE",
+            statusCheckRollup: [{ name: "CI", status: "COMPLETED", conclusion: "SUCCESS" }],
+            additions: 120,
+            deletions: 18,
+            changedFiles: 7,
+            createdAt: "2026-09-01T10:00:00Z",
+            updatedAt: "2026-09-04T10:00:00Z",
+            body: "Implements the PR workspace.",
+            reviewRequests: [{ login: "reviewer" }],
+            comments: [
+              {
+                id: "comment-1",
+                author: { login: "reviewer" },
+                body: "Looks good.",
+                createdAt: "2026-09-04T09:00:00Z",
+              },
+            ],
+            reviews: [
+              {
+                id: "review-1",
+                author: { login: "reviewer" },
+                body: "Approved.",
+                state: "APPROVED",
+                submittedAt: "2026-09-04T09:30:00Z",
+              },
+            ],
+            commits: [
+              {
+                oid: "abcdef1234567890",
+                messageHeadline: "Build PR workspace",
+                authoredDate: "2026-09-03T10:00:00Z",
+                authors: [{ login: "octocat" }],
+              },
+            ],
+          }),
         ),
       ]);
 
@@ -580,9 +584,7 @@ layer("GitHubCliLive list", (it) => {
 
       // A second read reuses the held token: no further `gh auth token`.
       yield* gh.listOpenPullRequests({ cwd: "/repo", state: "open", limit: 50 });
-      expect(
-        mockedRunProcess.mock.calls.filter(([, args]) => args[0] === "auth"),
-      ).toHaveLength(1);
+      expect(mockedRunProcess.mock.calls.filter(([, args]) => args[0] === "auth")).toHaveLength(1);
     }),
   );
 

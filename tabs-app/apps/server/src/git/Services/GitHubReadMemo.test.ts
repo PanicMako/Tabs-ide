@@ -18,7 +18,9 @@ describe("memoizeGitHubRead", () => {
   it("never holds a failure", async () => {
     clearGitHubReadMemo();
     let reads = 0;
-    const read = Effect.suspend(() => (++reads === 1 ? Effect.fail("boom") : Effect.succeed(reads)));
+    const read = Effect.suspend(() =>
+      ++reads === 1 ? Effect.fail("boom") : Effect.succeed(reads),
+    );
     const run = () => Effect.runPromise(memoizeGitHubRead("f", 60_000, read));
     await expect(run()).rejects.toBeDefined();
     expect(await run()).toBe(2);

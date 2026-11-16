@@ -84,13 +84,27 @@ describe("directGraphqlFromGhArgs", () => {
         directGraphqlFromGhArgs({
           cwd: "/r",
           token: "tok",
-          args: ["api", "graphql", "--hostname", "github.com", "-f", "query=query{x}", "-F", "n=7", "-f", "s=7"],
+          args: [
+            "api",
+            "graphql",
+            "--hostname",
+            "github.com",
+            "-f",
+            "query=query{x}",
+            "-F",
+            "n=7",
+            "-f",
+            "s=7",
+          ],
         }),
       '{"data":{"x":1}}',
     );
     expect(result).toBe('{"data":{"x":1}}');
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(JSON.parse(String(init.body))).toEqual({ query: "query{x}", variables: { n: 7, s: "7" } });
+    expect(JSON.parse(String(init.body))).toEqual({
+      query: "query{x}",
+      variables: { n: 7, s: "7" },
+    });
     expect((init.headers as Record<string, string>).authorization).toBe("bearer tok");
   });
 
@@ -122,7 +136,12 @@ describe("directGraphqlFromGhArgs", () => {
     expect(
       (
         await withFetch(
-          () => directGraphqlFromGhArgs({ cwd: "/r", token: "t", args: ["api", "graphql", "-f", "query=q"] }),
+          () =>
+            directGraphqlFromGhArgs({
+              cwd: "/r",
+              token: "t",
+              args: ["api", "graphql", "-f", "query=q"],
+            }),
           '{"errors":[{"message":"bad"}]}',
         )
       ).result,
