@@ -39,9 +39,9 @@ export const tools = [
   },
   {
     id: "cli",
-    name: "Terminal",
-    kicker: "Any command, its own tab",
-    line: "Give Claude Code, Codex or any command its own tab. Or flip a thread from chat to the agent's CLI with ⌘⇧J.",
+    name: "CLI",
+    kicker: "Agent CLIs, each in its own tab",
+    line: "Run Claude Code, Codex or any command line in its own tab, right beside your code. Or flip a thread from chat to the agent's CLI with ⌘⇧J.",
     mock: "cli",
   },
   {
