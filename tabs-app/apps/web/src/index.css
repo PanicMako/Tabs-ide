@@ -1283,6 +1283,12 @@ input {
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: var(--app-scrollbar-width);
+  /* Without a height, horizontal bars fall back to the thick native default. */
+  height: var(--app-scrollbar-width);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
@@ -1811,6 +1817,86 @@ label:has(> select#reasoning-effort) select {
   }
 }
 
+/* Overmind: a plain hairline frame, so the mode is clear without decoration. */
+.overmind-frame {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+/* Typing /overmind: a banner at the top of the prompt box only; the lead fans out to workers. */
+.overmind-banner {
+  animation: overmind-chip-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* A banner's live strip (overmind, ultrathink): rises out of nothing and sinks back at the far edge. */
+.banner-art {
+  --banner-art-fade: linear-gradient(
+    to right,
+    transparent 0%,
+    rgb(0 0 0 / 0.15) 6%,
+    rgb(0 0 0 / 0.55) 13%,
+    #000 22%,
+    #000 78%,
+    rgb(0 0 0 / 0.55) 87%,
+    rgb(0 0 0 / 0.15) 94%,
+    transparent 100%
+  );
+  -webkit-mask-image: var(--banner-art-fade);
+  mask-image: var(--banner-art-fade);
+}
+.overmind-link {
+  stroke-dasharray: 4 14;
+  animation: overmind-flow 2.4s linear infinite;
+}
+.overmind-node {
+  fill: transparent;
+  animation: overmind-node-on 2.4s ease-in-out infinite;
+}
+@keyframes overmind-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+@keyframes overmind-node-on {
+  0%,
+  100% {
+    fill: transparent;
+  }
+  35%,
+  60% {
+    fill: currentColor;
+  }
+}
+.overmind-chip-mark {
+  animation: overmind-mark-in 520ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+}
+@keyframes overmind-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes overmind-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overmind-banner,
+  .overmind-link,
+  .overmind-node,
+  .overmind-chip-mark {
+    animation: none;
+  }
+}
+
 .ultrathink-frame {
   --ultrathink-spectrum: linear-gradient(
     120deg,
@@ -1823,32 +1909,11 @@ label:has(> select#reasoning-effort) select {
     #ff6b6b 100%
   );
   position: relative;
-  background: transparent;
 }
 
-.ultrathink-frame::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 2px;
-  background-image: var(--ultrathink-spectrum);
-  background-size: 220% 220%;
-  pointer-events: none;
-  filter: saturate(0.82) brightness(0.92);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  animation: ultrathink-rainbow 10s linear infinite;
-}
-
-.ultrathink-frame > * {
-  position: relative;
+/* Ultrathink: the spectrum lives in the banner's strip, so the frame stays a plain hairline. */
+.ultrathink-frame {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 30%, transparent);
 }
 
 .ultrathink-chroma {
@@ -3060,9 +3125,7 @@ html[data-reduced-motion="reduce"] .new-thread-action::before {
 /* A boxed field gets the joined radius. A borderless editor that sits directly on the surface
  * (`data-plain`) has no box to round, and a radius on it only clips its own caret and first
  * glyph at the left edge. */
-html
-  :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"])
-  textarea:not([data-plain]) {
+html :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) textarea:not([data-plain]) {
   border-radius: var(--radius-joined) !important;
 }
 [data-slot="dialog-header"] {
@@ -3105,4 +3168,87 @@ html
 [class~="text-muted-foreground/40"],
 [class~="text-muted-foreground/45"] {
   color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
+}
+
+/* Slide-to-engage hint: a soft sheen sweeps the idle label. */
+.engage-hint {
+  background: linear-gradient(
+    100deg,
+    currentColor 40%,
+    color-mix(in srgb, currentColor 35%, transparent) 50%,
+    currentColor 60%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: engage-sheen 2.8s linear infinite;
+}
+@keyframes engage-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .engage-hint {
+    animation: none;
+  }
+}
+
+/* Model on/off options (Ultracode, Think): plain words lettered like the surface launcher. */
+.option-toggle {
+  padding-top: 1px;
+  padding-bottom: 3px;
+  background: color-mix(in srgb, var(--option-tint) 12%, transparent);
+  color: light-dark(
+    color-mix(in oklab, var(--option-tint) 45%, var(--foreground)),
+    var(--option-tint)
+  );
+  transition:
+    transform 450ms cubic-bezier(0.3, 1.8, 0.5, 1),
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.option-toggle-label {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.option-toggle:hover,
+.option-toggle:focus-visible {
+  background: color-mix(in srgb, var(--option-tint) 26%, transparent);
+  transform: scale(1.04);
+}
+.option-toggle[data-engaged="true"]:hover,
+.option-toggle[data-engaged="true"]:focus-visible {
+  background: color-mix(in srgb, var(--option-tint) 88%, white);
+}
+.option-toggle:hover .option-toggle-label,
+.option-toggle:focus-visible .option-toggle-label,
+.option-toggle[data-engaged="true"] .option-toggle-label {
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.option-toggle[data-engaged="true"] {
+  background: var(--option-tint);
+  color: #050505;
+}
+.option-toggle:active {
+  transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .option-toggle,
+  .option-toggle:hover,
+  .option-toggle:active {
+    transform: none;
+    transition: none;
+  }
 }

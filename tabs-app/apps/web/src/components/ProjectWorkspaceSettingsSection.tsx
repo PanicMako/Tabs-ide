@@ -56,7 +56,11 @@ import { WorkspaceProjectScripts } from "./chat/WorkspaceProjectScripts";
 import { useAtomValue } from "@effect/atom-react";
 import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { isTemporaryWorkspaceTool, keepWorkspaceTool } from "../temporaryWorkspaceTools";
-import { SettingsSection, SettingsSectionHeader } from "./settings/SettingsLayout";
+import {
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsSubheading,
+} from "./settings/SettingsLayout";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import type { BrowserProfileDefinition } from "@tabs/contracts/settings";
 import type { ProjectIconOverride } from "@tabs/contracts";
@@ -1170,19 +1174,6 @@ export function ProjectWorkspaceSettingsSection({
           description={`Configure tools, browser tabs, and terminals for ${activeProject.name || "this project"}.`}
         />
 
-        <SettingsSection
-          title="Actions"
-          description="Commands for this project: run them from the chat header, at worktree setup, or when a thread settles."
-        >
-          <WorkspaceProjectScripts
-            displayMode="list"
-            project={activeProject}
-            keybindings={keybindings}
-            // The list edits actions; running them happens from a thread.
-            onRunScript={() => {}}
-          />
-        </SettingsSection>
-
         {projectSettings?.tools.some(isTemporaryWorkspaceTool) && (
           <SettingsSection
             title="Temporary tools"
@@ -1240,1215 +1231,1261 @@ export function ProjectWorkspaceSettingsSection({
           </SettingsSection>
         )}
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Active Project</CardTitle>
-            <CardDescription>Current workspace folder and project identity.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <ProjectFavicon
-                    project={{
-                      workspaceRoot: activeProject.cwd,
-                      title: activeProject.name,
-                      faviconPath: activeProject.faviconPath,
-                      projectIcon: activeProject.projectIcon,
-                      environmentId: activeProject.environmentId,
-                    }}
-                    className="size-6"
-                  />
-                  <div className="text-lg font-semibold text-foreground tracking-tight truncate">
-                    {activeProject.name}
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Project"
+            description="The folder this workspace is attached to, and how it shows in window tabs."
+          />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Active Project</CardTitle>
+              <CardDescription>Current workspace folder and project identity.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ProjectFavicon
+                      project={{
+                        workspaceRoot: activeProject.cwd,
+                        title: activeProject.name,
+                        faviconPath: activeProject.faviconPath,
+                        projectIcon: activeProject.projectIcon,
+                        environmentId: activeProject.environmentId,
+                      }}
+                      className="size-6"
+                    />
+                    <div className="text-lg font-semibold text-foreground tracking-tight truncate">
+                      {activeProject.name}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {activeProject.projectIcon || activeProject.faviconPath ? (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={handleResetIcon}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        Reset icon
+                      </Button>
+                    ) : null}
+                    <Button size="xs" variant="outline" onClick={() => setIconPickerOpen(true)}>
+                      Change icon
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {activeProject.projectIcon || activeProject.faviconPath ? (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={handleResetIcon}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Reset icon
-                    </Button>
-                  ) : null}
-                  <Button size="xs" variant="outline" onClick={() => setIconPickerOpen(true)}>
-                    Change icon
-                  </Button>
+                <div className="text-xs text-muted-foreground font-mono bg-muted/40 px-2.5 py-1.5 rounded-md w-fit break-all border border-border/50">
+                  {activeProject.cwd}
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground font-mono bg-muted/40 px-2.5 py-1.5 rounded-md w-fit break-all border border-border/50">
-                {activeProject.cwd}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Project Icons in Window Tabs</CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
-              Configure whether project logos and icons appear next to project names in the top
-              titlebar tabs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-0">
-            {/* Toggle 1: Global default for all projects */}
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-foreground">
-                    All projects by default
-                  </span>
-                  <Badge
-                    variant={showProjectTabIcons ? "default" : "secondary"}
-                    className="text-[10px] h-4.5 px-1.5 font-normal"
-                  >
-                    {showProjectTabIcons ? "On" : "Off by default"}
-                  </Badge>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Default setting applied across all workspace projects unless customized below.
-                </p>
-              </div>
-              <Switch
-                checked={showProjectTabIcons}
-                onCheckedChange={setShowProjectTabIcons}
-                aria-label="Toggle project icons for all projects by default"
-              />
-            </div>
-
-            {/* Toggle 2: Current project override */}
-            {activeProject && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Project Icons in Window Tabs</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Configure whether project logos and icons appear next to project names in the top
+                titlebar tabs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              {/* Toggle 1: Global default for all projects */}
               <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-foreground">
-                      This project ({activeProject.name})
+                      All projects by default
                     </span>
-                    {hasProjectIconOverride ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] h-4.5 px-1.5 font-normal text-muted-foreground border-border/70"
-                      >
-                        Project override
-                      </Badge>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground/70 font-mono">
-                        (Inheriting global: {showProjectTabIcons ? "visible" : "hidden"})
-                      </span>
-                    )}
+                    <Badge
+                      variant={showProjectTabIcons ? "default" : "secondary"}
+                      className="text-[10px] h-4.5 px-1.5 font-normal"
+                    >
+                      {showProjectTabIcons ? "On" : "Off by default"}
+                    </Badge>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {hasProjectIconOverride
-                      ? `Custom setting for ${activeProject.name}. Click Reset to inherit global default.`
-                      : `Display or hide project icon specifically for ${activeProject.name}.`}
+                    Default setting applied across all workspace projects unless customized below.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {hasProjectIconOverride && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setProjectTabIconOverride(activeProject.id, null)}
-                    >
-                      Reset to default
-                    </Button>
-                  )}
-                  <Switch
-                    checked={isProjectIconVisibleInTabs}
-                    onCheckedChange={(checked) =>
-                      setProjectTabIconOverride(activeProject.id, checked)
-                    }
-                    aria-label={`Toggle project icon for ${activeProject.name}`}
-                  />
-                </div>
+                <Switch
+                  checked={showProjectTabIcons}
+                  onCheckedChange={setShowProjectTabIcons}
+                  aria-label="Toggle project icons for all projects by default"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-            <div>
-              <CardTitle>Toolbar Tools</CardTitle>
-              <CardDescription>
-                Toggle and reorder the tools shown in the project toolbar.
-              </CardDescription>
-            </div>
-            {visibleToolsCount <= 1 ? (
-              <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
-                <LockIcon className="size-3 text-muted-foreground/70" />
-                <span>Min. 1 tool required</span>
-              </div>
-            ) : null}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <DndContext
-                sensors={dndSensors}
-                collisionDetection={closestCenter}
-                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-                onDragEnd={handleReorderTools}
-              >
-                <SortableContext
-                  items={toolbarPreviewTools.map((toolItem) => toolItem.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {toolbarPreviewTools.map((tool) => {
-                    const isLastToolLocked = visibleToolsCount <= 1 && tool.visible;
-                    const extension =
-                      tool.kind === "extension"
-                        ? installedExtensions.find((entry) => entry.id === tool.extensionId)
-                        : undefined;
-                    const extensionUnavailable = Boolean(extension?.disabled || extension?.revoked);
-
-                    return (
-                      <SortableToolRow key={tool.id} id={tool.id}>
-                        {({ attributes, listeners }) => (
-                          <div className="rounded-xl border border-border/70 px-3 py-2">
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                aria-label={`Drag to reorder ${tool.label}`}
-                                className="-ms-1 shrink-0 cursor-grab touch-none rounded-md p-1 text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
-                                {...attributes}
-                                {...listeners}
-                              >
-                                <GripVerticalIcon className="size-4" />
-                              </button>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                                  {extension ? (
-                                    <InstalledExtensionToolIcon extension={extension} />
-                                  ) : null}
-                                  <span>{tool.label}</span>
-                                  {tool.kind === "testing" ? (
-                                    <Tooltip>
-                                      <TooltipTrigger
-                                        className="rounded border border-border/60 px-1.5 py-0.5 text-xs font-normal text-muted-foreground"
-                                        aria-label="Testing early access information"
-                                      >
-                                        Early access
-                                      </TooltipTrigger>
-                                      <TooltipPopup>
-                                        Testing is in development. You may encounter errors.
-                                        Disabled by default.
-                                      </TooltipPopup>
-                                    </Tooltip>
-                                  ) : null}
-                                  {isLastToolLocked ? (
-                                    <span className="inline-flex items-center gap-1 rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground font-normal">
-                                      <LockIcon className="size-2.5 text-muted-foreground/80" />
-                                      <span>Required</span>
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {extension
-                                    ? extension.revoked
-                                      ? "Revoked · unavailable"
-                                      : extension.disabled
-                                        ? "Disabled in Extensions settings"
-                                        : "Extension · available in this project when enabled"
-                                    : describeToolKind(tool.kind)}
-                                </div>
-                              </div>
-                              {isLastToolLocked ? (
-                                <Tooltip>
-                                  <TooltipTrigger className="inline-flex items-center cursor-not-allowed">
-                                    <Switch
-                                      checked={tool.visible}
-                                      disabled={true}
-                                      aria-label={`Toggle ${tool.label}`}
-                                    />
-                                  </TooltipTrigger>
-                                  <TooltipPopup side="left">
-                                    At least one tool must stay enabled in your project toolbar.
-                                  </TooltipPopup>
-                                </Tooltip>
-                              ) : (
-                                <Switch
-                                  checked={tool.visible}
-                                  disabled={extensionUnavailable || extensionToggleBusy}
-                                  onCheckedChange={(checked) => {
-                                    const nextVisible = Boolean(checked);
-                                    setPendingToggle({
-                                      toolId: tool.id,
-                                      toolLabel: tool.label,
-                                      toolKind: tool.kind,
-                                      nextVisible,
-                                    });
-                                  }}
-                                  aria-label={`Toggle ${tool.label}`}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </SortableToolRow>
-                    );
-                  })}
-                </SortableContext>
-              </DndContext>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Browser Default URL</CardTitle>
-            <CardDescription>
-              The Browser tool loads this URL by default for the active project. Note: If you run a
-              Dock Preset that has a Preview URL configured, it will automatically override this
-              default and navigate to the preset's preview.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={browserDefaultUrlDraft}
-                    onChange={(event) => setBrowserDefaultUrlDraft(event.target.value)}
-                    placeholder="http://localhost:3000"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (activeProjectId) {
-                        upsertProjectSettings(activeProjectId, (current) => ({
-                          ...current,
-                          browser: {
-                            ...current.browser,
-                            defaultUrl: browserDefaultUrlDraft,
-                            resumeLastVisitedPage: resumeLastVisitedPageDraft,
-                            partitionMode: browserPartitionModeDraft,
-                            ...(browserPartitionModeDraft === "profile" &&
-                            browserPartitionProfileDraft.trim().length > 0
-                              ? { partitionProfile: browserPartitionProfileDraft.trim() }
-                              : {}),
-                          },
-                        }));
+              {/* Toggle 2: Current project override */}
+              {activeProject && (
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground">
+                        This project ({activeProject.name})
+                      </span>
+                      {hasProjectIconOverride ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] h-4.5 px-1.5 font-normal text-muted-foreground border-border/70"
+                        >
+                          Project override
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/70 font-mono">
+                          (Inheriting global: {showProjectTabIcons ? "visible" : "hidden"})
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {hasProjectIconOverride
+                        ? `Custom setting for ${activeProject.name}. Click Reset to inherit global default.`
+                        : `Display or hide project icon specifically for ${activeProject.name}.`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {hasProjectIconOverride && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setProjectTabIconOverride(activeProject.id, null)}
+                      >
+                        Reset to default
+                      </Button>
+                    )}
+                    <Switch
+                      checked={isProjectIconVisibleInTabs}
+                      onCheckedChange={(checked) =>
+                        setProjectTabIconOverride(activeProject.id, checked)
                       }
-                    }}
-                    disabled={!isBrowserSettingsDirty}
-                  >
-                    Save
-                  </Button>
+                      aria-label={`Toggle project icon for ${activeProject.name}`}
+                    />
+                  </div>
                 </div>
-                {hasInternalBrowserOverride && (
-                  <Alert variant="default" className="bg-muted/50 py-3">
-                    <InfoIcon className="size-4 mt-0" />
-                    <AlertDescription className="text-muted-foreground ml-2">
-                      A Dock Preset is configured to open a preview in the Internal Browser. When
-                      you run that preset, its preview URL will override this default.
-                    </AlertDescription>
-                  </Alert>
-                )}
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Toolbar"
+            description="Choose which tools appear in the project toolbar, and in what order."
+          />
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle>Toolbar Tools</CardTitle>
+                <CardDescription>
+                  Toggle and reorder the tools shown in the project toolbar.
+                </CardDescription>
+              </div>
+              {visibleToolsCount <= 1 ? (
+                <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+                  <LockIcon className="size-3 text-muted-foreground/70" />
+                  <span>Min. 1 tool required</span>
+                </div>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                  onDragEnd={handleReorderTools}
+                >
+                  <SortableContext
+                    items={toolbarPreviewTools.map((toolItem) => toolItem.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {toolbarPreviewTools.map((tool) => {
+                      const isLastToolLocked = visibleToolsCount <= 1 && tool.visible;
+                      const extension =
+                        tool.kind === "extension"
+                          ? installedExtensions.find((entry) => entry.id === tool.extensionId)
+                          : undefined;
+                      const extensionUnavailable = Boolean(
+                        extension?.disabled || extension?.revoked,
+                      );
+
+                      return (
+                        <SortableToolRow key={tool.id} id={tool.id}>
+                          {({ attributes, listeners }) => (
+                            <div className="rounded-xl border border-border/70 px-3 py-2">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  aria-label={`Drag to reorder ${tool.label}`}
+                                  className="-ms-1 shrink-0 cursor-grab touch-none rounded-md p-1 text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                                  {...attributes}
+                                  {...listeners}
+                                >
+                                  <GripVerticalIcon className="size-4" />
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                    {extension ? (
+                                      <InstalledExtensionToolIcon extension={extension} />
+                                    ) : null}
+                                    <span>{tool.label}</span>
+                                    {tool.kind === "testing" ? (
+                                      <Tooltip>
+                                        <TooltipTrigger
+                                          className="rounded border border-border/60 px-1.5 py-0.5 text-xs font-normal text-muted-foreground"
+                                          aria-label="Testing early access information"
+                                        >
+                                          Early access
+                                        </TooltipTrigger>
+                                        <TooltipPopup>
+                                          Testing is in development. You may encounter errors.
+                                          Disabled by default.
+                                        </TooltipPopup>
+                                      </Tooltip>
+                                    ) : null}
+                                    {isLastToolLocked ? (
+                                      <span className="inline-flex items-center gap-1 rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground font-normal">
+                                        <LockIcon className="size-2.5 text-muted-foreground/80" />
+                                        <span>Required</span>
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {extension
+                                      ? extension.revoked
+                                        ? "Revoked · unavailable"
+                                        : extension.disabled
+                                          ? "Disabled in Extensions settings"
+                                          : "Extension · available in this project when enabled"
+                                      : describeToolKind(tool.kind)}
+                                  </div>
+                                </div>
+                                {isLastToolLocked ? (
+                                  <Tooltip>
+                                    <TooltipTrigger className="inline-flex items-center cursor-not-allowed">
+                                      <Switch
+                                        checked={tool.visible}
+                                        disabled={true}
+                                        aria-label={`Toggle ${tool.label}`}
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipPopup side="left">
+                                      At least one tool must stay enabled in your project toolbar.
+                                    </TooltipPopup>
+                                  </Tooltip>
+                                ) : (
+                                  <Switch
+                                    checked={tool.visible}
+                                    disabled={extensionUnavailable || extensionToggleBusy}
+                                    onCheckedChange={(checked) => {
+                                      const nextVisible = Boolean(checked);
+                                      setPendingToggle({
+                                        toolId: tool.id,
+                                        toolLabel: tool.label,
+                                        toolKind: tool.kind,
+                                        nextVisible,
+                                      });
+                                    }}
+                                    aria-label={`Toggle ${tool.label}`}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </SortableToolRow>
+                      );
+                    })}
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Browser"
+            description="Where the Browser tool opens by default."
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Browser Default URL</CardTitle>
+              <CardDescription>
+                The Browser tool loads this URL by default for the active project. Note: If you run
+                a Dock Preset that has a Preview URL configured, it will automatically override this
+                default and navigate to the preset's preview.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={browserDefaultUrlDraft}
+                      onChange={(event) => setBrowserDefaultUrlDraft(event.target.value)}
+                      placeholder="http://localhost:3000"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (activeProjectId) {
+                          upsertProjectSettings(activeProjectId, (current) => ({
+                            ...current,
+                            browser: {
+                              ...current.browser,
+                              defaultUrl: browserDefaultUrlDraft,
+                              resumeLastVisitedPage: resumeLastVisitedPageDraft,
+                              partitionMode: browserPartitionModeDraft,
+                              ...(browserPartitionModeDraft === "profile" &&
+                              browserPartitionProfileDraft.trim().length > 0
+                                ? { partitionProfile: browserPartitionProfileDraft.trim() }
+                                : {}),
+                            },
+                          }));
+                        }
+                      }}
+                      disabled={!isBrowserSettingsDirty}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  {hasInternalBrowserOverride && (
+                    <Alert variant="default" className="bg-muted/50 py-3">
+                      <InfoIcon className="size-4 mt-0" />
+                      <AlertDescription className="text-muted-foreground ml-2">
+                        A Dock Preset is configured to open a preview in the Internal Browser. When
+                        you run that preset, its preview URL will override this default.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                    <div className="text-sm font-medium">Resume last visited page on startup</div>
+                    <div className="text-xs text-muted-foreground">
+                      When the browser is reopened, load the page you were last on instead of the
+                      default URL above.
+                    </div>
+                  </div>
+                  <Switch
+                    checked={resumeLastVisitedPageDraft}
+                    onCheckedChange={(checked) => setResumeLastVisitedPageDraft(checked)}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <div className="text-sm font-medium">Session & Account Isolation</div>
+                      <div className="text-xs text-muted-foreground">
+                        Choose whether the browser shares cookies and logins across this project,
+                        runs in an isolated sandbox, or connects to a named profile.
+                      </div>
+                    </div>
+                    <OrbitGroup
+                      className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
+                      role="group"
+                      aria-label="Project browser session isolation"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setBrowserPartitionModeDraft("shared")}
+                        aria-pressed={browserPartitionModeDraft === "shared"}
+                        className={cn(
+                          "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
+                          browserPartitionModeDraft === "shared"
+                            ? "font-semibold"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        Shared (Project)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrowserPartitionModeDraft("isolated")}
+                        aria-pressed={browserPartitionModeDraft === "isolated"}
+                        className={cn(
+                          "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
+                          browserPartitionModeDraft === "isolated"
+                            ? "font-semibold"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        Isolated
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrowserPartitionModeDraft("profile")}
+                        aria-pressed={browserPartitionModeDraft === "profile"}
+                        className={cn(
+                          "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                          browserPartitionModeDraft === "profile"
+                            ? "font-semibold"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        Named Profile
+                      </button>
+                    </OrbitGroup>
+                  </div>
+                  {browserPartitionModeDraft === "profile" && (
+                    <BrowserProfileSelector
+                      value={browserPartitionProfileDraft}
+                      onChange={setBrowserPartitionProfileDraft}
+                    />
+                  )}
+                  {browserPartitionModeDraft !== "isolated" && <BrowserGoogleSignInGuidance />}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Startup"
+            description="How panels start when you open this workspace."
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Sidebar Defaults</CardTitle>
+              <CardDescription>
+                Set initial collapse state when opening a workspace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <div className="text-sm font-medium">Minimize Agents sidebar</div>
+                  <div className="text-xs text-muted-foreground/70">
+                    Start thread sidebar collapsed by default.
+                  </div>
+                </div>
+                <Switch checked={alwaysMinAgents} onCheckedChange={handleToggleAlwaysMinAgents} />
               </div>
 
               <Separator />
 
               <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <div className="text-sm font-medium">Resume last visited page on startup</div>
-                  <div className="text-xs text-muted-foreground">
-                    When the browser is reopened, load the page you were last on instead of the
-                    default URL above.
+                <div className="flex flex-col gap-0.5">
+                  <div className="text-sm font-medium">Minimize Git panel</div>
+                  <div className="text-xs text-muted-foreground/70">
+                    Start Git panel collapsed by default.
                   </div>
                 </div>
-                <Switch
-                  checked={resumeLastVisitedPageDraft}
-                  onCheckedChange={(checked) => setResumeLastVisitedPageDraft(checked)}
-                />
+                <Switch checked={alwaysMinGit} onCheckedChange={handleToggleAlwaysMinGit} />
               </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              <Separator />
+        <WorkspaceProjectScripts
+          displayMode="list"
+          project={activeProject}
+          keybindings={keybindings}
+          // The list edits actions; running them happens from a thread.
+          onRunScript={() => {}}
+        />
 
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex flex-col gap-0.5">
-                    <div className="text-sm font-medium">Session & Account Isolation</div>
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Custom tools"
+            description="Browser tabs, background terminals and Dock presets specific to this project."
+          />
+          <Card id="workspace-project-tools" tabIndex={-1}>
+            <CardHeader>
+              <CardTitle
+                data-tour-setup-step={
+                  guidedTool && guidedTool === savedTourTool ? `${guidedTool}-done` : undefined
+                }
+              >
+                Project Tools
+              </CardTitle>
+              <CardDescription>
+                Manage your project-specific browser tabs, background terminals, or Dock presets.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={projectToolsTab} onValueChange={setProjectToolsTab}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="browser">Browser Tabs</TabsTrigger>
+                  <TabsTrigger value="terminal">Terminal Tabs</TabsTrigger>
+                  <TabsTrigger value="preset">Dock Presets</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="browser" className="mt-0">
+                  <div className="space-y-3">
                     <div className="text-xs text-muted-foreground">
-                      Choose whether the browser shares cookies and logins across this project, runs
-                      in an isolated sandbox, or connects to a named profile.
+                      Add project-specific URLs like Figma, Linear, Notion, or internal tools. Save
+                      to add them into the toolbar, then fine-tune placement above in Toolbar Tools.
                     </div>
-                  </div>
-                  <OrbitGroup
-                    className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
-                    role="group"
-                    aria-label="Project browser session isolation"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setBrowserPartitionModeDraft("shared")}
-                      aria-pressed={browserPartitionModeDraft === "shared"}
-                      className={cn(
-                        "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
-                        browserPartitionModeDraft === "shared"
-                          ? "font-semibold"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      Shared (Project)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBrowserPartitionModeDraft("isolated")}
-                      aria-pressed={browserPartitionModeDraft === "isolated"}
-                      className={cn(
-                        "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
-                        browserPartitionModeDraft === "isolated"
-                          ? "font-semibold"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      Isolated
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBrowserPartitionModeDraft("profile")}
-                      aria-pressed={browserPartitionModeDraft === "profile"}
-                      className={cn(
-                        "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
-                        browserPartitionModeDraft === "profile"
-                          ? "font-semibold"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      Named Profile
-                    </button>
-                  </OrbitGroup>
-                </div>
-                {browserPartitionModeDraft === "profile" && (
-                  <BrowserProfileSelector
-                    value={browserPartitionProfileDraft}
-                    onChange={setBrowserPartitionProfileDraft}
-                  />
-                )}
-                {browserPartitionModeDraft !== "isolated" && <BrowserGoogleSignInGuidance />}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Sidebar Defaults</CardTitle>
-            <CardDescription>Set initial collapse state when opening a workspace.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <div className="text-sm font-medium">Minimize Agents sidebar</div>
-                <div className="text-xs text-muted-foreground/70">
-                  Start thread sidebar collapsed by default.
-                </div>
-              </div>
-              <Switch checked={alwaysMinAgents} onCheckedChange={handleToggleAlwaysMinAgents} />
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <div className="text-sm font-medium">Minimize Git panel</div>
-                <div className="text-xs text-muted-foreground/70">
-                  Start Git panel collapsed by default.
-                </div>
-              </div>
-              <Switch checked={alwaysMinGit} onCheckedChange={handleToggleAlwaysMinGit} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card id="workspace-project-tools" tabIndex={-1}>
-          <CardHeader>
-            <CardTitle
-              data-tour-setup-step={
-                guidedTool && guidedTool === savedTourTool ? `${guidedTool}-done` : undefined
-              }
-            >
-              Project Tools
-            </CardTitle>
-            <CardDescription>
-              Manage your project-specific browser tabs, background terminals, or Dock presets.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={projectToolsTab} onValueChange={setProjectToolsTab}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="browser">Browser Tabs</TabsTrigger>
-                <TabsTrigger value="terminal">Terminal Tabs</TabsTrigger>
-                <TabsTrigger value="preset">Dock Presets</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="browser" className="mt-0">
-                <div className="space-y-3">
-                  <div className="text-xs text-muted-foreground">
-                    Add project-specific URLs like Figma, Linear, Notion, or internal tools. Save to
-                    add them into the toolbar, then fine-tune placement above in Toolbar Tools.
-                  </div>
-                  <MasterDetail>
-                    <MasterDetailSidebar>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                        ref={addBrowserRef}
-                        data-tour-setup-step={
-                          guidedTool === "browser" &&
-                          savedTourTool !== "browser" &&
-                          !customEmbedDrafts.some((draft) => draft.isNew)
-                            ? "browser-add"
-                            : undefined
-                        }
-                        onClick={() => {
-                          const newId = createCustomEmbedId();
-                          setCustomEmbedDrafts((current) => [
-                            {
-                              id: newId,
-                              label: "",
-                              url: "",
-                              visible: true,
-                              resumeLastVisitedPage: true,
-                              partitionMode: "shared",
-                              partitionProfile: "",
-                              isNew: true,
-                              originalLabel: "",
-                              originalUrl: "",
-                              originalVisible: true,
-                              originalResumeLastVisitedPage: true,
-                              originalPartitionMode: "shared",
-                              originalPartitionProfile: "",
-                            },
-                            ...current,
-                          ]);
-                          setActiveCustomEmbedId(newId);
-                        }}
-                      >
-                        <PlusIcon className="mr-2 size-3.5" />
-                        Add Tab
-                      </Button>
-                      <MasterDetailList>
-                        {customEmbedDrafts.length === 0 ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            No tabs
-                          </div>
-                        ) : (
-                          customEmbedDrafts.map((draft) => (
-                            <MasterDetailItem
-                              key={draft.id}
-                              label={draft.label.trim() || "Untitled"}
-                              isActive={activeCustomEmbedId === draft.id}
-                              isUnsaved={isCustomEmbedDraftDirty(draft)}
-                              onSelect={() => setActiveCustomEmbedId(draft.id)}
-                            />
-                          ))
-                        )}
-                      </MasterDetailList>
-                    </MasterDetailSidebar>
-                    <MasterDetailContent>
-                      {(() => {
-                        const activeDraft =
-                          customEmbedDrafts.find((d) => d.id === activeCustomEmbedId) ||
-                          customEmbedDrafts[0];
-                        if (!activeDraft)
-                          return (
-                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                              Select a tab or create a new one.
+                    <MasterDetail>
+                      <MasterDetailSidebar>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start"
+                          ref={addBrowserRef}
+                          data-tour-setup-step={
+                            guidedTool === "browser" &&
+                            savedTourTool !== "browser" &&
+                            !customEmbedDrafts.some((draft) => draft.isNew)
+                              ? "browser-add"
+                              : undefined
+                          }
+                          onClick={() => {
+                            const newId = createCustomEmbedId();
+                            setCustomEmbedDrafts((current) => [
+                              {
+                                id: newId,
+                                label: "",
+                                url: "",
+                                visible: true,
+                                resumeLastVisitedPage: true,
+                                partitionMode: "shared",
+                                partitionProfile: "",
+                                isNew: true,
+                                originalLabel: "",
+                                originalUrl: "",
+                                originalVisible: true,
+                                originalResumeLastVisitedPage: true,
+                                originalPartitionMode: "shared",
+                                originalPartitionProfile: "",
+                              },
+                              ...current,
+                            ]);
+                            setActiveCustomEmbedId(newId);
+                          }}
+                        >
+                          <PlusIcon className="mr-2 size-3.5" />
+                          Add Tab
+                        </Button>
+                        <MasterDetailList>
+                          {customEmbedDrafts.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-muted-foreground">
+                              No tabs
                             </div>
-                          );
-                        const isDirty = isCustomEmbedDraftDirty(activeDraft);
-                        return (
-                          <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-medium">
-                                  {activeDraft.label || "Untitled"}
-                                </h3>
-                                {isDirty && (
-                                  <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                    Unsaved
-                                  </span>
-                                )}
+                          ) : (
+                            customEmbedDrafts.map((draft) => (
+                              <MasterDetailItem
+                                key={draft.id}
+                                label={draft.label.trim() || "Untitled"}
+                                isActive={activeCustomEmbedId === draft.id}
+                                isUnsaved={isCustomEmbedDraftDirty(draft)}
+                                onSelect={() => setActiveCustomEmbedId(draft.id)}
+                              />
+                            ))
+                          )}
+                        </MasterDetailList>
+                      </MasterDetailSidebar>
+                      <MasterDetailContent>
+                        {(() => {
+                          const activeDraft =
+                            customEmbedDrafts.find((d) => d.id === activeCustomEmbedId) ||
+                            customEmbedDrafts[0];
+                          if (!activeDraft)
+                            return (
+                              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                Select a tab or create a new one.
                               </div>
+                            );
+                          const isDirty = isCustomEmbedDraftDirty(activeDraft);
+                          return (
+                            <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
                               <div className="space-y-4">
-                                <div>
-                                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                    Label
-                                  </div>
-                                  <Input
-                                    value={activeDraft.label}
-                                    onChange={(event) =>
-                                      setCustomEmbedDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, label: event.target.value }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                    data-tour-setup-step={
-                                      guidedTool === "browser" &&
-                                      activeDraft.isNew &&
-                                      !activeDraft.label.trim()
-                                        ? "browser-name"
-                                        : undefined
-                                    }
-                                    aria-label="Browser tab name"
-                                    placeholder="Figma"
-                                  />
-                                </div>
-                                <div>
-                                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                    Custom URL
-                                  </div>
-                                  <Input
-                                    value={activeDraft.url}
-                                    onChange={(event) =>
-                                      setCustomEmbedDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, url: event.target.value }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                    aria-label="Browser tab URL"
-                                    data-tour-setup-step={
-                                      guidedTool === "browser" &&
-                                      activeDraft.isNew &&
-                                      activeDraft.label.trim() &&
-                                      !activeDraft.url.trim()
-                                        ? "browser-url"
-                                        : undefined
-                                    }
-                                    placeholder="https://www.figma.com/file/..."
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-xs text-muted-foreground">
-                                    Show this browser tab in the toolbar once you save it.
-                                  </div>
-                                  <Switch
-                                    checked={activeDraft.visible}
-                                    onCheckedChange={(checked) =>
-                                      setCustomEmbedDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, visible: Boolean(checked) }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3 pt-4 border-t border-border/40">
-                                  <div className="text-xs text-muted-foreground">
-                                    <div className="mb-0.5 font-medium text-foreground">
-                                      Resume last visited page
-                                    </div>
-                                    When this tab is reopened, load the page you were last on
-                                    instead of the custom URL above.
-                                  </div>
-                                  <Switch
-                                    checked={activeDraft.resumeLastVisitedPage}
-                                    onCheckedChange={(checked) =>
-                                      setCustomEmbedDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, resumeLastVisitedPage: Boolean(checked) }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="flex flex-col gap-3 pt-4 border-t border-border/40">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <div className="flex flex-col gap-0.5">
-                                      <div className="text-xs font-medium text-foreground">
-                                        Session & Account Isolation
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        Choose whether this tab shares cookies and logins with this
-                                        project, stays isolated, or links to a named profile.
-                                      </div>
-                                    </div>
-                                    <OrbitGroup
-                                      className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
-                                      role="group"
-                                      aria-label="Tab browser session isolation"
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          saveCustomEmbedPartition(activeDraft.id, "shared")
-                                        }
-                                        aria-pressed={
-                                          (activeDraft.partitionMode ?? "shared") === "shared"
-                                        }
-                                        className={cn(
-                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
-                                          (activeDraft.partitionMode ?? "shared") === "shared"
-                                            ? "font-semibold"
-                                            : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                      >
-                                        Shared (Project)
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          saveCustomEmbedPartition(activeDraft.id, "isolated")
-                                        }
-                                        aria-pressed={activeDraft.partitionMode === "isolated"}
-                                        className={cn(
-                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
-                                          activeDraft.partitionMode === "isolated"
-                                            ? "font-semibold"
-                                            : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                      >
-                                        Isolated
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          saveCustomEmbedPartition(activeDraft.id, "profile")
-                                        }
-                                        aria-pressed={activeDraft.partitionMode === "profile"}
-                                        className={cn(
-                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
-                                          activeDraft.partitionMode === "profile"
-                                            ? "font-semibold"
-                                            : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                      >
-                                        Named Profile
-                                      </button>
-                                    </OrbitGroup>
-                                  </div>
-                                  {activeDraft.partitionMode === "profile" && (
-                                    <BrowserProfileSelector
-                                      value={activeDraft.partitionProfile}
-                                      onChange={(val) =>
-                                        saveCustomEmbedPartition(activeDraft.id, "profile", val)
-                                      }
-                                    />
-                                  )}
-                                  {activeDraft.partitionMode !== "isolated" && (
-                                    <BrowserGoogleSignInGuidance />
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-lg font-medium">
+                                    {activeDraft.label || "Untitled"}
+                                  </h3>
+                                  {isDirty && (
+                                    <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                      Unsaved
+                                    </span>
                                   )}
                                 </div>
-                              </div>
-                            </div>
-                            <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
-                              <Button
-                                type="button"
-                                variant="destructive-outline"
-                                onClick={() => {
-                                  setTabToDeleteId(activeDraft.id);
-                                }}
-                              >
-                                <Trash2Icon className="mr-2 size-3.5" />
-                                Delete Tab
-                              </Button>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  onClick={() => resetSingleCustomEmbed(activeDraft.id)}
-                                  disabled={!isDirty}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => saveSingleCustomEmbed(activeDraft.id)}
-                                  data-tour-setup-step={
-                                    guidedTool === "browser" &&
-                                    activeDraft.isNew &&
-                                    activeDraft.label.trim() &&
-                                    activeDraft.url.trim()
-                                      ? "browser-save"
-                                      : undefined
-                                  }
-                                  disabled={!isDirty}
-                                >
-                                  Save Changes
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </MasterDetailContent>
-                  </MasterDetail>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="terminal" className="mt-0">
-                <div className="space-y-3">
-                  <div className="text-xs text-muted-foreground">
-                    Add project-specific terminal tools that auto-run predefined commands when the
-                    tab opens. Save to add them into the toolbar, then reorder them above if needed.
-                  </div>
-                  <MasterDetail>
-                    <MasterDetailSidebar>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                        ref={addTerminalRef}
-                        data-tour-setup-step={
-                          guidedTool === "terminal" &&
-                          savedTourTool !== "terminal" &&
-                          !serverProcessDrafts.some((draft) => draft.isNew)
-                            ? "terminal-add"
-                            : undefined
-                        }
-                        onClick={() => {
-                          const newId = createServerProcessId();
-                          setServerProcessDrafts((current) => [
-                            {
-                              id: newId,
-                              label: "",
-                              commands: [""],
-                              cwd: activeProject.cwd,
-                              autoStart: false,
-                              visible: true,
-                              isNew: true,
-                              originalLabel: "",
-                              originalCommands: [""],
-                              originalCwd: activeProject.cwd,
-                              originalAutoStart: false,
-                              originalVisible: true,
-                            },
-                            ...current,
-                          ]);
-                          setActiveServerProcessId(newId);
-                        }}
-                      >
-                        <PlusIcon className="mr-2 size-3.5" />
-                        Add Terminal
-                      </Button>
-                      <MasterDetailList>
-                        {serverProcessDrafts.length === 0 ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            No terminals
-                          </div>
-                        ) : (
-                          serverProcessDrafts.map((draft) => (
-                            <MasterDetailItem
-                              key={draft.id}
-                              label={draft.label.trim() || "Untitled"}
-                              isActive={activeServerProcessId === draft.id}
-                              isUnsaved={isServerProcessDraftDirty(draft)}
-                              onSelect={() => setActiveServerProcessId(draft.id)}
-                            />
-                          ))
-                        )}
-                      </MasterDetailList>
-                    </MasterDetailSidebar>
-                    <MasterDetailContent>
-                      {(() => {
-                        const activeDraft =
-                          serverProcessDrafts.find((d) => d.id === activeServerProcessId) ||
-                          serverProcessDrafts[0];
-                        if (!activeDraft)
-                          return (
-                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                              Select a terminal or create a new one.
-                            </div>
-                          );
-                        const isDirty = isServerProcessDraftDirty(activeDraft);
-                        return (
-                          <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-medium">
-                                  {activeDraft.label || "Untitled"}
-                                </h3>
-                                {isDirty && (
-                                  <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                    Unsaved
-                                  </span>
-                                )}
-                              </div>
-                              <div className="space-y-4">
-                                <div>
-                                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                    Label
-                                  </div>
-                                  <Input
-                                    value={activeDraft.label}
-                                    onChange={(event) =>
-                                      setServerProcessDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, label: event.target.value }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                    data-tour-setup-step={
-                                      guidedTool === "terminal" &&
-                                      activeDraft.isNew &&
-                                      !activeDraft.label.trim()
-                                        ? "terminal-name"
-                                        : undefined
-                                    }
-                                    aria-label="Terminal tab name"
-                                    placeholder="OpenCore"
-                                  />
-                                </div>
-                                <div>
-                                  <div className="flex items-center justify-between gap-3 mb-1">
-                                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                      Commands
+                                <div className="space-y-4">
+                                  <div>
+                                    <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                      Label
                                     </div>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setServerProcessDrafts((current) =>
+                                    <Input
+                                      value={activeDraft.label}
+                                      onChange={(event) =>
+                                        setCustomEmbedDrafts((current) =>
                                           current.map((entry) =>
                                             entry.id === activeDraft.id
-                                              ? { ...entry, commands: [...entry.commands, ""] }
+                                              ? { ...entry, label: event.target.value }
                                               : entry,
                                           ),
                                         )
                                       }
-                                    >
-                                      <PlusIcon className="size-3.5 mr-2" />
-                                      Add Step
-                                    </Button>
+                                      data-tour-setup-step={
+                                        guidedTool === "browser" &&
+                                        activeDraft.isNew &&
+                                        !activeDraft.label.trim()
+                                          ? "browser-name"
+                                          : undefined
+                                      }
+                                      aria-label="Browser tab name"
+                                      placeholder="Figma"
+                                    />
                                   </div>
-                                  <div className="space-y-2">
-                                    {activeDraft.commands.map((command, commandIndex) => (
-                                      <div
-                                        key={`${activeDraft.id}-step-${commandIndex}`}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <Input
-                                          value={command}
-                                          onChange={(event) =>
-                                            setServerProcessDrafts((current) =>
-                                              current.map((entry) =>
-                                                entry.id === activeDraft.id
-                                                  ? {
-                                                      ...entry,
-                                                      commands: entry.commands.map(
-                                                        (step, stepIndex) =>
-                                                          stepIndex === commandIndex
-                                                            ? event.target.value
-                                                            : step,
-                                                      ),
-                                                    }
-                                                  : entry,
-                                              ),
-                                            )
-                                          }
-                                          aria-label={`Terminal command ${commandIndex + 1}`}
-                                          data-tour-setup-step={
-                                            guidedTool === "terminal" &&
-                                            activeDraft.isNew &&
-                                            activeDraft.label.trim() &&
-                                            commandIndex === 0 &&
-                                            !activeDraft.commands.some((step) => step.trim())
-                                              ? "terminal-command"
-                                              : undefined
-                                          }
-                                          placeholder={
-                                            commandIndex === 0 ? "npm install" : "npm run dev"
-                                          }
-                                        />
-                                        <Button
-                                          type="button"
-                                          size="icon"
-                                          variant="outline"
-                                          disabled={activeDraft.commands.length === 1}
-                                          onClick={() =>
-                                            setServerProcessDrafts((current) =>
-                                              current.map((entry) =>
-                                                entry.id === activeDraft.id
-                                                  ? {
-                                                      ...entry,
-                                                      commands: entry.commands.filter(
-                                                        (_, stepIndex) =>
-                                                          stepIndex !== commandIndex,
-                                                      ),
-                                                    }
-                                                  : entry,
-                                              ),
-                                            )
-                                          }
-                                        >
-                                          <Trash2Icon className="size-3.5" />
-                                        </Button>
+                                  <div>
+                                    <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                      Custom URL
+                                    </div>
+                                    <Input
+                                      value={activeDraft.url}
+                                      onChange={(event) =>
+                                        setCustomEmbedDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, url: event.target.value }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                      aria-label="Browser tab URL"
+                                      data-tour-setup-step={
+                                        guidedTool === "browser" &&
+                                        activeDraft.isNew &&
+                                        activeDraft.label.trim() &&
+                                        !activeDraft.url.trim()
+                                          ? "browser-url"
+                                          : undefined
+                                      }
+                                      placeholder="https://www.figma.com/file/..."
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-xs text-muted-foreground">
+                                      Show this browser tab in the toolbar once you save it.
+                                    </div>
+                                    <Switch
+                                      checked={activeDraft.visible}
+                                      onCheckedChange={(checked) =>
+                                        setCustomEmbedDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, visible: Boolean(checked) }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3 pt-4 border-t border-border/40">
+                                    <div className="text-xs text-muted-foreground">
+                                      <div className="mb-0.5 font-medium text-foreground">
+                                        Resume last visited page
                                       </div>
-                                    ))}
+                                      When this tab is reopened, load the page you were last on
+                                      instead of the custom URL above.
+                                    </div>
+                                    <Switch
+                                      checked={activeDraft.resumeLastVisitedPage}
+                                      onCheckedChange={(checked) =>
+                                        setCustomEmbedDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? {
+                                                  ...entry,
+                                                  resumeLastVisitedPage: Boolean(checked),
+                                                }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                    />
                                   </div>
-                                </div>
-                                <div>
-                                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                    Working Directory
+                                  <div className="flex flex-col gap-3 pt-4 border-t border-border/40">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div className="flex flex-col gap-0.5">
+                                        <div className="text-xs font-medium text-foreground">
+                                          Session & Account Isolation
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          Choose whether this tab shares cookies and logins with
+                                          this project, stays isolated, or links to a named profile.
+                                        </div>
+                                      </div>
+                                      <OrbitGroup
+                                        className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
+                                        role="group"
+                                        aria-label="Tab browser session isolation"
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            saveCustomEmbedPartition(activeDraft.id, "shared")
+                                          }
+                                          aria-pressed={
+                                            (activeDraft.partitionMode ?? "shared") === "shared"
+                                          }
+                                          className={cn(
+                                            "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
+                                            (activeDraft.partitionMode ?? "shared") === "shared"
+                                              ? "font-semibold"
+                                              : "text-muted-foreground hover:text-foreground",
+                                          )}
+                                        >
+                                          Shared (Project)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            saveCustomEmbedPartition(activeDraft.id, "isolated")
+                                          }
+                                          aria-pressed={activeDraft.partitionMode === "isolated"}
+                                          className={cn(
+                                            "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
+                                            activeDraft.partitionMode === "isolated"
+                                              ? "font-semibold"
+                                              : "text-muted-foreground hover:text-foreground",
+                                          )}
+                                        >
+                                          Isolated
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            saveCustomEmbedPartition(activeDraft.id, "profile")
+                                          }
+                                          aria-pressed={activeDraft.partitionMode === "profile"}
+                                          className={cn(
+                                            "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
+                                            activeDraft.partitionMode === "profile"
+                                              ? "font-semibold"
+                                              : "text-muted-foreground hover:text-foreground",
+                                          )}
+                                        >
+                                          Named Profile
+                                        </button>
+                                      </OrbitGroup>
+                                    </div>
+                                    {activeDraft.partitionMode === "profile" && (
+                                      <BrowserProfileSelector
+                                        value={activeDraft.partitionProfile}
+                                        onChange={(val) =>
+                                          saveCustomEmbedPartition(activeDraft.id, "profile", val)
+                                        }
+                                      />
+                                    )}
+                                    {activeDraft.partitionMode !== "isolated" && (
+                                      <BrowserGoogleSignInGuidance />
+                                    )}
                                   </div>
-                                  <Input
-                                    value={activeDraft.cwd}
-                                    onChange={(event) =>
-                                      setServerProcessDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, cwd: event.target.value }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                    placeholder={activeProject.cwd}
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-xs text-muted-foreground">
-                                    Show this terminal in the toolbar once you save it.
-                                  </div>
-                                  <Switch
-                                    checked={activeDraft.visible}
-                                    onCheckedChange={(checked) =>
-                                      setServerProcessDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, visible: Boolean(checked) }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-xs text-muted-foreground">
-                                    Auto-start this terminal when its tab or the Server tool is
-                                    first opened.
-                                  </div>
-                                  <Switch
-                                    checked={activeDraft.autoStart}
-                                    onCheckedChange={(checked) =>
-                                      setServerProcessDrafts((current) =>
-                                        current.map((entry) =>
-                                          entry.id === activeDraft.id
-                                            ? { ...entry, autoStart: Boolean(checked) }
-                                            : entry,
-                                        ),
-                                      )
-                                    }
-                                  />
                                 </div>
                               </div>
-                            </div>
-                            <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
-                              <Button
-                                type="button"
-                                variant="destructive-outline"
-                                onClick={() => {
-                                  setTerminalToDeleteId(activeDraft.id);
-                                }}
-                              >
-                                <Trash2Icon className="mr-2 size-3.5" />
-                                Delete Terminal
-                              </Button>
-                              <div className="flex items-center gap-2">
+                              <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
                                 <Button
                                   type="button"
-                                  variant="ghost"
-                                  onClick={() => resetSingleServerProcess(activeDraft.id)}
-                                  disabled={!isDirty}
+                                  variant="destructive-outline"
+                                  onClick={() => {
+                                    setTabToDeleteId(activeDraft.id);
+                                  }}
                                 >
-                                  Cancel
+                                  <Trash2Icon className="mr-2 size-3.5" />
+                                  Delete Tab
                                 </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => saveSingleServerProcess(activeDraft.id)}
-                                  data-tour-setup-step={
-                                    guidedTool === "terminal" &&
-                                    activeDraft.isNew &&
-                                    activeDraft.label.trim() &&
-                                    activeDraft.commands.some((command) => command.trim())
-                                      ? "terminal-save"
-                                      : undefined
-                                  }
-                                  disabled={!isDirty}
-                                >
-                                  Save Changes
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => resetSingleCustomEmbed(activeDraft.id)}
+                                    disabled={!isDirty}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={() => saveSingleCustomEmbed(activeDraft.id)}
+                                    data-tour-setup-step={
+                                      guidedTool === "browser" &&
+                                      activeDraft.isNew &&
+                                      activeDraft.label.trim() &&
+                                      activeDraft.url.trim()
+                                        ? "browser-save"
+                                        : undefined
+                                    }
+                                    disabled={!isDirty}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </MasterDetailContent>
-                  </MasterDetail>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="preset" className="mt-0">
-                <div className="space-y-3">
-                  <div className="text-xs text-muted-foreground">
-                    Create and manage one-click presets like `Frontend` or `Backend`, each with
-                    ordered command steps.
-                  </div>
-                  <MasterDetail>
-                    <MasterDetailSidebar>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                        ref={addPresetRef}
-                        data-tour-setup-step={
-                          guidedTool === "preset" &&
-                          savedTourTool !== "preset" &&
-                          !serverPresetDrafts.some((draft) => draft.isNew)
-                            ? "preset-add"
-                            : undefined
-                        }
-                        onClick={() => {
-                          const newId = createServerProcessId();
-                          setServerPresetDrafts((current) => [
-                            {
-                              id: newId,
-                              label: "",
-                              commands: [""],
-                              cwd: activeProject.cwd,
-                              autoStart: false,
-                              visible: true,
-                              isNew: true,
-                              originalLabel: "",
-                              originalCommands: [""],
-                              originalCwd: activeProject.cwd,
-                              originalAutoStart: false,
-                              originalVisible: true,
-                            },
-                            ...current,
-                          ]);
-                          setActiveServerPresetId(newId);
-                        }}
-                      >
-                        <PlusIcon className="mr-2 size-3.5" />
-                        Add Preset
-                      </Button>
-                      <MasterDetailList>
-                        {serverPresetDrafts.length === 0 ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            No presets
-                          </div>
-                        ) : (
-                          serverPresetDrafts.map((draft) => (
-                            <MasterDetailItem
-                              key={draft.id}
-                              label={draft.label.trim() || "Untitled"}
-                              icon={resolvePresetIconElement(draft, "size-4")}
-                              isActive={activeServerPresetId === draft.id}
-                              isUnsaved={isServerProcessDraftDirty(draft)}
-                              onSelect={() => setActiveServerPresetId(draft.id)}
-                            />
-                          ))
-                        )}
-                      </MasterDetailList>
-                    </MasterDetailSidebar>
-                    <MasterDetailContent>
-                      {(() => {
-                        const activeDraft =
-                          serverPresetDrafts.find((d) => d.id === activeServerPresetId) ||
-                          serverPresetDrafts[0];
-                        if (!activeDraft)
-                          return (
-                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                              Select a preset or create a new one.
                             </div>
                           );
-                        const isDirty = isServerProcessDraftDirty(activeDraft);
-                        return (
-                          <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-medium">
-                                  {activeDraft.label || "Untitled"}
-                                </h3>
-                                {isDirty && (
-                                  <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                    Unsaved
-                                  </span>
-                                )}
-                              </div>
-                              <ServerPresetFormFields
-                                preset={activeDraft}
-                                presetDrafts={serverPresetDrafts}
-                                projectCwd={activeProject.cwd}
-                                variant="plain"
-                                guideNewPreset={guidedTool === "preset" && activeDraft.isNew}
-                                updatePresetRow={updatePresetRow}
-                                addCommandStep={addCommandStep}
-                                updateCommandStep={updateCommandStep}
-                                moveCommandStep={moveCommandStep}
-                                removeCommandStep={removeCommandStep}
+                        })()}
+                      </MasterDetailContent>
+                    </MasterDetail>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="terminal" className="mt-0">
+                  <div className="space-y-3">
+                    <div className="text-xs text-muted-foreground">
+                      Add project-specific terminal tools that auto-run predefined commands when the
+                      tab opens. Save to add them into the toolbar, then reorder them above if
+                      needed.
+                    </div>
+                    <MasterDetail>
+                      <MasterDetailSidebar>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start"
+                          ref={addTerminalRef}
+                          data-tour-setup-step={
+                            guidedTool === "terminal" &&
+                            savedTourTool !== "terminal" &&
+                            !serverProcessDrafts.some((draft) => draft.isNew)
+                              ? "terminal-add"
+                              : undefined
+                          }
+                          onClick={() => {
+                            const newId = createServerProcessId();
+                            setServerProcessDrafts((current) => [
+                              {
+                                id: newId,
+                                label: "",
+                                commands: [""],
+                                cwd: activeProject.cwd,
+                                autoStart: false,
+                                visible: true,
+                                isNew: true,
+                                originalLabel: "",
+                                originalCommands: [""],
+                                originalCwd: activeProject.cwd,
+                                originalAutoStart: false,
+                                originalVisible: true,
+                              },
+                              ...current,
+                            ]);
+                            setActiveServerProcessId(newId);
+                          }}
+                        >
+                          <PlusIcon className="mr-2 size-3.5" />
+                          Add Terminal
+                        </Button>
+                        <MasterDetailList>
+                          {serverProcessDrafts.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-muted-foreground">
+                              No terminals
+                            </div>
+                          ) : (
+                            serverProcessDrafts.map((draft) => (
+                              <MasterDetailItem
+                                key={draft.id}
+                                label={draft.label.trim() || "Untitled"}
+                                isActive={activeServerProcessId === draft.id}
+                                isUnsaved={isServerProcessDraftDirty(draft)}
+                                onSelect={() => setActiveServerProcessId(draft.id)}
                               />
-                            </div>
-                            <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
-                              <Button
-                                type="button"
-                                variant="destructive-outline"
-                                onClick={() => {
-                                  setPresetToDeleteId(activeDraft.id);
-                                }}
-                              >
-                                <Trash2Icon className="mr-2 size-3.5" />
-                                Delete Preset
-                              </Button>
-                              <div className="flex items-center gap-2">
+                            ))
+                          )}
+                        </MasterDetailList>
+                      </MasterDetailSidebar>
+                      <MasterDetailContent>
+                        {(() => {
+                          const activeDraft =
+                            serverProcessDrafts.find((d) => d.id === activeServerProcessId) ||
+                            serverProcessDrafts[0];
+                          if (!activeDraft)
+                            return (
+                              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                Select a terminal or create a new one.
+                              </div>
+                            );
+                          const isDirty = isServerProcessDraftDirty(activeDraft);
+                          return (
+                            <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-lg font-medium">
+                                    {activeDraft.label || "Untitled"}
+                                  </h3>
+                                  {isDirty && (
+                                    <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                      Unsaved
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="space-y-4">
+                                  <div>
+                                    <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                      Label
+                                    </div>
+                                    <Input
+                                      value={activeDraft.label}
+                                      onChange={(event) =>
+                                        setServerProcessDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, label: event.target.value }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                      data-tour-setup-step={
+                                        guidedTool === "terminal" &&
+                                        activeDraft.isNew &&
+                                        !activeDraft.label.trim()
+                                          ? "terminal-name"
+                                          : undefined
+                                      }
+                                      aria-label="Terminal tab name"
+                                      placeholder="OpenCore"
+                                    />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center justify-between gap-3 mb-1">
+                                      <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                        Commands
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          setServerProcessDrafts((current) =>
+                                            current.map((entry) =>
+                                              entry.id === activeDraft.id
+                                                ? { ...entry, commands: [...entry.commands, ""] }
+                                                : entry,
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        <PlusIcon className="size-3.5 mr-2" />
+                                        Add Step
+                                      </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {activeDraft.commands.map((command, commandIndex) => (
+                                        <div
+                                          key={`${activeDraft.id}-step-${commandIndex}`}
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Input
+                                            value={command}
+                                            onChange={(event) =>
+                                              setServerProcessDrafts((current) =>
+                                                current.map((entry) =>
+                                                  entry.id === activeDraft.id
+                                                    ? {
+                                                        ...entry,
+                                                        commands: entry.commands.map(
+                                                          (step, stepIndex) =>
+                                                            stepIndex === commandIndex
+                                                              ? event.target.value
+                                                              : step,
+                                                        ),
+                                                      }
+                                                    : entry,
+                                                ),
+                                              )
+                                            }
+                                            aria-label={`Terminal command ${commandIndex + 1}`}
+                                            data-tour-setup-step={
+                                              guidedTool === "terminal" &&
+                                              activeDraft.isNew &&
+                                              activeDraft.label.trim() &&
+                                              commandIndex === 0 &&
+                                              !activeDraft.commands.some((step) => step.trim())
+                                                ? "terminal-command"
+                                                : undefined
+                                            }
+                                            placeholder={
+                                              commandIndex === 0 ? "npm install" : "npm run dev"
+                                            }
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="outline"
+                                            disabled={activeDraft.commands.length === 1}
+                                            onClick={() =>
+                                              setServerProcessDrafts((current) =>
+                                                current.map((entry) =>
+                                                  entry.id === activeDraft.id
+                                                    ? {
+                                                        ...entry,
+                                                        commands: entry.commands.filter(
+                                                          (_, stepIndex) =>
+                                                            stepIndex !== commandIndex,
+                                                        ),
+                                                      }
+                                                    : entry,
+                                                ),
+                                              )
+                                            }
+                                          >
+                                            <Trash2Icon className="size-3.5" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                      Working Directory
+                                    </div>
+                                    <Input
+                                      value={activeDraft.cwd}
+                                      onChange={(event) =>
+                                        setServerProcessDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, cwd: event.target.value }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                      placeholder={activeProject.cwd}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-xs text-muted-foreground">
+                                      Show this terminal in the toolbar once you save it.
+                                    </div>
+                                    <Switch
+                                      checked={activeDraft.visible}
+                                      onCheckedChange={(checked) =>
+                                        setServerProcessDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, visible: Boolean(checked) }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-xs text-muted-foreground">
+                                      Auto-start this terminal when its tab or the Server tool is
+                                      first opened.
+                                    </div>
+                                    <Switch
+                                      checked={activeDraft.autoStart}
+                                      onCheckedChange={(checked) =>
+                                        setServerProcessDrafts((current) =>
+                                          current.map((entry) =>
+                                            entry.id === activeDraft.id
+                                              ? { ...entry, autoStart: Boolean(checked) }
+                                              : entry,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
                                 <Button
                                   type="button"
-                                  variant="ghost"
-                                  onClick={() => resetSingleServerPreset(activeDraft.id)}
-                                  disabled={!isDirty}
+                                  variant="destructive-outline"
+                                  onClick={() => {
+                                    setTerminalToDeleteId(activeDraft.id);
+                                  }}
                                 >
-                                  Cancel
+                                  <Trash2Icon className="mr-2 size-3.5" />
+                                  Delete Terminal
                                 </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => saveSingleServerPreset(activeDraft.id)}
-                                  data-tour-setup-step={
-                                    guidedTool === "preset" &&
-                                    activeDraft.isNew &&
-                                    activeDraft.label.trim() &&
-                                    activeDraft.commands.some((command) => command.trim())
-                                      ? "preset-save"
-                                      : undefined
-                                  }
-                                  disabled={!isDirty}
-                                >
-                                  Save Changes
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => resetSingleServerProcess(activeDraft.id)}
+                                    disabled={!isDirty}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={() => saveSingleServerProcess(activeDraft.id)}
+                                    data-tour-setup-step={
+                                      guidedTool === "terminal" &&
+                                      activeDraft.isNew &&
+                                      activeDraft.label.trim() &&
+                                      activeDraft.commands.some((command) => command.trim())
+                                        ? "terminal-save"
+                                        : undefined
+                                    }
+                                    disabled={!isDirty}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })()}
-                    </MasterDetailContent>
-                  </MasterDetail>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                          );
+                        })()}
+                      </MasterDetailContent>
+                    </MasterDetail>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="preset" className="mt-0">
+                  <div className="space-y-3">
+                    <div className="text-xs text-muted-foreground">
+                      Create and manage one-click presets like `Frontend` or `Backend`, each with
+                      ordered command steps.
+                    </div>
+                    <MasterDetail>
+                      <MasterDetailSidebar>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start"
+                          ref={addPresetRef}
+                          data-tour-setup-step={
+                            guidedTool === "preset" &&
+                            savedTourTool !== "preset" &&
+                            !serverPresetDrafts.some((draft) => draft.isNew)
+                              ? "preset-add"
+                              : undefined
+                          }
+                          onClick={() => {
+                            const newId = createServerProcessId();
+                            setServerPresetDrafts((current) => [
+                              {
+                                id: newId,
+                                label: "",
+                                commands: [""],
+                                cwd: activeProject.cwd,
+                                autoStart: false,
+                                visible: true,
+                                isNew: true,
+                                originalLabel: "",
+                                originalCommands: [""],
+                                originalCwd: activeProject.cwd,
+                                originalAutoStart: false,
+                                originalVisible: true,
+                              },
+                              ...current,
+                            ]);
+                            setActiveServerPresetId(newId);
+                          }}
+                        >
+                          <PlusIcon className="mr-2 size-3.5" />
+                          Add Preset
+                        </Button>
+                        <MasterDetailList>
+                          {serverPresetDrafts.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-muted-foreground">
+                              No presets
+                            </div>
+                          ) : (
+                            serverPresetDrafts.map((draft) => (
+                              <MasterDetailItem
+                                key={draft.id}
+                                label={draft.label.trim() || "Untitled"}
+                                icon={resolvePresetIconElement(draft, "size-4")}
+                                isActive={activeServerPresetId === draft.id}
+                                isUnsaved={isServerProcessDraftDirty(draft)}
+                                onSelect={() => setActiveServerPresetId(draft.id)}
+                              />
+                            ))
+                          )}
+                        </MasterDetailList>
+                      </MasterDetailSidebar>
+                      <MasterDetailContent>
+                        {(() => {
+                          const activeDraft =
+                            serverPresetDrafts.find((d) => d.id === activeServerPresetId) ||
+                            serverPresetDrafts[0];
+                          if (!activeDraft)
+                            return (
+                              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                Select a preset or create a new one.
+                              </div>
+                            );
+                          const isDirty = isServerProcessDraftDirty(activeDraft);
+                          return (
+                            <div className="space-y-4 flex flex-col h-full min-h-0 justify-between">
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-lg font-medium">
+                                    {activeDraft.label || "Untitled"}
+                                  </h3>
+                                  {isDirty && (
+                                    <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                      Unsaved
+                                    </span>
+                                  )}
+                                </div>
+                                <ServerPresetFormFields
+                                  preset={activeDraft}
+                                  presetDrafts={serverPresetDrafts}
+                                  projectCwd={activeProject.cwd}
+                                  variant="plain"
+                                  guideNewPreset={guidedTool === "preset" && activeDraft.isNew}
+                                  updatePresetRow={updatePresetRow}
+                                  addCommandStep={addCommandStep}
+                                  updateCommandStep={updateCommandStep}
+                                  moveCommandStep={moveCommandStep}
+                                  removeCommandStep={removeCommandStep}
+                                />
+                              </div>
+                              <div className="pt-6 flex items-center justify-between border-t border-border/40 mt-6">
+                                <Button
+                                  type="button"
+                                  variant="destructive-outline"
+                                  onClick={() => {
+                                    setPresetToDeleteId(activeDraft.id);
+                                  }}
+                                >
+                                  <Trash2Icon className="mr-2 size-3.5" />
+                                  Delete Preset
+                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => resetSingleServerPreset(activeDraft.id)}
+                                    disabled={!isDirty}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={() => saveSingleServerPreset(activeDraft.id)}
+                                    data-tour-setup-step={
+                                      guidedTool === "preset" &&
+                                      activeDraft.isNew &&
+                                      activeDraft.label.trim() &&
+                                      activeDraft.commands.some((command) => command.trim())
+                                        ? "preset-save"
+                                        : undefined
+                                    }
+                                    disabled={!isDirty}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </MasterDetailContent>
+                    </MasterDetail>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       <AlertDialog

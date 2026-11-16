@@ -17,6 +17,69 @@ export function SettingsHeaderPortal({ children }: { children: ReactNode }) {
   return createPortal(children, target);
 }
 
+/** The heading (and optional description / action) that sits above a settings box. */
+export function SettingsSubheading({
+  title,
+  description,
+  headerAction,
+  tourSetupStep,
+  className,
+}: {
+  className?: string;
+  title: string;
+  description?: ReactNode;
+  headerAction?: ReactNode;
+  tourSetupStep?: string | undefined;
+}) {
+  const { fontPreferences } = useTheme();
+  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
+
+  return (
+    <div className={cn("flex items-start justify-between gap-4", className)}>
+      <div className="min-w-0">
+        {activeFontCombo.isNeutral && activeFontCombo.id !== "custom" ? (
+          <h3
+            data-tour-setup-step={tourSetupStep}
+            className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+          >
+            {title}
+          </h3>
+        ) : (
+          <h2
+            data-tour-setup-step={tourSetupStep}
+            className={cn(
+              "text-[18px] leading-relaxed text-foreground/80",
+              activeFontCombo.serifClass,
+            )}
+            style={{
+              fontFamily: "var(--font-section, var(--font-display))",
+              fontWeight: "var(--font-section-weight)" as React.CSSProperties["fontWeight"],
+              fontStyle: "var(--font-section-style)" as React.CSSProperties["fontStyle"],
+              textTransform:
+                "var(--font-section-transform)" as React.CSSProperties["textTransform"],
+              letterSpacing: "var(--font-section-tracking)",
+            }}
+          >
+            {title}
+          </h2>
+        )}
+        {description ? (
+          <div
+            className="mt-1 text-xs text-muted-foreground/80 leading-normal font-normal"
+            style={{
+              fontFamily: "var(--font-supporting, var(--font-sans))",
+              fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+            }}
+          >
+            {description}
+          </div>
+        ) : null}
+      </div>
+      {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+    </div>
+  );
+}
+
 export function SettingsSection({
   title,
   description,
@@ -45,45 +108,7 @@ export function SettingsSection({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          {activeFontCombo.isNeutral && activeFontCombo.id !== "custom" ? (
-            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {title}
-            </h3>
-          ) : (
-            <h2
-              className={cn(
-                "text-[18px] leading-relaxed text-foreground/80",
-                activeFontCombo.serifClass,
-              )}
-              style={{
-                fontFamily: "var(--font-section, var(--font-display))",
-                fontWeight: "var(--font-section-weight)" as React.CSSProperties["fontWeight"],
-                fontStyle: "var(--font-section-style)" as React.CSSProperties["fontStyle"],
-                textTransform:
-                  "var(--font-section-transform)" as React.CSSProperties["textTransform"],
-                letterSpacing: "var(--font-section-tracking)",
-              }}
-            >
-              {title}
-            </h2>
-          )}
-          {description ? (
-            <div
-              className="mt-1 text-xs text-muted-foreground/80 leading-normal font-normal"
-              style={{
-                fontFamily: "var(--font-supporting, var(--font-sans))",
-                fontWeight:
-                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
-              }}
-            >
-              {description}
-            </div>
-          ) : null}
-        </div>
-        {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
-      </div>
+      <SettingsSubheading title={title} description={description} headerAction={headerAction} />
       <div
         data-slot="settings-section-panel"
         className={cn(

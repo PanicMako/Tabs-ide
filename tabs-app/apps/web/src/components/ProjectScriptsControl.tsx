@@ -40,6 +40,8 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { SettingsSubheading } from "./settings/SettingsLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -367,59 +369,80 @@ export default function ProjectScriptsControl({
   return (
     <>
       {displayMode === "list" ? (
-        <div className="divide-y divide-border/70">
-          {scripts.length === 0 && (
-            <p className="px-4 py-3 text-sm text-muted-foreground sm:px-5">
-              No actions yet. Actions are commands you run from the chat header, at worktree setup,
-              or when a thread settles.
-            </p>
-          )}
-          {scripts.map((script) => {
-            const shortcutLabel = shortcutLabelForCommand(
-              keybindings,
-              commandForProjectScript(script.id),
-            );
-            return (
-              <div key={script.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground">
-                  <ScriptIcon icon={script.icon} className="size-3.5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-sm font-medium">{script.name}</span>
-                    {roleLabels(script).map((label) => (
-                      <span
-                        key={label}
-                        className="rounded-full border border-border/70 px-1.5 text-[10.5px] leading-4 text-muted-foreground"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                  <code className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
-                    {script.command}
-                  </code>
-                </div>
-                {shortcutLabel && (
-                  <span className="shrink-0 text-xs text-muted-foreground">{shortcutLabel}</span>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label={`Edit ${script.name}`}
-                  onClick={() => openEditDialog(script)}
-                >
-                  Edit
-                </Button>
+        <div className="space-y-3">
+          <SettingsSubheading
+            title="Actions"
+            description="Commands you can run from the chat header, at worktree setup, or when a thread settles."
+          />
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle>Project Actions</CardTitle>
+                <CardDescription>
+                  Add, edit and assign shortcuts to this project's commands.
+                </CardDescription>
               </div>
-            );
-          })}
-          <div className="px-4 py-3 sm:px-5">
-            <Button size="sm" variant="outline" onClick={openAddDialog}>
-              <PlusIcon className="size-3.5" />
-              Add action
-            </Button>
-          </div>
+              <Button size="sm" onClick={openAddDialog}>
+                <PlusIcon className="size-3.5" />
+                Add action
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {scripts.length === 0 && (
+                  <p className="rounded-2xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                    No actions yet. Add one to run a command from the chat header, at worktree
+                    setup, or when a thread settles.
+                  </p>
+                )}
+                {scripts.map((script) => {
+                  const shortcutLabel = shortcutLabelForCommand(
+                    keybindings,
+                    commandForProjectScript(script.id),
+                  );
+                  return (
+                    <div
+                      key={script.id}
+                      className="flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3.5 py-2.5"
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                        <ScriptIcon icon={script.icon} className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="truncate text-sm font-medium">{script.name}</span>
+                          {roleLabels(script).map((label) => (
+                            <span
+                              key={label}
+                              className="rounded-full border border-border/70 px-1.5 text-[10.5px] leading-4 text-muted-foreground"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                        <code className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                          {script.command}
+                        </code>
+                      </div>
+                      {shortcutLabel && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {shortcutLabel}
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label={`Edit ${script.name}`}
+                        onClick={() => openEditDialog(script)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       ) : primaryScript ? (
         <Group aria-label="Project scripts" className={displayMode === "panel" ? "w-full" : ""}>

@@ -47,3 +47,32 @@ export function WorkspaceTerminalIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** A crafted wallpaper roll mark for workspace look and appearance actions. */
+export function WorkspaceWallpaperIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={props.strokeWidth ?? "1.7"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      {/* Hanging wallpaper sheet */}
+      <path d="M4 13.5V2.5h16.5v19H4v-4" />
+      {/* Chevron wallpaper pattern */}
+      <path d="M4 5.5l4.1 2.5 4.1-2.5 4.1 2.5 4.2-2.5" />
+      <path d="M4 9.5l4.1 2.5 4.1-2.5 4.1 2.5 4.2-2.5" />
+      {/* Rolled wallpaper cylinder with rounded left cap */}
+      <path d="M17 13.5H4a2 2 0 0 0 0 4h13" />
+      {/* Roll spiral cross-section */}
+      <circle cx="17" cy="15.5" r="2" />
+      <path d="M15.2 15.5h1.8a.9.9 0 1 1-.9.9" />
+    </svg>
+  );
+}
+
+export const WallpaperRollIcon = WorkspaceWallpaperIcon;

@@ -55,21 +55,22 @@ export function WorkspaceProjectScripts({
       await api.server.removeKeybinding({ key: previousKey, command });
     }
   };
+  const projectScripts = project.scripts ?? [];
   return (
     <ProjectScriptsControl
       displayMode={displayMode}
-      scripts={[...project.scripts]}
+      scripts={[...projectScripts]}
       fileScripts={effectiveFileScripts}
       keybindings={keybindings}
       onRunScript={onRunScript}
       onAddScript={async (input) => {
         const id = nextProjectScriptId(
           input.name,
-          project.scripts.map((script) => script.id),
+          projectScripts.map((script) => script.id),
         );
         await save(
           [
-            ...project.scripts.map((script) => releaseClaimedRoles(script, input)),
+            ...projectScripts.map((script) => releaseClaimedRoles(script, input)),
             buildProjectScript(id, input),
           ],
           id,
@@ -78,7 +79,7 @@ export function WorkspaceProjectScripts({
       }}
       onUpdateScript={async (id, input) => {
         await save(
-          project.scripts.map((current) =>
+          projectScripts.map((current) =>
             current.id === id ? buildProjectScript(id, input) : releaseClaimedRoles(current, input),
           ),
           id,
@@ -87,7 +88,7 @@ export function WorkspaceProjectScripts({
       }}
       onDeleteScript={async (id) =>
         save(
-          project.scripts.filter((script) => script.id !== id),
+          projectScripts.filter((script) => script.id !== id),
           id,
         )
       }

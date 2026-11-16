@@ -105,12 +105,45 @@
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
 }
 
-/* Chat Header (Dark) */
-[data-agent-wallpaper="active"]:not([data-theme="light"]) header {
-  background-color: color-mix(in oklab, var(--background) 94%, transparent) !important;
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent) !important;
+/* Chat Header (Dark & Light) — seamless match with agents sidebar */
+.agents-tab,
+.chat-workspace-root {
+  background-color: color-mix(in srgb, var(--card) 30%, transparent) !important;
+}
+
+header {
+  background-color: transparent !important;
+  border-bottom: none !important;
+}
+
+.agents-tab {
+  border-right: none !important;
+}
+
+.chat-workspace-body {
+  border-top-left-radius: 20px !important;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  background-color: var(--background) !important;
+}
+
+.chat-workspace-body {
+  border-top-left-radius: 20px !important;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+  background-color: var(--background) !important;
+}
+
+[data-agent-wallpaper="active"] .chat-workspace-body {
+  border-top-left-radius: 20px !important;
+  border: none !important;
+  background-color: transparent !important;
+}
+
+[data-agent-wallpaper="active"] .chat-workspace-body {
+  border-top-left-radius: 20px !important;
+  border: none !important;
+  background-color: transparent !important;
 }
 
 /* Chat Composer (Dark) */
@@ -128,12 +161,22 @@
 
 /* ── LIGHT MODE WALLPAPER AESTHETICS (Matching Reference from X) ───────── */
 
-/* Chat Header (Light) */
-[data-agent-wallpaper="active"][data-theme="light"] header {
-  background-color: rgba(255, 255, 255, 0.78) !important;
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+/* Scope wallpaper background layers to below the header with rounded corner */
+[data-agent-wallpaper="active"] > div.pointer-events-none.absolute {
+  top: 52px;
+  border-top-left-radius: 20px;
+  overflow: hidden;
+}
+
+[data-agent-wallpaper="active"] .chat-workspace-root {
+  background-color: color-mix(in srgb, var(--card) 30%, transparent) !important;
+}
+
+[data-agent-wallpaper="active"] .chat-workspace-body {
+  border-top-left-radius: 20px !important;
+  border: none !important;
+  border-top: none !important;
+  border-left: none !important;
 }
 
 /* Work logs and tool calls (Light) */
@@ -445,7 +488,7 @@
   pointer-events: none;
 }
 [data-agent-wallpaper="active"] [data-assistant-footer] {
-  left: 1.1rem;
+  left: 0.2rem;
 }
 [data-agent-wallpaper="active"] .user-message-actions {
   right: 0.2rem;

@@ -275,9 +275,9 @@ it("lists actions with their roles and edits one without dropping its preview", 
     />,
   );
   try {
-    await expect.element(page.getByText("Stops on settle")).toBeVisible();
+    await expect.element(page.getByText("Stops when done")).toBeVisible();
     await expect.element(page.getByText("Opens preview")).toBeVisible();
-    await expect.element(page.getByText("On settle", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("When done", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Edit Dev server" }).click();
     await page.getByRole("textbox", { name: "Command", exact: true }).fill("bun run dev");
     await page.getByRole("button", { name: "Save changes", exact: true }).click();
