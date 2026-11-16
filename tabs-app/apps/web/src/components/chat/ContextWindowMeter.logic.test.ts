@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@tabs/contracts";
 import {
+  describeContextRoom,
+  formatAutoCompactHint,
   formatContextWindowCompactionMessage,
   isCompactCommandMessage,
   providerSupportsManualCompaction,
@@ -106,5 +108,27 @@ describe("formatContextWindowCompactionMessage", () => {
     expect(formatContextWindowCompactionMessage(null)).toBe(
       "Context compacts automatically when needed.",
     );
+  });
+});
+
+describe("describeContextRoom", () => {
+  it("names the room left in plain words", () => {
+    expect(describeContextRoom(null).label).toBe("Plenty of room");
+    expect(describeContextRoom(12).level).toBe("roomy");
+    expect(describeContextRoom(55).level).toBe("filling");
+    expect(describeContextRoom(90)).toEqual({ level: "nearlyFull", label: "Almost full" });
+  });
+});
+
+describe("formatAutoCompactHint", () => {
+  const tokens = (value: number) => `${Math.round(value / 1000)}k`;
+
+  it("names the threshold when the provider reports one", () => {
+    expect(formatAutoCompactHint(150_000, tokens)).toBe("Auto-compacts at 150k");
+  });
+
+  it("falls back to when full", () => {
+    expect(formatAutoCompactHint(null, tokens)).toBe("Auto-compacts when full");
+    expect(formatAutoCompactHint(0, tokens)).toBe("Auto-compacts when full");
   });
 });

@@ -1,4 +1,9 @@
-import type { OrchestrationThreadActivity, ThreadTokenUsageSnapshot } from "@tabs/contracts";
+import type {
+  OrchestrationThreadActivity,
+  OrchestrationV2ThreadProjection,
+  ThreadTokenUsageSnapshot,
+} from "@tabs/contracts";
+import * as DateTime from "effect/DateTime";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -72,6 +77,97 @@ export function deriveLatestContextWindowSnapshot(
     };
   }
 
+  return null;
+}
+
+function toIso(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return DateTime.formatIso(value as DateTime.Utc);
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function snapshotFromUsage(input: {
+  readonly usedTokens: number;
+  readonly maxTokens?: number | null | undefined;
+  readonly totalProcessedTokens?: number | null | undefined;
+  readonly inputTokens?: number | undefined;
+  readonly cachedInputTokens?: number | undefined;
+  readonly outputTokens?: number | undefined;
+  readonly reasoningOutputTokens?: number | undefined;
+  readonly lastUsedTokens?: number | undefined;
+  readonly lastInputTokens?: number | undefined;
+  readonly lastCachedInputTokens?: number | undefined;
+  readonly lastOutputTokens?: number | undefined;
+  readonly lastReasoningOutputTokens?: number | undefined;
+  readonly toolUses?: number | undefined;
+  readonly durationMs?: number | undefined;
+  readonly compactsAutomatically?: boolean | undefined;
+  readonly autoCompactThreshold?: number | undefined;
+  readonly cost?: ThreadTokenUsageSnapshot["cost"];
+  readonly updatedAt: string;
+}): ContextWindowSnapshot {
+  const usedTokens = Math.max(0, input.usedTokens);
+  const maxTokens = asFiniteNumber(input.maxTokens);
+  const usedPercentage =
+    maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
+  return {
+    usedTokens,
+    totalProcessedTokens: input.totalProcessedTokens ?? null,
+    maxTokens,
+    remainingTokens: maxTokens === null ? null : Math.max(0, Math.round(maxTokens - usedTokens)),
+    usedPercentage,
+    remainingPercentage: usedPercentage === null ? null : Math.max(0, 100 - usedPercentage),
+    inputTokens: input.inputTokens ?? null,
+    cachedInputTokens: input.cachedInputTokens ?? null,
+    outputTokens: input.outputTokens ?? null,
+    reasoningOutputTokens: input.reasoningOutputTokens ?? null,
+    lastUsedTokens: input.lastUsedTokens ?? null,
+    lastInputTokens: input.lastInputTokens ?? null,
+    lastCachedInputTokens: input.lastCachedInputTokens ?? null,
+    lastOutputTokens: input.lastOutputTokens ?? null,
+    lastReasoningOutputTokens: input.lastReasoningOutputTokens ?? null,
+    toolUses: input.toolUses ?? null,
+    durationMs: input.durationMs ?? null,
+    compactsAutomatically: input.compactsAutomatically ?? true,
+    autoCompactThreshold: input.autoCompactThreshold ?? null,
+    cost: input.cost ?? null,
+    updatedAt: input.updatedAt,
+  } as ContextWindowSnapshot;
+}
+
+/**
+ * Context use as the V2 orchestrator records it: the newest token report on a
+ * provider turn of the active provider thread, else the provider thread's own
+ * context usage. Adapters no longer write `context-window.updated` activities.
+ */
+export function deriveProjectionContextWindowSnapshot(
+  projection: Pick<
+    OrchestrationV2ThreadProjection,
+    "thread" | "providerThreads" | "providerTurns"
+  > | null,
+): ContextWindowSnapshot | null {
+  if (projection === null) return null;
+  const activeId = projection.thread.activeProviderThreadId;
+  const turns = projection.providerTurns.filter(
+    (turn) => activeId === null || turn.providerThreadId === activeId,
+  );
+  let latest: NonNullable<(typeof turns)[number]["tokenUsage"]> | null = null;
+  for (const turn of turns) {
+    const usage = turn.tokenUsage;
+    if (usage === undefined || usage.usedTokens <= 0) continue;
+    if (latest === null || Date.parse(usage.updatedAt) >= Date.parse(latest.updatedAt)) {
+      latest = usage;
+    }
+  }
+  if (latest !== null) return snapshotFromUsage(latest);
+  const providerThread = projection.providerThreads.find((thread) => thread.id === activeId);
+  const usage = providerThread?.contextUsage;
+  if (providerThread && usage && usage.usedTokens > 0) {
+    return snapshotFromUsage({ ...usage, updatedAt: toIso(providerThread.updatedAt) });
+  }
   return null;
 }
 
