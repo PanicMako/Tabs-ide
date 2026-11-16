@@ -513,6 +513,29 @@ export const OrchestratorMcpProviderCapability = Schema.Struct({
 });
 export type OrchestratorMcpProviderCapability = typeof OrchestratorMcpProviderCapability.Type;
 
+const OrchestratorMcpSubagentModel = Schema.Struct({
+  providerInstanceId: ProviderInstanceId,
+  model: Schema.String,
+});
+
+/** The user's sub-agent model choice as the lead sees it. */
+export const OrchestratorMcpSubagentModels = Schema.Struct({
+  /** While true, delegate_task runs every sub-agent on these models whatever target it is given. */
+  enforced: Schema.Boolean,
+  default: Schema.NullOr(OrchestratorMcpSubagentModel),
+  roles: Schema.Array(
+    Schema.Struct({
+      role: OrchestratorMcpTaskRole,
+      providerInstanceId: ProviderInstanceId,
+      model: Schema.String,
+    }),
+  ),
+}).annotate({
+  description:
+    "User-chosen sub-agent models. When enforced, use delegate_task with a role for every sub-agent; native subagents ignore this.",
+});
+export type OrchestratorMcpSubagentModels = typeof OrchestratorMcpSubagentModels.Type;
+
 export const OrchestratorMcpCapabilitiesResult = Schema.Struct({
   /** The calling thread, or null when the caller is not a Tabs thread. */
   parentThreadId: Schema.NullOr(ThreadId),
@@ -522,6 +545,7 @@ export const OrchestratorMcpCapabilitiesResult = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   providers: Schema.Array(OrchestratorMcpProviderCapability),
+  subagentModels: Schema.optional(OrchestratorMcpSubagentModels),
   features: Schema.Struct({
     appOwnedSubagents: Schema.Boolean,
     asyncPolling: Schema.Boolean,

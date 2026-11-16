@@ -1883,6 +1883,38 @@ export const StorageCleanupSettings = Schema.Struct({
 });
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
+/** Kinds of delegated work a user can staff with its own model. */
+export const SubagentRole = Schema.Literals([
+  "implementation",
+  "research",
+  "review",
+  "design",
+  "test",
+  "general",
+]);
+export type SubagentRole = typeof SubagentRole.Type;
+
+/**
+ * Which models run delegated sub-agents. While enabled, every app-owned
+ * sub-agent (a plain `delegate_task` or an Overmind task) runs on its role's
+ * model, else on `workers`; the lead thread keeps its own model. Off, the
+ * lead chooses. Server-authoritative so the choice is enforced where the
+ * sub-agent starts and is the same on every device. Patches replace it whole.
+ */
+export const SubagentModelSettings = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  workers: Schema.NullOr(ModelSelection).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+  roles: Schema.Struct({
+    implementation: Schema.optionalKey(ModelSelection),
+    research: Schema.optionalKey(ModelSelection),
+    review: Schema.optionalKey(ModelSelection),
+    design: Schema.optionalKey(ModelSelection),
+    test: Schema.optionalKey(ModelSelection),
+    general: Schema.optionalKey(ModelSelection),
+  }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+});
+export type SubagentModelSettings = typeof SubagentModelSettings.Type;
+
 export const ServerSettings = Schema.Struct({
   deepSeekPluginPatches: Schema.optionalKey(Schema.Record(ProviderInstanceId, Schema.String)),
   enableUsageAnalytics: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
@@ -2020,6 +2052,11 @@ export const ServerSettings = Schema.Struct({
   ),
   /** The user's own palette overrides and CSS; see `UserTheme`. */
   userTheme: UserTheme.pipe(Schema.withDecodingDefault(Effect.succeed(EMPTY_USER_THEME))),
+  subagentModels: SubagentModelSettings.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed({ enabled: false, workers: null, roles: {} } as SubagentModelSettings),
+    ),
+  ),
   /**
    * The icon clients draw for this environment. Null means "use what the
    * server detected" (`environment.platform.machine`), falling back to a
@@ -2488,6 +2525,8 @@ export const ServerSettingsPatch = Schema.Struct({
   backgroundActivityProfile: Schema.optionalKey(BackgroundActivityProfile),
   /** Replaces the whole user theme; send the full value. */
   userTheme: Schema.optionalKey(UserTheme),
+  /** Replaces the whole sub-agent model choice; send the full value. */
+  subagentModels: Schema.optionalKey(SubagentModelSettings),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   defaultThreadEnvMode: Schema.optionalKey(Schema.NullOr(ThreadEnvMode)),
   newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
