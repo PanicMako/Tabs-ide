@@ -337,6 +337,22 @@ export function isClaudeUltrathinkPrompt(text: string | null | undefined): boole
   return typeof text === "string" && /\bultrathink\b/i.test(text);
 }
 
+const CLAUDE_ULTRATHINK_PREFIX = /^\s*Ultrathink:[^\S\n]*\n?/i;
+
+/**
+ * Splits the `Ultrathink:` line the effort picker writes at the top of a prompt
+ * from what follows, so commands like `/overmind` can still be read under it.
+ */
+export function splitClaudeUltrathinkPrefix(text: string): {
+  readonly prefix: string;
+  readonly body: string;
+} {
+  const match = CLAUDE_ULTRATHINK_PREFIX.exec(text);
+  return match
+    ? { prefix: match[0], body: text.slice(match[0].length) }
+    : { prefix: "", body: text };
+}
+
 export function normalizeModelSlug(
   model: string | null | undefined,
   // Accepts any provider/instance slug (callers pass `ProviderKind` literals or

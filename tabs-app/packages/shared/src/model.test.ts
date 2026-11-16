@@ -17,6 +17,7 @@ import {
   getProviderOptionBooleanSelectionValue,
   getProviderOptionStringSelectionValue,
   isClaudeUltrathinkPrompt,
+  splitClaudeUltrathinkPrefix,
   normalizeModelSlug,
   resolveModelSlugForProvider,
   resolveSelectableModel,
@@ -127,6 +128,21 @@ describe("misc helpers", () => {
     expect(isClaudeUltrathinkPrompt("Please ultrathink about this")).toBe(true);
     expect(isClaudeUltrathinkPrompt("Ultrathink:\nInvestigate")).toBe(true);
     expect(isClaudeUltrathinkPrompt("Investigate")).toBe(false);
+  });
+
+  it("splits the ultrathink line from the prompt under it", () => {
+    expect(splitClaudeUltrathinkPrefix("Ultrathink:\n/overmind ship it")).toEqual({
+      prefix: "Ultrathink:\n",
+      body: "/overmind ship it",
+    });
+    expect(splitClaudeUltrathinkPrefix("  ultrathink:  /overmind").body).toBe("/overmind");
+    expect(splitClaudeUltrathinkPrefix("Ultrathink:\n\nkeep the blank line").body).toBe(
+      "\nkeep the blank line",
+    );
+    expect(splitClaudeUltrathinkPrefix("Please ultrathink: x")).toEqual({
+      prefix: "",
+      body: "Please ultrathink: x",
+    });
   });
 
   it("prefixes ultrathink prompts once", () => {
