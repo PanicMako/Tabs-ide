@@ -50,7 +50,9 @@ export function seen(el: Element, fn: () => void, threshold = 0.3) {
 
 /** `[data-in]` elements get `.in` when they enter (CSS does the motion). */
 export function reveal(root: ParentNode) {
-  root.querySelectorAll<HTMLElement>("[data-in]").forEach((el) => seen(el, () => el.classList.add("in"), 0.15));
+  root
+    .querySelectorAll<HTMLElement>("[data-in]")
+    .forEach((el) => seen(el, () => el.classList.add("in"), 0.15));
 }
 
 /* ── Provider logos and names for scripts that recast providers at runtime ── */

@@ -18,10 +18,46 @@ export const helpers = [{ pv: "codex" }, { pv: "grok" }, { pv: "cursor" }] as co
 
 /** Kinds of work you can hand to a model of your choice, with the default pick and who to pick. */
 export const roles = [
-  { id: "lead", noun: "Lead", verb: "leads", pv: "claude", pick: "Your favourite. It plans the work and runs the whole operation." },
-  { id: "design", noun: "Design", verb: "designs", pv: "cursor", pick: "The one with the best eye for interfaces." },
-  { id: "research", noun: "Research", verb: "researches", pv: "grok", pick: "The one you trust to read everything first." },
-  { id: "build", noun: "Build", verb: "builds", pv: "codex", pick: "The one whose code you'd merge without a fight." },
-  { id: "review", noun: "Review", verb: "reviews", pv: "kiro", pick: "A second opinion, from a different maker." },
-  { id: "test", noun: "Test", verb: "tests", pv: "copilot", pick: "The thorough one. It tries to break it." },
+  {
+    id: "lead",
+    noun: "Lead",
+    verb: "leads",
+    pv: "claude",
+    pick: "Your favourite. It plans the work and runs the whole operation.",
+  },
+  {
+    id: "design",
+    noun: "Design",
+    verb: "designs",
+    pv: "cursor",
+    pick: "The one with the best eye for interfaces.",
+  },
+  {
+    id: "research",
+    noun: "Research",
+    verb: "researches",
+    pv: "grok",
+    pick: "The one you trust to read everything first.",
+  },
+  {
+    id: "build",
+    noun: "Build",
+    verb: "builds",
+    pv: "codex",
+    pick: "The one whose code you'd merge without a fight.",
+  },
+  {
+    id: "review",
+    noun: "Review",
+    verb: "reviews",
+    pv: "kiro",
+    pick: "A second opinion, from a different maker.",
+  },
+  {
+    id: "test",
+    noun: "Test",
+    verb: "tests",
+    pv: "copilot",
+    pick: "The thorough one. It tries to break it.",
+  },
 ] as const;

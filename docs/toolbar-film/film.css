@@ -1,0 +1,123 @@
+@font-face { font-family: "Seenonim"; font-weight: 100 900; src: url("assets/fonts/Seenonim-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Balbes"; font-weight: 100 900; src: url("assets/fonts/Balbes-Regular.woff2") format("woff2"); }
+
+:root { --night: #060608; --ivory: #f3efe9; --blue: #0e2af3; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+#fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--night); color: var(--ivory); font-family: "Seenonim", sans-serif; -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+#stage > div { position: absolute; inset: 0; }
+#vig { pointer-events: none; background: radial-gradient(120% 105% at 50% 50%, transparent 55%, rgba(0,0,0,.6) 100%); }
+#lens { overflow: visible; }
+#world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
+#world > * { position: absolute; }
+
+/* the window */
+#win { left: -740px; top: -44px; width: 1480px; height: 844px; border-radius: 16px; background: #141414; right: auto; bottom: auto; overflow: hidden; }
+#win .rail { position: absolute; left: 0; right: 0; top: 0; height: 44px; background: #0b0b0c; }
+#win .ptab { position: absolute; top: 10px; height: 34px; width: 152px; border-radius: 11px 11px 0 0; padding: 0 13px 0 14px; display: flex; align-items: center; font: 600 14.5px "Seenonim"; color: #8b8b8a; }
+#win .ptab i { font-style: normal; margin-left: auto; font-weight: 400; opacity: .5; }
+#win .ptab.plus { width: 30px; padding: 0 9px; font: 300 22px "Seenonim"; }
+#win .trow { position: absolute; left: 0; right: 0; top: 44px; height: 58px; background: #171718; border-bottom: 1px solid rgba(255,255,255,.095); }
+#win .trow .settings { position: absolute; right: 16px; top: 18px; display: flex; gap: 8px; align-items: center; color: #a9a9a8; font: 600 15.5px "Seenonim"; }
+#win .content { top: 102px; }
+#winedge { left: -740px; top: -44px; width: 1480px; height: 844px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); pointer-events: none; }
+
+/* the toolbar: ten keys */
+#bar { left: -724px; top: 11px; height: 36px; width: 1300px; }
+.tp { position: absolute; left: 0; top: 0; height: 36px; border-radius: 18px; white-space: nowrap; font: 600 16px/36px "Seenonim"; transform-origin: 50% 50%; border: 1px solid transparent; }
+.tp .v { display: none; align-items: center; gap: 8px; height: 34px; padding: 0 15px 0 13px; }
+.tp .v.on { display: flex; }
+.tp svg { width: 17px; height: 17px; display: block; flex: none; }
+.tp svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tp::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%); opacity: var(--gloss, 0); pointer-events: none; }
+#plus { position: absolute; top: 2px; width: 32px; height: 32px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.45); display: grid; place-items: center; font: 300 22px/1 "Seenonim"; color: #fff; }
+
+/* the "new tab" card */
+#card { width: 500px; border-radius: 20px; background: #1b1b1e; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 30px 80px rgba(0,0,0,.6); padding: 18px 18px 16px; font: 500 15px "Seenonim"; color: #f1f1ef; transform-origin: 50% 0; }
+#card h5 { margin: 0 0 14px; display: flex; align-items: center; gap: 9px; font: 600 15.5px "Seenonim"; }
+#card h5 svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } #card h5 small { margin-left: auto; font: 500 12px "Seenonim"; color: #8b8b8a; letter-spacing: .04em; }
+#card label { display: block; font-size: 12.5px; color: #8b8b8a; margin: 0 0 5px 4px; }
+#card .fld { height: 40px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); padding: 0 13px; display: flex; align-items: center; font: 500 15px "Seenonim"; margin-bottom: 12px; }
+#card .fld.nm { font: 600 15.5px "Seenonim"; }
+#card .fld i { display: inline-block; width: 2px; height: 18px; background: #fff; margin-left: 2px; }
+#card .save { height: 38px; border-radius: 19px; background: var(--blue); display: grid; place-items: center; font: 700 14.5px "Seenonim"; margin-top: 4px; }
+
+/* CLI + Vercel panes */
+.clihead { height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 18px; background: var(--card); border: 1px solid var(--bd); border-radius: 18px; }
+.clihead .ic { font-size: 20px; } .clihead b { font-size: 18px; font-weight: 700; } .clihead small { color: var(--dim); font: 13.5px var(--mono); margin-right: auto; } .clihead code { color: #d6d6d4; }
+.cliterm { position: absolute; left: 10px; right: 10px; top: 74px; bottom: 10px; background: #0d0d0e; border: 1px solid var(--bd); border-radius: 18px; overflow: hidden; }
+.cliterm pre { margin: 0; padding: 26px 30px; font: 20px/37px var(--mono); color: #d6d6d4; white-space: pre; } .cliterm pre > div { min-height: 37px; }
+.cliterm .d { color: var(--faint); } .cliterm .g { color: var(--add); } .cliterm .r { color: var(--del); } .cliterm .u { color: #8fb8ff; }
+.cliterm .cbox { display: inline-block; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; padding: 10px 18px; }
+.cliterm .cprompt { border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 5px 16px; width: 1040px; }
+.vpage { position: absolute; left: 10px; right: 10px; top: 70px; bottom: 10px; border-radius: 14px; background: #000; padding: 0 56px; overflow: hidden; }
+.vnav { display: flex; align-items: center; gap: 12px; height: 62px; border-bottom: 1px solid rgba(255,255,255,.12); margin: 0 -56px; padding: 0 28px; font-size: 14.5px; color: #8b8b8a; } .vnav .ic { color: #fff; font-size: 20px; } .vnav b { color: #fff; font-weight: 600; } .vnav i { font-style: normal; opacity: .4; } .vnav span:nth-of-type(2) { margin-left: 40px; color: #fff; }
+.vnav span { margin-left: 14px; }
+.vpage h3 { font: 600 24px "Seenonim"; margin: 34px 0 18px; }
+.vcard { display: flex; gap: 34px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 22px; background: #0a0a0a; }
+.vshot { width: 520px; height: 300px; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,.12); flex: none; }
+.vshot .mini { transform: scale(.356); transform-origin: 0 0; width: 1460px; height: 842px; inset: auto; }
+.vmeta label { display: block; font-size: 13px; color: #8b8b8a; margin: 0 0 4px; } .vmeta p { margin: 0 0 16px; font-size: 15.5px; font-weight: 500; } .vmeta code { display: inline-flex; gap: 6px; align-items: center; }
+.vready { display: flex; align-items: center; gap: 8px; } .vready i { width: 10px; height: 10px; border-radius: 50%; background: #50e3a4; box-shadow: 0 0 12px #50e3a4; } .vready small { color: #8b8b8a; } .vcommit { color: #8b8b8a; font: 13.5px var(--mono) !important; }
+.vrow { display: flex; align-items: center; gap: 14px; margin-top: 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 18px 22px; font-size: 14.5px; color: #8b8b8a; } .vrow b { color: #fff; font: 600 20px "Seenonim"; margin-right: 46px; } .vrow b.g { color: #50e3a4; }
+
+/* quick actions */
+#qdim { left: -740px; top: -44px; width: 1480px; height: 844px; border-radius: 16px; background: #050506; opacity: 0; }
+#qa { left: 0; top: 0; right: auto; bottom: auto; width: 0; height: 0; background: none; transform-style: preserve-3d; }
+#qa .qt { position: absolute; left: -66px; top: -66px; width: 132px; height: 132px; border-radius: 46px; display: grid; place-content: center; justify-items: center; gap: 9px; text-align: center; font: 600 15.5px/1.12 "Seenonim"; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 40px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.08) inset; }
+#qa .qt .ic { font-size: 30px; }
+#cursor { left: 0; top: 0; width: 30px; height: 36px; transform-origin: 3px 2px; }
+#cursor svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 5px rgba(0,0,0,.5)); }
+
+/* type */
+#type { font-family: "Balbes", sans-serif; }
+.ln { display: block; white-space: nowrap; }
+.w { display: inline-block; overflow: hidden; vertical-align: top; padding: .1em .03em .22em; margin: -.1em -.03em -.22em; }
+.w > span { display: inline-block; will-change: transform; }
+.kw { color: var(--tint, #7f92ff); }
+.hd { position: absolute; left: 0; right: 0; text-align: center; font-weight: 400; letter-spacing: -.02em; line-height: 1; }
+.hd.big { top: 176px; font-size: 118px; }
+.hd.side { left: 110px; right: auto; top: 84px; text-align: left; font-size: 214px; }
+.hd.cap { top: 884px; font-size: 74px; font-weight: 400; letter-spacing: -.02em; }
+#read { position: absolute; left: 0; right: 0; top: 992px; text-align: center; font: 500 25px "Seenonim"; letter-spacing: .06em; text-transform: uppercase; color: rgba(243,239,233,.6); white-space: nowrap; }
+#read.low { top: 936px; }
+#read b { color: var(--tint, #7f92ff); font-weight: 600; margin-right: 16px; }
+#read kbd { display: inline-block; min-width: 34px; height: 34px; line-height: 32px; margin-right: 6px; border-radius: 9px; border: 1px solid rgba(243,239,233,.5); font: 600 17px "Seenonim"; color: var(--ivory); text-align: center; text-transform: none; }
+
+/* end */
+#end { background: var(--blue); color: var(--ivory); }
+#end #mk { position: absolute; left: 0; top: 0; overflow: visible; } #end #wm { position: absolute; }
+#end .tag { position: absolute; left: 0; right: 0; top: 628px; text-align: center; font: 400 84px/1 "Balbes"; letter-spacing: -.02em; }
+#end .tag .kw { color: #f3efe9; opacity: 1; }
+#end .meta { position: absolute; left: 0; right: 0; top: 806px; display: flex; justify-content: center; align-items: center; gap: 24px; font: 500 23px "Seenonim"; letter-spacing: .02em; }
+#end .beta { border: 2px solid rgba(243,239,233,.9); border-radius: 22px; padding: 7px 18px 8px; font-weight: 600; font-size: 17px; letter-spacing: .1em; }
+#end .url { font-weight: 700; } #end .os { opacity: .8; } #end .sep { width: 5px; height: 5px; border-radius: 50%; background: rgba(243,239,233,.6); }
+
+#hud { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 12px; align-items: center; padding: 8px 14px; background: rgba(0,0,0,.7); color: #ddd; font: 13px ui-monospace, monospace; z-index: 10; }
+#hud input { flex: 1; } #hud button { font: inherit; }
+
+/* project-tab close-up */
+#scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,6,8,0) 700px, rgba(6,6,8,.97) 860px, #060608 100%); opacity: 0; }
+#tring { left: -40px; top: -40px; width: 80px; height: 80px; border-radius: 50%; border: 3px solid #fff; opacity: 0; }
+#win .ptab { transform-origin: 50% 100%; }
+
+/* ── prologue ── */
+#pro { perspective: 1600px; }
+.pw { position: absolute; left: 0; top: 0; border-radius: 16px; background: #17171a; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 30px 70px rgba(0,0,0,.6); overflow: hidden; color: #f1f1ef; font: 500 14px "Seenonim"; }
+.pw header { height: 38px; display: flex; align-items: center; gap: 7px; padding: 0 13px; background: #1f1f23; border-bottom: 1px solid rgba(255,255,255,.08); color: #a9a9a8; white-space: nowrap; }
+.pw header > i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.18); } .pw header .ic { margin-left: 8px; display: inline-flex; }
+.pw header svg { width: 15px; height: 15px; } .pw header svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pw .pb { padding: 18px; } .pw .pb > i, .pw .cols2 i { display: block; height: 10px; border-radius: 5px; background: rgba(255,255,255,.1); margin: 0 0 12px; }
+.pw .cols2 { display: flex; gap: 22px; } .pw .cols2 > div:first-child { width: 130px; flex: none; } .pw .cols2 > div:last-child { flex: 1; }
+.pw pre { margin: 0; font: 15px/26px "Seenonim"; color: #cfcfcd; }
+.pw .pg { position: absolute; inset: 38px 0 0; overflow: hidden; color: #17181c; } .pw .pg b { position: absolute; left: 26px; top: 40px; font: 800 44px/1 "Balbes"; width: 240px; letter-spacing: -.03em; }
+.pw .pg u { position: absolute; right: 70px; top: 40px; width: 110px; height: 110px; border-radius: 50%; } .pw .pg s { position: absolute; right: -80px; bottom: -150px; width: 340px; height: 340px; border-radius: 50%; }
+.pw .bub { height: 34px; width: 70%; border-radius: 17px 17px 17px 5px; margin-bottom: 12px; } .pw .bub.r { margin-left: auto; width: 60%; background: rgba(255,255,255,.1); border-radius: 17px 17px 5px 17px; }
+.pw .fg { display: flex; gap: 14px; height: 220px; } .pw .fg i { flex: 1; border-radius: 6px; margin: 0; height: auto; }
+.pw em { font-style: normal; display: flex; align-items: center; gap: 8px; font-weight: 600; } .pw em i { width: 10px; height: 10px; border-radius: 50%; background: #50e3a4; display: inline-block; margin: 0; }
+#pm { position: absolute; left: 0; top: 0; overflow: visible; }
+#pmsh { position: absolute; left: 0; top: 0; width: 230px; height: 16px; border-radius: 50%; background: rgba(0,0,0,.9); filter: blur(6px); transform-origin: 50% 50%; }
+.hd.pro1 { top: 440px; font-size: 156px; text-shadow: 0 10px 60px rgba(0,0,0,.8); }
+.hd.pro2 { top: 262px; font-size: 118px; }
+#pread { position: absolute; left: 0; right: 0; top: 450px; text-align: center; font: 500 25px "Seenonim"; letter-spacing: .06em; text-transform: uppercase; color: rgba(243,239,233,.6); opacity: 0; }

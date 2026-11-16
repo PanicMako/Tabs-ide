@@ -1,0 +1,94 @@
+@font-face { font-family: "Hebdomadal"; src: url("assets/fonts/Hebdomadal-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; src: url("assets/fonts/InstrumentSerif-Italic.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: normal; src: url("assets/fonts/InstrumentSerif-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Overused Grotesk"; font-weight: 400; src: url("assets/fonts/OverusedGrotesk-Roman.woff2") format("woff2"); }
+@font-face { font-family: "Overused Grotesk"; font-weight: 500; src: url("assets/fonts/OverusedGrotesk-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Overused Grotesk"; font-weight: 600; src: url("assets/fonts/OverusedGrotesk-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Overused Grotesk"; font-weight: 700; src: url("assets/fonts/OverusedGrotesk-Bold.woff2") format("woff2"); }
+
+:root { --ink: #101116; --ivory: #f3efe9; --blue: #0e2af3; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #08080a; overflow: hidden; }
+#fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ivory); font-family: "Overused Grotesk", sans-serif; color: var(--ink);
+  -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+#stage > div { position: absolute; inset: 0; }
+#paperbg { background: radial-gradient(120% 90% at 50% 38%, #f8f5ef 0%, #f1ece4 55%, #e7e0d4 100%); }
+#vig { pointer-events: none; background: radial-gradient(130% 110% at 50% 50%, transparent 62%, rgba(16,17,22,.13) 100%); }
+
+/* ── the 3D world ── */
+#lens { overflow: visible; }
+#world, #world .folder, #world .sheet { position: absolute; left: 0; top: 0; transform-style: preserve-3d; }
+#world { width: 0; height: 0; }
+.sheet { left: -740px !important; width: 1480px; height: 800px; }
+.paper { position: absolute; inset: 0; border-radius: 12px 12px 0 0; background: linear-gradient(180deg, #fbf9f4 0%, #f3eee6 70%); border-top: 2.5px solid var(--ink);
+  box-shadow: 0 0 0 1px rgba(16,17,22,.07) inset; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 62%, transparent 98%); mask-image: linear-gradient(180deg, #000 0, #000 62%, transparent 98%); }
+.paper .print { position: absolute; inset: 0; }
+.paper .pn { position: absolute; left: 52px; top: 34px; font: 400 118px/1 Hebdomadal; letter-spacing: -.01em; white-space: nowrap; }
+.paper .pm { position: absolute; left: 58px; top: 176px; font: 500 21px/1 "SF Mono", ui-monospace, Menlo, monospace; letter-spacing: .02em; color: rgba(16,17,22,.55); display: flex; gap: 16px; align-items: center; }
+.paper .pm i { width: 15px; height: 15px; border-radius: 50%; }
+.paper .no { position: absolute; right: 52px; top: 44px; font: 400 60px/1 Hebdomadal; color: rgba(16,17,22,.3); }
+.paper .rules { position: absolute; left: 56px; right: 56px; top: 250px; bottom: 0; background: repeating-linear-gradient(180deg, rgba(16,17,22,.13) 0 1.5px, transparent 1.5px 54px); }
+.edge { position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--acc); opacity: 0; }
+.shade { position: absolute; inset: 0; background: #000; opacity: 0; border-radius: 0 0 16px 16px; pointer-events: none; }
+#winshadow { position: absolute; left: -740px; top: -44px; width: 1480px; height: 844px; border-radius: 16px; box-shadow: 0 50px 110px rgba(16,17,22,.3), 0 12px 30px rgba(16,17,22,.16); }
+#railbg { position: absolute; left: -740px; top: -44px; width: 1480px; height: 45px; background: #0b0b0c; border-radius: 16px 16px 0 0; }
+#railbg .plus { position: absolute; top: 9px; width: 28px; height: 28px; display: grid; place-items: center; color: #8b8b8a; font: 300 24px/1 "Overused Grotesk"; }
+#line { position: absolute; background: var(--ink); transform-origin: 50% 50%; }
+.tab { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; white-space: nowrap; overflow: hidden; display: flex; align-items: center; font-weight: 600; }
+.tab .tx { margin-left: auto; font-weight: 400; }
+#cursor { position: absolute; left: 0; top: 0; width: 30px; height: 36px; transform-origin: 3px 2px; }
+#cursor svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 5px rgba(0,0,0,.35)); }
+#ring { position: absolute; left: -32px; top: -32px; width: 64px; height: 64px; border-radius: 50%; border: 2.5px solid #f1f1ef; }
+
+/* ── type ── */
+#scrim { background: linear-gradient(180deg, rgba(241,236,228,0) 858px, rgba(239,234,225,.96) 930px, #ebe5da 100%); }
+.ln { display: block; white-space: nowrap; }
+.w { display: inline-block; overflow: hidden; vertical-align: top; padding: .12em .02em .2em; margin: -.12em -.02em -.2em; }
+.w > span { display: inline-block; will-change: transform; }
+.kw { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; color: var(--blue); letter-spacing: -.012em; }
+#headA { text-align: center; top: 208px !important; font-weight: 600; font-size: 112px; line-height: 1.1; letter-spacing: -.045em; }
+#headA .kw { font-size: 1.2em; }
+#caps .cap { position: absolute; left: 0; right: 0; top: 912px; text-align: center; font-weight: 600; font-size: 62px; line-height: 1.1; letter-spacing: -.04em; }
+#caps .cap .kw { font-size: 1.2em; }
+#caps .verb { top: 860px; font: italic 400 122px/1.1 "Instrument Serif"; letter-spacing: -.02em; }
+#caps .verb .w { overflow: visible; }
+#caps .verb .c { display: inline-block; }
+#caps .desc { position: absolute; left: 0; right: 0; top: 1004px; text-align: center; font-weight: 500; font-size: 23px; letter-spacing: -.01em; color: rgba(16,17,22,.62); }
+#caps .desc b { font: 600 15px "SF Mono", ui-monospace, monospace; letter-spacing: .08em; color: var(--blue); margin-right: 14px; vertical-align: 2px; }
+
+/* ── agents (ink) ── */
+#ink { background: #0b0c11; color: var(--ivory); }
+#ink .ih { position: absolute; left: 0; right: 0; top: 276px; text-align: center; font-weight: 600; font-size: 124px; line-height: 1.05; letter-spacing: -.045em; }
+#ink .ih .kw { color: #93a3ff; font-size: 1.2em; }
+#ink .il { position: absolute; left: 200px; right: 200px; top: 704px; height: 2.5px; background: var(--ivory); }
+#ink .disc { position: absolute; left: 0; top: 584px; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; background: var(--ivory); display: grid; place-items: center; color: var(--ink); }
+#ink .disc svg { width: 60px; height: 60px; display: block; }
+#ink .is { position: absolute; left: 0; right: 0; top: 764px; text-align: center; font-weight: 500; font-size: 30px; letter-spacing: -.015em; color: rgba(243,239,233,.66); }
+#ink .is b { color: var(--ivory); font-weight: 600; }
+
+/* ── end ── */
+#end { background: var(--blue); color: var(--ivory); }
+#end .lock { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+#end #mk { position: absolute; left: 0; top: 0; overflow: visible; }
+#end #wm { position: absolute; }
+#end .tag { position: absolute; left: 0; right: 0; top: 632px; text-align: center; font-weight: 600; font-size: 80px; letter-spacing: -.04em; }
+#end .tag .kw { color: var(--ivory); font-size: 1.2em; }
+#end .meta { position: absolute; left: 0; right: 0; top: 812px; display: flex; justify-content: center; align-items: center; gap: 24px; font-weight: 500; font-size: 29px; letter-spacing: -.01em; }
+#end .beta { border: 2px solid rgba(243,239,233,.9); border-radius: 22px; padding: 8px 18px 9px; font: 600 17px "SF Mono", ui-monospace, monospace; letter-spacing: .1em; }
+#end .url { font-weight: 700; }
+#end .os { opacity: .78; }
+#end .sep { width: 5px; height: 5px; border-radius: 50%; background: rgba(243,239,233,.6); }
+
+/* ── preview HUD ── */
+#hud { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 12px; align-items: center; padding: 8px 14px; background: rgba(0,0,0,.7); color: #ddd; font: 13px ui-monospace, monospace; z-index: 10; }
+#hud input { flex: 1; } #hud button { font: inherit; }
+
+/* ── Quick Actions ── */
+#qdim { position: absolute; left: -740px; top: -44px; width: 1480px; height: 844px; border-radius: 16px; background: #060607; opacity: 0; }
+#qa { position: absolute; left: 0; top: 0; width: 0; height: 0; inset: auto; background: none; transform-style: preserve-3d; }
+#qa .qt { position: absolute; left: -66px; top: -66px; width: 132px; height: 132px; border-radius: 46px; display: grid; place-content: center; justify-items: center; gap: 9px; text-align: center; font: 600 15.5px/1.12 "Overused Grotesk"; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 40px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.08) inset; }
+#qa .qt .ic { font-size: 30px; }
+#caps .qd kbd { display: inline-block; min-width: 38px; height: 38px; margin-right: 6px; border-radius: 10px; background: var(--ink); color: var(--ivory); font: 600 19px/38px "Overused Grotesk"; text-align: center; vertical-align: 1px; }
+#caps .qd kbd:last-of-type { margin-right: 18px; }

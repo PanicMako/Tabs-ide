@@ -153,7 +153,7 @@ Stuck, or want to work on the code? See the [developer guide](tabs-app/README.md
 
 <img src="docs/readme/h-agents.png" alt="Bring your agents" width="100%" />
 
-<img src="docs/readme/agents.png" alt="Claude, Codex, Cursor, GitHub Copilot, Grok, OpenCode, Antigravity, Droid, Kilo and OpenRouter. Your accounts. No subscription. No markup." width="100%" />
+<img src="docs/readme/agents.png" alt="Claude, Codex, Cursor, GitHub Copilot, Grok, OpenCode, Antigravity, Droid, Kilo, OpenRouter, Kiro, Muse Code, Pi and fx. Your accounts. No subscription. No markup." width="100%" />
 
 <details>
 <summary>Supported agents and how to connect each</summary>
@@ -173,6 +173,10 @@ Stuck, or want to work on the code? See the [developer guide](tabs-app/README.md
 | Droid              | Install the Droid CLI or set the path to an existing installation in Providers.            |
 | Kilo               | Install the Kilo runtime or configure its path in Providers.                               |
 | OpenRouter         | Add an OpenRouter API key in Providers.                                                    |
+| Kiro               | Install the Kiro CLI and run `kiro-cli login`, then add Kiro in Providers.                 |
+| Muse Code          | Install Muse Code and run `muse login`.                                                    |
+| Pi                 | Run `npm install -g @earendil-works/pi-coding-agent`, then `/login` inside `pi`.           |
+| fx                 | Install fx and run `fx login`, then add fx in Providers.                                   |
 
 Your provider’s own plan and usage charges apply.
 

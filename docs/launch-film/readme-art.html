@@ -47,7 +47,7 @@
   .stp b { display: block; font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-top: 18px; }
   .stp em { display: block; font-style: normal; font-size: 24px; font-weight: 500; opacity: 0.75; margin-top: 6px; }
   #agents { background: var(--blue); height: 400px; text-align: center; }
-  #agents .logos { top: 84px; gap: 22px; } #agents .lg { width: 112px; height: 112px; }
+  #agents .logos { top: 92px; gap: 18px; } #agents .lg { width: 88px; height: 88px; }
   #agents .psub { top: 262px; font-size: 40px; }
 </style>
 <div class="card" id="cover">
@@ -83,5 +83,5 @@
   document.getElementById("w").innerHTML = `<path fill="#f3efe9" d="${word}"/>`;
 
   document.getElementById("m2").innerHTML = `<path fill="#0a0b10" fill-rule="evenodd" d="${body}"/><path fill="#0a0b10" d="${foot}"/>`;
-  document.getElementById("lg").innerHTML = ["claude", "codex", "cursor", "copilot", "grok", "opencode", "antigravity", "factory-droid", "kilo", "openrouter"].map((k) => `<div class="lg">${window.LOGOS[k]}</div>`).join("");
+  document.getElementById("lg").innerHTML = ["claude", "codex", "cursor", "copilot", "grok", "opencode", "antigravity", "factory-droid", "kilo", "openrouter", "kiro", "muse", "pi", "fx"].map((k) => `<div class="lg">${window.LOGOS[k]}</div>`).join("");
 </script>
