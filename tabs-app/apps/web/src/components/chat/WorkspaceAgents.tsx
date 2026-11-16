@@ -1,4 +1,6 @@
 import { WorkspaceAutomations } from "./WorkspaceAutomations";
+import { OVERMIND_TITLE_PREFIX } from "@tabs/shared/overmind";
+import { truncateTitle } from "../../truncateTitle";
 import { useDetailShown } from "./workspaceDetails";
 import { useWorkspaceActionExpansion } from "./workspaceActionsState";
 import {
@@ -12,7 +14,10 @@ import {
   ProviderInstanceId,
 } from "@tabs/contracts";
 import { buildOvermindStartMessage } from "@tabs/shared/overmind";
+import { resolveSubagentModel } from "@tabs/shared/subagents";
 import { OvermindSection } from "./OvermindSection";
+import { SubagentTeamCard } from "./OvermindWorkerPicker";
+import { useSubagentModels } from "../../state/overmindSettings";
 import { useState, useId, useEffect, useRef } from "react";
 import {
   BotIcon,
@@ -262,10 +267,20 @@ function ScopedWorkspaceAgents({
         status: thread.activityRunStatus ?? thread.status,
       },
     }));
-  const familyRows = [...orderedRows, ...disconnectedRows].filter(
-    (row) => row.threadId !== context.thread.lineage.parentThreadId,
+  // Overmind's sub-threads are listed once, in the Overmind section below.
+  const overmindChildIds = new Set(
+    context.subagents
+      .filter((agent) => agent.title?.startsWith(OVERMIND_TITLE_PREFIX) === true)
+      .flatMap((agent) => (agent.childThreadId ? [agent.childThreadId as string] : [])),
   );
-  const unlinkedAgents = context.subagents.filter((agent) => agent.childThreadId === null);
+  const familyRows = [...orderedRows, ...disconnectedRows].filter(
+    (row) =>
+      row.threadId !== context.thread.lineage.parentThreadId && !overmindChildIds.has(row.threadId),
+  );
+  const unlinkedAgents = context.subagents.filter(
+    (agent) =>
+      agent.childThreadId === null && agent.title?.startsWith(OVERMIND_TITLE_PREFIX) !== true,
+  );
   const { visibleRows, hiddenCount: loadedHiddenCount } = resolveThreadLineageWindow(
     familyRows,
     visibleLimit,
@@ -333,6 +348,7 @@ function ScopedWorkspaceAgents({
   };
 
   const availableProviders = serverConfig?.providers ?? [];
+  const subagentModels = useSubagentModels();
   const selectedProviderEntry = availableProviders.find((p) => p.instanceId === selectedInstanceId);
   const availableModels = selectedProviderEntry?.models ?? [];
 
@@ -347,7 +363,11 @@ function ScopedWorkspaceAgents({
 
   return (
     <>
-      <section aria-label="Agent workflow" className="mt-3 border-t border-border/60 pt-2">
+      <section aria-label="Team overview" className="mt-1 border-t border-border/50 px-2 pt-3">
+        <p className="pb-1.5 text-[11px] font-medium text-muted-foreground">Team</p>
+        <SubagentTeamCard providers={availableProviders} lead={context.thread.modelSelection} />
+      </section>
+      <section aria-label="Agent workflow" className="mt-2 border-t border-border/50 pt-2">
         <button
           type="button"
           className={row}
@@ -368,6 +388,10 @@ function ScopedWorkspaceAgents({
 
         {expanded && (
           <div id={`workspace-agents-${context.thread.id}`} className="space-y-1 pt-1">
+            <p className="px-2 pb-1 text-[11px] leading-relaxed text-muted-foreground">
+              Quick helpers this chat starts for a focused job. They work beside the chat and report
+              back here, without adding threads to the sidebar.
+            </p>
             {/* If this conversation has a parent, offer opening it */}
             {context.thread.lineage.parentThreadId && (
               <button
@@ -398,7 +422,7 @@ function ScopedWorkspaceAgents({
 
             {/* Lineage & Related family rows */}
             {familyRows.length > 0 ? (
-              <div className="max-h-64 space-y-1 overflow-y-auto">
+              <div className="space-y-1">
                 {visibleRows.map((lineageRow) => {
                   const node = graph.nodes.get(lineageRow.threadId);
                   const isParent = isParentThreadRelationship(lineageRow.edge, context.thread.id);
@@ -428,7 +452,7 @@ function ScopedWorkspaceAgents({
                   return (
                     <div
                       key={lineageRow.threadId}
-                      className="rounded-lg border border-border/50 p-2"
+                      className="border-b border-border/40 px-2 py-2 last:border-b-0"
                     >
                       <div className="flex items-start gap-2">
                         {isParent ? (
@@ -503,7 +527,7 @@ function ScopedWorkspaceAgents({
                           <summary className="cursor-pointer">
                             {agent.result ? "Result" : "Progress"}
                           </summary>
-                          <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                          <p className="mt-1 whitespace-pre-wrap break-words">
                             {agent.result ?? agent.progress}
                           </p>
                         </details>
@@ -532,7 +556,7 @@ function ScopedWorkspaceAgents({
                 {hiddenCount > 0 && (
                   <button
                     type="button"
-                    className="mt-1 flex min-h-7 w-full items-center justify-center rounded-md border border-border/40 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="mt-1 flex min-h-7 w-full items-center justify-center py-1 text-[11px] text-muted-foreground hover:text-foreground"
                     disabled={busy !== null}
                     onClick={showMore}
                   >
@@ -542,7 +566,10 @@ function ScopedWorkspaceAgents({
               </div>
             ) : null}
             {unlinkedAgents.map((agent) => (
-              <div key={agent.id} className="rounded-lg border border-border/50 p-2 text-xs">
+              <div
+                key={agent.id}
+                className="border-b border-border/40 px-2 py-2 text-xs last:border-b-0"
+              >
                 <p className="font-medium">
                   {agent.title ?? (agent.prompt.slice(0, 100) || "Sub-agent")}
                 </p>
@@ -557,7 +584,7 @@ function ScopedWorkspaceAgents({
                 {(agent.progress || agent.result) && (
                   <details className="mt-2 text-[11px] text-muted-foreground">
                     <summary>{agent.result ? "Result" : "Progress"}</summary>
-                    <p className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                    <p className="whitespace-pre-wrap break-words">
                       {agent.result ?? agent.progress}
                     </p>
                   </details>
@@ -599,8 +626,10 @@ function ScopedWorkspaceAgents({
               }
               onClick={() => {
                 setDelegationParentId(parentRun?.id ?? null);
-                setSelectedInstanceId(defaultInstanceId);
-                setSelectedModel(defaultModel);
+                // Start from the user's sub-agent model when one is set.
+                const staffed = resolveSubagentModel(subagentModels, undefined);
+                setSelectedInstanceId(staffed?.instanceId ?? defaultInstanceId);
+                setSelectedModel(staffed?.model ?? defaultModel);
                 setError(null);
                 delegationRetry.current = null;
                 setDelegateOpen(true);
@@ -609,37 +638,6 @@ function ScopedWorkspaceAgents({
               <PlusIcon aria-hidden="true" className="size-3.5" />
               Delegate task
             </button>
-
-            <OvermindSection
-              subagents={context.subagents}
-              rowClassName={row}
-              disabled={nativeChild || busy !== null}
-              disabledReason={nativeChild ? "Start Overmind from the parent conversation" : null}
-              onOpenThread={(threadId) => openThread(ThreadId.make(threadId))}
-              onStop={(subagentId, childThreadId) => {
-                const agent = context.subagents.find((candidate) => candidate.id === subagentId);
-                if (agent) {
-                  void perform(`stop:${childThreadId}`, () =>
-                    stopChild(agent, ThreadId.make(childThreadId)),
-                  );
-                }
-              }}
-              providers={availableProviders}
-              onStart={async (goal, workers) => {
-                await dispatch({
-                  type: "message.dispatch",
-                  commandId: newCommandId(),
-                  threadId: context.thread.id,
-                  messageId: newMessageId(),
-                  text: buildOvermindStartMessage(goal, workers ?? undefined),
-                  attachments: [],
-                  dispatchMode: { type: parentRun ? "queue_after_active" : "start_immediately" },
-                  createdBy: "user",
-                  creationSource: "web",
-                });
-                setExpanded(true);
-              }}
-            />
 
             {nativeChild && (
               <p className="px-2 text-[10px] text-muted-foreground">
@@ -890,6 +888,40 @@ function ScopedWorkspaceAgents({
             </DialogPanel>
           </DialogPopup>
         </Dialog>
+      </section>
+      <section aria-label="Overmind plan" className="mt-2 border-t border-border/50 pt-2">
+        <OvermindSection
+          subagents={context.subagents}
+          rowClassName={row}
+          disabled={nativeChild || busy !== null}
+          disabledReason={nativeChild ? "Start Overmind from the parent conversation" : null}
+          onOpenThread={(threadId) => openThread(ThreadId.make(threadId))}
+          onStop={(subagentId, childThreadId) => {
+            const agent = context.subagents.find((candidate) => candidate.id === subagentId);
+            if (agent) {
+              void perform(`stop:${childThreadId}`, () =>
+                stopChild(agent, ThreadId.make(childThreadId)),
+              );
+            }
+          }}
+          providers={availableProviders}
+          lead={context.thread.modelSelection}
+          onStart={async (goal) => {
+            await dispatch({
+              type: "message.dispatch",
+              commandId: newCommandId(),
+              threadId: context.thread.id,
+              messageId: newMessageId(),
+              text: buildOvermindStartMessage(goal),
+              titleSeed: truncateTitle(goal.trim()),
+              attachments: [],
+              dispatchMode: { type: parentRun ? "queue_after_active" : "start_immediately" },
+              createdBy: "user",
+              creationSource: "web",
+            });
+            setExpanded(true);
+          }}
+        />
       </section>
       {!nativeChild && showAutomations && (
         <WorkspaceAutomations context={context} environmentId={environmentId} />

@@ -3,7 +3,7 @@ import { ThreadSurfaceSwitch } from "./ThreadSurfaceSwitch";
 import type { ThreadSurface } from "~/stores/threadSurfaceStore";
 import { threadsAtom } from "../../state/threads";
 import { useWorkspaceActionsState, type WorkspaceActionSection } from "./workspaceActionsState";
-import { GitCompanionIcon } from "../WorkspaceToolMarks";
+import { GitCompanionIcon, WorkspaceWallpaperIcon } from "../WorkspaceToolMarks";
 import { DockUfoIcon } from "../DockUfoIcon";
 import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import "./workspace-actions.css";
@@ -24,7 +24,6 @@ import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect
 import {
   SquareMenuIcon,
   GaugeIcon,
-  ImageIcon,
   GitBranchIcon,
   DiffIcon,
   Maximize2Icon,
@@ -79,6 +78,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
+import type { ServerProvider as OvermindProviderOption } from "@tabs/contracts";
 import { WorkspaceAgentsEmpty } from "./WorkspaceAgentsEmpty";
 import { WorkspaceUsagePane } from "./WorkspaceUsagePane";
 import { WorkspaceDetailsMenu } from "./WorkspaceDetailsMenu";
@@ -109,6 +109,10 @@ interface ChatHeaderProps {
   compactDisabledReason?: string | null | undefined;
   /** Seeds the composer with an Overmind goal before the conversation exists. */
   onStartOvermind?: ((goal: string) => void) | undefined;
+  /** Providers Overmind sub-tasks may run on. */
+  overmindProviders?: ReadonlyArray<OvermindProviderOption> | undefined;
+  /** The composer's model, which leads sub-agents and Overmind plans. */
+  overmindLead?: { readonly instanceId: string; readonly model: string } | null | undefined;
   scriptManagement?: ReactNode;
   scripts?: ReadonlyArray<ProjectScript> | undefined;
   onRunScript?: ((script: ProjectScript) => void) | undefined;
@@ -824,6 +828,8 @@ export const ChatHeader = memo(function ChatHeader({
   compactDisabled,
   compactDisabledReason,
   onStartOvermind,
+  overmindProviders,
+  overmindLead,
   scriptManagement,
   scripts,
   onRunScript,
@@ -1011,11 +1017,7 @@ export const ChatHeader = memo(function ChatHeader({
     }
   }, [projectId, environmentId, gitCwd]);
 
-  const formattedProjectName = activeProjectName
-    ? activeProjectName.toLowerCase().includes("tabs")
-      ? "Tabs IDE"
-      : activeProjectName
-    : null;
+  const formattedProjectName = activeProjectName || null;
 
   const workspaceCard = (
     <section
@@ -1081,7 +1083,7 @@ export const ChatHeader = memo(function ChatHeader({
             { id: "run", label: "Run", Icon: DockUfoIcon },
             { id: "agents", label: "Agents", Icon: AssistantBubbleIcon },
             { id: "usage", label: "Usage", Icon: GaugeIcon },
-            { id: "look", label: "Look", Icon: ImageIcon },
+            { id: "look", label: "Look", Icon: WorkspaceWallpaperIcon },
           ] as const
         )
           .filter(({ id }) => id !== "usage" || showUsage)
@@ -1271,7 +1273,13 @@ export const ChatHeader = memo(function ChatHeader({
             compactDisabledReason={compactDisabledReason}
           />
         ) : null}
-        {agentWorkflow ?? <WorkspaceAgentsEmpty onStartOvermind={onStartOvermind} />}
+        {agentWorkflow ?? (
+          <WorkspaceAgentsEmpty
+            onStartOvermind={onStartOvermind}
+            providers={overmindProviders}
+            lead={overmindLead ?? null}
+          />
+        )}
       </div>
 
       {showUsage && (

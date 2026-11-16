@@ -365,7 +365,7 @@ describe("TraitsPicker (Claude)", () => {
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error("Expected traits trigger button to be rendered.");
     }
-    expect(button.className).toContain("border-input");
+    expect(button.className).toContain("border-foreground/10");
     expect(button.className).toContain("bg-popover");
   });
 });

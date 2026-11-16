@@ -78,6 +78,7 @@
 .workspace-action-pane {
   min-width: 0;
   padding: 14px;
+  overflow-wrap: anywhere;
 }
 .workspace-action-pane[hidden] {
   display: none;
@@ -107,6 +108,11 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 8px;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.workspace-actions-floating::-webkit-scrollbar {
+  display: none;
 }
 .workspace-actions-rail {
   position: absolute;
@@ -115,9 +121,15 @@
   right: 16px;
   width: min(var(--workspace-actions-width, 300px), calc(100% - 32px));
   max-height: calc(100dvh - 320px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 8px 0 16px;
-  scrollbar-width: thin;
+  /* The chat already shows a bar beside the rail; keep this one out of sight. */
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.workspace-actions-rail::-webkit-scrollbar {
+  display: none;
 }
 .workspace-actions-rail[hidden] {
   display: none;

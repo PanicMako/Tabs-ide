@@ -259,9 +259,9 @@ it("delegates with provider and model chooser, preserving permissions and stoppi
     await page.getByRole("textbox", { name: "Task", exact: true }).fill("Check the API contract");
 
     // Select alternative provider and model
-    const providerSelect = page.getByLabelText("Provider");
+    const providerSelect = page.getByLabelText("Provider", { exact: true });
     await providerSelect.selectOptions("claudeAgent");
-    const modelSelect = page.getByLabelText("Model");
+    const modelSelect = page.getByLabelText("Model", { exact: true });
     await modelSelect.selectOptions("claude-sonnet");
 
     await page.getByRole("button", { name: "Delegate", exact: true }).click();

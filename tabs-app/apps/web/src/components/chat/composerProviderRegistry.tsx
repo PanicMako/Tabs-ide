@@ -36,6 +36,8 @@ export type ComposerProviderState = {
   composerFrameClassName?: string;
   composerSurfaceClassName?: string;
   modelPickerIconClassName?: string;
+  /** The message runs at ultrathink, so the composer shows its banner. */
+  ultrathinkActive: boolean;
 };
 
 export function getComposerProviderState(input: ComposerProviderStateInput): ComposerProviderState {
@@ -71,6 +73,7 @@ export function getComposerProviderState(input: ComposerProviderStateInput): Com
     provider,
     promptEffort,
     modelOptionsForDispatch: buildProviderOptionSelectionsFromDescriptors(descriptors),
+    ultrathinkActive,
     ...(ultrathinkActive
       ? {
           composerFrameClassName: "ultrathink-frame",

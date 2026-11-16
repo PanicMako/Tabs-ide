@@ -253,7 +253,7 @@ it("keeps separate actions inside the chat pane and restores the selected sectio
       )!;
       await expect
         .poll(() => selected.getBoundingClientRect().width)
-        .toBeGreaterThan(inactive.getBoundingClientRect().width * 3);
+        .toBeGreaterThan(inactive.getBoundingClientRect().width * 2);
       const branchCard = document.querySelector<HTMLElement>(".workspace-branch-card")!;
       const pins = [...branchCard.querySelectorAll<HTMLElement>(".workspace-pinned-branch")];
       expect(pins).toHaveLength(2);

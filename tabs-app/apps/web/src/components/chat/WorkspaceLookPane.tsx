@@ -3,13 +3,15 @@ import {
   ChevronRightIcon,
   DicesIcon,
   LayoutGridIcon,
-  PowerOffIcon,
   RotateCcwIcon,
   ScanLineIcon,
 } from "lucide-react";
 
 import { cn } from "../../lib/utils";
-import { useWallpaperControlsStore } from "../../stores/wallpaperControlsStore";
+import {
+  useWallpaperControlsStore,
+  type WallpaperControls,
+} from "../../stores/wallpaperControlsStore";
 import { WALLPAPER_PRINT_STYLES } from "../onboarding/wallpaperPrint";
 import { PRINT_STRENGTHS, useWallpaperPrintSettings } from "../onboarding/WallpaperPrintPicker";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -91,8 +93,13 @@ function PrintPicker() {
 }
 
 /** Wallpaper and its print, in the workspace card where the rest of the workspace is set up. */
-export function WorkspaceLookPane() {
-  const controls = useWallpaperControlsStore((state) => state.controls);
+export function WorkspaceLookPane({
+  controls: controlsProp,
+}: {
+  controls?: WallpaperControls | null;
+} = {}) {
+  const storeControls = useWallpaperControlsStore((state) => state.controls);
+  const controls = controlsProp !== undefined ? controlsProp : storeControls;
 
   if (!controls) {
     return (
@@ -102,73 +109,71 @@ export function WorkspaceLookPane() {
     );
   }
 
-  if (!controls.enabled) {
-    return (
-      <button type="button" className={`${ROW} w-full`} onClick={() => controls.setEnabled(true)}>
-        Turn wallpaper on
-      </button>
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1">
-        <button type="button" className={`${ROW} flex-1`} onClick={controls.openGallery}>
-          <LayoutGridIcon aria-hidden="true" className="size-3.5" />
-          Browse gallery
-        </button>
-        <button
-          type="button"
-          className={ICON}
-          aria-label="Previous wallpaper"
-          title="Previous wallpaper"
-          onClick={() => controls.step(-1)}
-        >
-          <ChevronLeftIcon aria-hidden="true" className="size-4" />
-        </button>
-        <button
-          type="button"
-          className={ICON}
-          aria-label="Next wallpaper"
-          title="Next wallpaper"
-          onClick={() => controls.step(1)}
-        >
-          <ChevronRightIcon aria-hidden="true" className="size-4" />
-        </button>
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between px-0.5">
+        <span className="text-xs font-medium text-foreground">Wallpaper</span>
+        <Switch
+          checked={controls.enabled}
+          onCheckedChange={(checked) => controls.setEnabled(checked)}
+          aria-label="Toggle wallpaper"
+        />
       </div>
-      <p className="truncate px-0.5 text-[11px] text-muted-foreground">{controls.label}</p>
-      <PrintPicker />
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          className={ICON}
-          aria-label="Shuffle wallpaper"
-          title="Shuffle wallpaper"
-          onClick={controls.shuffle}
-        >
-          <DicesIcon aria-hidden="true" className="size-4" />
-        </button>
-        {controls.overridden && (
-          <button
-            type="button"
-            className={ICON}
-            aria-label="Use the shared wallpaper"
-            title="Use the shared wallpaper"
-            onClick={controls.resetOverride}
-          >
-            <RotateCcwIcon aria-hidden="true" className="size-4" />
-          </button>
-        )}
-        <button
-          type="button"
-          className={`${ICON} ml-auto`}
-          aria-label="Turn wallpaper off"
-          title="Turn wallpaper off"
-          onClick={() => controls.setEnabled(false)}
-        >
-          <PowerOffIcon aria-hidden="true" className="size-4" />
-        </button>
-      </div>
+
+      {controls.enabled && (
+        <>
+          <div className="flex items-center gap-1">
+            <button type="button" className={`${ROW} flex-1`} onClick={controls.openGallery}>
+              <LayoutGridIcon aria-hidden="true" className="size-3.5" />
+              <span>Browse gallery</span>
+            </button>
+            <button
+              type="button"
+              className={ICON}
+              aria-label="Previous wallpaper"
+              title="Previous wallpaper"
+              onClick={() => controls.step(-1)}
+            >
+              <ChevronLeftIcon aria-hidden="true" className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={ICON}
+              aria-label="Next wallpaper"
+              title="Next wallpaper"
+              onClick={() => controls.step(1)}
+            >
+              <ChevronRightIcon aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+          <p className="truncate px-0.5 text-[11px] text-muted-foreground">{controls.label}</p>
+          <PrintPicker />
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              className={`${ROW} flex-1 justify-center`}
+              aria-label="Shuffle wallpaper"
+              title="Shuffle wallpaper"
+              onClick={controls.shuffle}
+            >
+              <DicesIcon aria-hidden="true" className="size-3.5" />
+              <span>Shuffle</span>
+            </button>
+            {controls.overridden && (
+              <button
+                type="button"
+                className={`${ROW} flex-1 justify-center`}
+                aria-label="Use the shared wallpaper"
+                title="Use the shared workspace wallpaper"
+                onClick={controls.resetOverride}
+              >
+                <RotateCcwIcon aria-hidden="true" className="size-3.5" />
+                <span>Use shared</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
