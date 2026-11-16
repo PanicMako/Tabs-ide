@@ -10,9 +10,17 @@ const look = [
   { tint: "#c9d3ff", fg: "#0b0d1f", ac: "#0e2af3", shot: "light" },
 ];
 // `look.shot` picks the light or dark screenshot; kept apart from the tool's own `shot` name.
+// A real screenshot at /product/<id>-<tone>.png wins over the drawn mock as soon as it lands.
+const productShots = new Set(
+  Object.keys(import.meta.glob("/public/product/*.png")).map((path) => path.replace("/public", "")),
+);
 const chapters = tools.map((t, i) => {
   const { shot: tone, ...colors } = look[i % look.length]!;
-  return { ...t, ...colors, look: tone, shot: "shot" in t ? t.shot : tone };
+  const name = "shot" in t ? t.shot : t.id;
+  // Prefer the chapter's own theme, else the other one, else the drawn mock.
+  const other = tone === "light" ? "dark" : "light";
+  const src = [tone, other].map((x) => `/product/${name}-${x}.png`).find((path) => productShots.has(path)) ?? null;
+  return { ...t, ...colors, look: tone, shot: name, src, mock: src ? null : "mock" in t ? t.mock : null };
 });
 ---
 <section class="ch" id="tools" data-sec="Tool chapters" style={`--tint:${chapters[0]!.tint};--fg:${chapters[0]!.fg};--ac:${chapters[0]!.ac}`} data-tints={JSON.stringify(chapters.map((c) => [c.tint, c.ac, c.fg]))}>
@@ -20,7 +28,7 @@ const chapters = tools.map((t, i) => {
     <ol class="ch-rail" aria-label="Tools">
       <li class="ch-rail__line" aria-hidden="true"><i></i></li>
       {chapters.map((c, i) => (
-        <li><button type="button" data-go={i} class:list={[i === 0 && "on"]}><i class="ch-rail__dot"></i><span class="ch-rail__name">{c.name}</span></button></li>
+        <li><button type="button" data-go={i} class:list={[i === 0 && "on"]}><span class="ch-rail__name">{c.name}</span><span class="ch-rail__n">{String(i + 1).padStart(2, "0")}</span></button></li>
       ))}
     </ol>
     <div class="ch-copy">
@@ -31,10 +39,10 @@ const chapters = tools.map((t, i) => {
     <div class="ch-stack">
       {chapters.map((c, i) => (
         <figure class="ch-card" data-i={i} style={`z-index:${i + 1}`}>
-          {"mock" in c ? (
+          {c.mock ? (
             <ChapterMock kind={c.mock} tone={c.look === "dark" ? "dark" : "light"} />
           ) : (
-            <img src={`/product/${c.shot}-${c.look}.png`} alt={`The ${c.name} tool in Tabs`} width="1920" height="1204" decoding="async" />
+            <img src={c.src ?? `/product/${c.shot}-${c.look}.png`} alt={`The ${c.name} tool in Tabs`} width="1920" height="1204" decoding="async" />
           )}
           <span class="ch-card__shade"></span>
         </figure>
@@ -45,14 +53,18 @@ const chapters = tools.map((t, i) => {
 
 <style is:global>
   .ch { position: relative; background: var(--tint); color: var(--fg); }
-  .ch-stage { position: relative; height: 100svh; display: grid; grid-template-columns: 170px minmax(0, 4fr) minmax(0, 7fr); align-items: center; gap: 3vw; padding: 96px max(28px, 3vw) 110px; overflow: hidden; }
-  .ch-rail { position: relative; display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; align-self: center; }
-  .ch-rail__line { position: absolute; left: 4px; top: 8px; bottom: 8px; width: 1px; background: color-mix(in srgb, var(--fg) 22%, transparent); }
+  .ch-stage { position: relative; height: 100svh; display: grid; grid-template-columns: 190px minmax(0, 4fr) minmax(0, 7fr); align-items: center; gap: 3vw; padding: 96px max(28px, 3vw) 110px; overflow: hidden; }
+  /* The rail is a progress track: it fills as you scroll and the current tool shows its number at the far end. */
+  .ch-rail { position: relative; display: grid; margin: 0; padding: 0; list-style: none; align-self: center; }
+  .ch-rail__line { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--fg) 18%, transparent); }
   .ch-rail__line i { position: absolute; inset: 0; background: var(--fg); transform-origin: top; transform: scaleY(0); }
-  .ch-rail button { display: flex; align-items: center; gap: 16px; padding: 0; border: 0; background: none; color: var(--fg); font: 500 15px var(--sans); cursor: pointer; opacity: .5; transition: opacity .35s; }
-  .ch-rail button:hover, .ch-rail button.on { opacity: 1; }
-  .ch-rail__dot { position: relative; z-index: 1; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--tint); box-shadow: inset 0 0 0 1.5px var(--fg); transition: scale .4s cubic-bezier(.2,1.6,.4,1), background .3s; }
-  .ch-rail button.on .ch-rail__dot { background: var(--fg); scale: 1.35; }
+  .ch-rail button { display: flex; align-items: center; width: 100%; height: 42px; padding: 0 0 0 20px; border: 0; background: none; color: var(--fg); font: 500 16px/1.15 var(--sans); letter-spacing: -.01em; text-align: left; cursor: pointer; }
+  .ch-rail__name { opacity: .45; transform-origin: 0 50%; transition: opacity .35s, scale .6s cubic-bezier(.2, 1, .3, 1), translate .6s cubic-bezier(.2, 1, .3, 1); }
+  .ch-rail__n { margin-left: auto; padding-left: 10px; font: 500 10.5px/1 var(--mono); letter-spacing: .06em; color: var(--ac); opacity: 0; transition: opacity .35s; }
+  .ch-rail button.past .ch-rail__name { opacity: .7; }
+  .ch-rail button:hover .ch-rail__name { opacity: 1; translate: 4px 0; }
+  .ch-rail button.on .ch-rail__name { opacity: 1; scale: 1.1; translate: 0 0; }
+  .ch-rail button.on .ch-rail__n { opacity: 1; }
   .ch-copy { position: relative; min-width: 0; }
   .ch-kick { position: relative; height: 1.4em; margin: 0 0 18px; overflow: hidden; padding-top: .1em; font: 500 12px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: color-mix(in srgb, var(--fg) 70%, transparent); }
   .ch-kick__in span, .ch-word__in, .ch-line { position: absolute; left: 0; top: 0; }
@@ -69,8 +81,9 @@ const chapters = tools.map((t, i) => {
   .ch [data-i]:not([data-i="0"]).ch-word__in, .ch [data-i]:not([data-i="0"]).ch-line, .ch .ch-kick__in [data-i]:not([data-i="0"]) { visibility: hidden; }
   @media (max-width: 1000px) {
     .ch-stage { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; align-content: center; gap: 22px; padding: 84px 18px 100px; }
-    .ch-rail { display: flex; overflow-x: auto; scrollbar-width: none; }
-    .ch-rail { display: flex; gap: 18px; } .ch-rail__line { display: none; } .ch-rail button { white-space: nowrap; }
+    .ch-rail { display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; }
+    .ch-rail__line, .ch-rail__n { display: none; }
+    .ch-rail button { height: auto; padding: 0; font-size: 15px; white-space: nowrap; } .ch-rail button.on .ch-rail__name { scale: 1; }
     .ch-word { font-size: 18vw; }
     .ch-lines { min-height: 5em; }
     .ch-stack { max-height: 36svh; justify-self: stretch; }
@@ -134,7 +147,7 @@ const chapters = tools.map((t, i) => {
         const p = s.progress * (n - 1);
         paint(s.progress * tl.duration());
         const k = Math.min(n - 1, Math.round(p));
-        rail.forEach((b, i) => b.classList.toggle("on", i === k));
+        rail.forEach((b, i) => { b.classList.toggle("on", i === k); b.classList.toggle("past", i < k); });
         gsap.set(line, { scaleY: p / (n - 1) });
       },
     });

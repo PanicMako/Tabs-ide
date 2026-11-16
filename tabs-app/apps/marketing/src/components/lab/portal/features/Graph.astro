@@ -1,0 +1,225 @@
+---
+/**
+ * Sub-agents and Overmind, drawn as git graphs.
+ * 1. `la` · Two drawings. Sub-agents are loops that leave one line and come straight
+ *    back to it. Overmind is the line forking into branches and merging again.
+ * 2. `lb` · One tall graph of a single run. It inks itself in as you scroll, and each
+ *    event on the way down (a steer, a failure, a wait, the merge) is annotated beside it.
+ */
+import ProviderLogo from "../ProviderLogo.astro";
+import { agents } from "../../../../data/lab";
+import { GOAL, lanes, helpers } from "../../../../data/overmind";
+
+const nameOf = (id: string) => agents.find((a) => a.id === id)?.name ?? id;
+
+/* 1 · two small graphs, 560 by 300 */
+const loops = [110, 240, 370].map((x) => `M${x} 150 C${x + 30} 150 ${x + 26} 78 ${x + 55} 78 C${x + 84} 78 ${x + 80} 150 ${x + 110} 150`);
+const forkY = lanes.map((_, i) => 24 + i * 36);
+const forks = forkY.map((y) => `M90 150 C132 150 128 ${y} 170 ${y} H400 C442 ${y} 438 150 480 150`);
+
+/* 2 · the tall graph, in percent of its box: eight lanes fan out from a trunk at x 50 */
+const X = lanes.map((_, i) => 8 + i * 12);
+const TOP = 14, BOT = 82;
+const fan = (x: number) => `M50 9 C50 12 ${x} 11 ${x} ${TOP}`;
+const join = (x: number) => `M${x} ${BOT} C${x} 85 50 84 50 87`;
+const solid = [
+  "M50 0 V9", "M50 87 V100",
+  ...X.flatMap((x, i) => {
+    if (i === 3) return [`${fan(x)} V38`, `M${x} 41 V${BOT}`, join(x)];
+    if (i === 7) return [fan(x), `M${x} 58 V${BOT}`, join(x)];
+    return [`${fan(x)} V${BOT}`, join(x)];
+  }),
+];
+const dashed = [`M${X[7]} ${TOP} V58`, `M${X[3]} 58 H${X[7]}`];
+const DONE = [34, 64, 50, 55, 53, 46, 40, 77];
+const notes = [
+  { y: 5, tag: "01 · Plan", t: "It starts with a plan.", d: "The lead agent reads your code and turns the goal into eight clear tasks, within the token budget you set." },
+  { y: 13, tag: "02 · Split", t: "Every task gets its own thread.", d: "Each thread works on its own git branch and worktree, so nothing collides." },
+  { y: 21, tag: "03 · Run", t: "All eight run at the same time.", d: "Each task goes to the model you chose for that kind of work." },
+  { y: 28, tag: "Steer", t: "You stay in control.", d: "Open any thread to watch it, send a message to steer it, or stop it. The others carry on." },
+  { y: 39, tag: "Retry", t: "If one fails, it tries again.", d: "Billing broke two tests. Overmind retried it on the same branch, and it passed." },
+  { y: 58, tag: "Wait", t: "Tasks wait their turn.", d: "End-to-end tests need billing and SSO, so they start only once both are finished." },
+  { y: 70, tag: "Budget", t: "It stays within budget.", d: "This run used 9.4M of the 12M tokens you allowed." },
+  { y: 88, tag: "04 · Merge", t: "Everything merges back.", d: "All eight branches are merged, then the full test suite runs. 212 tests passed." },
+  { y: 97, tag: "Report", t: "You get one report.", d: "What shipped, what changed and what to look at first." },
+];
+---
+<!-- 1 · Sub-agents and Overmind -->
+<section class="fx-sec la">
+  <div class="v1-wrap">
+    <p class="v1-kicker" data-in>Sub-agents and Overmind</p>
+    <h2 data-in>One stays <em>in line.</em> One <em>branches out.</em></h2>
+    <div class="la-pair">
+      <figure class="la-fig" data-in>
+        <figcaption><span>A</span><b>Sub-agents</b></figcaption>
+        <div class="la-draw">
+          <svg viewBox="0 0 560 300" aria-hidden="true">
+            <path class="la-main" d="M10 150 H550" pathLength="1" style="--d:0" />
+            {loops.map((d, i) => <path d={d} pathLength="1" style={`--d:${0.5 + i * 0.25}`} />)}
+            {loops.map((d, i) => <circle class="la-run" r="4.5"><animateMotion dur="3.2s" begin={`${i * 1.1}s`} repeatCount="indefinite" path={d} /></circle>)}
+            {[110, 220, 240, 350, 370, 480].map((x) => <circle class="la-node" cx={x} cy="150" r="4" />)}
+            <circle class="la-cap" cx="10" cy="150" r="6" /><path class="la-arrow" d="M540 143 L550 150 L540 157" />
+          </svg>
+          {helpers.map((h, i) => <span class="la-tag" style={`left:${((165 + i * 130) / 560) * 100}%;top:${(52 / 300) * 100}%`}><ProviderLogo id={h.pv} size={18} />{["review", "lookup", "fix"][i]}</span>)}
+          <span class="la-end" style="left:0;top:60%">your chat</span><span class="la-end la-end--r" style="right:0;top:60%">same chat, answered</span>
+        </div>
+        <dl>
+          <div><dt>Where</dt><dd>Inside the chat you are already in.</dd></div>
+          <div><dt>Good for</dt><dd>A review, a lookup, a quick fix.</dd></div>
+          <div><dt>Comes back as</dt><dd>An answer in the same conversation.</dd></div>
+        </dl>
+      </figure>
+      <figure class="la-fig" data-in style="--d:120">
+        <figcaption><span>B</span><b>Overmind</b></figcaption>
+        <div class="la-draw">
+          <svg viewBox="0 0 560 300" aria-hidden="true">
+            <path class="la-main" d="M10 150 H90" pathLength="1" style="--d:0" />
+            {forks.map((d, i) => <path d={d} pathLength="1" style={`--d:${0.3 + i * 0.08}`} />)}
+            <path class="la-main" d="M480 150 H550" pathLength="1" style="--d:1.4" />
+            {forks.map((d, i) => <circle class="la-run" r="4"><animateMotion dur={`${4 + (i % 3) * 0.7}s`} begin={`${i * 0.35}s`} repeatCount="indefinite" path={d} /></circle>)}
+            <circle class="la-node" cx="90" cy="150" r="5" /><circle class="la-node" cx="480" cy="150" r="5" />
+            <circle class="la-cap" cx="10" cy="150" r="6" /><path class="la-arrow" d="M540 143 L550 150 L540 157" />
+          </svg>
+          {lanes.map((l, i) => <span class="la-branch" style={`left:${(184 / 560) * 100}%;top:${(forkY[i]! / 300) * 100}%`}>overmind/{l.id}</span>)}
+          <span class="la-end" style="left:0;top:60%">one goal</span><span class="la-end la-end--r" style="right:0;top:60%">one report</span>
+        </div>
+        <dl>
+          <div><dt>Where</dt><dd>In its own threads, each on its own branch and worktree.</dd></div>
+          <div><dt>Good for</dt><dd>A whole release or a large feature.</dd></div>
+          <div><dt>Comes back as</dt><dd>Branches merged and tested, and one report.</dd></div>
+        </dl>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- 2 · Overmind, step by step -->
+<section class="fx-sec lb">
+  <div class="v1-wrap">
+    <p class="v1-kicker" data-in>Overmind, step by step</p>
+    <h2 data-in>Follow one goal <em>down the page.</em></h2>
+    <p class="lb-goal" data-in><span>goal</span>{GOAL}</p>
+    <div class="lb-run" data-lb style="--p:0">
+      <div class="lb-graph">
+        {["lb-ghost", "lb-live"].map((c) => (
+          <svg class={c} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            {solid.map((d) => <path d={d} />)}
+            {dashed.map((d) => <path class="dash" d={d} />)}
+          </svg>
+        ))}
+        <i class="lb-dot lb-dot--big" data-y="5" style="left:50%;top:5%"></i>
+        {lanes.map((l, i) => <span class="lb-pv" data-y={TOP + 1} style={`left:${X[i]}%;top:${TOP + 1.2}%`} title={`${l.task} · ${nameOf(l.pv)}`}><ProviderLogo id={l.pv} size={16} /></span>)}
+        {DONE.map((y, i) => <i class="lb-dot lb-dot--done" data-y={y} style={`left:${X[i]}%;top:${y}%`}></i>)}
+        <i class="lb-dot lb-dot--you" data-y="28" style={`left:${X[1]}%;top:28%`}></i>
+        <i class="lb-dot lb-dot--fail" data-y="38" style={`left:${X[3]}%;top:38%`}></i>
+        <i class="lb-dot" data-y="41" style={`left:${X[3]}%;top:41%`}></i>
+        <i class="lb-dot" data-y="58" style={`left:${X[7]}%;top:58%`}></i>
+        <i class="lb-dot" data-y="58" style={`left:${X[4]}%;top:58%`}></i>
+        <i class="lb-dot" data-y="58" style={`left:${X[3]}%;top:58%`}></i>
+        <i class="lb-dot lb-dot--big" data-y="88" style="left:50%;top:88%"></i>
+        <i class="lb-dot" data-y="92.5" style="left:50%;top:92.5%"></i>
+        <i class="lb-dot lb-dot--big" data-y="97" style="left:50%;top:97%"></i>
+        <p class="lb-head" aria-hidden="true"><span data-lb-step>Plan</span><span data-lb-tok>0.0M / 12M</span></p>
+      </div>
+      {notes.map((n) => (
+        <div class="lb-note" data-y={n.y} style={`top:${n.y}%`}>
+          <p class="lb-note__k">{n.tag}</p>
+          <h3>{n.t}</h3>
+          <p>{n.d}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  /* ── 1 · Two drawings ── */
+  .v1 .la h2 { max-width: 11em; }
+  .la-pair { display: grid; grid-template-columns: 1fr 1fr; margin-top: clamp(48px, 6vw, 96px); border-top: 1px solid rgba(11, 13, 31, .14); }
+  .la-fig { margin: 0; padding: 28px clamp(20px, 3vw, 48px) 0 0; }
+  .la-fig + .la-fig { padding: 28px 0 0 clamp(20px, 3vw, 48px); border-left: 1px solid rgba(11, 13, 31, .14); }
+  .la-fig figcaption { display: flex; align-items: baseline; gap: 14px; }
+  .la-fig figcaption span { font: 500 11px var(--mono); color: var(--mute); }
+  .la-fig figcaption b { font: 400 clamp(34px, 3.6vw, 56px)/1 var(--serif); font-style: italic; letter-spacing: -.02em; }
+  .la-draw { position: relative; margin: 8px 0 20px; }
+  .la-draw svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .la-draw > svg path { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.6s cubic-bezier(.6, 0, .2, 1) calc(var(--d, 0) * 1s + .2s); }
+  .la-fig.in .la-draw > svg path { stroke-dashoffset: 0; }
+  .la-draw > svg .la-main { stroke-width: 2.5; }
+  .la-draw > svg .la-arrow { stroke-width: 2.5; stroke-dasharray: none; }
+  .la-node { fill: var(--ivory); stroke: var(--ink); stroke-width: 1.5; }
+  .la-cap { fill: var(--ink); }
+  .la-run { fill: var(--cobalt); }
+  .la-tag, .la-branch, .la-end { position: absolute; font: 500 11px var(--mono); color: var(--mute); white-space: nowrap; }
+  .la-tag { display: inline-flex; align-items: center; gap: 6px; translate: -50% -100%; color: var(--ink); }
+  .la-branch { translate: 0 -135%; font-size: 9.5px; }
+  .la-end { letter-spacing: .06em; text-transform: uppercase; }
+  .la-fig dl { display: grid; margin: 0; }
+  .la-fig dl div { display: grid; grid-template-columns: 130px 1fr; gap: 16px; padding: 13px 0; border-top: 1px solid rgba(11, 13, 31, .1); }
+  .la-fig dt { font: 500 11px/22px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+  .la-fig dd { margin: 0; font-size: 17px; line-height: 1.3; letter-spacing: -.01em; }
+  @media (max-width: 900px) {
+    .la-pair { grid-template-columns: 1fr; }
+    .la-fig, .la-fig + .la-fig { padding: 24px 0 36px; border-left: 0; }
+    .la-fig + .la-fig { border-top: 1px solid rgba(11, 13, 31, .14); }
+    .la-branch { font-size: 7px; } .la-tag { font-size: 10px; } .la-tag .pv svg { width: 14px; height: 14px; } .la-end { font-size: 9px; top: 62% !important; }
+    .la-fig dl div { grid-template-columns: 104px 1fr; } .la-fig dd { font-size: 15px; }
+  }
+
+  /* ── 2 · The run, top to bottom ── */
+  .lb { background: var(--cream); }
+  .lb-goal { display: flex; align-items: baseline; gap: 14px; margin: 28px 0 0; font-size: clamp(17px, 1.5vw, 22px); letter-spacing: -.015em; }
+  .lb-goal span { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .lb-run { position: relative; height: 2100px; margin-top: 40px; }
+  .lb-graph { position: absolute; left: 0; top: 0; bottom: 0; width: 46%; }
+  .lb-graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .lb-graph > svg path { fill: none; stroke: var(--ink); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .lb-graph > svg path.dash { stroke-dasharray: 4 5; }
+  .lb-ghost { opacity: .13; }
+  .lb-live { clip-path: inset(0 -20px calc(100% - var(--p) * 100%) -20px); }
+  .lb-dot, .lb-pv { position: absolute; translate: -50% -50%; scale: 0; transition: scale .5s cubic-bezier(.2, 1.6, .4, 1); }
+  .lb-dot.on, .lb-pv.on { scale: 1; }
+  .lb-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cream); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .lb-dot--done { background: var(--ink); }
+  .lb-dot--big { width: 17px; height: 17px; background: var(--ink); }
+  .lb-dot--you { width: 13px; height: 13px; background: var(--cobalt); box-shadow: none; }
+  .lb-dot--fail { width: 15px; height: 15px; background: var(--coral); box-shadow: none; }
+  .lb-dot--fail::before, .lb-dot--fail::after { content: ""; position: absolute; left: 3.5px; right: 3.5px; top: 6.75px; height: 1.5px; background: #fff; rotate: 45deg; }
+  .lb-dot--fail::after { rotate: -45deg; }
+  .lb-pv { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(11, 13, 31, .16); }
+  .lb-head { position: absolute; left: 0; right: 0; top: calc(var(--p) * 100%); display: flex; justify-content: space-between; margin: 0; padding-top: 8px; border-top: 1px solid var(--cobalt); font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--cobalt); pointer-events: none; }
+  .lb-note { position: absolute; left: 54%; right: 0; translate: 0 -14px; opacity: .22; transition: opacity .6s; }
+  .lb-note.on { opacity: 1; }
+  .lb-note p { margin: 0; }
+  .lb-note__k { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .lb-note h3 { margin: 10px 0 8px; font-size: clamp(24px, 2.6vw, 40px); line-height: 1.02; font-weight: 500; letter-spacing: -.035em; }
+  .lb-note p:last-child { max-width: 27em; font-size: 16px; line-height: 1.45; color: var(--mute); }
+  @media (max-width: 900px) {
+    .lb-run { height: 2300px; }
+    .lb-graph { width: 32%; }
+    .lb-note { left: 38%; }
+    .lb-note p:last-child { font-size: 14px; }
+    .lb-pv { display: none; }
+    .lb-head span:last-child { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .la-draw > svg path, .lb-dot, .lb-pv, .lb-note { transition: none !important; } .la-run { display: none; } }
+</style>
+
+<script>
+  import { sweep } from "../../../../lib/lab/fx";
+
+  /* The run graph inks in down to a line 60% of the way down the screen. */
+  {
+    const run = document.querySelector<HTMLElement>("[data-lb]")!;
+    const marks = [...run.querySelectorAll<HTMLElement>("[data-y]")].map((el) => [el, Number(el.dataset.y)] as const);
+    const step = run.querySelector<HTMLElement>("[data-lb-step]")!;
+    const tok = run.querySelector<HTMLElement>("[data-lb-tok]")!;
+    sweep(run, 0.6, (p) => {
+      const y = p * 100;
+      run.style.setProperty("--p", p.toFixed(4));
+      marks.forEach(([el, at]) => el.classList.toggle("on", y >= at - 0.4));
+      step.textContent = y < 9 ? "Plan" : y < 16 ? "Split" : y < 84 ? "Run" : y < 95 ? "Merge" : "Report";
+      tok.textContent = `${(9.4 * Math.min(1, Math.max(0, (y - 3) / 80))).toFixed(1)}M / 12M tokens`;
+    });
+  }
+</script>

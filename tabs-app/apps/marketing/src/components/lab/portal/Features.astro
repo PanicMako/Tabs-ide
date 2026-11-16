@@ -1,99 +1,38 @@
 ---
 /**
- * What else ships in Tabs, beyond the five tools: the features worth a
- * second look. Every line here describes something in the app today.
+ * Sub-agents and Overmind: how Tabs puts more than one agent on a job.
+ * Three sections, in two files under ./features:
+ *   Graph · sub-agents next to Overmind, then one Overmind run followed down the page
+ *   Crew  · any provider for any kind of work
+ * Motion that only needs "on screen yet?" is CSS, switched on by `[data-in]` -> `.in`.
  */
-const features = [
-  {
-    id: "overmind",
-    name: "Overmind",
-    kicker: "Big goals, in parallel",
-    line: "Hand it a goal like “ship billing”. It researches, plans, runs each task in its own thread, then merges and reports back.",
-    tint: "#0e2af3",
-    soft: "#e8ecff",
-  },
-  {
-    id: "team",
-    name: "A model per job",
-    kicker: "Cross-provider sub-agents",
-    line: "Let Claude lead while GPT does the research and another model reviews. Pick a model for each kind of task, on any provider.",
-    tint: "#ff5b2e",
-    soft: "#fff0ea",
-  },
-  {
-    id: "review",
-    name: "Review guides",
-    kicker: "Pull requests",
-    line: "Open a pull request and get a guide to what changed and where to look first, next to the diff, comments and checks.",
-    tint: "#18b47b",
-    soft: "#e7f7f0",
-  },
-  {
-    id: "automations",
-    name: "Automations",
-    kicker: "Schedules and webhooks",
-    line: "Have an agent check in every hour, run each weekday at nine, or wake when a webhook fires, right in the thread.",
-    tint: "#7624f4",
-    soft: "#f1e9ff",
-  },
-  {
-    id: "voice",
-    name: "Talk to it",
-    kicker: "On-device dictation",
-    line: "Dictate prompts with a speech model that runs on your machine. The audio never leaves it.",
-    tint: "#d97706",
-    soft: "#fdf2e2",
-  },
-  {
-    id: "usage",
-    name: "Usage, in one place",
-    kicker: "Every provider",
-    line: "See what each agent has used and what's left on your plan before you hit a limit.",
-    tint: "#0b0d1f",
-    soft: "#eef0f5",
-  },
-];
+import ProviderLogo from "./ProviderLogo.astro";
+import Graph from "./features/Graph.astro";
+import Crew from "./features/Crew.astro";
+import { agents } from "../../../data/lab";
 ---
-<section class="ft" id="features" data-sec="Features">
-  <div class="v1-wrap">
-    <div class="ft-head">
-      <p class="v1-kicker">Inside every tab</p>
-      <h2 data-split>The tools are just <em>the start.</em></h2>
-    </div>
-    <ul class="ft-grid">
-      {features.map((f, i) => (
-        <li class="ft-card" style={`--t:${f.tint};--s:${f.soft}`}>
-          <span class="ft-n">{String(i + 1).padStart(2, "0")}</span>
-          <p class="ft-kick">{f.kicker}</p>
-          <h3 class="ft-name">{f.name}</h3>
-          <p class="ft-line">{f.line}</p>
-        </li>
-      ))}
-    </ul>
-  </div>
-</section>
+<div class="fx" id="overmind" data-sec="Overmind" data-fx-agents={JSON.stringify(agents.map(({ id, name }) => ({ id, name })))}>
+  <Graph />
+  <Crew />
+  <template data-fx-logos>{agents.map((a) => <ProviderLogo id={a.id} size={24} />)}</template>
+</div>
 
 <style is:global>
-  .ft { padding: 150px 0 120px; }
-  .ft-head { display: grid; gap: 18px; margin-bottom: 56px; }
-  .ft-head .v1-kicker { margin: 0; }
-  .ft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-  .ft-card { position: relative; display: grid; align-content: start; gap: 10px; min-height: 280px; padding: 30px 30px 34px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; isolation: isolate; }
-  .ft-card::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--s); opacity: 0; transition: opacity .45s; }
-  .ft-card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--t); transform: scaleX(0); transform-origin: left; transition: transform .5s cubic-bezier(.2, 1, .3, 1); }
-  .ft-card:hover::before { opacity: 1; }
-  .ft-card:hover::after { transform: scaleX(1); }
-  .ft-n { font: 500 12px var(--mono); color: var(--mute); }
-  .ft-kick { margin: 26px 0 0; font: 500 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--t); }
-  .ft-name { margin: 0; font: 400 clamp(34px, 3vw, 48px)/1 var(--serif); letter-spacing: -.02em; color: var(--ink); }
-  .ft-line { max-width: 34ch; margin: 6px 0 0; font-size: 16px; line-height: 1.5; color: var(--mute); }
-  @media (max-width: 1000px) { .ft-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 640px) { .ft { padding: 110px 0 90px; } .ft-grid { grid-template-columns: 1fr; } .ft-card { min-height: 0; } }
+  .fx { position: relative; }
+  .fx-sec { padding: clamp(96px, 11vw, 170px) 0; }
+  .fx-head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: clamp(24px, 4vw, 72px); align-items: end; }
+  .fx-lede { margin: 24px 0 0; max-width: 34em; font-size: clamp(17px, 1.35vw, 20px); line-height: 1.45; color: var(--mute); }
+  .fx-head .fx-lede { margin: 0 0 10px; }
+  .fx [data-in] { opacity: 0; translate: 0 32px; transition: opacity .9s, translate 1.1s cubic-bezier(.2, 1, .3, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+  .fx [data-in].in { opacity: 1; translate: 0 0; }
+  /* Site buttons (.v1-btn) keep their own type and colour. */
+  .fx button:not(.v1-btn) { font: inherit; color: inherit; }
+  .fx :focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+  @media (max-width: 900px) { .fx-head { grid-template-columns: 1fr; gap: 18px; } }
+  @media (prefers-reduced-motion: reduce) { .fx [data-in] { opacity: 1; translate: none; transition: none; } }
 </style>
 
 <script>
-  import { gsap, reduced } from "../../../lib/lab/common";
-  if (!reduced) {
-    gsap.from(".ft-card", { y: 36, autoAlpha: 0, stagger: 0.06, duration: 1, ease: "expo.out", scrollTrigger: { trigger: ".ft-grid", start: "top 85%", once: true } });
-  }
+  import { reveal } from "../../../lib/lab/fx";
+  reveal(document.querySelector<HTMLElement>(".fx")!);
 </script>

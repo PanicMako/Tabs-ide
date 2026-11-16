@@ -38,18 +38,18 @@ export const tools = [
     shot: "browser",
   },
   {
+    id: "cli",
+    name: "Terminal",
+    kicker: "Any command, its own tab",
+    line: "Give Claude Code, Codex or any command its own tab. Or flip a thread from chat to the agent's CLI with ⌘⇧J.",
+    mock: "cli",
+  },
+  {
     id: "sites",
-    name: "Sites",
+    name: "Web apps",
     kicker: "Any website as a tab",
     line: "Pin Figma, Linear, ChatGPT or your staging app to the toolbar. Each one stays signed in, per project.",
     mock: "sites",
-  },
-  {
-    id: "cli",
-    name: "CLI",
-    kicker: "Your own command line",
-    line: "Give Claude Code, Codex or any command its own tab. Or flip a thread from chat to the agent's CLI with ⌘⇧J.",
-    mock: "cli",
   },
 ] as const;
 
