@@ -5,6 +5,12 @@ import { createMemoryStorage } from "~/lib/storage";
 interface WorkspaceAppearanceState {
   readonly showProjectTabIcons: boolean;
   readonly projectTabIconOverrides: Record<string, boolean>;
+  /**
+   * "overlay": the Agents sidebar is hidden (no rail) and slides over the chat when the pointer
+   * reaches the left edge. "docked": it sits beside the chat, collapsible to a rail.
+   */
+  readonly agentsSidebarMode: "docked" | "overlay";
+  setAgentsSidebarMode: (mode: "docked" | "overlay") => void;
   setShowProjectTabIcons: (enabled: boolean) => void;
   toggleShowProjectTabIcons: () => void;
   setProjectTabIconOverride: (projectId: string, enabled: boolean | null) => void;
@@ -18,6 +24,8 @@ export const useWorkspaceAppearanceStore = create<WorkspaceAppearanceState>()(
     (set, get) => ({
       showProjectTabIcons: false,
       projectTabIconOverrides: {},
+      agentsSidebarMode: "docked",
+      setAgentsSidebarMode: (agentsSidebarMode) => set({ agentsSidebarMode }),
       setShowProjectTabIcons: (showProjectTabIcons) => set({ showProjectTabIcons }),
       toggleShowProjectTabIcons: () =>
         set((state) => ({ showProjectTabIcons: !state.showProjectTabIcons })),

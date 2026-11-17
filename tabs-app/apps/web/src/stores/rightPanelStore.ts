@@ -2,7 +2,16 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { createMemoryStorage } from "~/lib/storage";
 
-export type RightPanelTab = "diff" | "browser" | "files" | "terminal" | "pr" | "stash" | "queue";
+export type RightPanelTab =
+  | "diff"
+  | "browser"
+  | "files"
+  | "terminal"
+  | "pr"
+  | "stash"
+  | "queue"
+  | "device"
+  | "sidechat";
 
 interface RightPanelState {
   readonly isOpen: boolean;
