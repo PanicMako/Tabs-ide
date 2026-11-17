@@ -3517,7 +3517,7 @@ export default function ChatView({
         return;
       }
 
-      if (command === "thread.pin") {
+      if (command === "composer.stash") {
         event.preventDefault();
         event.stopPropagation();
         if (!isServerThread || !activeThread || event.repeat) return;
