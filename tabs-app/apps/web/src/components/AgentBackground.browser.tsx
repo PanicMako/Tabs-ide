@@ -14,6 +14,11 @@ let mockTheme: "light" | "dark" = "dark";
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: mockTheme }) }));
 vi.mock("../panelAnimations", () => ({
   usePanelAnimationSettings: () => ({ reducedMotion: true }),
+  useSurfaceMotionSettings: () => ({
+    active: false,
+    reducedMotion: true,
+    seconds: (s: number) => s,
+  }),
 }));
 
 it("keeps the chat readable with a static wallpaper and restores the plain workspace when disabled", async () => {

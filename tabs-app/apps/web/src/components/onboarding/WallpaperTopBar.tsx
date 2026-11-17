@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import { WallpaperGlassDock } from "./WallpaperGlassDock";
 import {
   WALLPAPERS,
@@ -69,6 +70,7 @@ export function WallpaperTopBar({
   showFilmstrip = true,
   orientation = "horizontal",
 }: WallpaperTopBarProps) {
+  const filmstripMotionRef = useGsapEnter<HTMLDivElement>("popover");
   const isLight = theme === "light";
   const wallpapers = wallpaperSet ?? WALLPAPERS;
   const [isFilmstripOpen, setIsFilmstripOpen] = useState(false);
@@ -201,7 +203,7 @@ export function WallpaperTopBar({
           </div>
 
           {/* Floating Label on Hover (left) */}
-          <div className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-3 flex items-center gap-2 rounded-xl border border-white/15 bg-neutral-950/90 px-3 py-1.5 backdrop-blur-2xl shadow-xl opacity-0 -translate-x-1 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 whitespace-nowrap z-50">
+          <div className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-3 flex items-center gap-2 rounded-xl border border-white/15 bg-neutral-950/90 px-3 py-1.5 backdrop-blur-2xl shadow-xl opacity-0 -translate-x-1 transition duration-200 group-hover:opacity-100 group-hover:translate-x-0 whitespace-nowrap z-50">
             <span className="text-xs font-semibold text-white">{activeWallpaper.label}</span>
             <span className="text-[10px] text-white/50">Click to change</span>
           </div>
@@ -227,7 +229,7 @@ export function WallpaperTopBar({
           disabled={disabled}
           onClick={handlePrev}
           className={cn(
-            "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+            "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
             isLight
               ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               : "text-white/70 hover:bg-white/10 hover:text-white",
@@ -313,7 +315,7 @@ export function WallpaperTopBar({
             type="button"
             onClick={onClearThreadWallpaper}
             className={cn(
-              "flex size-6 items-center justify-center rounded-full transition-all active:scale-95 cursor-pointer",
+              "flex size-6 items-center justify-center rounded-full transition active:scale-95 cursor-pointer",
               isLight
                 ? "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
                 : "text-white/80 hover:bg-white/10 hover:text-white",
@@ -330,7 +332,7 @@ export function WallpaperTopBar({
           disabled={disabled}
           onClick={handleNext}
           className={cn(
-            "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+            "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
             isLight
               ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               : "text-white/70 hover:bg-white/10 hover:text-white",
@@ -349,7 +351,7 @@ export function WallpaperTopBar({
           disabled={disabled}
           onClick={handleRandom}
           className={cn(
-            "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+            "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
             isLight
               ? "text-amber-600 hover:bg-amber-100 hover:text-amber-700"
               : "text-amber-300/80 hover:bg-amber-400/20 hover:text-amber-200",
@@ -368,7 +370,7 @@ export function WallpaperTopBar({
             onOpenGallery();
           }}
           className={cn(
-            "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+            "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
             isLight
               ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               : "text-white/65 hover:bg-white/10 hover:text-white",
@@ -388,7 +390,7 @@ export function WallpaperTopBar({
               setIsFilmstripOpen((prev) => !prev);
             }}
             className={cn(
-              "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+              "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
               isFilmstripOpen
                 ? isLight
                   ? "bg-slate-100 text-slate-800 ring-1 ring-slate-400/50"
@@ -413,7 +415,7 @@ export function WallpaperTopBar({
               onDisableWallpaper();
             }}
             className={cn(
-              "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+              "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
               isLight
                 ? "text-red-500 hover:bg-red-50 hover:text-red-700"
                 : "text-red-400/60 hover:bg-red-500/20 hover:text-red-300",
@@ -434,7 +436,7 @@ export function WallpaperTopBar({
               onMinimize();
             }}
             className={cn(
-              "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
+              "flex size-7 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-40 cursor-pointer",
               isLight
                 ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 : "text-white/60 hover:bg-white/10 hover:text-white",
@@ -450,9 +452,12 @@ export function WallpaperTopBar({
       {/* Floating Horizontal Filmstrip Shelf */}
       {isFilmstripOpen && (
         <div
+          ref={filmstripMotionRef}
           className={cn(
-            "absolute right-0 w-[min(92vw,700px)] rounded-2xl border border-white/20 bg-neutral-950/95 p-3.5 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] z-50 animate-in fade-in zoom-in-95 duration-150",
-            dropDirection === "up" ? "bottom-full mb-3" : "top-full mt-3",
+            "absolute right-0 w-[min(92vw,700px)] rounded-2xl border border-white/20 bg-neutral-950/95 p-3.5 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] z-50",
+            dropDirection === "up"
+              ? "bottom-full mb-3 origin-bottom-right"
+              : "top-full mt-3 origin-top-right",
           )}
         >
           {/* Top row with Category filters and Grid Modal link */}
@@ -523,7 +528,7 @@ export function WallpaperTopBar({
                       onPlaySound?.();
                     }}
                     className={cn(
-                      "group/card relative flex flex-col shrink-0 w-28 overflow-hidden rounded-xl border text-left transition-all duration-200 cursor-pointer select-none",
+                      "group/card relative flex flex-col shrink-0 w-28 overflow-hidden rounded-xl border text-left transition duration-200 cursor-pointer select-none",
                       isSelected
                         ? "border-white ring-2 ring-white/60"
                         : "border-white/15 bg-white/5 hover:border-white/40 hover:scale-[1.02]",

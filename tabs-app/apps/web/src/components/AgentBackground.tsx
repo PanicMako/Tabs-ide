@@ -33,6 +33,8 @@ import { WallpaperGalleryModal } from "./onboarding/WallpaperGalleryModal";
 
 const PARALLAX_SCALE = 1.05;
 const MAX_PARALLAX_PX = 10;
+/** Below this gap the parallax snaps to its target and the frame loop stops. */
+const PARALLAX_SETTLE_PX = 0.05;
 
 /** A still print texture keeps the artwork present without moving across the text. */
 function WorkspacePrintTexture({
@@ -158,6 +160,28 @@ export function AgentBackground({
   useEffect(() => {
     if (!isWallpaperEnabled || reducedMotion) return;
 
+    // The loop only runs while the image is catching up with the cursor. Each frame moves the
+    // layer under every glass sheet and re-runs their backdrop blur, so idling at 60fps made the
+    // whole chat repaint nonstop.
+    const animate = () => {
+      animFrameRef.current = null;
+      if (document.hidden) return;
+      const targetX = (mousePos.current.x - 0.5) * -MAX_PARALLAX_PX * 2;
+      const targetY = (mousePos.current.y - 0.5) * -MAX_PARALLAX_PX * 2;
+      const dx = targetX - currentTranslate.current.x;
+      const dy = targetY - currentTranslate.current.y;
+      const settled = Math.abs(dx) < PARALLAX_SETTLE_PX && Math.abs(dy) < PARALLAX_SETTLE_PX;
+
+      currentTranslate.current.x = settled ? targetX : currentTranslate.current.x + dx * 0.04;
+      currentTranslate.current.y = settled ? targetY : currentTranslate.current.y + dy * 0.04;
+
+      if (parallaxRef.current) {
+        parallaxRef.current.style.transform = `scale(${PARALLAX_SCALE}) translate3d(${currentTranslate.current.x}px, ${currentTranslate.current.y}px, 0)`;
+      }
+
+      if (!settled) animFrameRef.current = requestAnimationFrame(animate);
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       const container = containerRef.current;
       if (!container) return;
@@ -168,33 +192,17 @@ export function AgentBackground({
         x: Math.max(0, Math.min(1, relX)),
         y: Math.max(0, Math.min(1, relY)),
       };
+      if (animFrameRef.current === null) {
+        animFrameRef.current = requestAnimationFrame(animate);
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
 
-    const animate = () => {
-      if (document.hidden) {
-        animFrameRef.current = requestAnimationFrame(animate);
-        return;
-      }
-      const targetX = (mousePos.current.x - 0.5) * -MAX_PARALLAX_PX * 2;
-      const targetY = (mousePos.current.y - 0.5) * -MAX_PARALLAX_PX * 2;
-
-      currentTranslate.current.x += (targetX - currentTranslate.current.x) * 0.04;
-      currentTranslate.current.y += (targetY - currentTranslate.current.y) * 0.04;
-
-      if (parallaxRef.current) {
-        parallaxRef.current.style.transform = `scale(${PARALLAX_SCALE}) translate3d(${currentTranslate.current.x}px, ${currentTranslate.current.y}px, 0)`;
-      }
-
-      animFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animFrameRef.current = requestAnimationFrame(animate);
-
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
     };
   }, [isWallpaperEnabled, reducedMotion]);
 
@@ -314,60 +322,70 @@ export function AgentBackground({
         isLight ? "theme-wallpaper-light" : "theme-wallpaper-dark",
       )}
     >
-      {/* ── Layer 1: Base Wallpaper Image with Crossfade & Parallax (z-0) ── */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
-        {prevWallpaper && (
+      {/* All wallpaper layers share one backdrop, so the header offset and rounded corner are a
+          single clip. Clipping each layer, or the chat body, broke the glass blur in Electron. */}
+      <div
+        className="agent-wallpaper-backdrop pointer-events-none absolute inset-0 z-0"
+        aria-hidden="true"
+      >
+        {/* ── Layer 1: Base Wallpaper Image with Crossfade & Parallax (z-0) ── */}
+        <div
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+          aria-hidden="true"
+        >
+          {prevWallpaper && (
+            <div
+              className={cn(
+                "absolute inset-0 bg-cover bg-center transition-opacity duration-700",
+                isTransitioning ? "opacity-0" : "opacity-100",
+              )}
+              style={{
+                backgroundImage: `url(${prevWallpaper.url})`,
+                transform: `scale(${PARALLAX_SCALE})`,
+              }}
+            />
+          )}
           <div
-            className={cn(
-              "absolute inset-0 bg-cover bg-center transition-opacity duration-700",
-              isTransitioning ? "opacity-0" : "opacity-100",
-            )}
+            ref={parallaxRef}
+            className="absolute inset-0 bg-cover bg-center will-change-transform"
             style={{
-              backgroundImage: `url(${prevWallpaper.url})`,
+              backgroundImage: `url(${wallpaper.url})`,
               transform: `scale(${PARALLAX_SCALE})`,
             }}
           />
-        )}
+        </div>
+
+        {/* ── Layer 2: Aesthetic Scrim Gradient (z-1) ── */}
+        {/* Light Mode: Artwork visible at top, gently washing down into pure white canvas */}
+        {/* Dark Mode: Deep neutral black vignette & depth mask */}
         <div
-          ref={parallaxRef}
-          className="absolute inset-0 bg-cover bg-center will-change-transform"
+          className="pointer-events-none absolute inset-0 z-[1] transition-opacity duration-500"
           style={{
-            backgroundImage: `url(${wallpaper.url})`,
-            transform: `scale(${PARALLAX_SCALE})`,
+            background: isLight
+              ? "linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.52) 52%, rgba(255,255,255,.92)), radial-gradient(ellipse at 50% 45%, rgba(255,255,255,.42), transparent 68%)"
+              : "linear-gradient(180deg, rgba(5,7,12,.08), rgba(5,7,12,.22) 42%, rgba(5,7,12,.84)), radial-gradient(ellipse at 50% 45%, rgba(5,7,12,.38), transparent 72%)",
           }}
+          aria-hidden="true"
+        />
+
+        {/* ── Layer 3: Still halftone and paper grain (z-2) ──── */}
+        <WorkspacePrintTexture
+          style={printStyle}
+          strength={printStrength}
+          wallpaperUrl={wallpaper.url}
+          isLight={isLight}
+          animate={printAnimate && !reducedMotion}
+        />
+
+        {/* ── Layer 3.5: Subtle tone veil (z-[3]) ── */}
+        <div
+          className="pointer-events-none absolute inset-0 z-[3]"
+          style={{
+            background: isLight ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.04)",
+          }}
+          aria-hidden="true"
         />
       </div>
-
-      {/* ── Layer 2: Aesthetic Scrim Gradient (z-1) ── */}
-      {/* Light Mode: Artwork visible at top, gently washing down into pure white canvas */}
-      {/* Dark Mode: Deep neutral black vignette & depth mask */}
-      <div
-        className="pointer-events-none absolute inset-0 z-[1] transition-opacity duration-500"
-        style={{
-          background: isLight
-            ? "linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.52) 52%, rgba(255,255,255,.92)), radial-gradient(ellipse at 50% 45%, rgba(255,255,255,.42), transparent 68%)"
-            : "linear-gradient(180deg, rgba(5,7,12,.08), rgba(5,7,12,.22) 42%, rgba(5,7,12,.84)), radial-gradient(ellipse at 50% 45%, rgba(5,7,12,.38), transparent 72%)",
-        }}
-        aria-hidden="true"
-      />
-
-      {/* ── Layer 3: Still halftone and paper grain (z-2) ──── */}
-      <WorkspacePrintTexture
-        style={printStyle}
-        strength={printStrength}
-        wallpaperUrl={wallpaper.url}
-        isLight={isLight}
-        animate={printAnimate && !reducedMotion}
-      />
-
-      {/* ── Layer 3.5: Subtle tone veil (z-[3]) ── */}
-      <div
-        className="pointer-events-none absolute inset-0 z-[3]"
-        style={{
-          background: isLight ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.04)",
-        }}
-        aria-hidden="true"
-      />
 
       {/* ── Layer 4: Chat Content (z-10) ─────────────────────────────────── */}
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

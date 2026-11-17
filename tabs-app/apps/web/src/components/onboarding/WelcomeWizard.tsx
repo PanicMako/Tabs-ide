@@ -1260,7 +1260,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       {/* Hand-Painted Anime Background Wallpaper */}
       <div
         className={cn(
-          "pointer-events-none fixed inset-0 z-0 bg-cover bg-center transition-all duration-700 ease-out will-change-transform",
+          "pointer-events-none fixed inset-0 z-0 bg-cover bg-center transition duration-700 ease-out will-change-transform",
           isLaunching &&
             "scale-110 blur-md brightness-125 duration-[1350ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]",
           isSkipping && "scale-[0.98] opacity-0 blur-sm duration-500 ease-out",
@@ -1316,7 +1316,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       {/* Main: Card carousel — card 0 = welcome, card 1 = icon, card 2 = theme */}
       <main
         className={cn(
-          "relative z-10 flex w-full flex-1 flex-col justify-center py-2 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          "relative z-10 flex w-full flex-1 flex-col justify-center py-2 transition duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
           isLaunching && "scale-[1.12] -translate-y-12 blur-[6px] opacity-0 pointer-events-none",
           isSkipping &&
             "scale-[0.96] translate-y-8 opacity-0 blur-[4px] pointer-events-none duration-500 ease-out",
@@ -1397,7 +1397,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       {/* Subtle Footer with Diagnostics */}
       <footer
         className={cn(
-          "relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4 sm:px-8 text-xs text-white/90 transition-all duration-500 ease-in-out",
+          "relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4 sm:px-8 text-xs text-white/90 transition duration-500 ease-in-out",
           isLaunching && "translate-y-8 opacity-0 pointer-events-none",
           isSkipping && "translate-y-6 opacity-0 pointer-events-none",
         )}
