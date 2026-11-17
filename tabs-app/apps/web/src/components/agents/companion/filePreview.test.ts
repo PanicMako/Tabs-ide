@@ -7,6 +7,8 @@ it("identifies supported media and source types case-insensitively", () => {
   expect(filePreviewKind("doc.pdf")).toBe("pdf");
   expect(filePreviewKind("README.md")).toBe("markdown");
   expect(filePreviewKind("data.tsv")).toBe("csv");
+  expect(filePreviewKind("Inter.WOFF2")).toBe("font");
+  expect(filePreviewKind("analysis.ipynb")).toBe("notebook");
   expect(filePreviewKind("code.ts")).toBe("text");
 });
 it("preserves quoted commas, multiline values and escaped quotes", () => {

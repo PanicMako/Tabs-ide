@@ -41,6 +41,8 @@ import { Button } from "~/components/ui/button";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { useTheme } from "~/hooks/useTheme";
 import { CompanionEmpty } from "./CompanionChrome";
+import { FontPreview } from "./FontPreview";
+import { NotebookPreview } from "./NotebookPreview";
 import { toastManager } from "~/components/ui/toast";
 import {
   ADD_WORKSPACE_FILE_EVENT,
@@ -294,7 +296,7 @@ function FilePreview({
   onToggleTree: () => void;
 }) {
   const kind = filePreviewKind(path);
-  const binary = ["image", "video", "audio", "pdf"].includes(kind);
+  const binary = ["image", "video", "audio", "pdf", "font"].includes(kind);
   const client = useQueryClient();
   const { resolvedTheme } = useTheme();
   const [sourceMode, setSourceMode] = useState(false);
@@ -520,6 +522,8 @@ function FilePreview({
                   title={`PDF preview: ${path}`}
                   src={asset.data.relativeUrl}
                 />
+              ) : kind === "font" ? (
+                <FontPreview url={asset.data.relativeUrl} name={path} />
               ) : (
                 <div className="companion-media">
                   {kind === "image" ? (
@@ -578,6 +582,8 @@ function FilePreview({
                   <div className="companion-content">
                     <ChatMarkdown text={file.data.contents} cwd={target.cwd} />
                   </div>
+                ) : kind === "notebook" && !sourceMode ? (
+                  <NotebookPreview text={file.data.contents} cwd={target.cwd} />
                 ) : table && !sourceMode ? (
                   <div className="companion-content">
                     <table className="companion-data-table">

@@ -1,4 +1,13 @@
-export type FilePreviewKind = "image" | "video" | "audio" | "pdf" | "markdown" | "csv" | "text";
+export type FilePreviewKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "markdown"
+  | "csv"
+  | "font"
+  | "notebook"
+  | "text";
 export function filePreviewKind(path: string): FilePreviewKind {
   const extension = path.split(".").pop()?.toLowerCase();
   if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico", "bmp"].includes(extension ?? ""))
@@ -8,6 +17,8 @@ export function filePreviewKind(path: string): FilePreviewKind {
   if (extension === "pdf") return "pdf";
   if (["md", "mdx"].includes(extension ?? "")) return "markdown";
   if (extension === "csv" || extension === "tsv") return "csv";
+  if (["ttf", "otf", "woff", "woff2"].includes(extension ?? "")) return "font";
+  if (extension === "ipynb") return "notebook";
   return "text";
 }
 /** Quoted separators, escaped quotes and quoted newlines, bounded for preview rendering. */
