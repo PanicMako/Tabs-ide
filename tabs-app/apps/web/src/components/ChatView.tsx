@@ -3543,6 +3543,35 @@ export default function ChatView({
         return;
       }
 
+      if (command === "thread.regenerateTitle") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isServerThread || !activeThread || !threadApi || event.repeat) return;
+        void threadApi.orchestration
+          .dispatchCommand({
+            type: "thread.metadata.update",
+            commandId: newCommandId(),
+            threadId: activeThread.id,
+            regenerateTitle: true,
+          })
+          .catch((error: unknown) => {
+            toastManager.add({
+              type: "error",
+              title: "Could not rewrite the thread title",
+              description: error instanceof Error ? error.message : "The thread action failed.",
+            });
+          });
+        return;
+      }
+
+      if (command === "thread.stop") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isServerThread || !activeThread || event.repeat) return;
+        if (isWorkingRef.current) void interruptRef.current?.();
+        return;
+      }
+
           });
         return;
       }

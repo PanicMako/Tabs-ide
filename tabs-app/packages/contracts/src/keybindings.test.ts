@@ -48,6 +48,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedStop.command, "thread.stop");
 
+    const parsedRegenerate = yield* decode(KeybindingRule, {
+      key: "mod+alt+r",
+      command: "thread.regenerateTitle",
+    });
+    assert.strictEqual(parsedRegenerate.command, "thread.regenerateTitle");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

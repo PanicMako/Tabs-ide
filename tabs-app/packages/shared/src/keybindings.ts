@@ -66,6 +66,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+f", command: "editor.openFavorite" },
   { key: "mod+shift+c", command: "thread.copyReference", when: "!terminalFocus" },
   { key: "mod+.", command: "thread.stop", when: "!terminalFocus" },
+  { key: "mod+alt+r", command: "thread.regenerateTitle", when: "!terminalFocus" },
   { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
   { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
   { key: "mod+shift+n", command: "tab.new", when: "shellChromeFocus" },

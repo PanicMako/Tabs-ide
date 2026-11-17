@@ -40,6 +40,7 @@ export const THREAD_KEYBINDING_COMMANDS = [
   "thread.copyReference",
   "thread.settle",
   "thread.stop",
+  "thread.regenerateTitle",
   "thread.pin",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ] as const;
