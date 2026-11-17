@@ -1,4 +1,10 @@
 import type {
+  AcpRegistryPrepareInput,
+  AcpRegistryPrepareResult,
+  AcpRegistrySearchInput,
+  AcpRegistrySearchResult,
+} from "./acpRegistry.ts";
+import type {
   DeviceActionInput,
   DeviceCloseInput,
   DeviceConfigureInput,
@@ -1751,6 +1757,8 @@ export interface LocalApi {
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
     /** Creates, replaces or removes one `providerInstances` entry atomically. */
     mutateProviderInstance: (mutation: ProviderInstanceMutation) => Promise<ServerSettings>;
+    searchAcpRegistry: (input: AcpRegistrySearchInput) => Promise<AcpRegistrySearchResult>;
+    prepareAcpRegistryAgent: (input: AcpRegistryPrepareInput) => Promise<AcpRegistryPrepareResult>;
     discoverSourceControl: () => Promise<SourceControlDiscoveryResult>;
     checkSecretSource: (source: SecretReference) => Promise<SecretSourceCheckResult>;
     getTraceDiagnostics: () => Promise<ServerTraceDiagnosticsResult>;
