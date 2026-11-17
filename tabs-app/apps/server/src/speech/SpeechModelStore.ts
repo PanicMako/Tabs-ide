@@ -5,6 +5,8 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
+import type { EnvironmentSpeechFoundModel } from "@tabs/contracts";
+import { findOtherAppSpeechModels } from "./otherSpeechApps.ts";
 import type { HttpClientError } from "effect/unstable/http";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import * as Layer from "effect/Layer";
@@ -72,6 +74,8 @@ export class SpeechModelStore extends Context.Service<
     readonly linkedFrom: (model: ModelFile) => Effect.Effect<string | undefined>;
     /** Removes Tabs's file or link; a linked file itself is left in place. */
     readonly remove: (model: ModelFile) => Effect.Effect<void, PlatformError>;
+    /** Speech models other dictation apps keep on this machine (never loaded or copied). */
+    readonly foundElsewhere: Effect.Effect<ReadonlyArray<EnvironmentSpeechFoundModel>>;
   }
 >()("t3/speech/SpeechModelStore") {}
 
@@ -288,6 +292,18 @@ const make = Effect.gen(function* () {
     },
   );
 
+  const foundElsewhere: SpeechModelStore["Service"]["foundElsewhere"] = Effect.promise(() =>
+    findOtherAppSpeechModels({
+      home,
+      platform,
+      fs: {
+        exists: (file) =>
+          Effect.runPromise(fs.exists(file).pipe(Effect.orElseSucceed(() => false))),
+        readDirectory: (directory) => Effect.runPromise(fs.readDirectory(directory)),
+      },
+    }),
+  ).pipe(Effect.orElseSucceed(() => []));
+
   const download: SpeechModelStore["Service"]["download"] = Effect.fn("SpeechModelStore.download")(
     function* (model, progress = {}) {
       yield* Effect.annotateCurrentSpan({ modelId: model.id });
@@ -360,6 +376,7 @@ const make = Effect.gen(function* () {
       verifiedPath(model, modelPath(model)),
     ),
     download,
+    foundElsewhere,
     remove: Effect.fn("SpeechModelStore.remove")(function* (model) {
       const file = modelPath(model);
       yield* fs.remove(file, { force: true });

@@ -1,5 +1,6 @@
 import {
   SPEECH_STREAM_MAX_CHUNK_BYTES,
+  type EnvironmentSpeechFoundModel,
   type EnvironmentSpeechModel,
   type EnvironmentSpeechStatus,
   type SpeechAcceleration,
@@ -124,7 +125,10 @@ const isSpeechError = Schema.is(
 );
 
 type LoadedModel = Awaited<ReturnType<typeof loadNativeSpeechModel>>;
-type SpeechModels = { readonly models: ReadonlyArray<EnvironmentSpeechModel> };
+type SpeechModels = {
+  readonly models: ReadonlyArray<EnvironmentSpeechModel>;
+  readonly foundElsewhere?: ReadonlyArray<EnvironmentSpeechFoundModel>;
+};
 
 export type SpeechStream = {
   readonly feed: (
@@ -543,7 +547,8 @@ const make = Effect.gen(function* () {
         ),
       { concurrency: "unbounded" },
     );
-    return { models };
+    const foundElsewhere = yield* store.foundElsewhere;
+    return foundElsewhere.length > 0 ? { models, foundElsewhere } : { models };
   });
 
   const freshStatus = (operation: string) =>

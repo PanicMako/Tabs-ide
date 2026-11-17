@@ -99,6 +99,7 @@ const download = vi.fn<SpeechModelStore.SpeechModelStore["Service"]["download"]>
 const store = Layer.succeed(
   SpeechModelStore.SpeechModelStore,
   SpeechModelStore.SpeechModelStore.of({
+    foundElsewhere: Effect.succeed([]),
     isReady: (model) => Effect.sync(() => readyModels.has(model.id)),
     installedPath: (model) =>
       Effect.sync(() => (readyModels.has(model.id) ? "test.gguf" : undefined)),
