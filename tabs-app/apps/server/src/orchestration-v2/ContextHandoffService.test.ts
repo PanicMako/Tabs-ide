@@ -162,3 +162,63 @@ it.layer(layerTest)("ContextHandoffService legacy import", (it) => {
     }),
   );
 });
+
+const parentThreadId = ThreadId.make("thread:side-chat-parent");
+
+it("builds side chat context with the parent's activity, oldest first", () => {
+  const text = ContextHandoffService.makeSideChatContext({
+    parentThreadId,
+    digest: [
+      importedItem({ role: "user", id: "one", text: "Fix the login bug", ordinal: 1 }),
+      importedItem({ role: "assistant", id: "two", text: "Patched the session check", ordinal: 2 }),
+    ],
+  });
+  assert.include(text, "You are in a side chat beside the main thread");
+  assert.include(text, "Main thread activity since this side chat's starting point:");
+  assert.include(text, `t3_thread_read on thread ${parentThreadId}`);
+  assert.isBelow(text.indexOf("Fix the login bug"), text.indexOf("Patched the session check"));
+});
+
+it("keeps only the framing note when the parent did nothing since the fork point", () => {
+  const text = ContextHandoffService.makeSideChatContext({ parentThreadId, digest: [] });
+  assert.include(text, "do not continue or redo the main thread's task");
+  assert.notInclude(text, "Main thread activity");
+});
+
+it("truncates the oldest digest lines first once the cap is reached", () => {
+  const lines = Array.from({ length: 400 }, (_, index) => `line ${index} ${"x".repeat(60)}`);
+  const text = ContextHandoffService.makeSideChatContext({ parentThreadId, digest: lines });
+  assert.isAtMost(text.length, 8_000);
+  assert.include(text, "- Earlier items truncated.");
+  assert.include(text, "line 399 ");
+  assert.notInclude(text, "line 0 ");
+});
+
+it.layer(layerTest)("ContextHandoffService side chat context", (it) => {
+  it.effect("prepares a ready manual handoff that delivery recognises", () =>
+    Effect.gen(function* () {
+      const service = yield* ContextHandoffService.ContextHandoffServiceV2;
+      const handoff = yield* service.prepareSideChatContext({
+        threadId: ThreadId.make("thread:side-chat"),
+        parentThreadId,
+        targetRunId: RunId.make("run:side-chat:1"),
+        transferId: null,
+        toProviderThreadId: ProviderThreadId.make("provider-thread:side-chat"),
+        toProviderInstanceId: ProviderInstanceId.make("codex"),
+        coveredRunOrdinals: { from: 1, to: 1 },
+        parentItems: [],
+        createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+      });
+      assert.equal(handoff.status, "ready");
+      assert.equal(handoff.strategy, "manual_context");
+      assert.isUndefined(handoff.delivery);
+      assert.isTrue(ContextHandoffService.isSideChatContextHandoff(handoff));
+      assert.isFalse(
+        ContextHandoffService.isSideChatContextHandoff({
+          ...handoff,
+          summaryText: "Manual context handoff.",
+        }),
+      );
+    }),
+  );
+});
