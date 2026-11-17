@@ -63,3 +63,77 @@ export function formatAutoCompactHint(
   }
   return "Auto-compacts when full";
 }
+
+/* ---------- pip meter + auto-compact line ---------- */
+
+export const PIP_COUNT = 40; // each pip = 2.5% of the window
+export const THRESHOLD_MIN = 0.4; // the auto-compact line can sit anywhere from 40% to 100%
+export const THRESHOLD_STEP = 1 / PIP_COUNT;
+export const HOLD_TO_COMPACT_MS = 650;
+const CLAUDE_AUTO_COMPACT_MIN_TOKENS = 100_000;
+const CLAUDE_AUTO_COMPACT_MAX_TOKENS = 1_000_000;
+
+/** Snap a 0-1 fraction into the allowed range; anything near the end means "when full". */
+export function clampThresholdFraction(value: number): number {
+  const clamped = Math.max(THRESHOLD_MIN, Math.min(1, value));
+  return clamped > 0.985 ? 1 : clamped;
+}
+
+/** The fraction of the window the auto-compact line sits at (1 when it only fires when full). */
+export function thresholdFraction(
+  autoCompactThreshold: number | null | undefined,
+  maxTokens: number | null | undefined,
+): number {
+  if (!autoCompactThreshold || !maxTokens || autoCompactThreshold <= 0 || maxTokens <= 0) {
+    return 1;
+  }
+  return clampThresholdFraction(autoCompactThreshold / maxTokens);
+}
+
+/**
+ * The Claude `autoCompactWindow` setting for a chosen line position: whole thousands of tokens
+ * within Claude's accepted 100k-1M range, or "" to fall back to Claude's own default (when full).
+ */
+export function autoCompactSettingForFraction(fraction: number, maxTokens: number): string {
+  const clamped = clampThresholdFraction(fraction);
+  if (clamped >= 1) return "";
+  const tokens = Math.round((clamped * maxTokens) / 1000) * 1000;
+  return String(
+    Math.max(CLAUDE_AUTO_COMPACT_MIN_TOKENS, Math.min(CLAUDE_AUTO_COMPACT_MAX_TOKENS, tokens)),
+  );
+}
+
+/** Tokens left after a compaction: a fifth of what was there, never under 5k. */
+export function tokensKeptAfterCompaction(usedTokens: number): number {
+  return Math.max(5000, usedTokens * 0.2);
+}
+
+export interface PipState {
+  readonly filled: boolean;
+  /** Filled now, but will be freed by compacting (shown while previewing or holding). */
+  readonly freed: boolean;
+  readonly threshold: boolean;
+  /** Empty and beyond the line: the zone where auto-compact will have fired. */
+  readonly zone: boolean;
+}
+
+export function computePips(input: {
+  readonly usedFraction: number;
+  readonly thresholdFraction: number;
+  readonly holdProgress: number;
+  readonly previewing: boolean;
+}): PipState[] {
+  const used = Math.max(0, Math.min(1, input.usedFraction));
+  const kept = tokensKeptAfterCompaction(used * 1_000_000) / 1_000_000;
+  const shown = used - (used - kept) * input.holdProgress; // the bar shrinks while holding
+  const filledCount = Math.round(shown * PIP_COUNT);
+  const usedCount = Math.round(used * PIP_COUNT);
+  const thresholdIndex = Math.round(input.thresholdFraction * PIP_COUNT) - 1;
+  const ghost = input.previewing || input.holdProgress > 0;
+  return Array.from({ length: PIP_COUNT }, (_, index) => ({
+    filled: index < filledCount,
+    freed: ghost && index >= filledCount && index < usedCount,
+    threshold: index === thresholdIndex,
+    zone: index > thresholdIndex && index >= filledCount,
+  }));
+}
