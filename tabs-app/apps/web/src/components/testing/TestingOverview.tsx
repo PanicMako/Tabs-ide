@@ -111,7 +111,7 @@ export const TestingOverview = memo(function TestingOverview({
         <button
           type="button"
           onClick={() => onNavigate("cases")}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/50 hover:bg-muted/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 text-left shadow-sm transition duration-200 hover:border-primary/50 hover:bg-muted/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span
             className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100"
@@ -145,7 +145,7 @@ export const TestingOverview = memo(function TestingOverview({
         <button
           type="button"
           onClick={() => onNavigate("discover")}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 text-left shadow-sm transition-all duration-200 hover:border-sky-500/50 hover:bg-muted/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 text-left shadow-sm transition duration-200 hover:border-sky-500/50 hover:bg-muted/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span
             className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-sky-500/40 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100"

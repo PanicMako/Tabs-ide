@@ -294,7 +294,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                           onClick={() => setExplorationScope(option.id as TestingExplorationScope)}
                           disabled={busyAction !== null || authCaptureOpen}
                           className={cn(
-                            "flex flex-col text-left p-3 rounded-xl border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+                            "flex flex-col text-left p-3 rounded-xl border transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
                             active
                               ? "border-foreground/30 bg-card text-foreground shadow-sm ring-1 ring-border/80"
                               : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
@@ -364,7 +364,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                           }
                           disabled={busyAction !== null || authCaptureOpen}
                           className={cn(
-                            "flex flex-col text-left p-3 rounded-xl border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+                            "flex flex-col text-left p-3 rounded-xl border transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
                             active
                               ? "border-foreground/30 bg-card text-foreground shadow-sm ring-1 ring-border/80"
                               : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
@@ -921,7 +921,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                         className="w-full"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <CollapsibleTrigger className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all">
+                          <CollapsibleTrigger className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition">
                             <SlidersHorizontalIcon
                               aria-hidden="true"
                               className="size-3.5 text-foreground"

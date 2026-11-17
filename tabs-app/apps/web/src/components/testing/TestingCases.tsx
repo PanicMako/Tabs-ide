@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import type { ModelSlug } from "@tabs/contracts";
 import {
   ActivityIcon,
@@ -124,6 +125,7 @@ export const TestingCases = memo(function TestingCases({
   projectPath,
   onNavigate,
 }: TestingCasesProps) {
+  const graphFeedbackMotionRef = useGsapEnter<HTMLDivElement>("panel");
   const [graphFeedback, setGraphFeedback] = useState<{
     type: "success" | "info" | "error";
     text: string;
@@ -513,7 +515,7 @@ export const TestingCases = memo(function TestingCases({
                   {manualCaseSteps.map((step, index) => (
                     <li
                       key={`manual-step-${index}`}
-                      className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 dark:bg-background/40"
+                      className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 shadow-sm transition focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 dark:bg-background/40"
                     >
                       <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground border border-border/40">
                         {index + 1}
@@ -637,7 +639,7 @@ export const TestingCases = memo(function TestingCases({
                       void chooseWorkbook();
                     }
                   }}
-                  className="group flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-border/80 bg-background/60 px-4 py-7 text-center transition-all hover:border-primary/50 hover:bg-muted/20 focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 dark:bg-background/30"
+                  className="group flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-border/80 bg-background/60 px-4 py-7 text-center transition hover:border-primary/50 hover:bg-muted/20 focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 dark:bg-background/30"
                 >
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-foreground transition-transform group-hover:scale-105">
                     <UploadCloudIcon className="h-5 w-5" aria-hidden="true" />
@@ -664,7 +666,7 @@ export const TestingCases = memo(function TestingCases({
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition-all dark:bg-emerald-950/10">
+                <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition dark:bg-emerald-950/10">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -1022,8 +1024,9 @@ export const TestingCases = memo(function TestingCases({
 
                   {graphFeedback ? (
                     <div
+                      ref={graphFeedbackMotionRef}
                       className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-xs animate-in fade-in duration-200",
+                        "flex items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-xs",
                         graphFeedback.type === "success" &&
                           "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
                         graphFeedback.type === "info" &&
@@ -2147,7 +2150,7 @@ const TestingCaseQueue = memo(function TestingCaseQueue({
                             {editedSteps.map((step, index) => (
                               <li
                                 key={`edit-step-${index}`}
-                                className="flex items-start gap-2 rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 dark:bg-background/40"
+                                className="flex items-start gap-2 rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 shadow-sm transition focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 dark:bg-background/40"
                               >
                                 <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground border border-border/40">
                                   {index + 1}
