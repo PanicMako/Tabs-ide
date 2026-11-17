@@ -622,7 +622,7 @@ function PinModelCommandPalette({
                       return (
                         <div
                           key={`${item.provider}:${item.model.slug}`}
-                          className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-accent/50 transition-all group cursor-pointer"
+                          className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-accent/50 transition group cursor-pointer"
                           onClick={() => {
                             const nextPinned = togglePinnedModel(
                               settings,
@@ -1159,7 +1159,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                       return (
                         <SortablePinnedModelItem key={itemId} id={itemId}>
                           {(handle) => (
-                            <div className="group/pinnedcard flex items-center justify-between gap-2.5 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2 transition-all hover:bg-muted/40 hover:border-border">
+                            <div className="group/pinnedcard flex items-center justify-between gap-2.5 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2 transition hover:bg-muted/40 hover:border-border">
                               <div className="flex items-center gap-2 min-w-0">
                                 <button
                                   type="button"
@@ -2250,7 +2250,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                                                           : `Pin ${model.name}`
                                                       }
                                                       className={cn(
-                                                        "size-6 p-1 rounded-md flex items-center justify-center transition-all cursor-pointer",
+                                                        "size-6 p-1 rounded-md flex items-center justify-center transition cursor-pointer",
                                                         isPinned
                                                           ? "text-amber-500 hover:text-amber-600 bg-amber-500/10"
                                                           : "text-muted-foreground/40 opacity-0 group-hover/modelrow:opacity-100 hover:text-foreground hover:bg-muted",
@@ -2435,6 +2435,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
       <CustomAgentProviders
         instances={settings.providerInstances ?? {}}
         serverProviders={serverProviders}
+        startProviderAction={startProviderAction}
       />
       <SecretProvidersSettings />
     </div>

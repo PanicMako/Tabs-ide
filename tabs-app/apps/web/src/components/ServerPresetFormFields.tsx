@@ -1,4 +1,5 @@
 import { OrbitGroup } from "./ui/orbit-group";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import React, { useState } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -140,6 +141,7 @@ export function ServerPresetFormFields(props: {
     variant = "card",
   } = props;
 
+  const browserSetupMotionRef = useGsapEnter<HTMLDivElement>("panel");
   const [isBrowserSetupOpen, setIsBrowserSetupOpen] = useState(
     () => preset.autoOpenPreview || !!preset.previewUrl || preset.previewOpenTarget === "external",
   );
@@ -255,7 +257,7 @@ export function ServerPresetFormFields(props: {
                     }))
                   }
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-lg border text-xs transition-all cursor-pointer",
+                    "flex size-7 items-center justify-center rounded-lg border text-xs transition cursor-pointer",
                     isSelected
                       ? "border-primary/50 bg-primary/15 text-foreground shadow-xs"
                       : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground",
@@ -400,7 +402,7 @@ export function ServerPresetFormFields(props: {
           />
         </div>
         {isBrowserSetupOpen && (
-          <div className="space-y-4 animate-in fade-in-0 slide-in-from-top-1">
+          <div ref={browserSetupMotionRef} className="space-y-4">
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">URL Target</div>
               <Input
