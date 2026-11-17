@@ -12,6 +12,7 @@ import {
   RunId,
   ThreadId,
 } from "@tabs/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -473,3 +474,48 @@ it.effect("waitForThread reads the run again only when the run updates", () =>
     expect(reads).toBe(2);
   }),
 );
+
+it.effect("lists a project's threads without its side chats or, by default, subagents", () => {
+  const projectId = ProjectId.make("project:thread-management:list");
+  const at = DateTime.makeUnsafe("2026-09-01T00:00:00.000Z");
+  const shell = (
+    id: string,
+    lineage: Partial<OrchestrationV2ThreadProjection["thread"]["lineage"]> = {},
+  ) =>
+    ({
+      id: ThreadId.make(id),
+      projectId,
+      updatedAt: at,
+      lineage: {
+        parentThreadId: null,
+        relationshipToParent: null,
+        rootThreadId: ThreadId.make(id),
+        ...lineage,
+      },
+    }) as never;
+  const layerTest = ThreadManagementService.layer.pipe(
+    Layer.provide(
+      Layer.mock(Orchestrator.OrchestratorV2)({
+        getShellSnapshot: () =>
+          Effect.succeed({
+            threads: [
+              shell("thread:list:main"),
+              shell("thread:list:side-chat", { sideChat: true, relationshipToParent: "fork" }),
+              shell("thread:list:subagent", { relationshipToParent: "subagent" }),
+            ],
+          } as never),
+      }),
+    ),
+  );
+
+  return Effect.gen(function* () {
+    const service = yield* ThreadManagementService.ThreadManagementService;
+    const ids = (includeSubagents: boolean) =>
+      service
+        .listProjectThreads({ projectId, includeSubagents })
+        .pipe(Effect.map((threads) => threads.map((thread) => thread.id).toSorted()));
+    expect(yield* ids(false)).toEqual(["thread:list:main"]);
+    // Side chats stay out even when subagents are requested.
+    expect(yield* ids(true)).toEqual(["thread:list:main", "thread:list:subagent"]);
+  }).pipe(Effect.provide(layerTest));
+});
