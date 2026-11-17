@@ -242,6 +242,7 @@ const LegacyClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
             Effect.provideService(HttpClient.HttpClient, httpClient),
             Effect.flatMap((enrichedSnapshot) => publishSnapshot(enrichedSnapshot)),
           ),
+        retainSnapshotAcrossRebuilds: true,
         refreshInterval: SNAPSHOT_REFRESH_INTERVAL,
       }).pipe(
         Effect.mapError(
