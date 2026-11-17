@@ -396,6 +396,8 @@ import {
   CODE_CHROME_COMMANDS,
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
+import { nextAppearancePreference } from "~/lib/appearanceCycle";
+import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { runRightPanelCommand } from "~/stores/rightPanelStore";
   type CodeRailPresentation,
 } from "@tabs/shared/codeChrome";
@@ -12395,6 +12397,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           }
           if (event.key === "-") {
             event.preventDefault();
+  const { theme: themePreference, setTheme: setThemePreference } = useTheme();
             event.stopPropagation();
             zoomOut();
             return;
@@ -12448,6 +12451,31 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           });
         }
         return;
+      if (command === "navigation.back" || command === "navigation.forward") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (command === "navigation.back") window.history.back();
+        else window.history.forward();
+        return;
+      }
+      if (command === "appearance.cycle") {
+        event.preventDefault();
+        event.stopPropagation();
+        setThemePreference(nextAppearancePreference(themePreference));
+        return;
+      }
+
+      if (
+        command === "rightPanel.close" ||
+        command === "rightPanel.new" ||
+        command === "rightPanel.toggleMaximized"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        runRightPanelCommand(command);
+        return;
+      }
+
       }
       if (
         command === "rightPanel.close" ||
@@ -12499,6 +12527,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   // Tool-switching shortcuts (cmd/ctrl+alt+1..9 → the Nth visible tool of the
   // active project), via menu accelerators so they work everywhere — including
   // inside the embedded editor/browser views.
+    themePreference,
+    setThemePreference,
   const toolShortcutRef = useRef({
     availableTools,
     switchTool: handleSelectTool,

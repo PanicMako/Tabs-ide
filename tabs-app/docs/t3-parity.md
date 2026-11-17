@@ -98,7 +98,8 @@ Beyond the brief, `modelPicker.*`, `thread.editQueuedMessage`, `thread.regenerat
 | Item | Status | Files | How to check by hand |
 | --- | --- | --- | --- |
 | `rightPanel.close`, `rightPanel.new`, `rightPanel.toggleMaximized` (5.16) | done | `packages/contracts/src/keybindings.ts`, `packages/shared/src/keybindings.ts`, `apps/web/src/stores/rightPanelStore.ts` (+ test), `WorkspaceShell.tsx` | Open the right panel, press Cmd/Ctrl+Alt+M to maximize, Cmd/Ctrl+Alt+W to close, Cmd/Ctrl+Alt+N to reopen on the "Open a surface" launcher. Not run in the app. Checked by unit tests and `vp run typecheck` (16/16 pass). |
-| Other 5.16 commands (41 remain) | not started | | |
+| `navigation.back` (Cmd/Ctrl+[), `navigation.forward` (Cmd/Ctrl+]), `appearance.cycle` (Cmd/Ctrl+Alt+T) (5.16) | done | `WorkspaceShell.tsx`, `lib/appearanceCycle.ts` (+ test), keybinding contracts and defaults | Press the shortcuts: back and forward follow history; appearance.cycle steps system, light, dark. Not run in the app; unit-tested and typechecked. |
+| Other 5.16 commands (38 remain) | not started | | |
 | 5.1 to 5.15, 5.17 | not started except the Antigravity investigation above | | |
 
 `vp check`, the web and server suites and `build:desktop` have not been run for this branch.
