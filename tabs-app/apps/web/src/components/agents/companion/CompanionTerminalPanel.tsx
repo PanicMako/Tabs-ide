@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import type { ThreadId } from "@tabs/contracts";
-import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
+import { CompanionEmpty } from "./CompanionChrome";
 import { useThreadTerminalState, terminalActions } from "~/state/terminal";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useComposerDraftStore } from "~/composerDraftStore";
@@ -9,6 +9,9 @@ import { environmentApi } from "~/connection/environmentApiRegistry";
 import { toastManager } from "~/components/ui/toast";
 import { projectScriptRuntimeEnv } from "~/projectScripts";
 import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
+import { RotateCcwIcon, SquareSplitHorizontalIcon } from "lucide-react";
+import { SurfaceSubTabs, type SubTab } from "./designs/shared";
+import { showCustomConfirm } from "~/lib/customConfirm";
 
 function createTerminalId(): string {
   return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -113,9 +116,67 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
     );
   }
 
+  // Sessions are page-style tabs, like browser tabs, instead of the drawer's own floating
+  // controls and side list.
+  const sessionTabs: SubTab[] = terminalGroups(terminalState).map((group, index) => {
+    const labels = group.map(
+      (id) =>
+        terminalState.terminalLabels?.[id] ??
+        `Terminal ${terminalState.terminalIds.indexOf(id) + 1}`,
+    );
+    return {
+      id: group.includes(terminalState.activeTerminalId)
+        ? terminalState.activeTerminalId
+        : group[0]!,
+      label: group.length > 1 ? labels.join(" | ") : (labels[0] ?? `Terminal ${index + 1}`),
+      title: `${labels.join(" | ")} · ${target.cwd}`,
+      busy: group.some((id) => terminalState.runningTerminalIds?.includes(id)),
+    };
+  });
   return (
     <div className="companion-workspace">
-      <CompanionHeading kind="terminal" detail={target.cwd} />
+      <SurfaceSubTabs
+        label="Terminal sessions"
+        tabs={sessionTabs}
+        activeId={terminalState.activeTerminalId}
+        onSelect={handleActiveChange}
+        onClose={async (id) => {
+          const group = terminalGroups(terminalState).find((item) => item.includes(id)) ?? [id];
+          const running = group.some((terminalId) =>
+            terminalState.runningTerminalIds?.includes(terminalId),
+          );
+          if (
+            running &&
+            !(await showCustomConfirm("Close this terminal? Its running process will stop."))
+          )
+            return;
+          for (const terminalId of group) handleClose(terminalId);
+        }}
+        onNew={handleNew}
+        newLabel="New terminal"
+        actions={
+          <>
+            <button
+              type="button"
+              className="cd-icon"
+              aria-label="Split terminal"
+              title="Split terminal"
+              onClick={handleSplit}
+            >
+              <SquareSplitHorizontalIcon aria-hidden="true" size={14} />
+            </button>
+            <button
+              type="button"
+              className="cd-icon"
+              aria-label="Restart terminal"
+              title="Restart terminal (kill process and start again)"
+              onClick={() => handleKill(terminalState.activeTerminalId)}
+            >
+              <RotateCcwIcon aria-hidden="true" size={14} />
+            </button>
+          </>
+        }
+      />
       <ThreadTerminalDrawer
         environmentId={target.environmentId}
         runtimeEnv={runtimeEnv}
@@ -123,7 +184,7 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
         cwd={target.cwd}
         variant="embedded"
         height={400}
-        showControls={true}
+        showControls={false}
         terminalIds={terminalState.terminalIds}
         activeTerminalId={terminalState.activeTerminalId}
         terminalGroups={terminalState.terminalGroups}
@@ -150,3 +211,20 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
     </div>
   );
 });
+
+/** Terminal ids grouped the way they render: split panes share a group, every other id stands alone. */
+function terminalGroups(state: {
+  terminalIds: string[];
+  terminalGroups?: ReadonlyArray<{ terminalIds: string[] }> | undefined;
+}): string[][] {
+  const known = new Set(state.terminalIds);
+  const seen = new Set<string>();
+  const groups: string[][] = [];
+  for (const group of state.terminalGroups ?? []) {
+    const ids = group.terminalIds.filter((id) => known.has(id) && !seen.has(id));
+    ids.forEach((id) => seen.add(id));
+    if (ids.length) groups.push(ids);
+  }
+  for (const id of state.terminalIds) if (!seen.has(id)) groups.push([id]);
+  return groups;
+}

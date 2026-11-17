@@ -1,4 +1,5 @@
 import "../../../index.css";
+import "./designs/designs.css";
 import "./companion.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
@@ -61,6 +62,7 @@ vi.mock("../../../state/scopedStateStore", async () => {
   };
 });
 vi.mock("../../../lib/gitReactQuery", () => ({
+  PULL_REQUEST_FIRST_PAGE: 20,
   gitAllPullRequestsQueryOptions: (_cwd: string, state: string) => ({
     queryKey: ["prs", state],
     queryFn: async () => ({ pullRequests: [fixture.pr], capabilities: fixture.capabilities }),
@@ -79,7 +81,11 @@ it.each([360, 900])("keeps PR summaries readable and actions accessible at %ipx"
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = await render(
     <QueryClientProvider client={client}>
-      <div className="companion-workspace companion-pr" style={{ width }}>
+      <div
+        data-companion-design="grouped"
+        className="companion-workspace companion-pr"
+        style={{ width }}
+      >
         <div className="git-tool-v2">
           <PRsPanel compact cwd="/workspace" branchName="main" onOpenCreatePR={fixture.create} />
         </div>
@@ -88,15 +94,22 @@ it.each([360, 900])("keeps PR summaries readable and actions accessible at %ipx"
   );
   try {
     await expect.element(page.getByText(fixture.pr.title, { exact: true })).toBeVisible();
-    const card = document.querySelector(".companion-pr-card")!;
-    const title = document.querySelector(".companion-pr-title")!;
-    expect(title.getBoundingClientRect().width).toBeGreaterThan(width === 360 ? 180 : 500);
-    expect(card.scrollWidth).toBeLessThanOrEqual(Math.ceil(card.getBoundingClientRect().width));
-    expect(document.querySelector(".companion-heading")).toBeNull();
-    await page.getByRole("radio", { name: "Open", exact: true }).click();
+    // One quiet row per pull request: the title keeps the room and nothing spills sideways.
+    const row = document.querySelector<HTMLElement>(".pr-row")!;
+    const title = document.querySelector<HTMLElement>(".pr-row-text")!;
+    expect(title.getBoundingClientRect().width).toBeGreaterThan(width === 360 ? 150 : 500);
+    expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(row.getBoundingClientRect().width));
+    // Filters and New PR share the first row instead of wrapping onto one of their own.
+    const create = page.getByRole("button", { name: "New PR", exact: true }).element();
+    const scope = page.getByRole("button", { name: "This branch" }).element();
+    if (width > 360)
+      expect(
+        Math.abs(create.getBoundingClientRect().top - scope.getBoundingClientRect().top),
+      ).toBeLessThan(4);
+    await page.getByRole("button", { name: "Open", exact: true }).click();
     await expect
-      .element(page.getByRole("radio", { name: "Open", exact: true }))
-      .toHaveAttribute("aria-checked", "true");
+      .element(page.getByRole("button", { name: "Open", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "New PR", exact: true }).click();
     expect(fixture.create).toHaveBeenCalled();
     await page.getByRole("button", { name: "More actions for pull request 7" }).click();

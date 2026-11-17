@@ -48,13 +48,15 @@ export const CompanionPRPanel = memo(function CompanionPRPanel({
     );
   }
 
-  if (apiQuery.isPending || status.isPending)
+  // Pull requests come from the host and do not need git status first: the list starts loading
+  // at once and the branch name fills in when status arrives.
+  if (apiQuery.isPending)
     return (
       <div role="status" className="p-6 text-sm text-muted-foreground">
         Loading repository...
       </div>
     );
-  const error = apiQuery.error ?? status.error;
+  const error = apiQuery.error;
   if (error)
     return (
       <div role="alert" className="p-6 text-sm">
@@ -72,7 +74,7 @@ export const CompanionPRPanel = memo(function CompanionPRPanel({
       </div>
     );
   const api = apiQuery.data ?? null;
-  const branchName = status.data?.branch ?? "Detached HEAD";
+  const branchName = status.isPending ? "" : (status.data?.branch ?? "Detached HEAD");
   const scopeKey = gitWorkspaceScopeKey(target.environmentId ?? undefined, target.cwd);
 
   return (
