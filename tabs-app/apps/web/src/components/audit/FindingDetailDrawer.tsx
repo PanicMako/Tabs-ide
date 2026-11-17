@@ -1,4 +1,5 @@
 import React from "react";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import type { AuditFinding } from "@tabs/contracts";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -22,10 +23,12 @@ export function FindingDetailDrawer({
   onDismissFinding,
   onMarkFalsePositive,
 }: FindingDetailDrawerProps) {
+  const motionRef = useGsapEnter<HTMLDivElement>("sheet-right");
   if (!isOpen || !finding) return null;
 
   return (
     <div
+      ref={motionRef}
       className="fixed inset-y-0 right-0 z-50 w-full max-w-lg border-l border-border shadow-2xl flex flex-col text-foreground"
       style={{ backgroundColor: "var(--bg-base)" }}
     >

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import type { AuditFinding } from "@tabs/contracts";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -18,6 +19,7 @@ export function AuditAskAIChat({ selectedFinding, isOpen, onClose }: AuditAskAIC
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuery, setInputQuery] = useState("");
 
+  const motionRef = useGsapEnter<HTMLDivElement>("sheet-right");
   if (!isOpen) return null;
 
   const handleSend = () => {
@@ -37,6 +39,7 @@ export function AuditAskAIChat({ selectedFinding, isOpen, onClose }: AuditAskAIC
 
   return (
     <div
+      ref={motionRef}
       className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-border shadow-2xl flex flex-col text-foreground"
       style={{ backgroundColor: "var(--bg-base)" }}
     >
