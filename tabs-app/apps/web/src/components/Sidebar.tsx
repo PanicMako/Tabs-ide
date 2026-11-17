@@ -1,5 +1,6 @@
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
 import { overmindDisplayTitle } from "@tabs/shared/overmind";
+import { goToSettings } from "~/lib/settingsLayerStore";
 import { splitSidebarHelpers } from "../lib/threadTree";
 import { openLink } from "../browserLinkTarget";
 import {
@@ -423,7 +424,9 @@ function SortableProjectItem({
 
 export default function Sidebar() {
   const projects = useAtomValue(readModelStateAtom, (state) => state.projects);
-  const threads = useAtomValue(readModelStateAtom, (state) => state.threads);
+  const allThreads = useAtomValue(readModelStateAtom, (state) => state.threads);
+  // Side chats live in their parent's right panel, never in the sidebar.
+  const threads = useMemo(() => allThreads.filter((thread) => !thread.isSideChat), [allThreads]);
   const markThreadUnread = markThreadUnreadInAtoms;
   const toggleProject = toggleProjectInAtoms;
   const reorderProjects = reorderProjectsInAtoms;
@@ -1669,7 +1672,7 @@ export default function Sidebar() {
                       }}
                       aria-label="Cancel rename"
                       title="Cancel (Esc)"
-                      className="flex size-4.5 items-center justify-center rounded text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                      className="flex size-4.5 items-center justify-center rounded text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition active:scale-95 cursor-pointer"
                     >
                       <XIcon className="size-2.5 stroke-[2.5]" />
                     </button>
@@ -1685,7 +1688,7 @@ export default function Sidebar() {
                       aria-label="Confirm rename"
                       title="Save (Enter)"
                       className={cn(
-                        "flex size-4.5 items-center justify-center rounded transition-all active:scale-95 cursor-pointer",
+                        "flex size-4.5 items-center justify-center rounded transition active:scale-95 cursor-pointer",
                         renamingTitle.trim().length === 0
                           ? "opacity-30 cursor-not-allowed text-muted-foreground"
                           : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
@@ -2363,7 +2366,7 @@ export default function Sidebar() {
               <SidebarMenuButton
                 size="sm"
                 className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-                onClick={() => void navigate({ to: "/settings" })}
+                onClick={() => goToSettings(navigate)}
               >
                 <SettingsIcon className="size-3.5" />
                 <span className="text-xs">Settings</span>

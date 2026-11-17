@@ -329,7 +329,7 @@ function BrowserProfileSelector({
                     type="button"
                     onClick={() => setNewColor(c)}
                     className={cn(
-                      "size-7 rounded-full transition-all cursor-pointer flex items-center justify-center ring-offset-2 ring-offset-background",
+                      "size-7 rounded-full transition cursor-pointer flex items-center justify-center ring-offset-2 ring-offset-background",
                       newColor === c
                         ? "ring-2 ring-primary scale-105"
                         : "hover:scale-105 opacity-80 hover:opacity-100",
