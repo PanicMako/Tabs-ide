@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@tabs/contracts";
 import {
+  autoCompactSettingForFraction,
+  clampThresholdFraction,
+  computePips,
   describeContextRoom,
   formatAutoCompactHint,
   formatContextWindowCompactionMessage,
@@ -130,5 +133,31 @@ describe("formatAutoCompactHint", () => {
   it("falls back to when full", () => {
     expect(formatAutoCompactHint(null, tokens)).toBe("Auto-compacts when full");
     expect(formatAutoCompactHint(0, tokens)).toBe("Auto-compacts when full");
+  });
+});
+
+describe("auto-compact line", () => {
+  it("clamps to 40-100% and treats the far end as when full", () => {
+    expect(clampThresholdFraction(0.1)).toBe(0.4);
+    expect(clampThresholdFraction(0.99)).toBe(1);
+    expect(clampThresholdFraction(0.6)).toBe(0.6);
+  });
+
+  it("maps the line to Claude's autoCompactWindow setting", () => {
+    expect(autoCompactSettingForFraction(0.5, 1_000_000)).toBe("500000");
+    expect(autoCompactSettingForFraction(0.4, 200_000)).toBe("100000");
+    expect(autoCompactSettingForFraction(1, 200_000)).toBe("");
+  });
+
+  it("shrinks the bar and marks freed pips while holding", () => {
+    const pips = computePips({
+      usedFraction: 0.5,
+      thresholdFraction: 0.8,
+      holdProgress: 1,
+      previewing: false,
+    });
+    expect(pips.filter((pip) => pip.filled)).toHaveLength(4);
+    expect(pips.filter((pip) => pip.freed)).toHaveLength(16);
+    expect(pips.findIndex((pip) => pip.threshold)).toBe(31);
   });
 });

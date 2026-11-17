@@ -1,7 +1,16 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { PanelAnimationDurationMs, ReducedMotionMode } from "@tabs/contracts/settings";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { useClientSettings } from "./state/settings";
+import { MOTION_PROFILE, type MotionProfile } from "./lib/motionProfiles";
 
 const PanelAnimationSuppressionContext = createContext(false);
 
@@ -105,6 +114,41 @@ export function usePanelAnimationSettings(): {
     durationMs,
     reducedMotion: isReduced,
   };
+}
+
+/**
+ * Settings for compositor-only motion (opacity, transform): popups, dialogs, sheets, route and
+ * tab switches. Unlike panel width/height motion, this costs no layout work per frame, so it is
+ * on by default and only reduced motion (or the first painted frame of a navigation) turns it off.
+ * The panel duration setting, when set, scales its pace around the 150ms reference.
+ */
+export function useSurfaceMotionSettings(): {
+  active: boolean;
+  reducedMotion: boolean;
+  /** Scales a reference duration (seconds) by the app's motion pace and the user's setting. */
+  seconds: (value: number) => number;
+  /** The app's motion style. */
+  profile: MotionProfile;
+} {
+  const clientSettings = useClientSettings();
+  const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reducedMotion = resolveEffectiveReducedMotion(
+    clientSettings.reducedMotion,
+    prefersReducedMotion,
+  );
+  const suppressed = useContext(PanelAnimationSuppressionContext);
+  const profile = MOTION_PROFILE;
+  const pace = surfaceMotionPace(clientSettings.panelAnimationDurationMs) * profile.pace;
+  const seconds = useCallback((value: number) => value * pace, [pace]);
+  return useMemo(
+    () => ({ active: !reducedMotion && !suppressed, reducedMotion, seconds, profile }),
+    [profile, reducedMotion, seconds, suppressed],
+  );
+}
+
+export function surfaceMotionPace(durationMs: number | undefined): number {
+  if (!durationMs) return 1;
+  return Math.min(2, Math.max(0.6, durationMs / 150));
 }
 
 /** Keeps closing panel content mounted until its opt-in transition ends. */

@@ -178,6 +178,49 @@ describe("Antigravity model catalog", () => {
     expect(models.every((model) => !model.isCustom)).toBe(true);
   });
 
+  it("exposes the CLI's thinking levels per model, defaulting only the observed ones", () => {
+    const thinking = (currentValue: string) =>
+      ({
+        id: "thinking",
+        name: "Thinking",
+        category: "thought_level",
+        type: "select",
+        currentValue,
+        options: [
+          { value: "low", name: "Low" },
+          { value: "high", name: "High" },
+        ],
+      }) as const;
+    const setup = {
+      configOptions: [
+        {
+          ...modelConfig,
+          currentValue: "gemini-3.8-flash-high",
+          options: modelOptions.slice(0, 3),
+        },
+        thinking("high"),
+      ],
+    };
+    const levels = (slug: string, found: ReturnType<typeof buildAntigravityModelsFromSession>) =>
+      found.find((model) => model.slug === slug)?.capabilities?.optionDescriptors;
+
+    const models = buildAntigravityModelsFromSession(
+      setup,
+      new Map([[modelOptions[1]!.value, null]]),
+    );
+    // The selected model reports its own level.
+    expect(levels("gemini-3.8-flash-high", models)?.[0]).toMatchObject({
+      type: "select",
+      currentValue: "high",
+    });
+    // A model observed to have no thinking option has none.
+    expect(levels(modelOptions[1]!.value, models)).toEqual([]);
+    // An unobserved model offers the levels without borrowing another model's selection.
+    const unobserved = levels(modelOptions[2]!.value, models)?.[0];
+    expect(unobserved).toMatchObject({ type: "select" });
+    expect(unobserved).not.toHaveProperty("currentValue");
+  });
+
   it("uses legacy session models only when model config is absent", () => {
     const fromLegacy = buildAntigravityModelsFromSession({
       models: sessionSetupResult.models,

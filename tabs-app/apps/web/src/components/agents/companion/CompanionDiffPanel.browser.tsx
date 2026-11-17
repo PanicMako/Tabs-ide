@@ -1,4 +1,5 @@
 import "../../../index.css";
+import "./designs/designs.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
@@ -22,50 +23,48 @@ vi.mock("~/lib/gitReactQuery", () => ({
   gitDiffQueryOptions: () => ({ queryKey: ["compact-diff-test"], queryFn: api.diff }),
 }));
 vi.mock("~/components/DiffPanel", () => ({ default: () => <p>Completed turn changes</p> }));
-it("keeps diff controls compact while retaining refresh, layout and turn selection", async () => {
+it("lists changed files beside their diffs and keeps layout, wrap, refresh and turns", async () => {
   api.diff.mockClear();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = await render(
     <QueryClientProvider client={client}>
-      <CompanionDiffPanel />
+      <div
+        data-companion-design="grouped"
+        className="companion-frame"
+        style={{ width: 720, height: 600 }}
+      >
+        <CompanionDiffPanel />
+      </div>
     </QueryClientProvider>,
   );
   try {
-    await expect.element(page.getByRole("heading", { name: "src/demo.ts" })).toBeVisible();
+    const row = page.getByRole("button", { name: /demo\.ts/ });
+    await expect.element(row).toBeVisible();
+    await expect.element(row).toHaveTextContent("+2");
+    await expect.element(row).toHaveTextContent("−1");
     await expect
       .poll(() =>
         document.querySelector("diffs-container")?.shadowRoot?.textContent?.includes("extra"),
       )
       .toBe(true);
-    expect(document.querySelector(".companion-heading")).toBeNull();
-    expect(document.querySelectorAll(".companion-toolbar")).toHaveLength(1);
-    expect(
-      document.querySelector(".companion-diff-toolbar")!.getBoundingClientRect().height,
-    ).toBeLessThanOrEqual(46);
-    await expect.element(page.getByLabelText("1 removed lines")).toHaveTextContent("−1");
-    await expect.element(page.getByLabelText("2 added lines")).toHaveTextContent("+2");
-    const header = page.getByRole("button", { name: /src\/demo.ts/ });
-    await header.click();
-    await expect.element(header).toHaveAttribute("aria-expanded", "false");
-    expect(document.querySelector("diffs-container")).toBeNull();
-    await header.click();
-    await expect.element(header).toHaveAttribute("aria-expanded", "true");
+    // Jumping to a file scrolls only the diff column, never the panel around it.
+    await row.click();
+    expect(document.querySelector<HTMLElement>(".companion-frame")!.scrollTop).toBe(0);
+    await page.getByRole("button", { name: "Side by side" }).click();
     await expect
-      .poll(() =>
-        document.querySelector("diffs-container")?.shadowRoot?.textContent?.includes("extra"),
-      )
-      .toBe(true);
-    await page.getByRole("button", { name: "Switch to split diff" }).click();
-    await expect
-      .element(page.getByRole("button", { name: "Switch to unified diff" }))
+      .element(page.getByRole("button", { name: "Side by side" }))
       .toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Wrap long lines" }).click();
+    await expect
+      .element(page.getByRole("button", { name: "Wrap long lines" }))
+      .toHaveAttribute("aria-pressed", "false");
     await page.getByRole("button", { name: "Refresh changes" }).click();
     await expect.poll(() => api.diff.mock.calls.length).toBe(2);
-    await page.getByRole("radio", { name: "Agent turns", exact: true }).click();
+    await page.getByRole("tab", { name: "By agent turn" }).click();
     await expect.element(page.getByText("Completed turn changes")).toBeVisible();
     expect(page.getByRole("button", { name: "Refresh changes" }).query()).toBeNull();
-    await page.getByRole("radio", { name: "Working tree", exact: true }).click();
-    await expect.element(page.getByRole("heading", { name: "src/demo.ts" })).toBeVisible();
+    await page.getByRole("tab", { name: "Working tree" }).click();
+    await expect.element(page.getByRole("button", { name: /demo\.ts/ })).toBeVisible();
   } finally {
     await view.unmount();
     client.clear();

@@ -1,0 +1,584 @@
+/* The composer. Neutral surfaces, hairline borders and blur only: no glows, accent edges or
+ * gradient washes. Radii come from the shared tokens. Every control lives inside one card. */
+
+.composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transform-origin: 50% 100%;
+}
+
+.composer-card {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background-color: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 12px 32px -20px color-mix(in srgb, black 60%, transparent);
+  transition:
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+.composer-card:hover {
+  border-color: color-mix(in srgb, var(--border) 85%, transparent);
+}
+.composer-card:has(:focus-visible) {
+  border-color: color-mix(in srgb, var(--foreground) 28%, transparent);
+}
+.composer-card-drop {
+  border-color: color-mix(in srgb, var(--foreground) 40%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 30%, var(--card));
+}
+[data-agent-wallpaper="active"] .composer-card,
+[data-agent-wallpaper="active"] .composer-sheet {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+}
+
+/* The prompt: always the card's full width. */
+.composer-prompt {
+  display: flex;
+  min-height: 60px;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 14px 16px 4px;
+}
+
+/* The setup sentence and the tools. The row wraps rather than letting an open control slide
+ * under its neighbours. */
+.composer-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding: 4px 8px 8px 10px;
+}
+.composer-essentials {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+.composer-tools {
+  display: flex;
+  margin-left: auto;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+.composer-joiner {
+  padding-inline: 3px;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+.composer-word {
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--foreground) 25%, transparent);
+  text-underline-offset: 4px;
+  transition:
+    text-decoration-color 200ms ease,
+    background-color 150ms ease;
+}
+.composer-word:hover {
+  text-decoration-color: var(--foreground);
+  background-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Speak or send: the mic and send joined. */
+.composer-send {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.composer-send-mic {
+  display: inline-flex;
+  align-items: center;
+}
+.composer-send-mic:empty {
+  display: none;
+}
+
+/* "+": its tools never shrink; the tray clips them while it opens and closes. */
+.composer-fold-tray {
+  width: 0;
+  overflow: hidden;
+}
+.composer-fold-tray-inner {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.composer-fold-tray-inner > * {
+  flex-shrink: 0;
+}
+
+/* Where the agent works. */
+.composer-workspace {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px 4px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  background-color: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+.composer-eyebrow {
+  flex-shrink: 0;
+  padding-left: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+
+.composer-icon-button {
+  position: relative;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--muted-foreground) 85%, transparent);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+.composer-icon-button:hover,
+.composer-icon-button[aria-expanded="true"] {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.composer-badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-control);
+  background-color: var(--foreground);
+  color: var(--background);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.composer-textlink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--muted-foreground) 92%, transparent);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+.composer-textlink:hover:not(:disabled):not([aria-disabled="true"]),
+.composer-textlink[aria-expanded="true"] {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.composer-textlink:disabled,
+.composer-textlink[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.composer-textlink[aria-disabled="true"]:hover {
+  background-color: transparent;
+  color: color-mix(in srgb, var(--muted-foreground) 92%, transparent);
+}
+
+/* The drafts / queue sheet: rises from the composer's top edge, full width. */
+.composer-sheet {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  max-height: min(360px, 60vh);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background-color: var(--card);
+  box-shadow: 0 18px 44px -24px color-mix(in srgb, black 70%, transparent);
+  transform-origin: 50% 100%;
+}
+.composer-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.composer-sheet-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.composer-sheet-close {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+}
+.composer-sheet-close:hover {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.composer-sheet-rows {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 6px;
+}
+.composer-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 2px 0;
+  border-radius: var(--radius-tile);
+}
+.composer-sheet-row:hover {
+  background-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.composer-sheet-row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: var(--radius-tile) !important;
+}
+.composer-sheet-row-static {
+  cursor: default;
+}
+.composer-sheet-row-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-sheet-row-meta {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.composer-sheet-row-index {
+  width: 22px;
+  flex-shrink: 0;
+  padding-left: 10px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.composer-sheet-row-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.composer-sheet-row:hover .composer-sheet-row-use {
+  opacity: 1;
+}
+.composer-sheet-row-delete {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.composer-sheet-row:hover .composer-sheet-row-delete,
+.composer-sheet-row-delete:focus-visible {
+  opacity: 1;
+}
+.composer-sheet-row-delete:hover {
+  color: var(--foreground);
+}
+.composer-sheet-empty {
+  padding: 10px 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.composer-sheet-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+.composer-sheet-action,
+.composer-sheet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.composer-sheet-action {
+  background-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+.composer-sheet-action:disabled {
+  opacity: 0.45;
+}
+.composer-sheet-action kbd {
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.composer-sheet-link {
+  margin-left: auto;
+  color: var(--muted-foreground);
+}
+.composer-sheet-action:hover:not(:disabled),
+.composer-sheet-link:hover {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Up next: a thin line above the composer while messages wait. */
+.composer-upnext {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  margin-inline: 14px;
+  padding: 5px 12px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--muted-foreground);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background-color: color-mix(in srgb, var(--card) 85%, transparent);
+  transition: background-color 150ms ease;
+}
+.composer-upnext:hover {
+  background-color: color-mix(in srgb, var(--accent) 50%, var(--card));
+}
+[data-agent-wallpaper="active"] .composer-upnext {
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+/* Where the agent works: the chosen place shows its name, the other is an icon. */
+.workspace-mode {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+.workspace-mode-rail {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background-color: color-mix(in srgb, var(--background) 35%, transparent);
+}
+.workspace-mode-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--foreground) 9%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.workspace-mode-option {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
+  transition: color 200ms ease;
+}
+.workspace-mode-option:hover,
+.workspace-mode-option[data-selected="true"] {
+  color: var(--foreground);
+}
+.workspace-mode-label {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  padding-left: 6px;
+}
+.workspace-mode-option:not([data-selected="true"]) .workspace-mode-label {
+  padding-left: 0;
+}
+/* The hint floats beside the rail, out of the layout, so the rail never moves under the pointer. */
+.workspace-mode-hint {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  max-width: 320px;
+  margin-top: -9px;
+  padding: 1px 6px;
+  border-radius: var(--radius-control);
+  background-color: var(--card);
+  pointer-events: none;
+  overflow: hidden;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--muted-foreground) 75%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(4px);
+  line-height: 16px;
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.workspace-mode-hint-visible {
+  opacity: 1;
+  transform: none;
+}
+@container chat-workspace (max-width: 900px) {
+  .workspace-mode-hint {
+    display: none;
+  }
+}
+.workspace-mode-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Branch: a quiet name with a branch mark — no pill — and a flat, tidy picker. */
+.branch-studio-chip {
+  gap: 6px;
+  padding-inline: 6px;
+  color: var(--foreground);
+  font-weight: 500;
+  background-color: transparent;
+}
+.branch-studio-chip > svg {
+  color: var(--muted-foreground);
+}
+.branch-studio-chip:hover {
+  background-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.branch-studio-chip > svg:last-child {
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+.branch-studio-chip:hover > svg:last-child {
+  opacity: 1;
+}
+.branch-studio-popup {
+  --radius-surface: var(--radius-preview);
+  padding: 0 !important;
+  overflow: hidden;
+}
+.branch-studio-search {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+/* The search field sits flat in its row: no box, no focus glow. */
+.branch-studio-search [data-slot="input-control"],
+.branch-studio-search [data-slot="input-control"]:focus-within,
+.branch-studio-search input {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.branch-studio-search input {
+  font-size: 13px;
+}
+.branch-studio-popup [role="option"] {
+  margin-inline: 6px;
+  border-radius: var(--radius-tile) !important;
+}
+.branch-studio-popup [role="listbox"] {
+  padding-block: 6px;
+}
+.branch-studio-create {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.branch-studio-create strong {
+  font-weight: 600;
+}
+.branch-studio-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--muted-foreground) 75%, transparent);
+}
+.branch-studio-hint {
+  padding: 7px 14px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-card,
+  .composer-word,
+  .workspace-mode-hint {
+    transition: none;
+  }
+}

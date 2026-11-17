@@ -199,8 +199,25 @@ export const EnvironmentSpeechModel = Schema.Struct({
 });
 export type EnvironmentSpeechModel = typeof EnvironmentSpeechModel.Type;
 
+/** A speech model another app already keeps on this machine, and the Tabs model it matches. */
+export const EnvironmentSpeechFoundModel = Schema.Struct({
+  /** The app that downloaded it, e.g. "TypeWhisper". */
+  app: Schema.String,
+  name: Schema.String,
+  /** The file format, e.g. "Core ML". */
+  format: Schema.String,
+  path: Schema.String,
+  /** Whether Tabs's engine can run this copy as it is. */
+  usableAsIs: Schema.Boolean,
+  /** The catalog model with the same weights, when there is one. */
+  matchModelId: Schema.optionalKey(SpeechModelId),
+});
+export type EnvironmentSpeechFoundModel = typeof EnvironmentSpeechFoundModel.Type;
+
 export const EnvironmentSpeechModels = Schema.Struct({
   models: Schema.Array(EnvironmentSpeechModel),
+  /** Models other dictation apps keep on this machine. Absent from older servers. */
+  foundElsewhere: Schema.optionalKey(Schema.Array(EnvironmentSpeechFoundModel)),
 });
 export type EnvironmentSpeechModels = typeof EnvironmentSpeechModels.Type;
 

@@ -264,6 +264,21 @@ describe("omitOlderSettledShells", () => {
     });
   });
 
+  it("never lists or counts side chats, and keeps their parent", () => {
+    const sideChat = row("side", 30, {
+      lineage: {
+        parentThreadId: ThreadId.make("parent"),
+        relationshipToParent: "fork",
+        rootThreadId: ThreadId.make("parent"),
+        sideChat: true,
+      },
+    });
+    const result = omit([...newest, row("parent", 30), sideChat]);
+    expect(result.threads.map((thread) => thread.id).slice(25)).toEqual(["parent", "side"]);
+    // Only the parent counts as an older settled thread; the side chat never does.
+    expect(result.olderSettled.counts).toEqual([{ projectId: "project-a", count: 1 }]);
+  });
+
   it("keeps threads tied with the 25th newest", () => {
     const result = omit([...newest, row("tie", 2.4), row("older", 2.5)]);
     expect(result.threads.map((thread) => thread.id).slice(25)).toEqual(["tie"]);

@@ -54,7 +54,11 @@ const createProject = (projectId: ProjectId) =>
 const thread = (
   threadId: ThreadId,
   projectId: ProjectId,
-  overrides: { readonly archivedAt?: DateTime.Utc; readonly deletedAt?: DateTime.Utc } = {},
+  overrides: {
+    readonly archivedAt?: DateTime.Utc;
+    readonly deletedAt?: DateTime.Utc;
+    readonly sideChatOf?: ThreadId;
+  } = {},
 ): OrchestrationV2DomainEvent => ({
   id: EventId.make(`created:${threadId}`),
   type: "thread.created",
@@ -74,7 +78,15 @@ const thread = (
     branch: null,
     worktreePath: null,
     activeProviderThreadId: null,
-    lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+    lineage:
+      overrides.sideChatOf === undefined
+        ? { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId }
+        : {
+            parentThreadId: overrides.sideChatOf,
+            relationshipToParent: "fork",
+            rootThreadId: overrides.sideChatOf,
+            sideChat: true,
+          },
     forkedFrom: null,
     createdAt: at(0),
     updatedAt: at(0),
@@ -172,6 +184,32 @@ it.layer(layerTest)("ThreadSearch", (it) => {
       assert.lengthOf((yield* search.search({ query: "needle", limit: 1 })).matches, 1);
       // LIKE wildcards in the query match literally.
       assert.deepEqual((yield* search.search({ query: "ne%le" })).matches, []);
+    }),
+  );
+
+  it.effect("never finds a side chat's messages", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const search = yield* ThreadSearch.ThreadSearch;
+      const project = ProjectId.make("project:search-side-chat");
+      const parent = ThreadId.make("thread:side-parent");
+      const sideChat = ThreadId.make("thread:side-chat");
+      yield* createProject(project);
+      yield* Effect.forEach(
+        [
+          thread(parent, project),
+          message(parent, "side-parent", "user", "zebra in the main thread"),
+          thread(sideChat, project, { sideChatOf: parent }),
+          message(sideChat, "side-chat", "user", "zebra asked on the side"),
+        ],
+        projections.apply,
+        { discard: true },
+      );
+      const result = yield* search.search({ query: "zebra", limit: 20 });
+      assert.deepEqual(
+        result.matches.map((match) => match.threadId),
+        [parent],
+      );
     }),
   );
 

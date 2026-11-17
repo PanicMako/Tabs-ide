@@ -532,7 +532,8 @@ const make = Effect.gen(function* () {
           .filter((thread) => thread.projectId === input.projectId)
           .filter(
             (thread) =>
-              input.includeSubagents || thread.lineage.relationshipToParent !== "subagent",
+              thread.lineage.sideChat !== true &&
+              (input.includeSubagents || thread.lineage.relationshipToParent !== "subagent"),
           )
           .toSorted(
             (left, right) =>

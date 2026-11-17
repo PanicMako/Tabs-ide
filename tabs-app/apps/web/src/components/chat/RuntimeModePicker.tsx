@@ -2,7 +2,7 @@ import type { RuntimeMode } from "@tabs/contracts";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "../../lib/utils";
-import { runtimeModeConfig, runtimeModeOptions } from "./runtimeModeConfig";
+import { resolveCompatibleRuntimeMode, runtimeModeConfig } from "./runtimeModeConfig";
 
 const SLOT = 30; // px per icon button
 const PAD = 2; // px of rail padding
@@ -14,13 +14,19 @@ const PAD = 2; // px of rail padding
  */
 export function RuntimeModePicker(props: {
   readonly runtimeMode: RuntimeMode;
+  /** Modes the selected provider offers; every mode when omitted. */
+  readonly supportedRuntimeModes?: ReadonlyArray<RuntimeMode> | undefined;
   readonly onChange: (mode: RuntimeMode) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState<RuntimeMode | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const currentIndex = Math.max(0, runtimeModeOptions.indexOf(props.runtimeMode));
-  const shown = hovered ?? props.runtimeMode;
+  const { modes: runtimeModeOptions, mode: currentMode } = resolveCompatibleRuntimeMode(
+    props.runtimeMode,
+    props.supportedRuntimeModes,
+  );
+  const currentIndex = Math.max(0, runtimeModeOptions.indexOf(currentMode));
+  const shown = hovered ?? currentMode;
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +64,7 @@ export function RuntimeModePicker(props: {
           {runtimeModeOptions.map((mode) => {
             const config = runtimeModeConfig[mode];
             const Icon = config.icon;
-            const selected = mode === props.runtimeMode;
+            const selected = mode === currentMode;
             return (
               <button
                 key={mode}

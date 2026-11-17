@@ -12,7 +12,7 @@ import {
 import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "./lib/terminalContext";
 
 export type ComposerTriggerKind = "path" | "slash-command" | "slash-model" | "skill";
-export type ComposerSlashCommand = "model" | "plan" | "default" | "overmind";
+export type ComposerSlashCommand = "model" | "plan" | "default" | "overmind" | "side" | "btw";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -21,7 +21,14 @@ export interface ComposerTrigger {
   rangeEnd: number;
 }
 
-const SLASH_COMMANDS: readonly ComposerSlashCommand[] = ["model", "plan", "default", "overmind"];
+const SLASH_COMMANDS: readonly ComposerSlashCommand[] = [
+  "model",
+  "plan",
+  "default",
+  "overmind",
+  "side",
+  "btw",
+];
 const isInlineTokenSegment = (segment: ComposerPromptSegment): boolean => segment.type !== "text";
 
 export function formatAssistantCitationForComposer(citation: AssistantCitation, comment = "") {

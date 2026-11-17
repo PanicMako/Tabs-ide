@@ -8,9 +8,20 @@ import { previewTheme, restoreThemeSnapshot, snapshotThemeState } from "../../ho
 import { ToolbarStyleReel } from "./ToolbarStyleReel";
 
 const motion = vi.hoisted(() => ({ reduced: true }));
-vi.mock("../../panelAnimations", () => ({
-  usePanelAnimationSettings: () => ({ reducedMotion: motion.reduced }),
-}));
+vi.mock("../../panelAnimations", async () => {
+  const { MOTION_PROFILE } = await vi.importActual<typeof import("../../lib/motionProfiles")>(
+    "../../lib/motionProfiles",
+  );
+  return {
+    usePanelAnimationSettings: () => ({ reducedMotion: motion.reduced }),
+    useSurfaceMotionSettings: () => ({
+      active: !motion.reduced,
+      reducedMotion: motion.reduced,
+      seconds: (s: number) => s,
+      profile: MOTION_PROFILE,
+    }),
+  };
+});
 
 it("previews with arrows, scroll and keyboard, and applies only on request", async () => {
   const onApply = vi.fn();

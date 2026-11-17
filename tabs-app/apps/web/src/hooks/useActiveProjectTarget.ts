@@ -14,6 +14,23 @@ export interface ActiveProjectTarget {
   readonly threadId?: ThreadId | null;
 }
 
+/**
+ * The last place each thread resolved to. Settled and older threads are not always in the
+ * client's thread list: they load into it lazily and can be paged out again while the thread is
+ * still open (the chat keeps its own copy). Without this, every side-panel surface — terminal,
+ * browser, files, diff, pull requests — flipped to its "start a thread" empty state whenever the
+ * open thread dropped out of that list, and came back only when it was reloaded.
+ */
+const lastTargetByThreadId = new Map<string, ActiveProjectTarget>();
+
+export function rememberThreadTarget(target: ActiveProjectTarget | null): void {
+  if (target?.threadId) lastTargetByThreadId.set(target.threadId, target);
+}
+
+export function rememberedThreadTarget(threadId: ThreadId): ActiveProjectTarget | null {
+  return lastTargetByThreadId.get(threadId) ?? null;
+}
+
 export function useActiveProjectTarget(
   requestedThreadId?: ThreadId | null,
 ): ActiveProjectTarget | null {
@@ -27,7 +44,24 @@ export function useActiveProjectTarget(
     ? (threads.find((candidate) => candidate.id === requestedThreadId) ?? draftThread)
     : (activeThread ?? draftThread);
   const threadId = requestedThreadId ?? activeThread?.id ?? (draftThread ? routeThreadId : null);
-  if (requestedThreadId && !thread) return null;
+  if (requestedThreadId && !thread) {
+    // The thread is open but not in the list right now: keep using where it last lived, or the
+    // project the workspace has open, rather than telling the user to start a thread.
+    const remembered = rememberedThreadTarget(requestedThreadId);
+    if (remembered) return remembered;
+    const activeProject = activeProjectId
+      ? projects.find((candidate) => candidate.id === activeProjectId)
+      : null;
+    if (!activeProject?.cwd) return null;
+    return {
+      environmentId: activeProject.environmentId ?? null,
+      projectId: activeProject.id,
+      cwd: activeProject.cwd,
+      projectCwd: activeProject.cwd,
+      projectName: activeProject.name,
+      threadId: requestedThreadId,
+    };
+  }
 
   const project = thread
     ? projects.find((candidate) => candidate.id === thread.projectId)
@@ -40,7 +74,7 @@ export function useActiveProjectTarget(
   const cwd = thread?.worktreePath ?? project.cwd;
   if (!cwd) return null;
 
-  return {
+  const target: ActiveProjectTarget = {
     environmentId: project.environmentId ?? null,
     projectId: project.id,
     cwd,
@@ -48,4 +82,6 @@ export function useActiveProjectTarget(
     projectName: project.name,
     threadId,
   };
+  rememberThreadTarget(target);
+  return target;
 }

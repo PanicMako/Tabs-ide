@@ -379,7 +379,7 @@ export function UsagePriceOverrides({
                         focusRowRef.current = id;
                         updateDraft({ id, model: modelName, isNew: true, values: {} });
                       }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-primary/50 text-xs font-mono text-foreground hover:text-primary transition-all shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-primary/50 text-xs font-mono text-foreground hover:text-primary transition shadow-2xs cursor-pointer"
                     >
                       <PlusIcon className="size-3 text-muted-foreground" />
                       <span>{modelName}</span>
@@ -424,7 +424,7 @@ export function UsagePriceOverrides({
                         key={row.id}
                         data-row-id={row.id}
                         className={cn(
-                          "rounded-2xl border p-4 space-y-3 transition-all backdrop-blur-sm shadow-xs",
+                          "rounded-2xl border p-4 space-y-3 transition backdrop-blur-sm shadow-xs",
                           row.removed
                             ? "border-border/50 bg-muted/20 opacity-75"
                             : isError

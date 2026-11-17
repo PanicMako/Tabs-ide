@@ -330,11 +330,17 @@ function writePrListSnapshot(
   }
 }
 
+/**
+ * The first page of a repository's pull requests. GitHub answers 20 in about half the time it
+ * takes for 50, so the list paints sooner and "Load more" fetches the rest.
+ */
+export const PULL_REQUEST_FIRST_PAGE = 20;
+
 export function gitAllPullRequestsQueryOptions(
   cwd: string | null,
   state: "open" | "closed" | "merged" | "all" = "all",
   environmentId?: string,
-  limit = 50,
+  limit = PULL_REQUEST_FIRST_PAGE,
   search = "",
 ) {
   return queryOptions({
@@ -350,14 +356,15 @@ export function gitAllPullRequestsQueryOptions(
         limit,
         ...(search ? { query: search } : {}),
       });
-      if (!search && limit === 50) writePrListSnapshot(environmentId, cwd, state, result);
+      if (!search && limit === PULL_REQUEST_FIRST_PAGE)
+        writePrListSnapshot(environmentId, cwd, state, result);
       return result;
     },
     // A filter or page-size change keeps the rows on screen until the new ones arrive, and a
     // reopen starts from the last list seen instead of an empty panel.
     placeholderData: (previous) =>
       previous ??
-      (!search && limit === 50
+      (!search && limit === PULL_REQUEST_FIRST_PAGE
         ? readPrListSnapshot<Awaited<ReturnType<NativeApi["git"]["listPullRequests"]>>>(
             environmentId,
             cwd,

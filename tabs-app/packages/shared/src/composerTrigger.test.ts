@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { serializeComposerFileLink } from "./composerTrigger";
+import { parseSideChatCommand, serializeComposerFileLink } from "./composerTrigger";
 
 describe("serializeComposerFileLink", () => {
   it("uses the basename as the markdown label", () => {
@@ -25,5 +25,23 @@ describe("serializeComposerFileLink", () => {
     expect(serializeComposerFileLink("@scope/package.json")).toBe(
       "[package.json](@scope/package.json)",
     );
+  });
+});
+
+describe("parseSideChatCommand", () => {
+  it("reads /side and its /btw alias, with or without a prompt", () => {
+    expect(parseSideChatCommand("/side why did that fail?")).toEqual({
+      prompt: "why did that fail?",
+    });
+    expect(parseSideChatCommand("  /BTW   what is a lock\nfile?  ")).toEqual({
+      prompt: "what is a lock\nfile?",
+    });
+    expect(parseSideChatCommand("/side")).toEqual({ prompt: "" });
+  });
+
+  it("leaves other messages and look-alike commands alone", () => {
+    expect(parseSideChatCommand("please /side this")).toBeNull();
+    expect(parseSideChatCommand("/sidebar")).toBeNull();
+    expect(parseSideChatCommand("/btwx hi")).toBeNull();
   });
 });

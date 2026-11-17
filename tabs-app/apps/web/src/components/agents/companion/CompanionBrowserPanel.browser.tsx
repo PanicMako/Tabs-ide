@@ -1,6 +1,6 @@
 import "../../../index.css";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { RightPanelTabs } from "../../RightPanelTabs";
 import { useCompanionSurfaceStore } from "~/stores/companionSurfaceStore";
@@ -16,6 +16,7 @@ vi.mock("~/hooks/useActiveProjectTarget", () => ({
 vi.mock("~/state/workspaceShell", () => ({
   useProjectWorkspaceSettings: () => null,
   useWorkspaceActiveProjectId: () => "project",
+  workspaceShellActions: { rememberThread: () => undefined },
 }));
 vi.mock("./CompanionFilesPanel", () => ({ CompanionFilesPanel: () => null }));
 vi.mock("./CompanionDiffPanel", () => ({ CompanionDiffPanel: () => null }));
@@ -52,7 +53,9 @@ function mockBridge() {
 }
 beforeEach(() => {
   useCompanionSurfaceStore.setState({ workspaces: {} });
-  const id = useCompanionSurfaceStore.getState().open(scope, "browser");
+  const id = useCompanionSurfaceStore
+    .getState()
+    .open(scope, "browser", { url: "https://example.test/preserved" });
   sessionId = `agents-surface-${id}`;
   useRightPanelStore.setState({ activeTab: "browser", choosingSurface: false, maximized: false });
   bridge = mockBridge();
@@ -74,9 +77,7 @@ function Harness({ visible = true }: { visible?: boolean }) {
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
-    await expect
-      .element(page.getByLabelText("Browser URL"))
-      .toHaveValue("https://example.test/preserved");
+    await expect.element(page.getByLabelText("Browser URL")).toHaveValue("example.test/preserved");
     expect(document.querySelectorAll(".companion-toolbar")).toHaveLength(1);
     expect(document.querySelector(".companion-heading")).toBeNull();
     expect(
@@ -114,9 +115,7 @@ it("detaches the native page on panel close and restores its existing session on
     expect(bridge.activateBrowserSession).toHaveBeenCalledOnce();
     expect(document.querySelector(".companion-browser-host")).toBeNull();
     await view.rerender(<Harness />);
-    await expect
-      .element(page.getByLabelText("Browser URL"))
-      .toHaveValue("https://example.test/preserved");
+    await expect.element(page.getByLabelText("Browser URL")).toHaveValue("example.test/preserved");
     await vi.waitFor(() => expect(bridge.activateBrowserSession).toHaveBeenCalledTimes(2));
     expect(bridge.activateBrowserSession).toHaveBeenLastCalledWith({
       projectId: "project",
@@ -143,6 +142,25 @@ it("does not resurrect a page when startup finishes after its panel closes", asy
     expect(bridge.activateBrowserSession).not.toHaveBeenCalled();
     expect(bridge.setBrowserBounds).toHaveBeenLastCalledWith(
       expect.objectContaining({ sessionId, visible: false }),
+    );
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("opens a new tab on the start page and only loads once an address is chosen", async () => {
+  useCompanionSurfaceStore.setState({ workspaces: {} });
+  useCompanionSurfaceStore.getState().open(scope, "browser");
+  const view = await render(<Harness />);
+  try {
+    const field = page.getByRole("textbox", { name: "Search or enter address" });
+    await expect.element(field).toBeVisible();
+    expect(bridge.ensureBrowserSession).not.toHaveBeenCalled();
+    await userEvent.type(field, "5173{Enter}");
+    await vi.waitFor(() =>
+      expect(bridge.ensureBrowserSession).toHaveBeenCalledWith(
+        expect.objectContaining({ initialUrl: "http://localhost:5173/" }),
+      ),
     );
   } finally {
     await view.unmount();

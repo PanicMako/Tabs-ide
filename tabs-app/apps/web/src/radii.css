@@ -191,3 +191,18 @@ html
 html .diagnostics-metrics > button {
   border-radius: 0 !important;
 }
+
+/* An unpadded input that sits inside a field (beside the field's icon without a border of its
+   own, in an input group, or with no surface of its own) takes no radius: the field draws the shape. Rounding the bare input
+   makes the browser clip its caret and first letter against the curve. The shared Input keeps
+   its pill: its own padding holds the caret clear of the curve. */
+html
+  :is(
+    :has(> svg) > input:not([class*="border"]),
+    :has(> svg) > textarea:not([class*="border"]),
+    input[class~="bg-transparent"]:not([data-slot="input"]),
+    textarea[class~="bg-transparent"]:not([data-slot="textarea"]),
+    [data-slot="input-group"] input
+  ) {
+  border-radius: 0 !important;
+}

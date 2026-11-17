@@ -56,6 +56,13 @@ it.effect(
         },
         { id: "deleted", host: "github.com", repository: "acme/web", number: 7, source: "manual" },
         {
+          id: "side-chat",
+          host: "github.com",
+          repository: "acme/web",
+          number: 7,
+          source: "manual",
+        },
+        {
           id: "dismissed",
           host: "github.com",
           repository: "acme/web",
@@ -87,6 +94,7 @@ it.effect(
       for (const fixture of fixtures) {
         const payload = yield* encodePayload({
           linkedPullRequest: null,
+          ...(fixture.id === "side-chat" ? { lineage: { sideChat: true } } : {}),
           pullRequests: [{ ...fixture, linkedAt: createdAt, snapshot: null, stack: null }],
         });
         yield* sql`

@@ -1,6 +1,7 @@
 import { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card";
 
 import { cn } from "~/lib/utils";
+import { useGsapSurface } from "~/hooks/useGsapSurface";
 
 const PreviewCard = PreviewCardPrimitive.Root;
 
@@ -19,6 +20,7 @@ function PreviewCardPopup({
   side?: PreviewCardPrimitive.Positioner.Props["side"];
   sideOffset?: PreviewCardPrimitive.Positioner.Props["sideOffset"];
 }) {
+  const motionRef = useGsapSurface(props.ref, "popover");
   return (
     <PreviewCardPrimitive.Portal>
       <PreviewCardPrimitive.Positioner
@@ -30,11 +32,12 @@ function PreviewCardPopup({
       >
         <PreviewCardPrimitive.Popup
           className={cn(
-            "origin-(--transform-origin) rounded-lg border bg-popover text-popover-foreground shadow-lg outline-none transition-[scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
+            "origin-(--transform-origin) rounded-lg border bg-popover text-popover-foreground shadow-lg outline-none",
             className,
           )}
           data-slot="preview-card-popup"
           {...props}
+          ref={motionRef}
         />
       </PreviewCardPrimitive.Positioner>
     </PreviewCardPrimitive.Portal>

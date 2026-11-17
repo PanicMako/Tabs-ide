@@ -394,7 +394,7 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
                     setInputVal(formatColorString(swatchHex, colorMode));
                     setHsv(hexToHsv(swatchHex));
                   }}
-                  className={`size-7.5 rounded-lg border transition-all cursor-pointer relative shadow-xs ${
+                  className={`size-7.5 rounded-lg border transition cursor-pointer relative shadow-xs ${
                     isSelected
                       ? "border-primary ring-2 ring-primary/50 scale-105 z-10"
                       : "border-border/60 hover:scale-105 hover:border-foreground/40"

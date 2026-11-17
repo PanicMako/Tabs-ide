@@ -6,6 +6,7 @@ import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
+import { useGsapSurface } from "~/hooks/useGsapSurface";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
@@ -154,6 +155,7 @@ function ComboboxPopup({
 }) {
   const { chipsRef } = React.useContext(ComboboxContext);
   const anchor = anchorProp ?? chipsRef;
+  const motionRef = useGsapSurface(props.ref, "popover", { animateParent: true });
 
   return (
     <ComboboxScopedPortal>
@@ -177,6 +179,7 @@ function ComboboxPopup({
             className="flex max-h-[min(var(--available-height),23rem)] flex-1 flex-col text-foreground overflow-hidden"
             data-slot="combobox-popup"
             {...props}
+            ref={motionRef}
           >
             {children}
           </ComboboxPrimitive.Popup>

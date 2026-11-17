@@ -556,7 +556,7 @@ export function ModelDetailModal({
                     <path
                       d={areaPath}
                       fill="url(#modelAreaGrad)"
-                      className="transition-all duration-300"
+                      className="transition duration-300"
                     />
                   ) : null}
 
@@ -569,7 +569,7 @@ export function ModelDetailModal({
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="transition-all duration-300"
+                      className="transition duration-300"
                     />
                   ) : null}
 

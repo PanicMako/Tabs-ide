@@ -289,7 +289,7 @@ export function IconStat({
   return (
     <div
       className={cn(
-        "group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-3.5 shadow-xs/5 transition-all duration-200 hover:border-border hover:shadow-xs",
+        "group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-3.5 shadow-xs/5 transition duration-200 hover:border-border hover:shadow-xs",
         "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
       )}
     >
@@ -340,7 +340,7 @@ export function AggregateCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition-all duration-200 hover:border-border hover:shadow-xs",
+        "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition duration-200 hover:border-border hover:shadow-xs",
         "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
       )}
     >
@@ -603,7 +603,7 @@ export function ProcessActions({
           render={
             <button
               type="button"
-              className="cursor-pointer rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground/80 hover:border-border hover:bg-muted hover:text-foreground active:scale-95 transition-all"
+              className="cursor-pointer rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground/80 hover:border-border hover:bg-muted hover:text-foreground active:scale-95 transition"
               onClick={() => onSignal(process, "SIGINT")}
             >
               INT
@@ -619,7 +619,7 @@ export function ProcessActions({
           render={
             <button
               type="button"
-              className="cursor-pointer rounded border border-destructive/25 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive hover:border-destructive/40 hover:bg-destructive/20 active:scale-95 transition-all"
+              className="cursor-pointer rounded border border-destructive/25 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive hover:border-destructive/40 hover:bg-destructive/20 active:scale-95 transition"
               onClick={() => onSignal(process, "SIGKILL")}
             >
               KILL
@@ -1099,7 +1099,7 @@ export function HostAndCollectionSection({
         {/* Host state card */}
         <div
           className={cn(
-            "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition-all duration-200",
+            "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition duration-200",
             "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
           )}
         >
@@ -1184,7 +1184,7 @@ export function HostAndCollectionSection({
         {/* Collection health card */}
         <div
           className={cn(
-            "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition-all duration-200",
+            "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-4 shadow-xs/5 transition duration-200",
             "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
           )}
         >

@@ -102,7 +102,7 @@ function TagCiStatus({ cwd, tagName }: { cwd: string; tagName: string }) {
       {/* Hover External Link Arrow */}
       <ExternalLink
         size={9}
-        className="opacity-0 group-hover/ci:opacity-70 group-hover/ci:translate-x-0.5 transition-all duration-150 shrink-0 text-muted-foreground ml-0.5"
+        className="opacity-0 group-hover/ci:opacity-70 group-hover/ci:translate-x-0.5 transition duration-150 shrink-0 text-muted-foreground ml-0.5"
       />
     </a>
   );

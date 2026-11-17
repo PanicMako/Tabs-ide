@@ -313,7 +313,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
 
   const dialogContent = (
     <>
-      <BackdropComponent className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md transition-all duration-200 motion-reduce:transition-none" />
+      <BackdropComponent className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md transition duration-200 motion-reduce:transition-none" />
       <PopupComponent
         role="dialog"
         aria-modal="true"
@@ -502,7 +502,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
             <button
               type="button"
               onClick={() => navigateImage(-1)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background hover:scale-105 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition hover:bg-background hover:scale-105 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
               aria-label="Previous image"
             >
               <ChevronLeftIcon className="size-5" />
@@ -510,7 +510,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
             <button
               type="button"
               onClick={() => navigateImage(1)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background hover:scale-105 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition hover:bg-background hover:scale-105 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
               aria-label="Next image"
             >
               <ChevronRightIcon className="size-5" />

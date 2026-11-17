@@ -430,7 +430,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                               props.onCloseProject(item.projectId);
                             }
                           }}
-                          className="size-6 rounded-full flex items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-foreground/10 hover:text-foreground transition-all"
+                          className="size-6 rounded-full flex items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-foreground/10 hover:text-foreground transition"
                         >
                           <XIcon className="size-3.5" />
                         </button>

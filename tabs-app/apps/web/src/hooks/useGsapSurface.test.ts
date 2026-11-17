@@ -3,22 +3,24 @@ import { useGsapSurface } from "./useGsapSurface";
 
 const motion = vi.hoisted(() => ({
   active: true,
-  durationMs: 200,
-  fromTo: vi.fn(),
-  revert: vi.fn(),
+  seconds: (value: number) => value,
+  enter: vi.fn(),
+  exit: vi.fn(),
+  clear: vi.fn(),
+  holdCancel: vi.fn(),
 }));
 vi.mock("react", () => ({ useCallback: (callback: unknown) => callback }));
 vi.mock("../panelAnimations", () => ({
-  usePanelAnimationSettings: () => motion,
+  useSurfaceMotionSettings: () => motion,
 }));
-vi.mock("gsap", () => ({
-  default: {
-    fromTo: motion.fromTo,
-    context: (callback: () => void) => {
-      callback();
-      return { revert: motion.revert };
-    },
+vi.mock("../lib/motion", () => ({
+  getSurfacePreset: (preset: string) => ({ preset }),
+  playSurfaceEnter: motion.enter,
+  playSurfaceExit: (...args: unknown[]) => {
+    motion.exit(...args);
+    return { tween: {}, hold: { cancel: motion.holdCancel } };
   },
+  clearSurfaceMotion: motion.clear,
 }));
 
 describe("surface motion lifecycle", () => {
@@ -26,7 +28,11 @@ describe("surface motion lifecycle", () => {
   let notify: () => void;
   const disconnect = vi.fn();
   const attributes = new Set<string>();
-  const node = { hasAttribute: (name: string) => attributes.has(name) } as HTMLElement;
+  const parent = { id: "frame" } as unknown as HTMLElement;
+  const node = {
+    hasAttribute: (name: string) => attributes.has(name),
+    parentElement: parent,
+  } as unknown as HTMLElement;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,31 +50,53 @@ describe("surface motion lifecycle", () => {
     );
   });
 
-  it("restarts a retained popup only when it opens, and disposes its observer", () => {
-    const cleanup = useGsapSurface()(node);
-    expect(motion.fromTo).toHaveBeenCalledTimes(1);
+  it("enters on open, exits while ending, and re-enters from the interrupted exit", () => {
+    const cleanup = useGsapSurface(undefined, "dialog")(node);
+    expect(motion.enter).toHaveBeenCalledTimes(1);
+    expect(motion.enter.mock.calls[0]?.[3]).toBe(false);
     notify();
-    expect(motion.fromTo).toHaveBeenCalledTimes(1);
+    expect(motion.enter).toHaveBeenCalledTimes(1);
+
     attributes.add("data-ending-style");
     notify();
-    expect(motion.revert).toHaveBeenCalledTimes(1);
+    expect(motion.exit).toHaveBeenCalledTimes(1);
+    notify();
+    expect(motion.exit).toHaveBeenCalledTimes(1);
+
     attributes.delete("data-ending-style");
     notify();
-    expect(motion.fromTo).toHaveBeenCalledTimes(2);
+    expect(motion.holdCancel).toHaveBeenCalledOnce();
+    expect(motion.enter).toHaveBeenCalledTimes(2);
+    expect(motion.enter.mock.calls[1]?.[3]).toBe(true);
+
     cleanup?.();
     expect(disconnect).toHaveBeenCalledOnce();
-    expect(motion.revert).toHaveBeenCalledTimes(2);
+    expect(motion.clear).toHaveBeenCalled();
   });
 
-  it("does not animate closed retained popups or reduced-motion surfaces", () => {
+  it("does not animate closed retained popups, instant popups or reduced-motion surfaces", () => {
     attributes.add("data-closed");
-    const cleanup = useGsapSurface()(node);
-    expect(motion.fromTo).not.toHaveBeenCalled();
-    cleanup?.();
+    useGsapSurface()(node)?.();
+    expect(motion.enter).not.toHaveBeenCalled();
+
+    attributes.clear();
+    attributes.add("data-instant");
+    useGsapSurface()(node)?.();
+    expect(motion.enter).not.toHaveBeenCalled();
+
     attributes.clear();
     motion.active = false;
     useGsapSurface()(node)?.();
-    expect(motion.fromTo).not.toHaveBeenCalled();
+    attributes.add("data-ending-style");
+    notify();
+    expect(motion.enter).not.toHaveBeenCalled();
+    expect(motion.exit).not.toHaveBeenCalled();
+  });
+
+  it("animates the painted frame when asked while watching the Base UI element", () => {
+    useGsapSurface(undefined, "popover", { animateParent: true })(node)?.();
+    expect(motion.enter.mock.calls[0]?.[0]).toBe(parent);
+    expect(motion.enter.mock.calls[0]?.[4]).toBe(node);
   });
 
   it("preserves a caller ref and invokes its cleanup once", () => {

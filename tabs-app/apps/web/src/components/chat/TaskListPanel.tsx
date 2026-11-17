@@ -58,8 +58,8 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks }: TaskListPane
   return (
     <div
       className={cn(
-        "mx-auto mb-2 w-full min-w-0 max-w-3xl overflow-hidden rounded-2xl border border-border/40 bg-card/70 shadow-sm backdrop-blur-sm",
-        "transition-all duration-200",
+        "mx-auto mb-2 w-full min-w-0 max-w-(--chat-column-width) overflow-hidden rounded-2xl border border-border/40 bg-card/70 shadow-sm backdrop-blur-sm",
+        "transition duration-200",
       )}
     >
       {/* ── Header ── */}

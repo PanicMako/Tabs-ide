@@ -743,3 +743,77 @@ it.effect(
       }
     }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect("starts a side chat before the parent has a run and deletes it with the parent", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const parentId = ThreadId.make("thread:side-chat-parent");
+    const sideChatId = ThreadId.make("thread:side-chat-child");
+    const forkId = ThreadId.make("thread:plain-fork-child");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create-side-chat-parent"),
+      threadId: parentId,
+      projectId: ProjectId.make("project:side-chat"),
+      title: "Parent",
+      modelSelection,
+      runtimeMode: "approval-required",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    // A plain fork still needs a finished run to copy.
+    const refused = yield* orchestrator
+      .dispatch({
+        type: "thread.fork",
+        commandId: CommandId.make("fork-without-run"),
+        sourceThreadId: parentId,
+        targetThreadId: forkId,
+        sourcePoint: { type: "latest_stable" },
+        createdBy: "user",
+        creationSource: "web",
+      })
+      .pipe(Effect.flip);
+    assert.isDefined(refused);
+    yield* orchestrator.dispatch({
+      type: "thread.fork",
+      commandId: CommandId.make("side-chat-fork"),
+      sourceThreadId: parentId,
+      targetThreadId: sideChatId,
+      sourcePoint: { type: "latest_stable" },
+      title: "Side chat",
+      sideChat: true,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const sideChat = yield* projections.getThread(sideChatId);
+    assert.isTrue(sideChat.lineage.sideChat);
+    assert.equal(sideChat.lineage.parentThreadId, parentId);
+    assert.equal(sideChat.runtimeMode, "approval-required");
+    assert.isNull(sideChat.deletedAt);
+    // A side chat cannot start another side chat.
+    const nested = yield* orchestrator
+      .dispatch({
+        type: "thread.fork",
+        commandId: CommandId.make("nested-side-chat"),
+        sourceThreadId: sideChatId,
+        targetThreadId: ThreadId.make("thread:nested-side-chat"),
+        sourcePoint: { type: "latest_stable" },
+        sideChat: true,
+        createdBy: "user",
+        creationSource: "web",
+      })
+      .pipe(Effect.flip);
+    assert.isDefined(nested);
+    yield* orchestrator.dispatch({
+      type: "thread.delete",
+      commandId: CommandId.make("delete-side-chat-parent"),
+      threadId: parentId,
+    });
+    assert.isNotNull((yield* projections.getThread(parentId)).deletedAt);
+    assert.isNotNull((yield* projections.getThread(sideChatId)).deletedAt);
+  }).pipe(Effect.provide(layerTest)),
+);

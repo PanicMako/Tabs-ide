@@ -39,6 +39,7 @@ export const listLinkedPullRequestThreads = Effect.fn("listLinkedPullRequestThre
       WHERE json_extract(link.value, '$.number') = ${key.number}
         AND json_extract(link.value, '$.source') != 'stack-dismissed'
         AND t.deleted_at IS NULL
+        AND json_extract(t.payload_json, '$.lineage.sideChat') IS NOT 1
       UNION ALL
       SELECT t.thread_id AS id, t.project_id AS "projectId", t.title,
         t.archived_at AS "archivedAt", NULL AS host,
@@ -51,6 +52,7 @@ export const listLinkedPullRequestThreads = Effect.fn("listLinkedPullRequestThre
         AND json_type(t.payload_json, '$.linkedPullRequest') = 'object'
         AND json_extract(t.payload_json, '$.linkedPullRequest.number') = ${key.number}
         AND t.deleted_at IS NULL
+        AND json_extract(t.payload_json, '$.lineage.sideChat') IS NOT 1
       ORDER BY "updatedAt" DESC, id ASC
     `;
     const threads = rows

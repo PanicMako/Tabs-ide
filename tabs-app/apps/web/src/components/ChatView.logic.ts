@@ -187,8 +187,18 @@ export function shouldUseCenteredEmptyComposer(options: {
   isLocalDraftThread: boolean;
   hasTimelineEntries: boolean;
   isWorking: boolean;
+  /**
+   * A server thread that has never sent anything: it was created to hold a queued or scheduled
+   * first message, which may since have been removed. It keeps the welcome until a message
+   * actually goes out, instead of showing an empty conversation.
+   */
+  nothingSentYet?: boolean;
 }): boolean {
-  return options.isLocalDraftThread && !options.hasTimelineEntries && !options.isWorking;
+  return (
+    (options.isLocalDraftThread || options.nothingSentYet === true) &&
+    !options.hasTimelineEntries &&
+    !options.isWorking
+  );
 }
 
 export function resolveBaseComposerPlaceholder(options: {

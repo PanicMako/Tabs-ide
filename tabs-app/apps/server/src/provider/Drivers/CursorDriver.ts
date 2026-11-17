@@ -135,18 +135,8 @@ const LegacyCursorDriver: ProviderDriver<CursorSettings, any> = {
                 Effect.orElseSucceed(() => undefined),
                 Effect.map((usageLimits) =>
                   usageLimits && usageLimits.windows && usageLimits.windows.length > 0
-                    ? {
-                        ...snapshot,
-                        usageLimits,
-                        status: snapshot.status === "error" ? "ready" : snapshot.status,
-                        auth: {
-                          ...snapshot.auth,
-                          status: "authenticated" as const,
-                        },
-                        ...(snapshot.message?.includes("Sign in with Cursor")
-                          ? { message: undefined }
-                          : {}),
-                      }
+                    ? // Usage alone never makes Cursor ready; see CursorDriver.modern.ts.
+                      { ...snapshot, usageLimits }
                     : snapshot,
                 ),
               )

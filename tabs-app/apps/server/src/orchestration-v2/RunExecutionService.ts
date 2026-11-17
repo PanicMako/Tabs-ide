@@ -867,13 +867,15 @@ export const layer: Layer.Layer<
                     .responseStreamingMode,
               ),
             );
-            yield* input.baselineCapture === undefined
-              ? captureBaselineOrWarn({
-                  runId: input.run.id,
-                  scope: input.checkpointScope,
-                  ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
-                })
-              : Fiber.join(input.baselineCapture);
+            yield* input.appThread.lineage.sideChat === true
+              ? Effect.void
+              : input.baselineCapture === undefined
+                ? captureBaselineOrWarn({
+                    runId: input.run.id,
+                    scope: input.checkpointScope,
+                    ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
+                  })
+                : Fiber.join(input.baselineCapture);
             if (
               input.shouldStartProviderTurn !== undefined &&
               !(yield* input.shouldStartProviderTurn())

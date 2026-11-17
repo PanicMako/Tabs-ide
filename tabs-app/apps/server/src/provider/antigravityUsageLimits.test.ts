@@ -143,7 +143,7 @@ describe("Antigravity subscription limits", () => {
       expect(requests.filter((request) => request.url.endsWith("/token"))).toHaveLength(1);
       expect(
         requests.filter((request) => request.url.endsWith(":retrieveUserQuotaSummary")),
-      ).toHaveLength(2);
+      ).toHaveLength(4);
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 

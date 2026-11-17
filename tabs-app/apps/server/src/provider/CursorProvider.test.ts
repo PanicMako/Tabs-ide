@@ -121,7 +121,8 @@ describe("buildCursorProviderSnapshot", () => {
     ).toMatchObject({
       status: "warning",
       message: "Cursor SDK model discovery returned no built-in models.",
-      models: [],
+      // Auto stays available: it is the one model every Cursor plan can run.
+      models: [{ slug: "auto", name: "Auto", isCustom: false }],
       supportsConversationRollback: false,
     });
   });
@@ -199,10 +200,36 @@ describe("checkCursorProviderStatus", () => {
           email: "cursor@example.com",
         },
         models: [
+          { slug: "auto", isCustom: false },
           { slug: "claude-opus-4-8", isCustom: false },
           { slug: "internal/cursor-model", isCustom: true },
         ],
       });
+    }),
+  );
+
+  it.effect("keeps Auto available when the key works but the model list fails", () =>
+    Effect.gen(function* () {
+      const provider = yield* checkCursorProviderStatus(baseCursorSettings, {
+        CURSOR_API_KEY: "free-plan-key",
+      }).pipe(
+        Effect.provide(
+          CursorSdkCatalog.layerTest(() =>
+            Effect.fail(
+              new CursorSdkCatalog.CursorSdkCatalogError({
+                authenticationFailure: false,
+                cause: new Error("403 plan_required"),
+              }),
+            ),
+          ),
+        ),
+      );
+
+      expect(provider).toMatchObject({
+        status: "warning",
+        models: [{ slug: "auto", name: "Auto" }],
+      });
+      expect(provider.message).toContain("only Auto");
     }),
   );
 

@@ -14,7 +14,10 @@ import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import {
+  antigravityClientInfo,
+  antigravityCliSessionMode,
   antigravityPermissionMode,
+  antigravityThinkingConfig,
   applyAntigravityAcpModelSelection,
   buildAntigravityPrompt,
 } from "./AntigravityAcpSupport.ts";
@@ -600,4 +603,34 @@ it.layer(NodeServices.layer)("buildAntigravityPrompt", (it) => {
       });
     }),
   );
+});
+
+describe("Antigravity CLI support", () => {
+  it("keeps the CLI in default mode instead of the managed runtime's yolo and auto_edit", () => {
+    expect(antigravityCliSessionMode("yolo")).toBe("default");
+    expect(antigravityCliSessionMode("auto_edit")).toBe("default");
+    expect(antigravityCliSessionMode("default")).toBe("default");
+    expect(antigravityCliSessionMode("plan")).toBe("plan");
+  });
+
+  it("identifies as Zed until the CLI opens model access to every client", () => {
+    expect(antigravityClientInfo("1.5.0")).toEqual({ name: "zed", version: "0.0.0" });
+    expect(antigravityClientInfo(null)).toEqual({ name: "zed", version: "0.0.0" });
+    expect(antigravityClientInfo("1.5.1").name).toBe("tabs");
+    expect(antigravityClientInfo("1.6.0").name).toBe("tabs");
+  });
+
+  it("finds the thought_level option", () => {
+    const thinking = {
+      id: "thinking",
+      name: "Thinking",
+      category: "thought_level",
+      type: "select",
+      currentValue: "high",
+      options: [{ value: "high", name: "High" }],
+    } as const;
+    expect(antigravityThinkingConfig([thinking])).toBe(thinking);
+    expect(antigravityThinkingConfig([{ ...thinking, category: "other" }])).toBeUndefined();
+    expect(antigravityThinkingConfig(undefined)).toBeUndefined();
+  });
 });

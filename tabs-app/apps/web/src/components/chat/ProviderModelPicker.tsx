@@ -1,5 +1,6 @@
 import { type ModelSlug, type ProviderKind, type ServerProvider } from "@tabs/contracts";
 import { resolveSelectableModel } from "@tabs/shared/model";
+import { goToSettings } from "~/lib/settingsLayerStore";
 import { memo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { VariantProps } from "class-variance-authority";
@@ -224,7 +225,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                                 [option.value]: true,
                               },
                             }));
-                            void navigate({ to: "/settings" });
+                            goToSettings(navigate);
                           }
                         : undefined
                     }

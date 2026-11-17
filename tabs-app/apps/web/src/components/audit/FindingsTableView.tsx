@@ -197,7 +197,7 @@ export function FindingsTableView({
               <div
                 key={finding.id}
                 onClick={() => onSelectFinding(finding.id)}
-                className={`p-5 rounded-xl border transition-all cursor-pointer space-y-3 ${
+                className={`p-5 rounded-xl border transition cursor-pointer space-y-3 ${
                   isSelected
                     ? "bg-primary/5 border-primary shadow-sm"
                     : "border-border hover:border-border/80 hover:bg-muted/30"

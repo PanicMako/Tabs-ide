@@ -2,7 +2,17 @@ import { selectWorkspaceBranch } from "./workspaceBranchSelection";
 import type { GitBranch } from "@tabs/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDownIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  CloudIcon,
+  GitBranchIcon,
+  GitForkIcon,
+  GitPullRequestIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  XIcon,
+} from "lucide-react";
 import {
   type CSSProperties,
   useCallback,
@@ -55,6 +65,8 @@ interface BranchToolbarBranchSelectorProps {
   onPrepareBranchChange: () => Promise<boolean>;
   onCheckoutPullRequestRequest?: (reference: string) => void;
   onComposerFocusRequest?: () => void;
+  /** "studio" is the Labs composer look; the logic is the same. */
+  look?: "classic" | "studio";
 }
 
 function toBranchActionErrorMessage(error: unknown): string {
@@ -88,7 +100,9 @@ export function BranchToolbarBranchSelector({
   onPrepareBranchChange,
   onCheckoutPullRequestRequest,
   onComposerFocusRequest,
+  look = "classic",
 }: BranchToolbarBranchSelectorProps) {
+  const studio = look === "studio";
   const queryClient = useQueryClient();
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
   const [branchQuery, setBranchQuery] = useState("");
@@ -132,15 +146,35 @@ export function BranchToolbarBranchSelector({
     ? `__create_new_branch__:${trimmedBranchQuery}`
     : null;
   const branchPickerItems = useMemo(() => {
-    const items = [...branchNames];
+    // The studio look lists the current branch first, then local, then remote, and offers
+    // "create" at the top as soon as a new name is typed.
+    const items = studio
+      ? [
+          ...branches.filter((branch) => branch.current).map((branch) => branch.name),
+          ...branches
+            .filter((branch) => !branch.current && !branch.isRemote)
+            .map((branch) => branch.name),
+          ...branches
+            .filter((branch) => !branch.current && branch.isRemote)
+            .map((branch) => branch.name),
+        ]
+      : [...branchNames];
     if (createBranchItemValue && !hasExactBranchMatch) {
-      items.push(createBranchItemValue);
+      if (studio) items.unshift(createBranchItemValue);
+      else items.push(createBranchItemValue);
     }
     if (checkoutPullRequestItemValue) {
       items.unshift(checkoutPullRequestItemValue);
     }
     return items;
-  }, [branchNames, checkoutPullRequestItemValue, createBranchItemValue, hasExactBranchMatch]);
+  }, [
+    branchNames,
+    branches,
+    checkoutPullRequestItemValue,
+    createBranchItemValue,
+    hasExactBranchMatch,
+    studio,
+  ]);
   const filteredBranchPickerItems = useMemo(
     () =>
       normalizedDeferredBranchQuery.length === 0
@@ -324,9 +358,14 @@ export function BranchToolbarBranchSelector({
             onCheckoutPullRequestRequest(prReference);
           }}
         >
-          <div className="flex min-w-0 flex-col items-start py-1">
-            <span className="truncate font-medium">Checkout Pull Request</span>
-            <span className="truncate text-muted-foreground text-xs">{prReference}</span>
+          <div className="flex min-w-0 items-center gap-2 py-1">
+            {studio && <GitPullRequestIcon className="size-3.5 shrink-0 text-muted-foreground" />}
+            <div className="flex min-w-0 flex-col items-start">
+              <span className="truncate font-medium">
+                {studio ? "Check out this pull request" : "Checkout Pull Request"}
+              </span>
+              <span className="truncate text-muted-foreground text-xs">{prReference}</span>
+            </div>
           </div>
         </ComboboxItem>
       );
@@ -341,7 +380,19 @@ export function BranchToolbarBranchSelector({
           style={style}
           onClick={() => createBranch(trimmedBranchQuery)}
         >
-          <span className="truncate">Create new branch "{trimmedBranchQuery}"</span>
+          {studio ? (
+            <span className="branch-studio-create">
+              <PlusIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                Create <strong>{trimmedBranchQuery}</strong>
+              </span>
+              {resolvedActiveBranch && (
+                <span className="shrink-0 text-muted-foreground">from {resolvedActiveBranch}</span>
+              )}
+            </span>
+          ) : (
+            <span className="truncate">Create new branch "{trimmedBranchQuery}"</span>
+          )}
         </ComboboxItem>
       );
     }
@@ -369,10 +420,29 @@ export function BranchToolbarBranchSelector({
         style={style}
         onClick={() => selectBranch(branch)}
       >
-        <div className="flex w-full items-center justify-between gap-2">
-          <span className="truncate">{itemValue}</span>
-          {badge && <span className="shrink-0 text-[10px] text-muted-foreground/45">{badge}</span>}
-        </div>
+        {studio ? (
+          <div className="flex w-full min-w-0 items-center gap-2">
+            {hasSecondaryWorktree ? (
+              <GitForkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            ) : branch.isRemote ? (
+              <CloudIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            ) : (
+              <GitBranchIcon
+                className="size-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+            )}
+            <span className="min-w-0 flex-1 truncate">{itemValue}</span>
+            {badge && <span className="branch-studio-badge">{badge}</span>}
+          </div>
+        ) : (
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="truncate">{itemValue}</span>
+            {badge && (
+              <span className="shrink-0 text-[10px] text-muted-foreground/45">{badge}</span>
+            )}
+          </div>
+        )}
       </ComboboxItem>
     );
   }
@@ -393,18 +463,31 @@ export function BranchToolbarBranchSelector({
     >
       <ComboboxTrigger
         render={<Button aria-label="Branch or worktree" variant="ghost" size="xs" />}
-        className="text-muted-foreground/70 hover:text-foreground/80"
+        className={
+          studio ? "branch-studio-chip" : "text-muted-foreground/70 hover:text-foreground/80"
+        }
         disabled={(branchesQuery.isLoading && branches.length === 0) || isBranchActionPending}
       >
+        {studio && <GitBranchIcon className="size-3.5" aria-hidden="true" />}
         <span className="max-w-[240px] truncate">{triggerLabel}</span>
         <ChevronDownIcon />
       </ComboboxTrigger>
-      <ComboboxPopup align="end" side="top" className="w-80">
-        <div className="flex items-center gap-1 border-b p-1">
+      <ComboboxPopup
+        align={studio ? "start" : "end"}
+        side="top"
+        className={studio ? "branch-studio-popup w-96" : "w-80"}
+      >
+        <div className={studio ? "branch-studio-search" : "flex items-center gap-1 border-b p-1"}>
+          {studio && (
+            <SearchIcon
+              className="ml-2 size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
           <ComboboxInput
             className="flex-1 rounded-md [&_input]:font-sans"
             inputClassName="ring-0"
-            placeholder="Search branches..."
+            placeholder={studio ? "Find a branch, or type a new name" : "Search branches..."}
             showTrigger={false}
             size="sm"
             value={branchQuery}
@@ -424,7 +507,13 @@ export function BranchToolbarBranchSelector({
             <XIcon className="size-3.5" />
           </Button>
         </div>
-        <ComboboxEmpty>No branches found.</ComboboxEmpty>
+        <ComboboxEmpty>
+          {studio
+            ? isSelectingWorktreeBase
+              ? "No branch by that name to start the worktree from."
+              : "No branch by that name."
+            : "No branches found."}
+        </ComboboxEmpty>
 
         <ComboboxList ref={setBranchListRef} className="max-h-56">
           {shouldVirtualizeBranchList ? (
@@ -484,6 +573,13 @@ export function BranchToolbarBranchSelector({
               }}
             />
           </label>
+        )}
+        {studio && (
+          <div className="branch-studio-hint">
+            {isSelectingWorktreeBase
+              ? "Pick the branch the new worktree starts from."
+              : "Enter switches · type a new name to create it · paste a PR link to check it out"}
+          </div>
         )}
       </ComboboxPopup>
     </Combobox>

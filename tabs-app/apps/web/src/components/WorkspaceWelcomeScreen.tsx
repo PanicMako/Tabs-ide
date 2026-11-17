@@ -205,7 +205,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
                       type="button"
                       onClick={action.onClick}
                       className={cn(
-                        "group relative flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card px-3 py-2.5 text-left transition-all duration-150 cursor-pointer shadow-2xs",
+                        "group relative flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card px-3 py-2.5 text-left transition duration-150 cursor-pointer shadow-2xs",
                         "hover:border-foreground/20 hover:bg-accent/50 hover:shadow-xs active:scale-[0.99]",
                         "focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-ring",
                       )}
@@ -297,7 +297,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
                   key={project.id}
                   onClick={() => onSelectProject(project)}
                   className={cn(
-                    "group relative flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 transition-all duration-150 cursor-pointer shadow-2xs",
+                    "group relative flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 transition duration-150 cursor-pointer shadow-2xs",
                     "hover:border-foreground/25 hover:shadow-xs hover:bg-accent/40",
                   )}
                 >
@@ -320,7 +320,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
 
                   <button
                     type="button"
-                    className="shrink-0 inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all duration-150 group-hover:bg-foreground group-hover:text-background group-hover:border-foreground"
+                    className="shrink-0 inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition duration-150 group-hover:bg-foreground group-hover:text-background group-hover:border-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectProject(project);

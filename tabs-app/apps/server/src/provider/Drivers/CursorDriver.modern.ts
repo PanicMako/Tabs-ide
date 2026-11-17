@@ -224,23 +224,14 @@ export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
                         Effect.orElseSucceed(() => undefined),
                       ),
                     ),
-                    Effect.map((usageLimits) => {
-                      if (usageLimits && usageLimits.windows && usageLimits.windows.length > 0) {
-                        return {
-                          ...snapshot,
-                          usageLimits,
-                          status: snapshot.status === "error" ? "ready" : snapshot.status,
-                          auth: {
-                            ...snapshot.auth,
-                            status: "authenticated" as const,
-                          },
-                          ...(snapshot.message?.includes("Sign in with Cursor")
-                            ? { message: undefined }
-                            : {}),
-                        };
-                      }
-                      return snapshot;
-                    }),
+                    // Usage can be read from the Cursor app's Keychain login even when Tabs holds
+                    // no key to run agents. It is shown, but it never makes Cursor "ready": doing
+                    // so hid the sign-in prompt and left a ready provider with no models.
+                    Effect.map((usageLimits) =>
+                      usageLimits && usageLimits.windows && usageLimits.windows.length > 0
+                        ? { ...snapshot, usageLimits }
+                        : snapshot,
+                    ),
                   )
                 : Effect.succeed(snapshot),
             ),

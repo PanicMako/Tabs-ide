@@ -1,4 +1,5 @@
 import { ToolbarStyleReel } from "./ToolbarStyleReel";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import { useInstalledExtensions } from "../../state/extensions";
 import {
   extensionThemePresets,
@@ -135,6 +136,7 @@ function StudioColorPickerPopover({
   const [format, setFormat] = useState<"hex" | "rgb">("hex");
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const motionRef = useGsapEnter<HTMLDivElement>("popover", containerRef);
   const satValRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,8 +160,8 @@ function StudioColorPickerPopover({
 
   return (
     <div
-      ref={containerRef}
-      className="absolute top-full mt-2 right-0 z-50 w-64 rounded-2xl border border-border/80 bg-card p-3 shadow-2xl backdrop-blur-xl"
+      ref={motionRef}
+      className="absolute top-full mt-2 right-0 z-50 w-64 origin-top-right rounded-2xl border border-border/80 bg-card p-3 shadow-2xl backdrop-blur-xl"
       onClick={(e) => e.stopPropagation()}
     >
       <div

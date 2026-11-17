@@ -42,6 +42,30 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedRightPanelToggle.command, "rightPanel.toggle");
 
+    const parsedStop = yield* decode(KeybindingRule, {
+      key: "mod+.",
+      command: "thread.stop",
+    });
+    assert.strictEqual(parsedStop.command, "thread.stop");
+
+    const parsedRegenerate = yield* decode(KeybindingRule, {
+      key: "mod+alt+r",
+      command: "thread.regenerateTitle",
+    });
+    assert.strictEqual(parsedRegenerate.command, "thread.regenerateTitle");
+
+    const parsedStash = yield* decode(KeybindingRule, {
+      key: "mod+alt+s",
+      command: "composer.stash",
+    });
+    assert.strictEqual(parsedStash.command, "composer.stash");
+
+    const parsedMode = yield* decode(KeybindingRule, {
+      key: "mod+alt+p",
+      command: "composer.mode",
+    });
+    assert.strictEqual(parsedMode.command, "composer.mode");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

@@ -14,6 +14,8 @@ it.each([
   ["p", "pr"],
   ["s", "stash"],
   ["q", "queue"],
+  ["m", "device"],
+  ["c", "sidechat"],
 ])("opens %s immediately after opening the chooser", async (key, surface) => {
   const onSelect = vi.fn();
   function Harness() {

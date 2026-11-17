@@ -9,30 +9,23 @@ import {
   CalendarClockIcon,
   ZapIcon,
 } from "lucide-react";
-import { memo, useCallback, useState } from "react";
-import * as DateTime from "effect/DateTime";
-import { useAtomValue } from "@effect/atom-react";
+import { memo } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import type { RunId } from "@tabs/contracts";
-import { environmentApi } from "~/connection/environmentApiRegistry";
 import {
   useMessageQueueStore,
-  getThreadQueuedMessages,
-  sendNextQueuedItem,
-  retryQueuedMessage,
   type QueuedMessage,
   type QueuedMessageIntakeStatus,
 } from "~/stores/messageQueueStore";
-import { threadsAtom } from "~/state/threads";
 import { formatRelativeTime } from "~/timestampFormat";
-import { cn, newCommandId } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
-import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "../ui/dialog";
 import { CompanionEmpty } from "../agents/companion/CompanionChrome";
-import { showCustomConfirm } from "~/lib/customConfirm";
 import { SchedulePicker } from "../ui/SchedulePicker";
+import { useMessageQueue, type MessageQueueOptions } from "./useMessageQueue";
+import { QueueLedgerView } from "./QueueLayouts";
 
 if (typeof window !== "undefined") {
   (window as any).__tabsMessageQueueStore = useMessageQueueStore;
@@ -59,6 +52,9 @@ export interface MessageQueuePanelProps {
   activeThreadId?: ThreadId | null | undefined;
   environmentId?: EnvironmentId | null | undefined;
   onSendNow?: ((message: QueuedMessage) => void) | undefined;
+  onThreadDiscarded?: MessageQueueOptions["onThreadDiscarded"];
+  /** "ledger" is the side panel's compact rows; without it the full panel shows. */
+  variant?: "ledger" | undefined;
   className?: string | undefined;
 }
 
@@ -66,303 +62,25 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
   activeThreadId,
   environmentId,
   onSendNow,
+  onThreadDiscarded,
+  variant,
   className,
 }: MessageQueuePanelProps) {
-  const queueByThread = useMessageQueueStore((state) => state.queueByThread);
-  const removeQueuedMessage = useMessageQueueStore((state) => state.removeQueuedMessage);
-  const clearQueue = useMessageQueueStore((state) => state.clearQueue);
-  const reorderQueue = useMessageQueueStore((state) => state.reorderQueue);
-  const updateMessageSchedule = useMessageQueueStore((state) => state.updateMessageSchedule);
-
-  const threads = useAtomValue(threadsAtom);
-  const currentThread = threads.find(
-    (t) =>
-      t.id === activeThreadId && (environmentId === undefined || t.environmentId === environmentId),
-  );
-  const serverQueuedRuns = currentThread?.queuedRuns ?? [];
-  const localQueuedMessages = getThreadQueuedMessages(queueByThread, activeThreadId);
-
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [schedulingMsgId, setSchedulingMsgId] = useState<string | null>(null);
-  const [inFlightActionIds, setInFlightActionIds] = useState<Set<string>>(() => new Set());
-
-  const serverUserMessageIds = new Set(serverQueuedRuns.map((r) => r.userMessageId));
-
-  const serverItems: UnifiedQueueItem[] = serverQueuedRuns.map((r) => ({
-    id: r.id,
-    runId: r.id,
-    userMessageId: r.userMessageId,
-    text: r.text,
-    scheduledFor: r.scheduledFor,
-    attachments: r.attachments,
-    isServerAuthoritative: true,
-    queuePosition: r.queuePosition,
-    queueHeld: r.queueHeld,
-    createdAt: r.createdAt,
-  }));
-
-  const localPendingItems: UnifiedQueueItem[] = localQueuedMessages
-    .filter((m) => {
-      if (serverUserMessageIds.has(m.id as any)) return false;
-      if (environmentId !== undefined && m.environmentId && m.environmentId !== environmentId) {
-        return false;
-      }
-      return true;
-    })
-    .map((m) => ({
-      id: m.id,
-      runId: undefined,
-      userMessageId: m.id,
-      text: m.text,
-      scheduledFor: m.scheduledFor,
-      attachments: m.attachments,
-      files: m.files,
-      dispatchError: m.dispatchError,
-      intakeStatus: m.intakeStatus,
-      cancellationError: m.cancellationError,
-      isServerAuthoritative: false,
-      createdAt: m.createdAt,
-    }));
-
-  const queuedItems: UnifiedQueueItem[] = [...serverItems, ...localPendingItems];
-
-  const handleClear = useCallback(async () => {
-    if (!activeThreadId) return;
-    if (!(await showCustomConfirm("Remove every queued message in this thread?"))) return;
-    const serverRuns = queuedItems.filter((i) => i.isServerAuthoritative && i.runId);
-    clearQueue(activeThreadId);
-    if (serverRuns.length > 0 && environmentId !== undefined) {
-      try {
-        const api = await environmentApi(environmentId);
-        await Promise.all(
-          serverRuns.map((item) =>
-            api.orchestration.dispatchCommand({
-              type: "queued-run.cancel",
-              commandId: newCommandId(),
-              threadId: activeThreadId,
-              runId: item.runId!,
-            }),
-          ),
-        );
-        toastManager.add({
-          type: "info",
-          title: "Queue cleared",
-          description: "Removed all queued messages for this thread.",
-        });
-      } catch (err) {
-        toastManager.add({
-          type: "error",
-          title: "Failed to clear queued runs",
-          description: err instanceof Error ? err.message : String(err),
-        });
-      }
-    } else {
-      toastManager.add({
-        type: "info",
-        title: "Queue cleared",
-        description: "Removed all queued messages for this thread.",
-      });
-    }
-  }, [activeThreadId, clearQueue, environmentId, queuedItems]);
-
-  const handleDelete = useCallback(
-    async (item: UnifiedQueueItem) => {
-      if (!activeThreadId) return;
-      if (inFlightActionIds.has(item.id)) return;
-      if (item.intakeStatus === "cancellation_requested") return;
-
-      if (item.isServerAuthoritative && item.runId) {
-        setInFlightActionIds((prev) => new Set(prev).add(item.id));
-        try {
-          const api = await environmentApi(environmentId);
-          await api.orchestration.dispatchCommand({
-            type: "queued-run.cancel",
-            commandId: newCommandId(),
-            threadId: activeThreadId,
-            runId: item.runId,
-          });
-          toastManager.add({
-            type: "info",
-            title: "Queued run cancelled",
-          });
-        } catch (err) {
-          toastManager.add({
-            type: "error",
-            title: "Failed to cancel queued run",
-            description: err instanceof Error ? err.message : String(err),
-          });
-        } finally {
-          setInFlightActionIds((prev) => {
-            const next = new Set(prev);
-            next.delete(item.id);
-            return next;
-          });
-        }
-      } else {
-        removeQueuedMessage(activeThreadId, item.userMessageId);
-        toastManager.add({
-          type: "info",
-          title: "Message removed from queue",
-        });
-      }
-    },
-    [activeThreadId, environmentId, inFlightActionIds, removeQueuedMessage],
-  );
-
-  const handleSendNext = useCallback(
-    async (item: UnifiedQueueItem) => {
-      if (!activeThreadId) return;
-      if (inFlightActionIds.has(item.id)) return;
-
-      setInFlightActionIds((prev) => new Set(prev).add(item.id));
-      try {
-        const api = await environmentApi(environmentId);
-        await sendNextQueuedItem(
-          activeThreadId,
-          {
-            userMessageId: item.userMessageId,
-            runId: item.runId,
-            isServerAuthoritative: item.isServerAuthoritative,
-            text: item.text,
-            attachments: item.attachments,
-            environmentId,
-          },
-          api,
-          serverQueuedRuns,
-        );
-        toastManager.add({
-          type: "success",
-          title: "Moved to front of queue",
-          description: "Schedule cleared. Will send next when the agent is ready.",
-        });
-        return true;
-      } catch (err) {
-        toastManager.add({
-          type: "error",
-          title: "Failed to send next",
-          description: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        setInFlightActionIds((prev) => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-      }
-    },
-    [activeThreadId, environmentId, inFlightActionIds, serverQueuedRuns],
-  );
-
-  const handleRetry = useCallback(
-    async (item: UnifiedQueueItem) => {
-      if (!activeThreadId) return;
-      if (inFlightActionIds.has(item.id)) return;
-
-      setInFlightActionIds((prev) => new Set(prev).add(item.id));
-      try {
-        const api = await environmentApi(environmentId);
-        const success = await retryQueuedMessage(activeThreadId, item.userMessageId, api);
-        if (success) {
-          toastManager.add({
-            type: "success",
-            title: "Queued message retried",
-          });
-          return true;
-        }
-      } catch (err) {
-        toastManager.add({
-          type: "error",
-          title: "Failed to retry queued message",
-          description: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        setInFlightActionIds((prev) => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-      }
-    },
-    [activeThreadId, environmentId, inFlightActionIds],
-  );
-
-  const handleUpdateSchedule = useCallback(
-    async (item: UnifiedQueueItem, date: Date | null) => {
-      if (!activeThreadId) return;
-      setSchedulingMsgId(null);
-      if (item.isServerAuthoritative && item.runId) {
-        try {
-          const api = await environmentApi(environmentId);
-          await api.orchestration.dispatchCommand({
-            type: "queued-run.edit",
-            commandId: newCommandId(),
-            threadId: activeThreadId,
-            runId: item.runId,
-            text: item.text,
-            scheduledFor: date ? DateTime.makeUnsafe(date) : null,
-          });
-          toastManager.add({
-            type: "success",
-            title: date ? "Schedule updated" : "Schedule removed",
-            description: date
-              ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-              : "Will send when the agent is idle and the composer is empty.",
-          });
-        } catch (err) {
-          toastManager.add({
-            type: "error",
-            title: "Failed to update schedule",
-            description: err instanceof Error ? err.message : String(err),
-          });
-        }
-      } else {
-        updateMessageSchedule(activeThreadId, item.userMessageId, date ? date.toISOString() : null);
-        toastManager.add({
-          type: "success",
-          title: date ? "Schedule updated" : "Schedule removed",
-          description: date
-            ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-            : "Will send when the agent is idle and the composer is empty.",
-        });
-      }
-    },
-    [activeThreadId, environmentId, updateMessageSchedule],
-  );
-
-  const handleReorder = useCallback(
-    async (fromIndex: number, toIndex: number) => {
-      if (!activeThreadId) return;
-      const target = queuedItems[fromIndex];
-      if (!target) return;
-      if (target.isServerAuthoritative && target.runId) {
-        const reordered = [...queuedItems];
-        const [moved] = reordered.splice(fromIndex, 1);
-        if (moved) {
-          reordered.splice(toIndex, 0, moved);
-          const nextTarget = reordered[toIndex + 1];
-          try {
-            const api = await environmentApi(environmentId);
-            await api.orchestration.dispatchCommand({
-              type: "queued-run.reorder",
-              commandId: newCommandId(),
-              threadId: activeThreadId,
-              runId: target.runId,
-              beforeRunId: nextTarget?.runId ?? null,
-            });
-          } catch (err) {
-            toastManager.add({
-              type: "error",
-              title: "Failed to reorder queued runs",
-              description: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-      } else {
-        reorderQueue(activeThreadId, fromIndex, toIndex);
-      }
-    },
-    [activeThreadId, environmentId, queuedItems, reorderQueue],
-  );
+  const queue = useMessageQueue({ activeThreadId, environmentId, onSendNow, onThreadDiscarded });
+  const {
+    queuedItems,
+    expandedId,
+    setExpandedId,
+    schedulingMsgId,
+    setSchedulingMsgId,
+    inFlightActionIds,
+    clear: handleClear,
+    remove: handleDelete,
+    updateSchedule: handleUpdateSchedule,
+    reorder: handleReorder,
+    sendOrRetry,
+  } = queue;
+  if (variant === "ledger") return <QueueLedgerView queue={queue} className={className} />;
 
   return (
     <div
@@ -626,22 +344,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                       inFlightActionIds.has(item.id) ||
                       item.intakeStatus === "cancellation_requested"
                     }
-                    onClick={async () => {
-                      const succeeded = item.dispatchError
-                        ? await handleRetry(item)
-                        : await handleSendNext(item);
-                      if (succeeded && onSendNow) {
-                        onSendNow({
-                          id: item.userMessageId,
-                          threadId: activeThreadId!,
-                          environmentId,
-                          text: item.text,
-                          createdAt: item.createdAt,
-                          attachments: item.attachments as any,
-                          files: item.files as any,
-                        });
-                      }
-                    }}
+                    onClick={() => void sendOrRetry(item)}
                     className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer disabled:opacity-50"
                   >
                     <SendIcon className="size-3 text-foreground" />

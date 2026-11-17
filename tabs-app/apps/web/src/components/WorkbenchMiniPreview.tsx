@@ -138,7 +138,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
       {/* Surface Frame */}
       <div
         data-shape="preview"
-        className="relative flex flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 text-xs font-sans w-full"
+        className="relative flex flex-col overflow-hidden rounded-2xl border shadow-2xl transition duration-200 text-xs font-sans w-full"
         style={{
           backgroundColor: editorBg,
           borderColor: sideBorder,

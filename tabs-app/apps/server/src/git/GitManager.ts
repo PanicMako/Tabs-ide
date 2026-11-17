@@ -2530,9 +2530,26 @@ export const make = Effect.gen(function* () {
   )(function* (input) {
     const provider = yield* sourceControlProvider(input.cwd);
     if (provider.kind === "github") {
+      const reference = normalizePullRequestReference(input.reference);
+      // A branch name is first matched to its pull request with one quick GraphQL read. When
+      // that read answers "none", say so straight away: the CLI fallbacks below would spend
+      // several seconds each reaching the same answer, which made "This branch" feel stuck.
+      const repository = yield* Effect.promise(() => resolveGitHubRepository(input.cwd));
+      const number =
+        repository === null
+          ? undefined
+          : yield* legacyGitHubCli
+              .resolvePullRequestNumber({ cwd: input.cwd, reference })
+              .pipe(Effect.catch(() => Effect.succeed(undefined)));
+      if (number === null)
+        return yield* new GitManagerError({
+          operation: "resolvePullRequest",
+          cwd: input.cwd,
+          detail: `No pull request found for ${reference}.`,
+        });
       const rich = yield* resolveGitHubPullRequestDetail(
         input.cwd,
-        normalizePullRequestReference(input.reference),
+        number === undefined ? reference : String(number),
       ).pipe(Effect.catch(() => Effect.succeed(null)));
       if (rich !== null) return { pullRequest: rich };
     }

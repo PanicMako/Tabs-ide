@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useRightPanelStore, type RightPanelTab } from "./rightPanelStore";
+import { runRightPanelCommand, useRightPanelStore, type RightPanelTab } from "./rightPanelStore";
 
 describe("rightPanelStore", () => {
   beforeEach(() => {
@@ -56,5 +56,18 @@ describe("rightPanelStore", () => {
       useRightPanelStore.getState().setActiveTab(tab);
       expect(useRightPanelStore.getState().activeTab).toBe(tab);
     }
+  });
+
+  it("runs the right panel keyboard commands", () => {
+    runRightPanelCommand("rightPanel.toggleMaximized");
+    expect(useRightPanelStore.getState().maximized).toBe(true);
+    runRightPanelCommand("rightPanel.close");
+    expect(useRightPanelStore.getState().isOpen).toBe(false);
+    expect(useRightPanelStore.getState().maximized).toBe(false);
+    runRightPanelCommand("rightPanel.toggleMaximized");
+    expect(useRightPanelStore.getState().maximized).toBe(false);
+    runRightPanelCommand("rightPanel.new");
+    expect(useRightPanelStore.getState().isOpen).toBe(true);
+    expect(useRightPanelStore.getState().choosingSurface).toBe(true);
   });
 });

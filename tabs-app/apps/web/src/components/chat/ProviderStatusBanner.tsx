@@ -2,6 +2,7 @@ import { PROVIDER_DISPLAY_NAMES, type ServerProvider } from "@tabs/contracts";
 import { memo } from "react";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert";
 import { CircleAlertIcon, XIcon } from "lucide-react";
+import { MotionEnter } from "../ui/motion-enter";
 import { Button } from "../ui/button";
 
 export function getProviderStatusBannerKey(status: ServerProvider | null): string | null {
@@ -45,7 +46,7 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
   const title = `${providerLabel} provider status`;
 
   return (
-    <div className="pt-3 mx-auto max-w-3xl">
+    <MotionEnter className="pt-3 mx-auto max-w-(--chat-column-width)">
       <Alert variant={status.status === "error" ? "error" : "warning"}>
         <CircleAlertIcon />
         <AlertTitle>{title}</AlertTitle>
@@ -64,6 +65,6 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
           </Button>
         </AlertAction>
       </Alert>
-    </div>
+    </MotionEnter>
   );
 });

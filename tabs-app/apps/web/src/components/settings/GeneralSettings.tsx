@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { MotionDurationPreview } from "./MotionDurationPreview";
 import { LoaderCircleIcon, RotateCcwIcon } from "lucide-react";
 import {
   DEFAULT_DESKTOP_ICON_THEME,
@@ -169,6 +170,8 @@ export function GeneralSettings() {
   const [isReloadingBrowser, setIsReloadingBrowser] = useState(false);
   const serverConfig = useServerConfig();
   const showProjectTabIcons = useWorkspaceAppearanceStore((s) => s.showProjectTabIcons);
+  const agentsSidebarMode = useWorkspaceAppearanceStore((s) => s.agentsSidebarMode);
+  const setAgentsSidebarMode = useWorkspaceAppearanceStore((s) => s.setAgentsSidebarMode);
   const setShowProjectTabIcons = useWorkspaceAppearanceStore((s) => s.setShowProjectTabIcons);
 
   const panelDurationField = useDebouncedSettingField<number>({
@@ -392,7 +395,8 @@ export function GeneralSettings() {
 
         <SettingsRow
           title="Panel animations"
-          description="Choose how fast panels open and close. Set to Off for instant changes."
+          description="How long panels take to slide open and closed. Off makes them snap."
+          status={<MotionDurationPreview durationMs={panelDurationField.value} />}
           resetAction={
             panelDurationField.value !== DEFAULT_PANEL_ANIMATION_DURATION_MS ? (
               <SettingResetButton
@@ -466,6 +470,23 @@ export function GeneralSettings() {
               checked={showProjectTabIcons}
               onCheckedChange={setShowProjectTabIcons}
               aria-label="Toggle project logo in titlebar tabs"
+            />
+          }
+        />
+        <SettingsRow
+          title="Agents sidebar"
+          description="Docked sits beside the chat and collapses to a slim rail. Overlay hides it completely and slides it over the chat when you move the pointer to the left edge."
+          control={
+            <SegmentedControl
+              value={agentsSidebarMode}
+              onValueChange={(val) => {
+                if (val === "docked" || val === "overlay") setAgentsSidebarMode(val);
+              }}
+              options={[
+                { value: "docked", label: "Docked" },
+                { value: "overlay", label: "Overlay" },
+              ]}
+              aria-label="Agents sidebar"
             />
           }
         />

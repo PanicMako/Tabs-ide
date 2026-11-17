@@ -6,20 +6,24 @@ import {
   GlobeIcon,
   ListOrderedIcon,
   PlusIcon,
+  SmartphoneIcon,
+  MessageSquareMoreIcon,
   Maximize2Icon,
   Minimize2Icon,
   TerminalSquareIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { RightPanelTab } from "~/stores/rightPanelStore";
 import { cn } from "~/lib/utils";
 
+// Hover faces must exist in approvedFonts.css; an unloaded family silently falls back and the
+// hover looks broken.
 export const surfaces = [
   {
     id: "browser",
     key: "b",
-    hoverFont: "Bricolage Grotesque",
+    hoverFont: "Funnel Display",
     hoverWeight: 800,
     hoverStyle: "normal",
     tint: "#6aa8ff",
@@ -32,7 +36,7 @@ export const surfaces = [
     id: "terminal",
     key: "t",
     hoverFont: "Geist Mono",
-    hoverWeight: 500,
+    hoverWeight: 600,
     hoverStyle: "normal",
     tint: "#7be0a4",
     label: "Terminal",
@@ -67,9 +71,9 @@ export const surfaces = [
   {
     id: "pr",
     key: "p",
-    hoverFont: "DM Serif Display",
-    hoverWeight: 400,
-    hoverStyle: "italic",
+    hoverFont: "Messapia",
+    hoverWeight: 700,
+    hoverStyle: "normal",
     tint: "#b69cff",
     label: "Pull request",
     description: "Follow your pull requests",
@@ -79,9 +83,9 @@ export const surfaces = [
   {
     id: "stash",
     key: "s",
-    hoverFont: "Instrument Serif",
-    hoverWeight: 400,
-    hoverStyle: "italic",
+    hoverFont: "Coconat",
+    hoverWeight: 700,
+    hoverStyle: "normal",
     tint: "#ff9f6b",
     label: "Stash",
     description: "Keep prompts for later",
@@ -91,8 +95,8 @@ export const surfaces = [
   {
     id: "queue",
     key: "q",
-    hoverFont: "Fraunces",
-    hoverWeight: 600,
+    hoverFont: "Doto",
+    hoverWeight: 800,
     hoverStyle: "normal",
     tint: "#5fe0e0",
     label: "Queue",
@@ -100,7 +104,86 @@ export const surfaces = [
     Icon: ListOrderedIcon,
     color: "text-cyan-600 dark:text-cyan-400",
   },
+  {
+    id: "device",
+    key: "m",
+    hoverFont: "Parkinsans",
+    hoverWeight: 700,
+    hoverStyle: "normal",
+    tint: "#d6e07b",
+    label: "Device",
+    description: "Watch a simulator or emulator",
+    Icon: SmartphoneIcon,
+    color: "text-lime-600 dark:text-lime-400",
+  },
+  {
+    id: "sidechat",
+    key: "c",
+    hoverFont: "Funnel Display",
+    hoverWeight: 800,
+    hoverStyle: "normal",
+    tint: "#9fb4c8",
+    label: "Side chat",
+    description: "Ask without adding to the thread",
+    Icon: MessageSquareMoreIcon,
+    color: "text-slate-600 dark:text-slate-400",
+  },
 ] as const;
+
+export type SurfaceDefinition = (typeof surfaces)[number];
+
+export function surfaceFor(kind: RightPanelTab): SurfaceDefinition {
+  return surfaces.find((item) => item.id === kind)!;
+}
+
+/** Single-letter shortcuts (B, T, F…) used by every surface chooser. */
+export function handleSurfaceShortcut(
+  event: KeyboardEvent<HTMLElement>,
+  onSelect: (tab: RightPanelTab) => void,
+): void {
+  if (
+    event.defaultPrevented ||
+    event.nativeEvent.isComposing ||
+    event.repeat ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey
+  )
+    return;
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+    return;
+  const surface = surfaces.find((item) => item.key === event.key.toLowerCase());
+  if (surface) {
+    event.preventDefault();
+    onSelect(surface.id);
+  }
+}
+
+export interface SurfaceInstance {
+  id: string;
+  kind: RightPanelTab;
+  title?: string | undefined;
+}
+
+/** "Browser 2" for the second browser; every other kind keeps its own name. */
+export function surfaceInstanceLabel(
+  instances: ReadonlyArray<SurfaceInstance>,
+  instance: SurfaceInstance,
+): string {
+  const surface = surfaceFor(instance.kind);
+  const number =
+    instances
+      .filter((item) => item.kind === instance.kind)
+      .findIndex((item) => item.id === instance.id) + 1;
+  if (instance.kind === "device")
+    return instance.title || (number > 1 ? `Device ${number}` : "Device");
+  if (instance.kind === "sidechat") return number > 1 ? `Side chat ${number}` : "Side chat";
+  return instance.kind === "browser" && number > 1
+    ? `Browser ${number}`
+    : instance.kind === "pr"
+      ? "PRs"
+      : surface.label;
+}
 
 export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) => void }) {
   const chooser = useRef<HTMLDivElement>(null);
@@ -114,22 +197,7 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
       aria-label="Choose a surface"
       tabIndex={-1}
       className="surface-chooser flex min-h-0 flex-1 overflow-y-auto px-7 py-8"
-      onKeyDown={(event) => {
-        if (
-          event.defaultPrevented ||
-          event.nativeEvent.isComposing ||
-          event.repeat ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.altKey
-        )
-          return;
-        const surface = surfaces.find((item) => item.key === event.key.toLowerCase());
-        if (surface) {
-          event.preventDefault();
-          onSelect(surface.id);
-        }
-      }}
+      onKeyDown={(event) => handleSurfaceShortcut(event, onSelect)}
     >
       <div className="m-auto w-full max-w-[560px] py-6">
         <h2 className="mb-3 text-sm font-normal text-muted-foreground">Open a surface</h2>
@@ -138,6 +206,7 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
             ({ id, label, description, tint, key, hoverFont, hoverWeight, hoverStyle }) => (
               <div
                 key={id}
+                data-surface={id}
                 className="surface-launcher-row flex items-center gap-3"
                 style={
                   {
@@ -269,17 +338,8 @@ export function SurfaceTabs({
           }}
         >
           {renderedTabs.map(({ id, kind, title }) => {
-            const surface = surfaces.find((item) => item.id === kind)!;
-            const number =
-              renderedTabs
-                .filter((item) => item.kind === kind)
-                .findIndex((item) => item.id === id) + 1;
-            const label =
-              kind === "browser" && number > 1
-                ? `Browser ${number}`
-                : kind === "pr"
-                  ? "PRs"
-                  : surface.label;
+            const surface = surfaceFor(kind);
+            const label = surfaceInstanceLabel(renderedTabs, { id, kind, title });
             return (
               <div
                 style={{ "--surface-tint": surface.tint } as CSSProperties}

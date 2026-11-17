@@ -150,7 +150,7 @@ export function AgentsSplitResizer({
         {/* Centered grip pill */}
         <div
           className={cn(
-            "pointer-events-none absolute top-1/2 -translate-y-1/2 h-8 w-1 rounded-full bg-muted-foreground/30 transition-all duration-150",
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 h-8 w-1 rounded-full bg-muted-foreground/30 transition duration-150",
             "group-hover:bg-primary group-hover:scale-y-110",
             isDragging && "bg-primary scale-y-125 w-1.5",
           )}

@@ -5,8 +5,8 @@ import { useState } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { SegmentedControl } from "../ui/segmented-control";
 import { type ModelView, modelFacts, visibleModels } from "./speechModelPicker.logic";
+import "./voice-settings.css";
 
 const INITIAL_ROWS = 6;
 
@@ -125,39 +125,46 @@ export function SpeechModelPicker(props: {
 
   return (
     <div data-slot="speech-model-picker">
-      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="relative min-w-0 sm:max-w-64 sm:flex-1">
-          <SearchIcon
-            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60"
-            aria-hidden="true"
-          />
+      <div className="speech-picker-toolbar">
+        <label className="speech-picker-search">
+          <SearchIcon className="size-3.5 shrink-0" aria-hidden="true" />
           <Input
+            unstyled
             aria-label="Search speech models"
             placeholder="Search by name or language"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="pl-8"
+            className="speech-picker-search-input"
           />
+        </label>
+        <div role="tablist" aria-label="Which models to show" className="speech-picker-tabs">
+          {(
+            [
+              { value: "recommended", label: "Recommended" },
+              { value: "installed", label: "Downloaded" },
+              { value: "all", label: `All ${models.length}` },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              aria-selected={view === option.value}
+              className="speech-picker-tab"
+              onClick={() => {
+                setView(option.value);
+                setExpanded(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
-        <SegmentedControl
-          size="sm"
-          value={view}
-          onValueChange={(next) => {
-            setView(next);
-            setExpanded(false);
-          }}
-          options={[
-            { value: "recommended", label: "Recommended" },
-            { value: "installed", label: "Installed" },
-            { value: "all", label: `All ${models.length}` },
-          ]}
-          aria-label="Which models to show"
-        />
       </div>
       {list.length === 0 ? (
         <p className="border-t border-border px-4 py-6 text-center text-xs text-muted-foreground/80 sm:px-5">
           {view === "installed"
-            ? "No models downloaded yet. Pick one from Recommended."
+            ? "Nothing downloaded yet. Pick one from Recommended."
             : "No model matches that search."}
         </p>
       ) : (

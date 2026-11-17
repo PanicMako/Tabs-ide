@@ -130,7 +130,7 @@ export function PullRequestThreadIntegration({
           {linkedThreads.map((thread) => (
             <div
               key={thread.id}
-              className="flex items-center justify-between gap-2 p-2 rounded-md bg-card border border-border/60 hover:border-primary/40 transition-all text-xs"
+              className="flex items-center justify-between gap-2 p-2 rounded-md bg-card border border-border/60 hover:border-primary/40 transition text-xs"
             >
               <div className="min-w-0 flex-1 truncate">
                 <span className="font-medium text-foreground">{thread.title}</span>

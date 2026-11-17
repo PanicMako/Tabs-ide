@@ -21,6 +21,14 @@ import { applyUsageLimitsUpdate, resolveUsageLimitsAfterProbe } from "./provider
 import type { ServerProviderShape } from "./ServerProvider.ts";
 import type { ProviderMaintenanceCapabilities } from "./providerMaintenance.ts";
 
+// The registry rebuilds a provider instance whenever its config changes (even a setting that cannot
+// affect health, like Claude's auto-compact window). The rebuilt instance used to start from a
+// "has not been checked yet" warning until its first probe finished. Drivers that opt in keep the
+// last probed snapshot here so a rebuild shows the previous status while the re-probe runs.
+const lastProbedSnapshots = new Map<string, ServerProvider>();
+const retainedSnapshotKey = (snapshot: ServerProvider) =>
+  `${snapshot.driver}:${snapshot.instanceId ?? ""}`;
+
 interface ProviderSnapshotState {
   readonly snapshot: ServerProvider;
   readonly enrichmentGeneration: number;
@@ -62,6 +70,8 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   }) => Effect.Effect<void>;
   readonly refreshInterval?: Duration.Input;
   readonly refreshOnInterval?: boolean;
+  /** Show the last probed status, not a "not checked yet" warning, when this provider is rebuilt. */
+  readonly retainSnapshotAcrossRebuilds?: boolean;
   readonly checkProviderOnSettingsChange?: (previous: Settings, next: Settings) => boolean;
 }): Effect.fn.Return<
   ServerProviderShape,
@@ -76,7 +86,14 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     PubSub.shutdown,
   );
   const initialSettings = yield* input.getSettings;
-  const initialSnapshot = yield* input.initialSnapshot(initialSettings);
+  const pendingSnapshot = yield* input.initialSnapshot(initialSettings);
+  const retained = input.retainSnapshotAcrossRebuilds
+    ? lastProbedSnapshots.get(retainedSnapshotKey(pendingSnapshot))
+    : undefined;
+  const initialSnapshot =
+    retained !== undefined && retained.enabled === pendingSnapshot.enabled
+      ? retained
+      : pendingSnapshot;
   const snapshotStateRef = yield* Ref.make<ProviderSnapshotState>({
     snapshot: initialSnapshot,
     enrichmentGeneration: 0,
@@ -160,6 +177,9 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
 
     const probedSnapshot = yield* input.checkProvider;
     yield* Ref.set(hasProbedRef, true);
+    if (input.retainSnapshotAcrossRebuilds) {
+      lastProbedSnapshots.set(retainedSnapshotKey(probedSnapshot), probedSnapshot);
+    }
     const { snapshot: nextSnapshot, generation: nextGeneration } = yield* Ref.modify(
       snapshotStateRef,
       (state) => {

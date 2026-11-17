@@ -199,6 +199,8 @@ describe("ProviderModelPicker", () => {
         throw new Error("Expected submenu popup to be mounted.");
       }
 
+      // Measure where the submenu rests, not a frame of its entrance.
+      await vi.waitFor(() => expect(submenuPopup.style.transform).toBe(""));
       const submenuRect = submenuPopup.getBoundingClientRect();
 
       expect(submenuRect.left).toBeGreaterThanOrEqual(providerTriggerRect.right);

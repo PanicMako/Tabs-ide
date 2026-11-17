@@ -1,4 +1,5 @@
 import {
+  defaultInstanceIdForDriver,
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderInstanceConfig,
@@ -24,6 +25,11 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { toastManager } from "../ui/toast";
+import { AddProviderDialog } from "./AddProviderDialog";
+import { instanceLoginCommand } from "./addProvider.logic";
+import type { ProviderSettingsKey } from "./providerSettings.shared";
+import { AntigravityAccount } from "./AntigravityAccount";
+import { getDriverOption } from "./providerDriverMeta";
 import { ProviderEnvironmentDialog } from "./ProviderEnvironmentDialog";
 import { SettingsRow, SettingsSection } from "./SettingsLayout";
 
@@ -107,13 +113,30 @@ async function mutate(
 export function CustomAgentProviders(props: {
   readonly instances: Readonly<Record<string, ProviderInstanceConfig>>;
   readonly serverProviders: ReadonlyArray<ServerProvider>;
+  /** Runs a sign-in command in a terminal, as the provider cards do. */
+  readonly startProviderAction?: (action: {
+    provider: ProviderSettingsKey;
+    providerName: string;
+    command: string;
+    kind: "login";
+  }) => void;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [editingEnvironment, setEditingEnvironment] = useState<string | null>(null);
+  // Everything beyond each provider's built-in default: extra accounts and ACP agents.
   const agents = Object.entries(props.instances).filter(
-    ([, instance]) => instance.driver === ACP_DRIVER,
+    ([instanceId, instance]) =>
+      instance.driver === ACP_DRIVER || instanceId !== defaultInstanceIdForDriver(instance.driver),
   );
+  const labelsByDriver: Record<string, string[]> = {};
+  for (const provider of props.serverProviders) {
+    if (provider.displayName) (labelsByDriver[provider.driver] ??= []).push(provider.displayName);
+  }
+  const hasSignedInAccount = (driver: string) =>
+    props.serverProviders.some(
+      (provider) => provider.driver === driver && provider.auth.status === "authenticated",
+    );
 
   const run = (action: () => Promise<void>, failure: string) =>
     action().catch((error) =>
@@ -127,7 +150,7 @@ export function CustomAgentProviders(props: {
   return (
     <>
       <SettingsSection
-        title="Custom agents"
+        title="Accounts and agents"
         headerAction={
           <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
             <PlusIcon className="mr-1.5 size-3.5" />
@@ -138,17 +161,25 @@ export function CustomAgentProviders(props: {
         {agents.length === 0 ? (
           <SettingsRow
             title="No custom agents yet"
-            description="Add Kiro, fx, or any agent that speaks the Agent Client Protocol."
+            description="Add another Codex or Claude account, a provider, or any agent from the ACP registry."
           />
         ) : (
           agents.map(([instanceId, instance]) => {
             const preset = presetFor(instance);
-            const Icon = preset?.icon ?? TerminalSquareIcon;
+            const Icon =
+              preset?.icon ?? getDriverOption(instance.driver)?.icon ?? TerminalSquareIcon;
             const live = props.serverProviders.find(
               (provider) => provider.instanceId === instanceId,
             );
             const config = acpConfig(instance);
             const enabled = instance.enabled !== false;
+            const baseLogin = live?.lifecycleActions?.find((action) => action.kind === "login");
+            const loginCommand =
+              instance.driver !== "antigravity" &&
+              instance.driver !== ACP_DRIVER &&
+              baseLogin?.command
+                ? instanceLoginCommand(instance.driver, instance.config, baseLogin.command)
+                : null;
             return (
               <SettingsRow
                 key={instanceId}
@@ -176,6 +207,22 @@ export function CustomAgentProviders(props: {
                 }
                 control={
                   <div className="flex items-center gap-2">
+                    {loginCommand && props.startProviderAction ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() =>
+                          props.startProviderAction?.({
+                            provider: instance.driver as ProviderSettingsKey,
+                            providerName: instance.displayName ?? instanceId,
+                            command: loginCommand,
+                            kind: "login",
+                          })
+                        }
+                      >
+                        {live?.auth.status === "authenticated" ? "Switch account" : "Sign in"}
+                      </Button>
+                    ) : null}
                     <Button
                       size="xs"
                       variant="ghost"
@@ -208,7 +255,17 @@ export function CustomAgentProviders(props: {
                     />
                   </div>
                 }
-              />
+              >
+                {instance.driver === "antigravity" && enabled && live?.installed ? (
+                  <div className="-mx-4 mt-3 sm:-mx-5">
+                    <AntigravityAccount
+                      instanceId={ProviderInstanceId.make(instanceId)}
+                      authenticated={live.auth.status === "authenticated"}
+                      onComplete={() => void refreshServerConfig()}
+                    />
+                  </div>
+                ) : null}
+              </SettingsRow>
             );
           })
         )}
@@ -220,26 +277,34 @@ export function CustomAgentProviders(props: {
           onClose={() => setEditingEnvironment(null)}
         />
       ) : null}
-      <AddAgentDialog
+      <AddProviderDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        instances={props.instances}
+        labelsByDriver={labelsByDriver}
+        hasSignedInAccount={hasSignedInAccount}
         takenIds={
           new Set([
             ...Object.keys(props.instances),
             ...props.serverProviders.map((provider) => provider.instanceId),
           ])
         }
-        onCreate={(instanceId, instance) =>
-          run(
+        onCreate={async (instanceId, instance) => {
+          let created = false;
+          await run(
             () =>
               mutate({
                 operation: "create",
                 instanceId: ProviderInstanceId.make(instanceId),
                 instance,
-              }).then(() => setDialogOpen(false)),
-            "Could not add agent",
-          )
-        }
+              }).then(() => {
+                created = true;
+                setDialogOpen(false);
+              }),
+            "Could not add provider",
+          );
+          return created;
+        }}
       />
       <Dialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
         <DialogPopup className="max-w-sm">
@@ -275,160 +340,5 @@ export function CustomAgentProviders(props: {
         </DialogPopup>
       </Dialog>
     </>
-  );
-}
-
-function AddAgentDialog(props: {
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly takenIds: ReadonlySet<string>;
-  readonly onCreate: (instanceId: string, instance: ProviderInstanceConfig) => Promise<unknown>;
-}) {
-  const [choice, setChoice] = useState<string>(ACP_AGENT_PRESETS[0]!.id);
-  const [name, setName] = useState("");
-  const [command, setCommand] = useState("");
-  const [args, setArgs] = useState("");
-  const [saving, setSaving] = useState(false);
-  const preset = ACP_AGENT_PRESETS.find((entry) => entry.id === choice);
-  const custom = choice === "custom";
-  const displayName = (custom ? name : (preset?.name ?? "")).trim();
-  const commandPath = (custom ? command : command || preset?.command || "").trim();
-  const canSave = displayName.length > 0 && commandPath.length > 0 && !saving;
-
-  const reset = (next: string) => {
-    setChoice(next);
-    setName("");
-    setCommand("");
-    setArgs("");
-  };
-
-  return (
-    <Dialog
-      open={props.open}
-      onOpenChange={(open) => {
-        if (!open) reset(ACP_AGENT_PRESETS[0]!.id);
-        props.onOpenChange(open);
-      }}
-    >
-      <DialogPopup className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Add provider</DialogTitle>
-          <DialogDescription>
-            Run another coding agent in Tabs. It must be installed on this machine.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogPanel className="space-y-4">
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Agent">
-            {[...ACP_AGENT_PRESETS, null].map((entry) => {
-              const id = entry?.id ?? "custom";
-              const Icon = entry?.icon ?? TerminalSquareIcon;
-              const selected = choice === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => reset(id)}
-                  className={`flex items-center gap-2.5 rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${
-                    selected
-                      ? "border-primary/70 bg-primary/10"
-                      : "border-border/70 hover:bg-accent/60"
-                  }`}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="flex-1 truncate font-medium">
-                    {entry?.name ?? "Local ACP command"}
-                  </span>
-                  {entry?.badge ? (
-                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 text-[10px] text-amber-500">
-                      {entry.badge}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-          {preset && !custom ? (
-            <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">{preset.description}</p>
-              {preset.install ? (
-                <p className="text-xs text-muted-foreground">
-                  Install: <code className="rounded bg-muted px-1 py-0.5">{preset.install}</code>
-                </p>
-              ) : null}
-              <div className="space-y-1.5">
-                <Label htmlFor="agent-binary">Binary path</Label>
-                <Input
-                  id="agent-binary"
-                  placeholder={preset.command}
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3 text-sm">
-              <div className="space-y-1.5">
-                <Label htmlFor="agent-name">Name</Label>
-                <Input
-                  id="agent-name"
-                  placeholder="My agent"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="agent-command">Command</Label>
-                <Input
-                  id="agent-command"
-                  placeholder="my-agent"
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="agent-args">Arguments</Label>
-                <Input
-                  id="agent-args"
-                  placeholder="acp"
-                  value={args}
-                  onChange={(event) => setArgs(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  The command must speak the Agent Client Protocol over stdio.
-                </p>
-              </div>
-            </div>
-          )}
-        </DialogPanel>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => props.onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!canSave}
-            onClick={() => {
-              setSaving(true);
-              const instanceId = nextAgentInstanceId(displayName, props.takenIds);
-              void props
-                .onCreate(instanceId, {
-                  driver: ACP_DRIVER,
-                  displayName: displayName as ProviderInstanceConfig["displayName"] & string,
-                  enabled: true,
-                  config: {
-                    source: "local",
-                    commandPath,
-                    commandArgs: custom ? splitCommandArgs(args) : [...(preset?.args ?? [])],
-                  },
-                })
-                .finally(() => setSaving(false));
-            }}
-          >
-            Add
-          </Button>
-        </DialogFooter>
-      </DialogPopup>
-    </Dialog>
   );
 }

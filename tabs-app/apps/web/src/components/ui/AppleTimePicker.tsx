@@ -704,7 +704,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
         </div>
 
         {/* Interactive Segmented Time Pill (Apple-style directly editable numbers) */}
-        <div className="flex items-center rounded-xl border border-border/70 bg-muted/40 px-2 py-0.5 shadow-xs focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
+        <div className="flex items-center rounded-xl border border-border/70 bg-muted/40 px-2 py-0.5 shadow-xs focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition">
           <span className="mr-1.5 text-[11px] font-semibold text-muted-foreground select-none">
             {formattedDay},
           </span>
@@ -774,7 +774,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
           onClick={() => setDayPreset("today")}
           aria-pressed={dayMode === "today"}
           className={cn(
-            "flex-1 rounded-full py-1 text-xs font-medium transition-all cursor-pointer",
+            "flex-1 rounded-full py-1 text-xs font-medium transition cursor-pointer",
             dayMode === "today"
               ? "bg-background text-foreground shadow-xs ring-1 ring-border/50 font-semibold"
               : "text-muted-foreground hover:text-foreground",
@@ -787,7 +787,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
           onClick={() => setDayPreset("tomorrow")}
           aria-pressed={dayMode === "tomorrow"}
           className={cn(
-            "flex-1 rounded-full py-1 text-xs font-medium transition-all cursor-pointer",
+            "flex-1 rounded-full py-1 text-xs font-medium transition cursor-pointer",
             dayMode === "tomorrow"
               ? "bg-background text-foreground shadow-xs ring-1 ring-border/50 font-semibold"
               : "text-muted-foreground hover:text-foreground",
@@ -845,7 +845,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
             type="button"
             onClick={() => setPeriod(false)}
             className={cn(
-              "w-full rounded-lg py-1 text-center text-xs font-bold transition-all cursor-pointer",
+              "w-full rounded-lg py-1 text-center text-xs font-bold transition cursor-pointer",
               !isPM
                 ? "bg-primary text-primary-foreground shadow-xs ring-1 ring-primary/60"
                 : "text-muted-foreground hover:text-foreground bg-muted/40",
@@ -857,7 +857,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
             type="button"
             onClick={() => setPeriod(true)}
             className={cn(
-              "w-full rounded-lg py-1 text-center text-xs font-bold transition-all cursor-pointer",
+              "w-full rounded-lg py-1 text-center text-xs font-bold transition cursor-pointer",
               isPM
                 ? "bg-primary text-primary-foreground shadow-xs ring-1 ring-primary/60"
                 : "text-muted-foreground hover:text-foreground bg-muted/40",

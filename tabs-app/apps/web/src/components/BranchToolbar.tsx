@@ -12,6 +12,8 @@ import { BranchToolbarBranchSelector } from "./BranchToolbarBranchSelector";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import type { Project } from "../types";
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
+import { WorkspaceModeSwitch } from "./chat/composer/WorkspaceModeSwitch";
+import { cn } from "../lib/utils";
 
 const envModeItems = [
   { value: "local", label: "Current checkout" },
@@ -28,6 +30,8 @@ interface BranchToolbarProps {
   onMachineChange?: (project: Project) => Promise<void>;
   onCheckoutPullRequestRequest?: (reference: string) => void;
   onComposerFocusRequest?: () => void;
+  /** "studio" is the Labs composer look: plain choices instead of dropdowns. */
+  look?: "classic" | "studio";
 }
 
 export default function BranchToolbar({
@@ -40,6 +44,7 @@ export default function BranchToolbar({
   onMachineChange,
   onCheckoutPullRequestRequest,
   onComposerFocusRequest,
+  look = "classic",
 }: BranchToolbarProps) {
   const {
     projects,
@@ -77,7 +82,12 @@ export default function BranchToolbar({
   return (
     <div
       data-chat-workspace-controls="true"
-      className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2"
+      data-look={look}
+      className={cn(
+        "flex w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1",
+        // Studio reads branch first, then where it runs.
+        look === "studio" ? "flex-row-reverse py-1" : "px-3 py-2",
+      )}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         {showMachineSelector ? (
@@ -88,7 +98,14 @@ export default function BranchToolbar({
             onChange={onMachineChange}
           />
         ) : null}
-        {showGitControls ? (
+        {showGitControls && look === "studio" ? (
+          <WorkspaceModeSwitch
+            mode={effectiveEnvMode}
+            locked={envLocked || Boolean(activeWorktreePath)}
+            inWorktree={Boolean(activeWorktreePath)}
+            onChange={onEnvModeChange}
+          />
+        ) : showGitControls ? (
           envLocked || activeWorktreePath ? (
             <span className="inline-flex items-center gap-1 border border-transparent px-[calc(--spacing(3)-1px)] text-sm font-medium text-muted-foreground/70 sm:text-xs">
               {activeWorktreePath ? (
@@ -184,6 +201,7 @@ export default function BranchToolbar({
             envLocked={envLocked}
             onSetThreadBranch={setThreadBranch}
             onPrepareBranchChange={prepareBranchChange}
+            look={look}
             {...(onCheckoutPullRequestRequest ? { onCheckoutPullRequestRequest } : {})}
             {...(onComposerFocusRequest ? { onComposerFocusRequest } : {})}
           />

@@ -5437,6 +5437,20 @@ function requestQuitConfirmation(): void {
   }
 }
 
+/** Resolves once the renderer has painted two frames, or after a short cap if it is stuck. */
+function waitForCloseScreenPaint(window: BrowserWindow | null): Promise<void> {
+  if (!window || window.isDestroyed()) return Promise.resolve();
+  const painted = window.webContents
+    .executeJavaScript(
+      "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))",
+      true,
+    )
+    .then(() => undefined)
+    .catch(() => undefined);
+  const cap = new Promise<void>((resolve) => setTimeout(resolve, 300));
+  return Promise.race([painted, cap]);
+}
+
 app.on("before-quit", (event) => {
   clearUpdateInstallHandoffTimer();
   if (
@@ -5461,7 +5475,6 @@ app.on("before-quit", (event) => {
   isCleaningUp = true;
   event.preventDefault(); // Hold the quit to perform async cleanup
   isQuitting = true;
-  nativeViewCoordinator.setToolViewsSuspended(true);
   writeDesktopLogHeader("before-quit received, performing async cleanup");
 
   const rendererSettingsFlush =
@@ -5482,11 +5495,17 @@ app.on("before-quit", (event) => {
 
   // Notify the renderer to show the close animation and flush pending settings.
   mainWindow?.webContents.send(APP_CLOSING_CHANNEL);
+  // Native tool views (Code, Browser) sit above the page. Hiding them before the close screen
+  // has painted showed the app with those panes torn out, so wait for the overlay's first frames.
+  const closeScreenPainted = waitForCloseScreenPaint(mainWindow).then(() =>
+    nativeViewCoordinator.setToolViewsSuspended(true),
+  );
 
   clearUpdatePollTimer();
   codeControlChannel.dispose();
 
   void (async () => {
+    await closeScreenPainted;
     await rendererSettingsFlush;
 
     try {

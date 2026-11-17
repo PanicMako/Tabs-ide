@@ -7,6 +7,7 @@ import {
   MAX_STASH_ENTRY_ATTACHMENT_CHARS,
   partitionStashAttachments,
   promptStashSnippet,
+  promptStashText,
   usePromptStashStore,
   writePromptStashStorageForTest,
   type PromptStashEntry,
@@ -138,6 +139,22 @@ describe("promptStashStore", () => {
     );
   });
 
+  it("edits a saved draft's text in place and keeps its position", () => {
+    const store = usePromptStashStore.getState();
+    store.stash(entry("a"));
+    store.stash(entry("b"));
+    expect(usePromptStashStore.getState().updateEntry("a", { prompt: "rewritten" }).updated).toBe(
+      true,
+    );
+    expect(usePromptStashStore.getState().entries.map((item) => [item.id, item.prompt])).toEqual([
+      ["b", "prompt b"],
+      ["a", "rewritten"],
+    ]);
+    expect(usePromptStashStore.getState().updateEntry("missing", { prompt: "x" }).updated).toBe(
+      false,
+    );
+  });
+
   it("clears entries globally or by environment", () => {
     const envA = EnvironmentId.make("env-a");
     const envB = EnvironmentId.make("env-b");
@@ -188,5 +205,17 @@ describe("promptStashStore", () => {
     expect(updated?.pendingImageCount).toBe(0);
     expect(updated?.attachments).toHaveLength(1);
     expect(updated?.droppedImageNames).toEqual(["oversized.png"]);
+  });
+});
+
+describe("promptStashText", () => {
+  it("drops the blank lines and indentation a draft was saved with at its ends", () => {
+    expect(promptStashText(entry("gap", "\n\n   Fix the login flow\n  - keep tests\n\n"))).toBe(
+      "Fix the login flow\n  - keep tests",
+    );
+  });
+
+  it("keeps the draft's own line breaks", () => {
+    expect(promptStashText(entry("lines", "one\n\ntwo"))).toBe("one\n\ntwo");
   });
 });

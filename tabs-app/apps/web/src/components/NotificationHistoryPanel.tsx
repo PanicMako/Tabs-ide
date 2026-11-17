@@ -1,4 +1,6 @@
 import React, { useCallback, useRef, useState, useEffect } from "react";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
+import { goToSettings } from "~/lib/settingsLayerStore";
 import { useNavigate } from "@tanstack/react-router";
 import {
   BellIcon,
@@ -78,6 +80,8 @@ export function NotificationHistoryPanel({
   const entries = useNotificationEntries();
   const unreadCount = useUnreadNotificationCount();
   const panelRef = useRef<HTMLDivElement>(null);
+  const backdropMotionRef = useGsapEnter<HTMLDivElement>("backdrop");
+  const panelMotionRef = useGsapEnter<HTMLDivElement>("popover", panelRef);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
@@ -117,13 +121,7 @@ export function NotificationHistoryPanel({
     if (onOpenSettings) {
       onOpenSettings();
     } else {
-      void navigate({
-        to: "/settings",
-      }).then(() => {
-        const url = new URL(window.location.href);
-        url.searchParams.set("section", "notifications");
-        window.history.replaceState({}, "", url.toString());
-      });
+      goToSettings(navigate, "notifications");
     }
   }, [navigate, onOpenSettings]);
 
@@ -167,7 +165,8 @@ export function NotificationHistoryPanel({
       {/* Blurred Backdrop Overlay */}
       {open && (
         <div
-          className="fixed inset-0 z-[190] bg-black/25 backdrop-blur-sm transition-all animate-in fade-in duration-150"
+          ref={backdropMotionRef}
+          className="fixed inset-0 z-[190] bg-black/25 backdrop-blur-sm"
           onClick={() => setOpen(false)}
           aria-hidden="true"
         />
@@ -176,7 +175,7 @@ export function NotificationHistoryPanel({
       {/* Popover panel */}
       {open && (
         <div
-          ref={panelRef}
+          ref={panelMotionRef}
           data-slot="notification-history-panel"
           role="dialog"
           aria-label="Notification history"
@@ -185,7 +184,7 @@ export function NotificationHistoryPanel({
             "w-[380px] max-w-[calc(100vw-24px)] rounded-2xl border border-border/80 bg-popover/95 backdrop-blur-xl shadow-2xl shadow-black/20",
             "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)]",
             "before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
-            "right-0 top-full animate-in fade-in zoom-in-95 duration-150",
+            "right-0 top-full origin-top-right",
           )}
         >
           {/* Header */}

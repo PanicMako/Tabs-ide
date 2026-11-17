@@ -800,7 +800,7 @@ export function AnimationsSettings() {
                         setActiveFontComboId(combo.id);
                       }}
                       className={cn(
-                        "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
+                        "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition duration-200 cursor-pointer overflow-hidden",
                         isActive
                           ? "border-primary bg-primary/5"
                           : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",

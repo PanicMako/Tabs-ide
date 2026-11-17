@@ -124,6 +124,12 @@ interface MessageQueueState {
     messageId: string,
     scheduledFor: string | null,
   ) => void;
+  /** Rewrites a message that has not reached the server yet. */
+  updateMessageContent: (
+    threadId: ThreadId,
+    messageId: string,
+    content: { text: string; attachments: NonNullable<QueuedMessage["attachments"]> },
+  ) => void;
   setMessageError: (threadId: ThreadId, messageId: string, error: string) => void;
   setMessageCancellationError: (threadId: ThreadId, messageId: string, error: string) => void;
   setMessageIntakeStatus: (
@@ -222,6 +228,27 @@ export const useMessageQueueStore = create<MessageQueueState>()(
               ...state.queueByThread,
               [threadId]: current.map((m) =>
                 m.id === messageId ? { ...m, scheduledFor, dispatchError: undefined } : m,
+              ),
+            },
+          };
+        });
+      },
+
+      updateMessageContent: (threadId, messageId, content) => {
+        set((state) => {
+          const current = state.queueByThread[threadId] ?? [];
+          return {
+            queueByThread: {
+              ...state.queueByThread,
+              [threadId]: current.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      text: content.text,
+                      attachments: content.attachments,
+                      dispatchError: undefined,
+                    }
+                  : m,
               ),
             },
           };

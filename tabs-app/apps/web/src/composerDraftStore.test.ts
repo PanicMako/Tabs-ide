@@ -1143,6 +1143,14 @@ describe("composerDraftStore runtime and interaction settings", () => {
     );
   });
 
+  it("keeps every access level, including auto-accept edits and auto", () => {
+    // These used to be dropped, so the picker snapped back to Full access in a started thread.
+    for (const mode of ["approval-required", "auto-accept-edits", "auto", "full-access"] as const) {
+      useComposerDraftStore.getState().setRuntimeMode(threadId, mode);
+      expect(useComposerDraftStore.getState().draftsByThreadId[threadId]?.runtimeMode).toBe(mode);
+    }
+  });
+
   it("stores interaction mode overrides in the composer draft", () => {
     const store = useComposerDraftStore.getState();
 

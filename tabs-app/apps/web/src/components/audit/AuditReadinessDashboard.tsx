@@ -39,7 +39,7 @@ export function AuditReadinessDashboard({
 
         <Button
           onClick={onRunScan}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs px-5 py-2.5 rounded-lg shadow-md transition-all"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs px-5 py-2.5 rounded-lg shadow-md transition"
         >
           Launch {activeMode.replace("_", " ")} Scan
         </Button>
@@ -118,7 +118,7 @@ export function AuditReadinessDashboard({
               <div
                 key={preset.id}
                 onClick={() => onSelectMode(preset.id)}
-                className={`p-3.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                className={`p-3.5 rounded-lg border text-xs cursor-pointer transition ${
                   isSelected
                     ? "bg-primary/10 border-primary text-foreground shadow-xs"
                     : "bg-muted/40 border-border text-foreground hover:border-border/80 hover:bg-muted/70"

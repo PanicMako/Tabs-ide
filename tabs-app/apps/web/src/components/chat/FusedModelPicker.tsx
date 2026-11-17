@@ -1,3 +1,4 @@
+import { accountTitle, extraAccounts, providerAccounts } from "./providerAccounts";
 import {
   type ModelSlug,
   type ProviderOptionChoice,
@@ -45,7 +46,7 @@ import { cn } from "~/lib/utils";
 import { getProviderModels, getProviderSnapshot } from "../../providerModels";
 import { PROVIDER_OPTIONS, type ProviderPickerKind } from "../../session-logic";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
-import { curateModels } from "./fusedModelCuration";
+import { curateModels, SHORTLIST_LIMIT } from "./fusedModelCuration";
 import { getPinnedModels, isPinnedModel, togglePinnedModel } from "../../modelPinning";
 import {
   applyCustomModelOrdering,
@@ -79,6 +80,10 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderPickerKind, Icon> = {
 
 const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter(
   (option): option is typeof option & { available: true } => option.available,
+);
+
+const BUILT_IN_PROVIDER_IDS: ReadonlySet<string> = new Set(
+  AVAILABLE_PROVIDER_OPTIONS.map((option) => option.value),
 );
 
 const THEME_COLORS = [
@@ -203,6 +208,14 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
     [settings.providers, props.providers],
   );
 
+  const accounts = useMemo(() => providerAccounts(props.providers), [props.providers]);
+  const accountIconFor = useCallback(
+    (value: string): Icon =>
+      PROVIDER_ICON_BY_PROVIDER[value as ProviderPickerKind] ??
+      PROVIDER_ICON_BY_PROVIDER[(accounts.get(value)?.driver ?? "codex") as ProviderPickerKind],
+    [accounts],
+  );
+
   const providerOptions = useMemo(() => {
     if (props.lockedProvider) {
       return AVAILABLE_PROVIDER_OPTIONS.filter((o) => o.value === props.lockedProvider);
@@ -215,12 +228,26 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
     if (enabled.length === 0 && !props.availableProviders && props.providers.length === 0) {
       return AVAILABLE_PROVIDER_OPTIONS;
     }
-    return enabled;
+    // Extra accounts of a provider (a second Codex login, say) sit after the
+    // built-in providers, each as its own tab with its own models.
+    const extras = extraAccounts(props.providers, BUILT_IN_PROVIDER_IDS)
+      .filter(
+        (info) =>
+          !props.availableProviders ||
+          props.availableProviders.includes(info.driver as ProviderPickerKind) ||
+          props.availableProviders.includes(info.instanceId as ProviderPickerKind),
+      )
+      .map((info) => ({
+        value: info.instanceId as ProviderPickerKind,
+        label: info.label,
+        available: true as const,
+      }));
+    return [...enabled, ...extras];
   }, [
     props.lockedProvider,
     props.availableProviders,
     isProviderEnabledInSettings,
-    props.providers.length,
+    props.providers,
   ]);
 
   const activeTab = useMemo(() => {
@@ -577,14 +604,18 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
     if (activeTab === "pinned" || userCurated || searchQuery.trim() || showAllModels) {
       return { shown: models, hidden: 0 };
     }
-    return curateModels(models, (m) => {
-      const providerId = (m as { providerId?: string }).providerId ?? activeTab;
-      return (
-        m.slug === props.model ||
-        (m.thinkingVariants?.some((v) => v.model.slug === props.model) ?? false) ||
-        isPinnedModel(pinnedList, providerId, m.slug)
-      );
-    });
+    return curateModels(
+      models,
+      (m) => {
+        const providerId = (m as { providerId?: string }).providerId ?? activeTab;
+        return (
+          m.slug === props.model ||
+          (m.thinkingVariants?.some((v) => v.model.slug === props.model) ?? false) ||
+          isPinnedModel(pinnedList, providerId, m.slug)
+        );
+      },
+      SHORTLIST_LIMIT,
+    );
   }, [activeTab, userCurated, searchQuery, showAllModels, models, props.model, pinnedList]);
 
   // Filter models based on search query
@@ -649,12 +680,13 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
   const activeTabHeading = useMemo(() => {
     if (activeTab === "pinned") return "Pinned";
-    return (
-      AVAILABLE_PROVIDER_OPTIONS.find((option) => option.value === activeTab)?.label ??
-      activeTab.charAt(0).toUpperCase() + activeTab.slice(1)
+    return accountTitle(
+      providerOptions.find((option) => option.value === activeTab)?.label ??
+        activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
+      accounts.get(activeTab),
     );
-  }, [activeTab]);
-  const HeadingIcon = activeTab === "pinned" ? PinIcon : PROVIDER_ICON_BY_PROVIDER[activeTab];
+  }, [activeTab, accounts, providerOptions]);
+  const HeadingIcon = activeTab === "pinned" ? PinIcon : accountIconFor(activeTab);
 
   const triggerLabel = useMemo(() => {
     const selected = getProviderModels(props.providers, props.provider).find(
@@ -708,7 +740,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       } as React.CSSProperties)
     : undefined;
 
-  const ActiveIcon = PROVIDER_ICON_BY_PROVIDER[activeProvider];
+  const ActiveIcon = accountIconFor(activeProvider);
 
   const isExpandedPicker = Boolean(leverDescriptor) || globalStops.length >= 8;
 
@@ -755,7 +787,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         <style>{COSMIC_KEYFRAMES}</style>
         <div
           data-fused-picker-panel="true"
-          className="relative flex min-h-0 max-w-[calc(100vw-32px)] gap-6 rounded-lg overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl transition-all duration-300 select-none animate-in fade-in zoom-in-95 duration-150"
+          className="relative flex min-h-0 max-w-[calc(100vw-32px)] gap-6 rounded-lg overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl select-none"
           style={{
             ...panelStyle,
             maxHeight:
@@ -778,7 +810,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                       setSearchQuery("");
                     }}
                     className={cn(
-                      "flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all relative",
+                      "relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition relative",
                       activeTab === "pinned" && "bg-accent border-border text-foreground shadow-xs",
                     )}
                   >
@@ -804,7 +836,9 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
               <div className="h-px w-full bg-border my-0.5" />
 
               {providerOptions.map((option) => {
-                const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
+                const OptionIcon = accountIconFor(option.value);
+                const account = accounts.get(option.value);
+                const optionTitle = accountTitle(option.label, account);
                 const snapshot = getProviderSnapshot(props.providers, option.value);
                 const textOnly = snapshot?.capabilities?.agentSessions === "unsupported";
                 const disabled = Boolean(
@@ -850,32 +884,40 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                         type="button"
                         title={
                           disabled && disabledReason
-                            ? `${option.label}: ${disabledReason}`
-                            : option.label
+                            ? `${optionTitle}: ${disabledReason}`
+                            : optionTitle
                         }
-                        aria-label={option.label}
+                        aria-label={optionTitle}
                         disabled={disabled}
                         onClick={() => {
                           setSelectedTab(option.value);
                           setSearchQuery("");
                         }}
                         className={cn(
-                          "flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all",
+                          "flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition",
                           isActive && "bg-accent border-border text-foreground shadow-xs",
                           disabled && "cursor-not-allowed opacity-30",
                         )}
                       >
                         <OptionIcon aria-hidden="true" className="size-5" />
+                        {account && account.total > 1 ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute bottom-1 right-1 min-w-3.5 rounded-sm bg-background/80 px-0.5 text-center text-[9px] font-semibold leading-3.5 text-foreground"
+                          >
+                            {account.ordinal}
+                          </span>
+                        ) : null}
                       </button>
                     </TooltipTrigger>
                     <TooltipPopup side="right" className="max-w-xs text-xs">
                       {disabled && disabledReason ? (
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-foreground">{option.label}</span>
+                          <span className="font-semibold text-foreground">{optionTitle}</span>
                           <span className="text-muted-foreground">{disabledReason}</span>
                         </div>
                       ) : (
-                        <span>{option.label}</span>
+                        <span>{optionTitle}</span>
                       )}
                     </TooltipPopup>
                   </Tooltip>
@@ -913,7 +955,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Search all models by name or slug..."
                     autoFocus
-                    className="w-full h-9 pl-9 pr-8 text-xs bg-muted/40 hover:bg-muted/60 focus:bg-background border border-border/80 focus:border-ring rounded-xl outline-none text-foreground placeholder:text-muted-foreground/50 transition-all shadow-2xs font-sans"
+                    className="w-full h-9 pl-9 pr-8 text-xs bg-muted/40 hover:bg-muted/60 focus:bg-background border border-border/80 focus:border-ring rounded-xl outline-none text-foreground placeholder:text-muted-foreground/50 transition shadow-2xs font-sans"
                   />
                   <button
                     type="button"
@@ -937,7 +979,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                     <h3
                       data-fused-provider-heading="true"
                       className={cn(
-                        "text-2xl sm:text-3xl font-normal tracking-tight text-foreground transition-all select-none overflow-visible",
+                        "text-2xl sm:text-3xl font-normal tracking-tight text-foreground transition select-none overflow-visible",
                         fontCombo.serifClass || "font-serif italic",
                       )}
                       style={{
@@ -1152,7 +1194,13 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
             // One column right of the divider: model on/off options and pickers on top, Fast mode below.
             <div className="flex w-40 shrink-0 flex-col items-stretch gap-3 self-stretch border-l border-border/50 px-3 py-4 dark:border-white/8">
               {(sideToggleDescriptors.length > 0 || sideSelectDescriptors.length > 0) && (
-                <div className="flex flex-col items-center gap-2">
+                // Without a Fast mode lever below, the options sit in the middle of the column.
+                <div
+                  className={cn(
+                    "flex flex-col items-center gap-2",
+                    !leverDescriptor && "flex-1 justify-center",
+                  )}
+                >
                   {sideToggleDescriptors.map((descriptor) => (
                     <OptionToggle
                       key={descriptor.id}
@@ -1521,7 +1569,7 @@ const ModelRow = memo(function ModelRow(props: {
         props.onSelect(undefined);
       }}
       className={cn(
-        "group relative flex items-center rounded-full transition-all duration-200 select-none h-11",
+        "group relative flex items-center rounded-full transition duration-200 select-none h-11",
         props.isActive
           ? "bg-accent/80 border border-border/40 dark:bg-white/5 dark:border-transparent"
           : "hover:bg-accent/40 dark:hover:bg-white/[0.03] cursor-pointer",
@@ -1561,7 +1609,7 @@ const ModelRow = memo(function ModelRow(props: {
           >
             <PinIcon
               className={cn(
-                "size-3.5 transition-all",
+                "size-3.5 transition",
                 props.isFavorite
                   ? "fill-current text-amber-500 opacity-100 scale-100"
                   : "text-muted-foreground opacity-40 hover:opacity-100 hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300 scale-90",
@@ -1682,7 +1730,7 @@ const ModelRow = memo(function ModelRow(props: {
                       "absolute inset-y-0 left-0 rounded-full overflow-hidden",
                       sliderAnimationsEnabled &&
                         localStopIndex === null &&
-                        "transition-all duration-200",
+                        "transition duration-200",
                     )}
                     style={fillStyle}
                   >
@@ -1969,7 +2017,7 @@ const PullCordToggle = memo(function PullCordToggle(props: {
         {/* Bottom Status / Tag */}
         <div
           className={cn(
-            "mt-2.5 text-[8.5px] font-mono font-bold tracking-widest uppercase transition-all duration-300",
+            "mt-2.5 text-[8.5px] font-mono font-bold tracking-widest uppercase transition duration-300",
             isLightOn
               ? "text-amber-500 dark:text-amber-400 font-extrabold"
               : "text-muted-foreground/60",

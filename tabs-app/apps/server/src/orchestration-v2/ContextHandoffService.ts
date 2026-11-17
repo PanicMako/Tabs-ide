@@ -86,12 +86,65 @@ export interface ContextHandoffServiceV2Shape {
     readonly items: ReadonlyArray<OrchestrationV2TurnItem>;
     readonly createdAt: DateTime.Utc;
   }) => Effect.Effect<OrchestrationV2ContextHandoff, ContextHandoffServiceV2Error>;
+  /** Parent activity after the fork point, prepended to a side chat's first provider turn. */
+  readonly prepareSideChatContext: (input: {
+    readonly threadId: ThreadId;
+    readonly parentThreadId: ThreadId;
+    readonly targetRunId: RunId;
+    readonly transferId: OrchestrationV2ContextHandoff["transferId"];
+    readonly toProviderThreadId: ProviderThreadId;
+    readonly toProviderInstanceId: ProviderInstanceId;
+    readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
+    readonly parentItems: ReadonlyArray<OrchestrationV2TurnItem>;
+    readonly createdAt: DateTime.Utc;
+  }) => Effect.Effect<OrchestrationV2ContextHandoff, ContextHandoffServiceV2Error>;
 }
 
 export class ContextHandoffServiceV2 extends Context.Service<
   ContextHandoffServiceV2,
   ContextHandoffServiceV2Shape
 >()("t3/orchestration-v2/ContextHandoffService/ContextHandoffServiceV2") {}
+
+const SIDE_CHAT_CONTEXT_MAX_CHARS = 8_000;
+const SIDE_CHAT_FRAMING =
+  "You are in a side chat beside the main thread. The main thread may still be running in the same worktree. Answer the user's questions; do not continue or redo the main thread's task.";
+
+/** Oldest first; raw parent items are summarized only until the context cap is reached. */
+export function makeSideChatContext(input: {
+  readonly parentThreadId: ThreadId;
+  readonly digest: ReadonlyArray<string | OrchestrationV2TurnItem>;
+}): string {
+  const header = "Main thread activity since this side chat's starting point:";
+  const truncated = "- Earlier items truncated.";
+  const footer = `Use t3_thread_read on thread ${input.parentThreadId} to see the main thread's live state.`;
+  const kept: Array<string> = [];
+  let omitted = false;
+  // The cap covers the whole block, so the fixed lines are reserved before any digest line.
+  let remaining =
+    SIDE_CHAT_CONTEXT_MAX_CHARS -
+    [SIDE_CHAT_FRAMING, "", header, truncated, "", footer].join("\n").length;
+  for (let index = input.digest.length - 1; index >= 0; index--) {
+    const item = input.digest[index]!;
+    const line = typeof item === "string" ? item : summarizeDeltaItem(item);
+    if (line === null) continue;
+    if (line.length + 1 > remaining) {
+      omitted = true;
+      break;
+    }
+    kept.unshift(line);
+    remaining -= line.length + 1;
+  }
+  return [
+    SIDE_CHAT_FRAMING,
+    ...(kept.length === 0 ? [] : ["", header, ...(omitted ? [truncated] : []), ...kept]),
+    "",
+    footer,
+  ].join("\n");
+}
+
+/** Side chat context is prepended to the provider prompt, never replayed as budgeted history. */
+export const isSideChatContextHandoff = (handoff: OrchestrationV2ContextHandoff): boolean =>
+  handoff.strategy === "manual_context" && handoff.summaryText.startsWith(SIDE_CHAT_FRAMING);
 
 function compactText(text: string, maxLength = 240): string {
   const compacted = text.replace(/\s+/g, " ").trim();
@@ -485,11 +538,54 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
       } satisfies OrchestrationV2ContextHandoff;
     });
 
+    const prepareSideChatContext = Effect.fn(
+      "orchestrationV2.contextHandoff.prepareSideChatContext",
+    )(function* (input: Parameters<ContextHandoffServiceV2Shape["prepareSideChatContext"]>[0]) {
+      const handoffId = yield* idAllocator.allocate
+        .contextHandoff({
+          threadId: input.threadId,
+          fromProviderInstanceId: input.toProviderInstanceId,
+          toProviderInstanceId: input.toProviderInstanceId,
+        })
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new ContextHandoffPrepareError({
+                threadId: input.threadId,
+                targetRunId: input.targetRunId,
+                fromProviderThreadIds: [],
+                toProviderThreadId: input.toProviderThreadId,
+                cause,
+              }),
+          ),
+        );
+      return {
+        id: handoffId,
+        transferId: input.transferId,
+        threadId: input.threadId,
+        targetRunId: input.targetRunId,
+        fromProviderThreadIds: [],
+        toProviderThreadId: input.toProviderThreadId,
+        coveredRunOrdinals: input.coveredRunOrdinals,
+        strategy: "manual_context",
+        status: "ready",
+        summaryMessageId: null,
+        summaryText: makeSideChatContext({
+          parentThreadId: input.parentThreadId,
+          digest: input.parentItems,
+        }),
+        createdByProviderInstanceId: null,
+        createdAt: input.createdAt,
+        updatedAt: input.createdAt,
+      } satisfies OrchestrationV2ContextHandoff;
+    });
+
     return ContextHandoffServiceV2.of({
       prepareLegacyImport,
       prepare,
       prepareForkDelta,
       prepareProviderHandoff,
+      prepareSideChatContext,
     });
   },
 );

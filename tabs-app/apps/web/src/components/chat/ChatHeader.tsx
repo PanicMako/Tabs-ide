@@ -587,7 +587,7 @@ function BranchSelectorControl({
                                   : `Pin ${b.name} for comparison (${pinnedBranches.length}/${MAX_PINNED_BRANCHES})`
                               }
                               className={cn(
-                                "size-6 shrink-0 rounded flex items-center justify-center transition-all",
+                                "size-6 shrink-0 rounded flex items-center justify-center transition",
                                 isThisPinned
                                   ? "text-sky-500 hover:bg-sky-500/20 opacity-100"
                                   : "opacity-0 group-hover/item:opacity-60 hover:!opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground focus-visible:opacity-100",
@@ -618,7 +618,7 @@ function BranchSelectorControl({
                                 }}
                                 aria-label={`Merge ${b.name} into ${currentBranch ?? "current branch"}`}
                                 className={cn(
-                                  "size-6 shrink-0 rounded flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-all focus-visible:opacity-100",
+                                  "size-6 shrink-0 rounded flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition focus-visible:opacity-100",
                                   isMerging && mergingBranch === b.name
                                     ? "opacity-100"
                                     : "opacity-0 group-hover/item:opacity-60 hover:!opacity-100",
@@ -1290,7 +1290,7 @@ export const ChatHeader = memo(function ChatHeader({
           aria-labelledby={`workspace-tab-${activeThreadId}-usage`}
           className="workspace-action-pane workspace-action-usage"
         >
-          <WorkspaceUsagePane />
+          <WorkspaceUsagePane workspaceKey={workspaceKey} />
         </div>
       )}
       <div
@@ -1365,7 +1365,7 @@ export const ChatHeader = memo(function ChatHeader({
                   }}
                   aria-label="Cancel rename"
                   title="Cancel (Esc)"
-                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition active:scale-95 cursor-pointer"
                 >
                   <XIcon className="size-3 stroke-[2.5]" />
                 </button>
@@ -1379,7 +1379,7 @@ export const ChatHeader = memo(function ChatHeader({
                   aria-label="Confirm rename"
                   title="Save (Enter)"
                   className={cn(
-                    "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
+                    "flex size-5 items-center justify-center rounded-md transition active:scale-95 cursor-pointer",
                     editingTitle.trim().length === 0
                       ? "opacity-30 cursor-not-allowed text-muted-foreground"
                       : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",

@@ -1,3 +1,23 @@
+import type {
+  AcpRegistryPrepareInput,
+  AcpRegistryPrepareResult,
+  AcpRegistrySearchInput,
+  AcpRegistrySearchResult,
+} from "./acpRegistry.ts";
+import type {
+  DeviceActionInput,
+  DeviceCloseInput,
+  DeviceConfigureInput,
+  DeviceDetail,
+  DeviceDetailInput,
+  DeviceHostSummary,
+  DeviceListInput,
+  DeviceOpenInput,
+  DeviceServiceState,
+  DeviceSession,
+  DeviceShutdownInput,
+  SshDeviceHostConfig,
+} from "./device.ts";
 import type { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import type {
   StorageInventory,
@@ -1737,6 +1757,8 @@ export interface LocalApi {
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
     /** Creates, replaces or removes one `providerInstances` entry atomically. */
     mutateProviderInstance: (mutation: ProviderInstanceMutation) => Promise<ServerSettings>;
+    searchAcpRegistry: (input: AcpRegistrySearchInput) => Promise<AcpRegistrySearchResult>;
+    prepareAcpRegistryAgent: (input: AcpRegistryPrepareInput) => Promise<AcpRegistryPrepareResult>;
     discoverSourceControl: () => Promise<SourceControlDiscoveryResult>;
     checkSecretSource: (source: SecretReference) => Promise<SecretSourceCheckResult>;
     getTraceDiagnostics: () => Promise<ServerTraceDiagnosticsResult>;
@@ -1981,6 +2003,21 @@ export interface EnvironmentApi {
       options?: {
         onResubscribe?: () => void;
       },
+    ) => () => void;
+  };
+  device: {
+    list: (input: typeof DeviceListInput.Encoded) => Promise<DeviceServiceState>;
+    configure: (input: typeof DeviceConfigureInput.Encoded) => Promise<DeviceServiceState>;
+    testHost: (input: typeof SshDeviceHostConfig.Encoded) => Promise<DeviceHostSummary>;
+    open: (input: typeof DeviceOpenInput.Encoded) => Promise<DeviceSession>;
+    close: (input: typeof DeviceCloseInput.Encoded) => Promise<void>;
+    shutdown: (input: typeof DeviceShutdownInput.Encoded) => Promise<void>;
+    detail: (input: typeof DeviceDetailInput.Encoded) => Promise<DeviceDetail>;
+    action: (input: typeof DeviceActionInput.Encoded) => Promise<DeviceDetail>;
+    /** Streams device state; the first value is the current snapshot. */
+    subscribe: (
+      callback: (state: DeviceServiceState) => void,
+      onError: (error: Error) => void,
     ) => () => void;
   };
   preview: {

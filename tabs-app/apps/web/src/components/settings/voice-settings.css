@@ -1,0 +1,154 @@
+/* Voice settings: flat fields, plain-text filters, hairline dividers. Radii use the shared tokens. */
+
+/* Speech model list toolbar: a flat search field and text tabs. */
+.speech-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 16px 0 20px;
+}
+.speech-picker-search {
+  display: flex;
+  min-width: 200px;
+  flex: 1;
+  max-width: 320px;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  color: color-mix(in srgb, var(--muted-foreground) 75%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  transition: border-color 150ms ease;
+}
+.speech-picker-search:focus-within {
+  border-bottom-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+  color: var(--foreground);
+}
+.speech-picker-search-input {
+  height: 100%;
+  padding: 0 !important;
+  font-size: 13px;
+}
+.speech-picker-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.speech-picker-tab {
+  position: relative;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  border-radius: var(--radius-tile) !important;
+  transition: color 150ms ease;
+}
+.speech-picker-tab:hover {
+  color: var(--foreground);
+}
+.speech-picker-tab[aria-selected="true"] {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.speech-picker-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 1px;
+  background-color: var(--foreground);
+}
+[data-slot="speech-model-picker"] > ul,
+[data-slot="speech-model-picker"] > p {
+  margin-top: 10px;
+}
+
+/* Custom words: removable chips and a flat field to add more. */
+.custom-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  transition: border-color 150ms ease;
+}
+.custom-words:focus-within {
+  border-bottom-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+.custom-words-list {
+  display: contents;
+}
+.custom-words-chip {
+  display: inline-flex;
+  max-width: 220px;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 4px 0 10px;
+  font-size: 12px;
+  color: var(--foreground);
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+.custom-words-remove {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+}
+.custom-words-remove:hover {
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.custom-words-input {
+  min-width: 160px;
+  flex: 1;
+  height: 24px;
+  padding: 0 4px !important;
+  font-size: 13px;
+}
+
+/* Models other apps already keep on this Mac. */
+.found-on-mac {
+  margin: 4px 16px 6px 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  padding-bottom: 6px;
+}
+.found-on-mac-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted-foreground) 75%, transparent);
+}
+.found-on-mac-list {
+  display: flex;
+  flex-direction: column;
+}
+.found-on-mac-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.found-on-mac-row + .found-on-mac-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+.found-on-mac-state {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}

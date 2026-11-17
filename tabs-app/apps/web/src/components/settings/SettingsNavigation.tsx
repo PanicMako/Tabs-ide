@@ -34,6 +34,7 @@ export const SETTINGS_NAV_GROUPS = [
       { id: "maintenance", label: "Worktrees & Storage" },
       { id: "connections", label: "Connections" },
       { id: "profiles", label: "Browser Profiles" },
+      { id: "devices", label: "Devices" },
       { id: "keybindings", label: "Keybindings" },
     ],
   },

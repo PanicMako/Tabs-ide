@@ -245,7 +245,7 @@ export function Sidebar({
                   aria-label={`${n.label}. ${n.desc}`}
                   data-panel={n.id}
                   onClick={() => setPanel(n.id)}
-                  className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                  className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition cursor-pointer ${
                     isActive ? "bg-accent" : "bg-muted/50 hover:bg-muted"
                   }`}
                 >
@@ -306,7 +306,7 @@ export function Sidebar({
           type="button"
           aria-label="Collapse source control sidebar"
           onClick={() => setCollapsed(true)}
-          className="w-7 h-7 rounded-lg bg-muted/50 hover:bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
+          className="w-7 h-7 rounded-lg bg-muted/50 hover:bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition shrink-0 cursor-pointer"
           title="Collapse sidebar"
         >
           <ChevronLeft aria-hidden="true" size={14} />

@@ -429,6 +429,11 @@ it.effect.each([
                       {
                         id: ThreadId.make("other-thread"),
                         deletedAt: null,
+                        lineage: {
+                          parentThreadId: null,
+                          relationshipToParent: null,
+                          rootThreadId: ThreadId.make("other-thread"),
+                        },
                         worktreePath: shared === "worktree" ? process.cwd() : null,
                       } as never,
                     ]
@@ -486,7 +491,18 @@ it.effect.skipIf(!symlinksSupported)(
             schemaVersion: 1,
             snapshotSequence: 0,
             threads: [],
-            archivedThreads: [{ id: otherId, deletedAt: null, worktreePath: alias } as never],
+            archivedThreads: [
+              {
+                id: otherId,
+                deletedAt: null,
+                lineage: {
+                  parentThreadId: null,
+                  relationshipToParent: null,
+                  rootThreadId: otherId,
+                },
+                worktreePath: alias,
+              } as never,
+            ],
           }),
         getThreadProviderContext: () => Effect.succeed({ providerSessions: [] } as never),
         getCheckpointContext: () =>

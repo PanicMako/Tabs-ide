@@ -4,6 +4,7 @@ import {
   type ResolvedKeybindingsConfig,
 } from "@tabs/contracts";
 import { useQuery } from "@tanstack/react-query";
+import { goToSettings } from "~/lib/settingsLayerStore";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -245,7 +246,8 @@ function OpenCommandPaletteDialog(props: {
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
 
   const projects = useAtomValue(readModelStateAtom, (state) => state.projects);
-  const threads = useAtomValue(readModelStateAtom, (state) => state.threads);
+  const allThreads = useAtomValue(readModelStateAtom, (state) => state.threads);
+  const threads = useMemo(() => allThreads.filter((thread) => !thread.isSideChat), [allThreads]);
 
   const { handleNewThread } = useHandleNewThread();
 
@@ -862,7 +864,7 @@ function OpenCommandPaletteDialog(props: {
     title: "Open settings",
     icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
     run: async () => {
-      void navigate({ to: "/settings" });
+      goToSettings(navigate);
     },
   });
 

@@ -81,12 +81,25 @@ function normalizeProviderInfo(provider: string) {
 
 export interface ProviderQuotaCardProps {
   readonly snapshot: ServerProviderUsageSnapshot;
-  readonly isEnabled?: boolean;
+  readonly isEnabled?: boolean | undefined;
+  /** 1-based index when this provider has multiple accounts (e.g. Antigravity 1 / 2). */
+  readonly accountOrdinal?: number | undefined;
+  /** Total number of accounts for this provider driver (used to show/hide the ordinal). */
+  readonly accountCount?: number | undefined;
 }
 
-export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaCardProps) {
+export function ProviderQuotaCard({
+  snapshot,
+  isEnabled = true,
+  accountOrdinal,
+  accountCount,
+}: ProviderQuotaCardProps) {
   const provider = snapshot.provider;
   const { displayName, IconComp } = normalizeProviderInfo(provider);
+
+  // Subtle account label: "Antigravity 1" / "Antigravity 2" only when there are multiple.
+  const accountLabel =
+    accountCount && accountCount > 1 && accountOrdinal ? `${displayName} ${accountOrdinal}` : null;
 
   const limits = useMemo(() => deriveDisplayLimits(snapshot), [snapshot]);
   const status = snapshot.status ?? "ok";
@@ -112,7 +125,9 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
           </div>
           <div className="min-w-0 space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-foreground text-sm">{displayName}</span>
+              <span className="font-semibold text-foreground text-sm">
+                {accountLabel ?? displayName}
+              </span>
               {snapshot.planName ? (
                 <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-foreground">
                   {snapshot.planName}
