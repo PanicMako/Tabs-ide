@@ -77,3 +77,16 @@ describe("deviceLogic", () => {
     expect(canStreamVideo({ protocol: "https:", hostname: "x.test" })).toBe(true);
   });
 });
+
+import { deviceToolUpdatePolicy, nodeMeetsSshRequirement } from "./deviceToolVersions";
+describe("deviceToolVersions", () => {
+  it("checks the SSH Node requirement", () => {
+    expect(nodeMeetsSshRequirement("v22.12.0")).toBe(true);
+    expect(nodeMeetsSshRequirement("v22.11.9")).toBe(false);
+    expect(nodeMeetsSshRequirement("v24.0.0")).toBe(true);
+    expect(nodeMeetsSshRequirement("junk")).toBe(false);
+  });
+  it("says versions are unchecked without data", () => {
+    expect(deviceToolUpdatePolicy(undefined)).toContain("not been checked");
+  });
+});
