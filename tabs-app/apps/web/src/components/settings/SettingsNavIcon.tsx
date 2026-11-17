@@ -19,7 +19,8 @@ export type SettingsNavIconKind =
   | "profiles"
   | "keybindings"
   | "about"
-  | "labs";
+  | "labs"
+  | "devices";
 
 type Props = SVGProps<SVGSVGElement> & { kind: SettingsNavIconKind };
 
@@ -110,6 +111,12 @@ export function SettingsNavIcon({ kind, className = "", ...props }: Props) {
             <circle cx="23" cy="11.5" r="4.5" />
             <path d="M20 18a7 7 0 0 1 9.5 6.5V27H21" />
           </g>
+        </>
+      )}
+      {kind === "devices" && (
+        <>
+          <rect x="10" y="3.5" width="12" height="25" rx="3" />
+          <path d="M14.5 6.5h3M14 25.5h4" />
         </>
       )}
       {kind === "about" && (
