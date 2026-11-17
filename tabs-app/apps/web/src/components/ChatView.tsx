@@ -234,10 +234,16 @@ import {
   useDraftThread,
 } from "../state/composerDrafts";
 import {
+  MAX_STASH_ENTRY_ATTACHMENT_CHARS,
   partitionStashAttachments,
   promptStashSnippet,
   usePromptStashStore,
 } from "../promptStashStore";
+import {
+  encodeImageForStash,
+  shrinkToBudget,
+  stashImageBudgetChars,
+} from "../lib/stashImageShrink";
 import { ComposerStashBadge } from "./chat/ComposerStashBadge";
 import { ComposerStashMenu } from "./chat/ComposerStashMenu";
 import { appAtomRegistry } from "../state/atomRegistry";
@@ -864,14 +870,29 @@ export default function ChatView({
 
     persistingDraftRef.current = true;
     try {
+      // A Cmd+Shift+3 screenshot is several megabytes, more than a draft's share of browser
+      // storage, so oversized images are re-encoded smaller rather than refusing the draft.
+      const imageBudget = stashImageBudgetChars(
+        MAX_STASH_ENTRY_ATTACHMENT_CHARS,
+        composerImages.length,
+      );
       const candidateAttachments = await Promise.all(
-        composerImages.map(async (image) => ({
-          id: image.id,
-          name: image.name,
-          mimeType: image.mimeType,
-          sizeBytes: image.sizeBytes,
-          dataUrl: await readFileAsDataUrl(image.file),
-        })),
+        composerImages.map(async (image) => {
+          const original = {
+            id: image.id,
+            name: image.name,
+            mimeType: image.mimeType,
+            sizeBytes: image.sizeBytes,
+            dataUrl: await readFileAsDataUrl(image.file),
+          };
+          if (original.dataUrl.length <= imageBudget) return original;
+          const shrunk = await shrinkToBudget(imageBudget, (step) =>
+            encodeImageForStash(image.file, step),
+          );
+          return shrunk
+            ? { ...original, dataUrl: shrunk.dataUrl, mimeType: shrunk.mimeType }
+            : original;
+        }),
       );
 
       const { kept, droppedNames } = partitionStashAttachments(candidateAttachments);
