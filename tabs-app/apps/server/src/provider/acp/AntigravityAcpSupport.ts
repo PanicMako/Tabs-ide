@@ -59,6 +59,51 @@ export interface AntigravityAcpRuntimeInput extends Omit<
   readonly clientFileSystem?: boolean;
   /** ACP `authenticate` method id. Defaults to the personal Google account flow. */
   readonly authMethod?: AntigravityAuthMethod;
+  /**
+   * Version of the standalone `agy` CLI serving this runtime (`null` when unknown).
+   * Leave undefined for the legacy ACP server, which keeps the caller's `clientInfo`.
+   */
+  readonly cliVersion?: string | null;
+}
+
+function parseAntigravityVersion(version: string | null | undefined) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version?.trim() ?? "");
+  return match === null ? undefined : [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareVersions(left: ReadonlyArray<number>, right: ReadonlyArray<number>) {
+  for (let index = 0; index < 3; index++) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+// `agy acp` 1.5.1 offers every model to every ACP client; older runtimes allowlist editors.
+const OPEN_MODEL_ACCESS_RELEASE = [1, 5, 1] as const;
+
+/** Older CLI releases offer non-Gemini models only to allowlisted clients such as Zed. */
+export function antigravityClientInfo(version: string | null | undefined) {
+  const parsed = parseAntigravityVersion(version);
+  return parsed !== undefined && compareVersions(parsed, OPEN_MODEL_ACCESS_RELEASE) >= 0
+    ? { name: "tabs", version: "0.0.0" }
+    : { name: "zed", version: "0.0.0" };
+}
+
+/**
+ * The agy CLI rejects the managed runtime's `yolo` and `auto_edit`. It stays in `default`, where
+ * it asks before acting and Tabs answers from the live runtime policy.
+ */
+export function antigravityCliSessionMode(modeId: string): string {
+  return modeId === "yolo" || modeId === "auto_edit" ? "default" : modeId;
+}
+
+/** The CLI reports thinking as its own `thought_level` option, separate from the model ID. */
+export function antigravityThinkingConfig(
+  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
+) {
+  const option = configOptions?.find((candidate) => candidate.category === "thought_level");
+  return option?.type === "select" ? option : undefined;
 }
 
 /** Normal launches reject browser login; only the auth flow supplies `onAuthorizationUrl`. */
@@ -77,6 +122,9 @@ export const makeAntigravityAcpRuntime = Effect.fn("makeAntigravityAcpRuntime")(
   const context = yield* Layer.build(
     AcpSessionRuntime.layer({
       ...input,
+      ...(input.cliVersion === undefined
+        ? {}
+        : { clientInfo: antigravityClientInfo(input.cliVersion) }),
       spawn,
       authMethodId: input.authMethod ?? "oauth-personal",
       authenticateEagerly: true,
@@ -147,7 +195,7 @@ export function discoverAntigravityAcpModels(
   }));
 }
 
-function antigravityModelOptions(
+export function antigravityModelOptions(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
 ) {
   const model = configOptions.find((option) => option.id === "model");

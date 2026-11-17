@@ -1,6 +1,11 @@
 import { withAgentDeviceEnvironment } from "../../mcp/McpProviderSession.ts";
 import { settingsSecretLiteral } from "@tabs/contracts";
-import { AntigravitySettings, ProviderDriverKind, ProviderSetupError } from "@tabs/contracts";
+import {
+  AntigravitySettings,
+  ProviderDriverKind,
+  ProviderSetupError,
+  type ServerProviderUsageLimits,
+} from "@tabs/contracts";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
 import { resolveSelfInvocation } from "@tabs/shared/nodeRuntime";
 import {
@@ -40,6 +45,9 @@ import {
   type AntigravityAuthConfig,
 } from "../antigravityAuthSupport.ts";
 import {
+  antigravityCliSessionMode,
+  antigravityModelOptions,
+  antigravityThinkingConfig,
   makeAntigravityAcpRuntime,
   type AntigravityAcpRuntimeInput,
 } from "../acp/AntigravityAcpSupport.ts";
@@ -246,6 +254,7 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
         const runtime = yield* makeAntigravityAcpRuntime({
           ...input,
           authMethod: auth.authMethod,
+          ...(executable.harnessPath === null ? { cliVersion: executable.version } : {}),
           childProcessSpawner: spawner,
           spawn: buildAntigravityAcpSpawnInput({
             installation: executable,
@@ -258,6 +267,9 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
         }).pipe(Effect.provideService(Crypto.Crypto, crypto));
         return {
           ...runtime,
+          ...(executable.harnessPath === null
+            ? { setMode: (modeId: string) => runtime.setMode(antigravityCliSessionMode(modeId)) }
+            : {}),
           start: () =>
             runtime
               .start()
@@ -320,7 +332,7 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
 
       const publishCatalog = (
         started: AcpSessionRuntimeStartResult,
-        runtime: Pick<AcpSessionRuntime["Service"], "getEvents" | "drainEvents">,
+        runtime: Pick<AcpSessionRuntime["Service"], "getEvents" | "drainEvents" | "setModel">,
       ): Effect.Effect<void> =>
         Effect.gen(function* () {
           yield* provider.onSessionStarted(started);
@@ -335,6 +347,17 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
               ? provider.onAvailableCommands(event.availableCommands)
               : Effect.void;
           }).pipe(Effect.forkScoped);
+          // Thinking levels differ per model and are reported only for the selected one.
+          const configOptions = started.sessionSetupResult.configOptions ?? [];
+          const current = configOptions.find((option) => option.id === "model")?.currentValue;
+          if (
+            antigravityThinkingConfig(configOptions) !== undefined &&
+            typeof current === "string"
+          ) {
+            for (const model of [...antigravityModelOptions(configOptions), { value: current }]) {
+              yield* runtime.setModel(model.value).pipe(Effect.ignore);
+            }
+          }
           yield* runtime.drainEvents;
         }).pipe(Effect.scoped);
 
@@ -405,7 +428,7 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityD
       const provider = yield* makeAntigravityProvider(settings, {
         stampIdentity: classifyModels,
         probe,
-        probeUsage: usage.probe,
+        probeUsage: usage.probe as Effect.Effect<ServerProviderUsageLimits>,
         clearUsage: usage.clear,
         auth: { type: auth.authMethod, label: antigravityAuthLabel(auth.authMethod) },
         supportsTextGeneration: isAntigravityTextGenerationAvailable(profileDirectory).pipe(

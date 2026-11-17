@@ -366,7 +366,7 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
 export function buildAntigravityAcpSpawnInput(input: {
   readonly installation: {
     readonly executablePath: string;
-    readonly harnessPath: string;
+    readonly harnessPath: string | null;
   };
   readonly profile: AntigravityProfile;
   readonly runtimeTempDirectory?: string;
@@ -376,7 +376,20 @@ export function buildAntigravityAcpSpawnInput(input: {
 }): AcpSpawnInput {
   return {
     command: input.installation.executablePath,
-    args: input.profile.platform === "linux" ? ["--uid="] : [],
+    // The agy CLI has no harness sibling and serves ACP through its `acp` subcommand.
+    args:
+      input.installation.harnessPath === null
+        ? [
+            "acp",
+            "--gemini-dir",
+            input.profile.geminiHome,
+            "--app-data-dir",
+            // The CLI joins this beneath gemini-dir, including when the value is absolute.
+            "antigravity-acp",
+          ]
+        : input.profile.platform === "linux"
+          ? ["--uid="]
+          : [],
     cwd: input.cwd,
     env: {
       ...antigravityEnvironment(
@@ -384,7 +397,9 @@ export function buildAntigravityAcpSpawnInput(input: {
         input.baseEnv ?? process.env,
         input.auth ?? ANTIGRAVITY_PERSONAL_AUTH,
       ),
-      ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath,
+      ...(input.installation.harnessPath === null
+        ? {}
+        : { ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath }),
       ...(input.runtimeTempDirectory
         ? {
             TMPDIR: input.runtimeTempDirectory,

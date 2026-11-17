@@ -21,7 +21,11 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
+import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 
 import {
   makeAntigravityInstallation,
@@ -30,6 +34,7 @@ import {
   type AntigravityInstallationOptions,
 } from "./AntigravityInstallation.ts";
 import { ANTIGRAVITY_AUTH_BROWSER_MARKER } from "./antigravityAuthSupport.ts";
+import type { AntigravityCliReleaseAsset } from "./antigravityCliRelease.ts";
 import type { AntigravityReleaseAsset } from "./antigravityRelease.ts";
 
 const serverContents = "antigravity runtime\n";
@@ -75,6 +80,38 @@ function releaseAsset(archive: Uint8Array = completeArchive, platform: NodeJS.Pl
   } satisfies AntigravityReleaseAsset;
 }
 
+const cliContents = "agy cli runtime\n";
+
+function cliReleaseAsset(
+  archive: Uint8Array,
+  platform: NodeJS.Platform,
+): AntigravityCliReleaseAsset {
+  return {
+    version: "1.5.7",
+    url: "https://storage.googleapis.com/antigravity-public/antigravity-cli/test",
+    sha512: NodeCrypto.createHash("sha512").update(archive).digest("hex"),
+    executable: { name: platform === "win32" ? "agy.exe" : "antigravity" },
+    format: platform === "win32" ? "executable" : "tar.gz",
+  };
+}
+
+function cliTarball(name = "antigravity") {
+  const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "tabs-agy-tar-"));
+  try {
+    NodeFS.writeFileSync(NodePath.join(directory, name), cliContents, { mode: 0o755 });
+    NodeChildProcess.execFileSync("tar", [
+      "-czf",
+      NodePath.join(directory, "cli.tar.gz"),
+      "-C",
+      directory,
+      name,
+    ]);
+    return NodeFS.readFileSync(NodePath.join(directory, "cli.tar.gz"));
+  } finally {
+    NodeFS.rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 const writeRelease = Effect.fn("test.writeAntigravityRelease")(function* (
   managedDirectory: string,
   asset: AntigravityReleaseAsset,
@@ -109,7 +146,7 @@ const writeRelease = Effect.fn("test.writeAntigravityRelease")(function* (
 
 interface HarnessOptions {
   readonly baseDir?: string;
-  readonly asset?: AntigravityReleaseAsset | null;
+  readonly asset?: AntigravityReleaseAsset | AntigravityCliReleaseAsset | null;
   readonly archive?: Buffer;
   readonly body?: Stream.Stream<Uint8Array> | undefined;
   readonly contentLength?: number;
@@ -223,7 +260,7 @@ const expectPreviousRelease = Effect.fn("test.expectPreviousAntigravityRelease")
     path.join(installation.managedDirectory, "versions", previousReleaseId),
   );
   expect(yield* fs.readFileString(resolved.executablePath)).toBe(serverContents);
-  expect(yield* fs.readFileString(resolved.harnessPath)).toBe(harnessContents);
+  expect(yield* fs.readFileString(resolved.harnessPath!)).toBe(harnessContents);
   expect((yield* installation.state).installedVersion).toBe(previousVersion);
 });
 
@@ -254,7 +291,7 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
       expect(validation?.version).toBe("fixture-new");
       if (!validation) return yield* Effect.die("Expected runtime validation.");
       expect(yield* fs.readFileString(validation.executable.executablePath)).toBe(serverContents);
-      expect(yield* fs.readFileString(validation.executable.harnessPath)).toBe(harnessContents);
+      expect(yield* fs.readFileString(validation.executable.harnessPath!)).toBe(harnessContents);
 
       yield* Deferred.succeed(finishValidation, undefined);
       expect(yield* terminalState(installation)).toMatchObject({
@@ -266,9 +303,9 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
       yield* Deferred.await(stagingReleased);
       const selected = yield* installation.resolve();
       expect(selected).toMatchObject({ source: "managed", version: "fixture-new" });
-      expect(path.dirname(selected.harnessPath)).toBe(path.dirname(selected.executablePath));
+      expect(path.dirname(selected.harnessPath!)).toBe(path.dirname(selected.executablePath));
       expect(yield* fs.readFileString(selected.executablePath)).toBe(serverContents);
-      expect(yield* fs.readFileString(selected.harnessPath)).toBe(harnessContents);
+      expect(yield* fs.readFileString(selected.harnessPath!)).toBe(harnessContents);
       expect(yield* fs.readDirectory(path.join(installation.managedDirectory, "versions"))).toEqual(
         expect.arrayContaining([previousReleaseId, releaseAsset().sha256]),
       );
@@ -789,7 +826,7 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
       Effect.gen(function* () {
         const { installation, baseDir, fs, path } = yield* makeHarness({ previous: true });
         const previous = yield* installation.resolve();
-        yield* fs.remove(previous.harnessPath);
+        yield* fs.remove(previous.harnessPath!);
         const externalDirectory = path.join(baseDir, "external");
         yield* fs.makeDirectory(externalDirectory);
         yield* fs.writeFileString(
@@ -915,6 +952,70 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
           path.join(installation.managedDirectory, "active.json"),
         ]);
       }),
+  );
+
+  it.effect.each(["tar.gz", "executable"] as const)(
+    "installs the standalone agy CLI from a sha512-verified %s download",
+    (format) =>
+      Effect.gen(function* () {
+        const platform = format === "executable" ? "win32" : "linux";
+        const archive = format === "executable" ? Buffer.from(cliContents) : cliTarball();
+        const { installation, fs, path, validations, requests } = yield* makeHarness({
+          platform,
+          archive,
+          body: Stream.make(archive),
+          asset: cliReleaseAsset(archive, platform),
+        });
+        const started = yield* installation.start;
+        expect(started).toMatchObject({ phase: "downloading", version: "1.5.7" });
+        expect(yield* terminalState(installation)).toMatchObject({
+          phase: "succeeded",
+          installedVersion: "1.5.7",
+        });
+        expect(validations[0]?.executable.harnessPath).toBeNull();
+        expect(validations[0]?.version).toBe("1.5.7");
+        const selected = yield* installation.resolve();
+        expect(selected).toMatchObject({ source: "managed", version: "1.5.7", harnessPath: null });
+        expect(path.basename(selected.executablePath)).toBe(
+          platform === "win32" ? "agy.exe" : "antigravity",
+        );
+        expect(yield* fs.readFileString(selected.executablePath)).toBe(cliContents);
+        expect(requests).toHaveLength(1);
+      }),
+  );
+
+  it.effect("rejects a CLI download whose sha512 does not match the manifest", () =>
+    Effect.gen(function* () {
+      const archive = Buffer.from(cliContents);
+      const { installation, validations } = yield* makeHarness({
+        platform: "win32",
+        archive,
+        body: Stream.make(archive),
+        asset: { ...cliReleaseAsset(archive, "win32"), sha512: "0".repeat(128) },
+      });
+      yield* installation.start;
+      expect(yield* terminalState(installation)).toMatchObject({ phase: "failed" });
+      expect(validations).toHaveLength(0);
+      expect(yield* installation.resolve().pipe(Effect.flip)).toMatchObject({
+        operation: "resolve",
+      });
+    }),
+  );
+
+  it.effect("runs a custom agy CLI without a localharness_external sibling", () =>
+    Effect.gen(function* () {
+      const { installation, fs, path } = yield* makeHarness({ asset: null });
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "tabs-agy-cli-" });
+      const cli = path.join(directory, "agy");
+      yield* fs.writeFileString(cli, "#!/bin/sh\n", { mode: 0o755 });
+      const selected = yield* installation.resolve(cli);
+      expect(selected).toMatchObject({
+        executablePath: cli,
+        harnessPath: null,
+        source: "override",
+        version: null,
+      });
+    }),
   );
 
   it.effect("reports unsupported hosts without downloading or changing state", () =>
