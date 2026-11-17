@@ -16,6 +16,7 @@ import {
   type OrchestrationV2ThreadShell,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ShellThreadStatus,
+  isListedThreadLineage,
 } from "@tabs/contracts";
 import { resolveModelSlugForProvider } from "@tabs/shared/model";
 import { type ChatMessage, type Project, type Thread, type QueuedRunItem } from "../types";
@@ -731,6 +732,7 @@ function mapThreadFromV2Shell(
   return {
     id: shell.id,
     isSubagent: shell.lineage.relationshipToParent === "subagent",
+    isSideChat: shell.lineage.sideChat === true,
     parentThreadId: shell.lineage.parentThreadId ?? null,
     environmentId: environmentId ?? existing?.environmentId,
     codexThreadId: null,
@@ -962,15 +964,14 @@ export function applyShellStreamItem(
             (environmentId === undefined || thread.environmentId === environmentId),
         );
         const incomingOlder =
-          item.thread.lineage.relationshipToParent !== "subagent" &&
+          isListedThreadLineage(item.thread.lineage) &&
           item.thread.archivedAt === null &&
           item.thread.settledOverride === "settled" &&
           item.thread.settledAt !== null &&
           toIsoDate(item.thread.settledAt) < before;
         countMayChange = existing
           ? incomingOlder !== isOlderSettledClientThread(existing, before)
-          : item.thread.lineage.relationshipToParent !== "subagent" &&
-            toIsoDate(item.thread.createdAt) < before;
+          : isListedThreadLineage(item.thread.lineage) && toIsoDate(item.thread.createdAt) < before;
       } else if (item.kind === "thread.removed") {
         const existing = state.threads.find(
           (thread) =>
@@ -1106,33 +1107,45 @@ export function applyThreadProjection(
   const updatedAtIso = toIsoDate(projection.updatedAt);
   const createdAtIso = toIsoDate(projection.thread.createdAt);
 
-  const mappedMessages: ChatMessage[] = projection.messages.map((message) => {
-    const attachments = message.attachments?.map((attachment) =>
-      attachment.type === "image"
-        ? {
-            ...attachment,
-            type: "image" as const,
-            previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
-          }
-        : {
-            ...attachment,
-            type: "file" as const,
-          },
-    );
-    return {
-      id: message.id,
-      role: message.role,
-      text: message.text,
-      createdAt: toIsoDate(message.createdAt),
-      streaming: message.streaming,
-      ...(message.streaming
-        ? {}
-        : {
-            completedAt: toIsoDate(message.updatedAt),
-          }),
-      ...(attachments && attachments.length > 0 ? { attachments } : {}),
-    };
-  });
+  // A message only belongs in the conversation once its run has started. A queued run's message
+  // is waiting (it lives in `queuedRuns`), and one removed from the queue before it started was
+  // never sent. Showing either made a scheduled or deleted message look as if it had gone out.
+  const waitingMessageIds = new Set(
+    (projection.runs ?? [])
+      .filter(
+        (run) => run.status === "queued" || (run.status === "cancelled" && run.startedAt == null),
+      )
+      .map((run) => run.userMessageId),
+  );
+  const mappedMessages: ChatMessage[] = projection.messages
+    .filter((message) => !waitingMessageIds.has(message.id))
+    .map((message) => {
+      const attachments = message.attachments?.map((attachment) =>
+        attachment.type === "image"
+          ? {
+              ...attachment,
+              type: "image" as const,
+              previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+            }
+          : {
+              ...attachment,
+              type: "file" as const,
+            },
+      );
+      return {
+        id: message.id,
+        role: message.role,
+        text: message.text,
+        createdAt: toIsoDate(message.createdAt),
+        streaming: message.streaming,
+        ...(message.streaming
+          ? {}
+          : {
+              completedAt: toIsoDate(message.updatedAt),
+            }),
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      };
+    });
 
   const queuedRuns: QueuedRunItem[] = (projection.runs ?? [])
     .filter((r) => r.status === "queued")
@@ -1212,6 +1225,7 @@ export function applyThreadProjection(
     lastVisitedAt: existing?.lastVisitedAt ?? updatedAtIso,
     archivedAt: projection.thread.archivedAt ? toIsoDate(projection.thread.archivedAt) : null,
     isSubagent: projection.thread.lineage?.relationshipToParent === "subagent",
+    isSideChat: projection.thread.lineage?.sideChat === true,
     parentThreadId: projection.thread.lineage?.parentThreadId ?? null,
     settledOverride: projection.thread.settledOverride ?? null,
     settledAt: projection.thread.settledAt ? toIsoDate(projection.thread.settledAt) : null,
@@ -1387,6 +1401,7 @@ export function applyOlderSettledCounts(
 export function isOlderSettledClientThread(thread: Thread, before: string): boolean {
   return (
     thread.isSubagent !== true &&
+    thread.isSideChat !== true &&
     thread.archivedAt === null &&
     thread.settledOverride === "settled" &&
     thread.settledAt != null &&

@@ -77,6 +77,74 @@ describe("environment-scoped read model mutations", () => {
       title: "Remote conversation",
     });
   });
+  it("keeps queued and deleted-from-queue messages out of the conversation", () => {
+    const state = makeState();
+    const timestamp = "2026-01-01T00:00:00.000Z";
+    const message = (id: string, text: string) => ({
+      id,
+      threadId,
+      role: "user",
+      text,
+      attachments: [],
+      streaming: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    const projection = {
+      thread: {
+        id: threadId,
+        projectId: ProjectId.make("project-1"),
+        title: "Scheduled",
+        modelSelection: { instanceId: "codex", model: "gpt-5", options: [] },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        createdAt: timestamp,
+      },
+      updatedAt: timestamp,
+      messages: [
+        message("sent", "Already sent"),
+        message("later", "Send this tomorrow"),
+        message("deleted", "Removed from the queue"),
+      ],
+      runs: [
+        {
+          id: "run-1",
+          ordinal: 1,
+          status: "completed",
+          userMessageId: "sent",
+          requestedAt: timestamp,
+        },
+        {
+          id: "run-2",
+          ordinal: 2,
+          status: "queued",
+          userMessageId: "later",
+          requestedAt: timestamp,
+          scheduledFor: "2026-01-02T09:00:00.000Z",
+        },
+        {
+          id: "run-3",
+          ordinal: 3,
+          status: "cancelled",
+          userMessageId: "deleted",
+          requestedAt: timestamp,
+          startedAt: null,
+        },
+      ],
+      plans: [],
+      checkpoints: [],
+    } as unknown as OrchestrationV2ThreadProjection;
+    const thread = applyThreadProjection(state, projection, remoteEnvironment).threads[1]!;
+    expect(thread.messages.map((entry) => entry.id)).toEqual(["sent"]);
+    expect(thread.queuedRuns).toMatchObject([
+      {
+        userMessageId: "later",
+        text: "Send this tomorrow",
+        scheduledFor: "2026-01-02T09:00:00.000Z",
+      },
+    ]);
+  });
+
   it("updates errors only in the requested environment", () => {
     const next = setError(makeState(), threadId, "remote failure", remoteEnvironment);
     expect(next.threads.map((thread) => thread.error)).toEqual([null, "remote failure"]);
