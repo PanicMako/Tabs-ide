@@ -812,6 +812,8 @@ export default function ChatView({
   const peekNextReadyMessage = useMessageQueueStore((state) => state.peekNextReadyMessage);
   const threadQueuedMessages = getThreadQueuedMessages(queueByThread, threadId);
   const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false);
+  const interruptRef = useRef<(() => Promise<void>) | null>(null);
+  const isWorkingRef = useRef(false);
   const [isStuck, setIsStuck] = useState(false);
   const interruptAttemptedAtRef = useRef<number | null>(null);
   const stuckTimerRef = useRef<number | null>(null);
@@ -1692,6 +1694,7 @@ export default function ChatView({
     );
   const isCompacting =
     (isSendBusy || phase === "connecting" || phase === "running") &&
+  isWorkingRef.current = isWorking;
     Boolean(compactRequestIsActive) &&
     !compactionSettled;
   const isWorking =
@@ -3532,6 +3535,14 @@ export default function ChatView({
               title: isPinned ? "Could not unpin thread" : "Could not pin thread",
               description: error instanceof Error ? error.message : "The thread action failed.",
             });
+      if (command === "thread.stop") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isServerThread || !activeThread || event.repeat) return;
+        if (isWorkingRef.current) void interruptRef.current?.();
+        return;
+      }
+
           });
         return;
       }
@@ -4583,6 +4594,7 @@ export default function ChatView({
     return () => {
       if (stuckTimerRef.current !== null) {
         window.clearTimeout(stuckTimerRef.current);
+  interruptRef.current = onInterrupt;
       }
     };
   }, []);
