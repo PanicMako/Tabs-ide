@@ -1,0 +1,94 @@
+# T3 Code parity inventory
+
+Reference: `~/tmp/t3code-ref` (read-only clone of pingdotgg/t3code). Brief: [t3-parity-brief.md](./t3-parity-brief.md).
+
+## How this table was built
+
+Phase 0 was a first pass: each brief item was matched against the Tabs source by **behaviour keywords and file-name search**, not yet by reading both implementations line by line.
+
+- **Missing**: no matching behaviour or file found in Tabs.
+- **Have**: a matching Tabs implementation exists and looks equivalent.
+- **Weaker**: it exists in Tabs but is narrower than T3. These are confirmed by reading the code when the section is built.
+- **Verify**: something matched, but the match is not strong enough to call. It is re-checked when its section is built.
+
+Status after a build is one of **done**, **partial** (what is left is stated) or **skipped** (why). Nothing is marked done until its tests pass.
+
+## Keyboard commands (5.16)
+
+A diff of `packages/contracts/src/keybindings.ts` shows these T3 commands that Tabs does not have. This list is exact.
+
+`appearance.cycle`, `chat.find`, `chat.newWithoutProject`, `composer.branch`, `composer.cycleHost`, `composer.decreaseEffort`, `composer.effort`, `composer.host`, `composer.increaseEffort`, `composer.mode`, `composer.previousWorktree`, `composer.sendAlternate`, `composer.sendAndNewThread`, `composer.sendBackground`, `composer.stash`, `composer.workspace`, `modelPicker.nextProvider`, `modelPicker.previousProvider`, `navigation.back`, `navigation.forward`, `preview.find`, `pullRequest.copyNumber`, `rightPanel.close`, `rightPanel.new`, `rightPanel.toggleMaximized`, `theme.select`, `themeEditor.toggle`, `thread.editQueuedMessage`, `thread.regenerateTitle`, `thread.steerQueuedMessage`, `thread.stop`, `thread.undo`, `threadPanel.toggle`, `usage.cost`, `usage.limits`, `usage.open`, `usage.period.day|week|month|quarter`, `usage.tokens`, `view.reopenClosed`, `workspace.focusNext`, `workspace.focusPrevious`.
+
+Beyond the brief, `modelPicker.*`, `thread.editQueuedMessage`, `thread.regenerateTitle`, `thread.steerQueuedMessage`, `thread.stop` and `thread.undo` also turned up.
+
+## Inventory
+
+| Area | Item | Status | Tabs evidence / note | Planned Tabs design |
+| --- | --- | --- | --- | --- |
+| 5.1 | Antigravity stays signed in across updates | Missing | Auth in `provider/AntigravityAuth.ts`, `providerChildEnvironment.ts`; cause not yet found | Keep credentials in a stable per-instance home that updates never touch; test simulates an upgrade |
+| 5.1 | Antigravity sign-in methods (Google, Enterprise, API key, Vertex) and pasted return URL | Weaker | Only an API-key hint in `providerChildEnvironment.ts` | Method picker in the sign-in dialog |
+| 5.1 | Antigravity account-derived model list | Weaker | Static 3 models | Read from the account |
+| 5.1 | Multiple accounts per provider | Verify | `providerInstances.ts` exists; no accent colour, note or add-provider wizard found | Provider cards with name, accent, status; separate model-picker entries |
+| 5.1 | Provider health interval, update checks | Verify | `makeManagedServerProvider.ts` | Settings row |
+| 5.1 | Update everything | Missing | none | One dialog listing app and CLI updates with release notes |
+| 5.1 | Compact idle threads | Missing | none | Server job plus a setting |
+| 5.1 | Text generators | Verify | Settings mention a text-generation model | Dedicated settings section |
+| 5.1 | Usage providers / limit sources | Have | `UsageProviderSettings.tsx`, `AddUsageLimitSourceDialog.tsx` | Compare details |
+| 5.1 | Load balancing across accounts | Weaker | Only in `contracts/settings.ts` | Settings section |
+| 5.1 | Custom model editor | Verify | Custom models exist in settings | Dedicated editor |
+| 5.1 | ACP registry search / sessions | Weaker | `CustomAgentProviders.tsx` | Registry search step |
+| 5.1 | Model defaults, title instructions | Weaker | Title prompts exist server-side; no setting | Settings |
+| 5.2 | Devices: server (`apps/server/src/device/`, MCP tools) | Have | Re-check against T3 before reuse | Reuse |
+| 5.2 | Devices: Device surface, setup, stream viewer, picker, controls rail, Tools drawer, float, settings, tests | Missing | No `components/device/` | Right-panel surface in the redesigned panel; see brief 5.2 |
+| 5.2 | Simlock, Expo/EAS | Missing | none | Behind Labs, last |
+| 5.3 | Resume after limits, snooze, custom snooze | Weaker | `state/snoozePresets.ts`, `threadLifecycle.ts` | Add auto-resume and custom snooze |
+| 5.3 | Auto-settle | Have | `ThreadSettlementService.ts` | Compare settings |
+| 5.3 | New-thread options, project defaults with inheritance | Verify | none found for inheritance | Scoped settings |
+| 5.3 | Pin threads | Have | `pinnedThreadOrder.ts` | Pin projects: verify |
+| 5.3 | Scratch project (thread with no project) | Weaker | `ManagedProjectFolders.ts` | `chat.newWithoutProject` |
+| 5.3 | Undo archive / delete | Missing | none | Undo toast |
+| 5.3 | Thread hover cards | Missing | none | Hover card |
+| 5.3 | Resizable sidebar | Verify | `ui/sidebar.tsx` | Drag handle |
+| 5.3 | Reopen closed view, back/forward, swipe, focus move | Missing | none | New stores plus shortcuts |
+| 5.3 | Thread notifications, background announcer | Verify | not found | Coordinator |
+| 5.3 | Message-text search | Missing | none | Server index plus palette results |
+| 5.3 | Project content search | Have | `ProjectContentSearchDialog.tsx` | Compare |
+| 5.3 | No-projects welcome | Verify | `WorkspaceWelcomeScreen.tsx` | Compare |
+| 5.4 | Edit / recall / suggested prompts, send options | Verify | Not found for edit prompt | Composer work |
+| 5.4 | Rich-text composer (Tiptap) | Missing | none | Optional toggle |
+| 5.4 | Math rendering | Missing | none | Markdown plugin |
+| 5.4 | GitHub alert boxes | Have | `markdown-github-alerts.ts` | none |
+| 5.4 | Chat find bar | Missing | none | `chat.find` |
+| 5.4 | Live region / activity log | Verify | not found | `useLiveRegion` |
+| 5.4 | Attachment progress, question attachments, start-truncated paths | Verify | not found | Small components |
+| 5.5 | PDF, Office, notebook, Mermaid, CSV/TSV, font, audio, large-text previews | Missing (audio: Weaker) | Only server-side text extraction | File viewer previews |
+| 5.5 | Breadcrumbs, project file picker | Verify | not found | Breadcrumbs |
+| 5.6 | Auto fetch interval | Missing | none | Setting |
+| 5.6 | PR watch service | Weaker | PR provider files exist; no watcher | Server watcher |
+| 5.6 | Link PR dialog, checks popover, file tree, hide test files | Missing | none | New components |
+| 5.6 | PR UI shared across panels, detail tabs | Weaker | `PRsPanel.tsx` redesign | Per brief 5.6 |
+| 5.7 | Worktree cleanup | Weaker | `storageCleanup.ts`, `Sidebar.tsx` | Compare |
+| 5.7 | Restore missing worktree, checkout cache | Missing | none | Server logic |
+| 5.7 | Branch naming | Weaker | Text-generation based | Settings |
+| 5.8 | SSH / WSL environments | Verify | `manualConnections.ts`, `desktopLocal.ts` | Compare |
+| 5.8 | Guest links | Missing | none | Read-only share |
+| 5.8 | Outside agents (MCP server, OAuth) | Weaker | `mcp/` toolkits exist, no OAuth | Sign-in approval |
+| 5.9 | Browser import, passkeys | Have | `browserImport/`, `BrowserProfilesSettings.tsx` | Compare |
+| 5.9 | Default browser | Verify | not found | Desktop registration |
+| 5.10 | Quit hold | Missing | none | Overlay |
+| 5.10 | Theme editor, VS Code theme import | Weaker | `themeImportExport.ts` | Editor |
+| 5.10 | Render error boundary, slow RPC toast | Have | `RenderErrorBoundary.tsx`, `SlowRpcRequestToastCoordinator.tsx` | none |
+| 5.11 | Voice settings | Weaker | `CustomWordsField.tsx`, `SpeechService.ts` | Compare |
+| 5.12 | Terminals | Verify | `terminal/Manager.ts` | Compare |
+| 5.13 | Storage / maintenance | Have | `WorkspaceMaintenanceView.tsx` | Compare |
+| 5.13 | Keep awake | Have | `nativeCodeHostMain.ts` | Compare |
+| 5.13 | OpenTelemetry | Weaker | `otelEnvironment.ts` | Compare |
+| 5.14 | Scheduled tasks, webhooks | Have | `WorkspaceAutomations.tsx` | Compare |
+| 5.14 | SnapShot capture | Missing | none | Desktop feature |
+| 5.15 | Usage page | Verify | Search found only the `/usage` route name; no page | Page plus shortcuts |
+| 5.17 | Prompt links, triage, welcome, CLI, update track, thread migration, MCP apps, managed policy | Missing / Verify | `LegacyV1ThreadImporter.ts` covers migration | Per section |
+
+## Follow-ups and skipped
+
+- i18n: skipped by default (optional per brief).
+- T3 Connect, Clerk, hosted pairing, ChatGPT sharing, mobile app and T3 branding are out of scope.
