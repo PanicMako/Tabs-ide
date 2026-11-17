@@ -396,6 +396,7 @@ import {
   CODE_CHROME_COMMANDS,
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
+import { runRightPanelCommand } from "~/stores/rightPanelStore";
   type CodeRailPresentation,
 } from "@tabs/shared/codeChrome";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
@@ -12448,6 +12449,17 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         }
         return;
       }
+      if (
+        command === "rightPanel.close" ||
+        command === "rightPanel.new" ||
+        command === "rightPanel.toggleMaximized"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        runRightPanelCommand(command);
+        return;
+      }
+
       if (command.startsWith("tool.jumpTo")) {
         const index = parseInt(command.slice(-1), 10) - 1;
         if (workspaceState.session.activeProjectId && availableTools.length > 0) {

@@ -58,3 +58,26 @@ export const useRightPanelStore = create<RightPanelState>()(
     },
   ),
 );
+
+export type RightPanelKeybindingCommand =
+  | "rightPanel.close"
+  | "rightPanel.new"
+  | "rightPanel.toggleMaximized";
+
+/**
+ * Applies a right-panel keyboard command. "New" opens the surface launcher,
+ * and "maximize" only acts while a panel is open so it never opens an empty one.
+ */
+export function runRightPanelCommand(command: RightPanelKeybindingCommand): void {
+  const state = useRightPanelStore.getState();
+  if (command === "rightPanel.close") {
+    state.closePanel();
+    return;
+  }
+  if (command === "rightPanel.new") {
+    state.setChoosingSurface(true);
+    state.setIsOpen(true);
+    return;
+  }
+  if (state.isOpen) state.setMaximized(!state.maximized);
+}
