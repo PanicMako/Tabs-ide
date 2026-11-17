@@ -676,12 +676,12 @@ async function waitForSendButton(): Promise<HTMLButtonElement> {
 async function waitForInteractionModeButton(
   expectedLabel: "Chat" | "Plan",
 ): Promise<HTMLButtonElement> {
+  // The composer's setup sentence names the mode as a word: "builds" or "plans".
   return waitForElement(
     () =>
-      Array.from(document.querySelectorAll("button")).find(
-        (button) =>
-          button.textContent?.trim() === (expectedLabel === "Chat" ? "Build" : expectedLabel),
-      ) as HTMLButtonElement | null,
+      document.querySelector<HTMLButtonElement>(
+        `button[aria-label="${expectedLabel === "Chat" ? "Build mode, switch to plan" : "Plan mode, switch to build"}"]`,
+      ),
     `Unable to find ${expectedLabel} interaction mode button.`,
   );
 }
@@ -1266,7 +1266,7 @@ describe("ChatView browser behavior (full app)", () => {
 
     try {
       const initialModeButton = await waitForInteractionModeButton("Chat");
-      expect(initialModeButton.title).toContain("enter plan mode");
+      expect(initialModeButton.title).toContain("click to plan first");
 
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
@@ -1278,7 +1278,7 @@ describe("ChatView browser behavior (full app)", () => {
       );
       await waitForLayout();
 
-      expect((await waitForInteractionModeButton("Chat")).title).toContain("enter plan mode");
+      expect((await waitForInteractionModeButton("Chat")).title).toContain("click to plan first");
 
       const composerEditor = await waitForComposerEditor();
       composerEditor.focus();
@@ -1294,7 +1294,7 @@ describe("ChatView browser behavior (full app)", () => {
       await vi.waitFor(
         async () => {
           expect((await waitForInteractionModeButton("Plan")).title).toContain(
-            "return to normal chat mode",
+            "click to build directly",
           );
         },
         { timeout: 8_000, interval: 16 },
@@ -1311,7 +1311,9 @@ describe("ChatView browser behavior (full app)", () => {
 
       await vi.waitFor(
         async () => {
-          expect((await waitForInteractionModeButton("Chat")).title).toContain("enter plan mode");
+          expect((await waitForInteractionModeButton("Chat")).title).toContain(
+            "click to plan first",
+          );
         },
         { timeout: 8_000, interval: 16 },
       );
@@ -1595,7 +1597,7 @@ describe("ChatView browser behavior (full app)", () => {
       const rail = document.querySelector<HTMLElement>(".workspace-actions-rail")!;
       await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(300);
       await page.getByRole("button", { name: "Collapse sidebar", exact: true }).click();
-      await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(360);
+      await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(330);
       await page.getByRole("button", { name: "Expand sidebar", exact: true }).click();
       await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(300);
     } finally {
@@ -1701,13 +1703,12 @@ describe("ChatView browser behavior (full app)", () => {
       const send = document.querySelector<HTMLButtonElement>(
         '[data-workspace-action="send-message"]',
       )!;
-      const schedule = document.querySelector<HTMLButtonElement>(
-        '[aria-label="Schedule message for a specific time"]',
+      // Send later sits behind "+" in the composer's own row; send shares a control with the mic.
+      const moreTools = document.querySelector<HTMLButtonElement>(
+        '[aria-label="More: attach, send later"]',
       )!;
-      expect(schedule.closest('[data-chat-composer-footer="true"]')).toBeTruthy();
-      expect(schedule.getBoundingClientRect().bottom).toBeLessThan(
-        send.getBoundingClientRect().top,
-      );
+      expect(moreTools.closest('[data-chat-composer-footer="true"]')).toBeTruthy();
+      expect(send.closest('[role="group"][aria-label="Speak or send"]')).toBeTruthy();
       expect(send.closest(".composer-send-actions")!.querySelectorAll("button")).toHaveLength(1);
       const newThreadFace = document.querySelector<HTMLElement>(".new-thread-action-face")!;
       const newThreadLabel = newThreadFace.querySelector<HTMLElement>("[data-new-thread-label]")!;
@@ -1753,18 +1754,17 @@ describe("ChatView browser behavior (full app)", () => {
         restoreThemeSnapshot(originalTheme);
       }
 
+      // Where the agent runs is a row inside the composer card, under the prompt.
       const card = composerEditor.closest('[data-chat-composer-card="true"]')!;
-      const tray = card
-        .closest("form")!
-        .querySelector('[data-chat-composer-workspace-tray="true"]')!;
-      expect(tray).toBeTruthy();
-      expect(tray.querySelector('[data-chat-workspace-controls="true"]')).toBeTruthy();
-      expect(tray.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      const workspaceRow = card.querySelector<HTMLElement>(".composer-workspace")!;
+      expect(workspaceRow).toBeTruthy();
+      expect(workspaceRow.querySelector('[data-chat-workspace-controls="true"]')).toBeTruthy();
+      expect(workspaceRow.getBoundingClientRect().top).toBeGreaterThanOrEqual(
         composerEditor.getBoundingClientRect().bottom,
       );
-      expect(tray.getBoundingClientRect().width).toBeLessThan(card.getBoundingClientRect().width);
-      expect(tray.getBoundingClientRect().top).toBeLessThan(card.getBoundingClientRect().bottom);
-      expect(tray.getBoundingClientRect().left).toBeGreaterThan(card.getBoundingClientRect().left);
+      expect(workspaceRow.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        card.getBoundingClientRect().bottom,
+      );
     } finally {
       await mounted.cleanup();
     }

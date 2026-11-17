@@ -175,6 +175,36 @@ describe("shouldUseCenteredEmptyComposer", () => {
     ).toBe(false);
   });
 
+  it("keeps the welcome while a started thread only has queued or scheduled messages", () => {
+    expect(
+      shouldUseCenteredEmptyComposer({
+        isLocalDraftThread: false,
+        hasTimelineEntries: false,
+        isWorking: false,
+        nothingSentYet: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps a thread docked once anything has been sent or while work runs", () => {
+    expect(
+      shouldUseCenteredEmptyComposer({
+        isLocalDraftThread: false,
+        hasTimelineEntries: true,
+        isWorking: false,
+        nothingSentYet: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseCenteredEmptyComposer({
+        isLocalDraftThread: false,
+        hasTimelineEntries: false,
+        isWorking: true,
+        nothingSentYet: true,
+      }),
+    ).toBe(false);
+  });
+
   it("keeps the welcome text visible even when a draft already has content", () => {
     expect(
       shouldUseCenteredEmptyComposer({
