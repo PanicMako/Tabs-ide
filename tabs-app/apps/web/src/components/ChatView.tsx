@@ -234,9 +234,9 @@ import {
   useDraftThread,
 } from "../state/composerDrafts";
 import {
-  MAX_STASH_ENTRY_ATTACHMENT_CHARS,
   partitionStashAttachments,
   promptStashSnippet,
+  stashEntryImageBudgetChars,
   usePromptStashStore,
 } from "../promptStashStore";
 import {
@@ -872,10 +872,8 @@ export default function ChatView({
     try {
       // A Cmd+Shift+3 screenshot is several megabytes, more than a draft's share of browser
       // storage, so oversized images are re-encoded smaller rather than refusing the draft.
-      const imageBudget = stashImageBudgetChars(
-        MAX_STASH_ENTRY_ATTACHMENT_CHARS,
-        composerImages.length,
-      );
+      const entryImageBudget = stashEntryImageBudgetChars();
+      const imageBudget = stashImageBudgetChars(entryImageBudget, composerImages.length);
       const candidateAttachments = await Promise.all(
         composerImages.map(async (image) => {
           const original = {
@@ -895,7 +893,10 @@ export default function ChatView({
         }),
       );
 
-      const { kept, droppedNames } = partitionStashAttachments(candidateAttachments);
+      const { kept, droppedNames } = partitionStashAttachments(
+        candidateAttachments,
+        entryImageBudget,
+      );
       if (droppedNames.length) {
         toastManager.add({
           type: "error",
