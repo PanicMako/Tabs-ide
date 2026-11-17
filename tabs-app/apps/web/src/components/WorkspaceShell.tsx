@@ -39,6 +39,21 @@ import { useSettingsLabsStore } from "../stores/settingsLabsStore";
 import { InterfaceStudyTopBar } from "./InterfaceStudyTopBar";
 import "./settings/wallpaper-labs.css";
 import { useGsapInsets } from "../hooks/useGsapInsets";
+import { useGsapEnter } from "../hooks/useGsapSurface";
+import { navigateUrgently } from "../lib/urgentNavigation";
+import { rememberWorkspaceLocation } from "../lib/settingsReturn";
+import {
+  closeSettingsLayer,
+  goToSettings,
+  openSettingsLayer,
+  useSettingsLayerStore,
+} from "../lib/settingsLayerStore";
+
+const LazySettingsScreen = lazy(() =>
+  import("./settings/SettingsScreen").then((module) => ({ default: module.SettingsScreen })),
+);
+import { playScreenEnter, type ScreenPart } from "../lib/motion";
+import { useSurfaceMotionSettings } from "../panelAnimations";
 import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { BrowserToolbar } from "./browser/BrowserToolbar";
 import { BrowserViewPanel } from "./browser/BrowserViewPanel";
@@ -183,12 +198,14 @@ import {
   ZapIcon,
 } from "lucide-react";
 import {
+  Activity,
   Fragment,
   type ReactNode,
   Suspense,
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -383,11 +400,14 @@ import {
   WorkspaceBrowserIcon,
   WorkspaceTerminalIcon,
 } from "./WorkspaceToolMarks";
+import { nextAppearancePreference } from "~/lib/appearanceCycle";
+import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
 import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
 import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import { SidebarSquircleIcon } from "./SidebarSquircleIcon";
+import { useAgentsSidebarMotion } from "./useAgentsSidebarMotion";
 import { NewThreadComposeIcon } from "./NewThreadComposeIcon";
 import { CodeHeaderBar } from "./code/CodeHeaderBar";
 import { useCodeAssistantPanels } from "./code/useCodeAssistantPanels";
@@ -396,9 +416,6 @@ import {
   CODE_CHROME_COMMANDS,
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
-import { nextAppearancePreference } from "~/lib/appearanceCycle";
-import { runRightPanelCommand } from "~/stores/rightPanelStore";
-import { runRightPanelCommand } from "~/stores/rightPanelStore";
   type CodeRailPresentation,
 } from "@tabs/shared/codeChrome";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
@@ -439,7 +456,7 @@ function ThreadTreeGuide(props: {
   const branch = props.branchLit ? THREAD_TREE_LINE_LIT : THREAD_TREE_LINE;
   return (
     <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0">
-      {/* Rounded branch into the title, drawn first so a lit rail stays unbroken over it. */}
+      {/* Rounded branch into the title. */}
       <span
         className="absolute border-b border-l transition-colors duration-150"
         style={{
@@ -449,23 +466,31 @@ function ThreadTreeGuide(props: {
           height: radius + 1,
           borderColor: branch,
           borderBottomLeftRadius: radius,
+          // The curve and the onward rail share their first pixels; whichever is lit sits on top.
+          zIndex: props.branchLit && !props.railLit ? 1 : 0,
         }}
       />
-      {/* Rail from the sibling above down to the branch. */}
+      {/* Rail from the sibling above, stopping where the curve begins so the two never overlap. */}
       <span
         className="absolute w-px transition-colors duration-150"
         style={{
           left,
           top: -THREAD_TREE_ROW_GAP_PX,
-          height: THREAD_TREE_ROW_GAP_PX + props.branchY - (props.last ? radius : 0),
+          height: THREAD_TREE_ROW_GAP_PX + props.branchY - radius,
           backgroundColor: upper,
         }}
       />
-      {/* Rail on to the next sibling. */}
+      {/* Rail on to the next sibling, from the curve's start. It stays dim unless the open thread
+          is further down, so a lit path ends in the curve instead of running on past it. */}
       {!props.last && (
         <span
           className="absolute bottom-0 w-px transition-colors duration-150"
-          style={{ left, top: props.branchY, backgroundColor: lower }}
+          style={{
+            left,
+            top: props.branchY - radius,
+            backgroundColor: lower,
+            zIndex: props.railLit ? 1 : 0,
+          }}
         />
       )}
     </span>
@@ -1218,7 +1243,7 @@ function ProjectTabs(props: {
                 {activityIndicator && (
                   <span
                     className={cn(
-                      "size-2 shrink-0 rounded-full transition-all",
+                      "size-2 shrink-0 rounded-full transition",
                       activityIndicator.dotClass,
                       activityIndicator.pulse && "animate-pulse",
                     )}
@@ -1229,7 +1254,7 @@ function ProjectTabs(props: {
                 <button
                   type="button"
                   className={cn(
-                    "no-drag shrink-0 rounded-md p-1 transition-all duration-150 cursor-pointer",
+                    "no-drag shrink-0 rounded-md p-1 transition duration-150 cursor-pointer",
                     active
                       ? "text-muted-foreground hover:bg-muted hover:text-foreground"
                       : "text-muted-foreground/60 opacity-60 group-hover:opacity-100 hover:bg-muted/80 hover:text-foreground",
@@ -1281,7 +1306,7 @@ function ProjectTabs(props: {
               <button
                 type="button"
                 className={cn(
-                  "no-drag shrink-0 rounded-md p-1 transition-all duration-150 cursor-pointer",
+                  "no-drag shrink-0 rounded-md p-1 transition duration-150 cursor-pointer",
                   active
                     ? "text-muted-foreground hover:bg-muted hover:text-foreground"
                     : "text-muted-foreground/60 opacity-60 group-hover:opacity-100 hover:bg-muted/80 hover:text-foreground",
@@ -1300,7 +1325,7 @@ function ProjectTabs(props: {
         {/* Integrated "+" button */}
         <button
           type="button"
-          className="no-drag mb-1 shrink-0 rounded-lg p-1.5 text-muted-foreground transition-all hover:bg-muted/80 hover:text-foreground cursor-pointer"
+          className="no-drag mb-1 shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted/80 hover:text-foreground cursor-pointer"
           aria-label="New tab"
           data-tour-new-tab
           onClick={props.onNewTab}
@@ -1362,25 +1387,24 @@ function ProjectToolBar(props: {
     tabs[nextIndex]?.focus();
   };
 
-  useEffect(() => {
-    if (!trackRef.current || !pillRef.current || activeIndex === -1) return;
-
-    // Delay slightly to ensure layout is calculated properly
-    const timeoutId = setTimeout(() => {
-      const tabs = trackRef.current?.querySelectorAll<HTMLButtonElement>(".nav-tab");
-      if (!tabs) return;
-      const targetTab = tabs[activeIndex];
-      if (!targetTab) return;
-
-      const targetLeft = targetTab.offsetLeft;
-      const targetWidth = targetTab.offsetWidth;
-
-      if (pillRef.current) {
-        pillRef.current.style.transform = `translateX(${targetLeft}px)`;
-        pillRef.current.style.width = `${targetWidth}px`;
-      }
-    }, 10);
-    return () => clearTimeout(timeoutId);
+  // Move the pill before the browser paints, in the same frame as the tab's own state change.
+  // (A timeout here made the pill trail the click, so the label switched before it moved.)
+  // The very first placement lands without sliding in from the left edge.
+  const pillPlacedRef = useRef(false);
+  useLayoutEffect(() => {
+    const pill = pillRef.current;
+    if (!trackRef.current || !pill || activeIndex === -1) return;
+    const targetTab = trackRef.current.querySelectorAll<HTMLButtonElement>(".nav-tab")[activeIndex];
+    if (!targetTab) return;
+    const firstPlacement = !pillPlacedRef.current;
+    if (firstPlacement) pill.style.transition = "none";
+    pill.style.transform = `translateX(${targetTab.offsetLeft}px)`;
+    pill.style.width = `${targetTab.offsetWidth}px`;
+    if (firstPlacement) {
+      pillPlacedRef.current = true;
+      void pill.offsetWidth;
+      pill.style.transition = "";
+    }
   }, [activeIndex, props.availableTools, toolbarStyle]);
 
   return (
@@ -1490,6 +1514,90 @@ function ProjectToolBar(props: {
 }
 
 const AGENTS_SIDEBAR_COLLAPSED_KEY = "tabs.agentsSidebarCollapsed";
+
+/** Hides the native editor or browser window being left, ahead of the React switch. */
+function hideNativeSurfacesFor(leaving: string | undefined, next: string): void {
+  const bridge = window.desktopBridge;
+  if (!bridge || leaving === next) return;
+  if (leaving === "code" && next !== "code") {
+    void bridge.hideCodeSession().catch(() => undefined);
+  }
+  const isBrowserKind = (kind: string | undefined) => kind === "browser" || kind === "custom_embed";
+  if (isBrowserKind(leaving) && !isBrowserKind(next)) {
+    void bridge.hideBrowserSession().catch(() => undefined);
+  }
+}
+
+/** Tools whose surface stays mounted once visited. Native-window tools render fresh. */
+const KEPT_ALIVE_TOOL_KINDS: ReadonlySet<string> = new Set(["agents", "git"]);
+const MAX_KEPT_TOOL_SURFACES = 6;
+
+function isKeptAliveToolKind(kind: string): boolean {
+  return KEPT_ALIVE_TOOL_KINDS.has(kind);
+}
+
+function keptToolKey(projectId: string, toolId: string): string {
+  return `${projectId}\u0000${toolId}`;
+}
+
+function splitKeptToolKey(key: string): [string, string] {
+  const index = key.indexOf("\u0000");
+  return [key.slice(0, index), key.slice(index + 1)];
+}
+
+/**
+ * How a tool arrives when switched to: the agents sidebar settles in a few pixels (the chat
+ * itself appears in place), or the tool's surface rises — subtle, about a fifth of a second. Seconds
+ * before the app's motion pace (0.5×).
+ */
+const TOOL_SWITCH_ENTRANCE: ReadonlyArray<ScreenPart> = [
+  {
+    // Agents: only the sidebar settles. The chat area is full of backdrop-blurred glass, and
+    // moving or fading any ancestor of a blur re-renders every blur on every frame — that was
+    // the Agents-only jitter (most visible in light mode). It simply appears, in place.
+    selector: '[data-tool-surface][data-active="true"] .agents-tab',
+    from: { opacity: 0.4, x: -6 },
+    at: 0,
+    duration: 0.4,
+  },
+  {
+    // Any other tool: its whole surface rises.
+    selector: '[data-tool-surface][data-active="true"]:not(:has(.agents-tab))',
+    from: { opacity: 0, y: 8 },
+    at: 0,
+    duration: 0.5,
+  },
+];
+
+/**
+ * How the workspace returns from Settings: the toolbar settles down, the agents sidebar slides in
+ * from the left and the work area rises, slightly offset so it reads as one subtle move. Seconds
+ * before the app's motion pace (0.5×).
+ */
+const WORKSPACE_RETURN_ENTRANCE: ReadonlyArray<ScreenPart> = [
+  {
+    selector: '[data-slot="workspace-toolbar-shell"]',
+    from: { opacity: 0, y: -6 },
+    at: 0,
+    duration: 0.48,
+  },
+  {
+    // Agents: only the sidebar settles. The chat area is full of backdrop-blurred glass, and
+    // moving or fading any ancestor of a blur re-renders every blur on every frame — that was
+    // the Agents-only jitter (most visible in light mode). It simply appears, in place.
+    selector: '[data-tool-surface][data-active="true"] .agents-tab',
+    from: { opacity: 0.4, x: -6 },
+    at: 0,
+    duration: 0.4,
+  },
+  {
+    // Any other tool: its whole surface rises.
+    selector: '[data-tool-surface][data-active="true"]:not(:has(.agents-tab))',
+    from: { opacity: 0, y: 8 },
+    at: 0.04,
+    duration: 0.56,
+  },
+];
 
 /** Maps provider instanceId → brand color */
 const PROVIDER_COLOR_MAP: Record<string, string> = {
@@ -1846,8 +1954,31 @@ function AgentsThreadList(props: {
     }
   });
 
+  // Overlay mode (Settings → General → Agents sidebar): no rail; the full sidebar slides over
+  // the chat while the pointer is at the left edge or inside it.
+  const overlayMode = useWorkspaceAppearanceStore((s) => s.agentsSidebarMode) === "overlay";
+  const [overlayShown, setOverlayShown] = useState(false);
+  const overlayHideTimer = useRef<number | null>(null);
+  const showOverlay = () => {
+    if (overlayHideTimer.current !== null) window.clearTimeout(overlayHideTimer.current);
+    overlayHideTimer.current = null;
+    setOverlayShown(true);
+  };
+  const hideOverlaySoon = () => {
+    if (overlayHideTimer.current !== null) window.clearTimeout(overlayHideTimer.current);
+    overlayHideTimer.current = window.setTimeout(() => {
+      overlayHideTimer.current = null;
+      setOverlayShown(false);
+    }, 220);
+  };
+  useEffect(
+    () => () => {
+      if (overlayHideTimer.current !== null) window.clearTimeout(overlayHideTimer.current);
+    },
+    [],
+  );
   // Persistent collapse state
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
+  const [dockedCollapsed, setCollapsed] = useState<boolean>(() => {
     try {
       if (window.localStorage?.getItem("tabs.alwaysMinimizeAgentsSidebar") === "true") {
         return true;
@@ -1857,6 +1988,10 @@ function AgentsThreadList(props: {
       return false;
     }
   });
+  // The overlay always shows the full sidebar; the rail exists only when docked.
+  const collapsed = overlayMode ? false : dockedCollapsed;
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  useAgentsSidebarMotion(sidebarRef, collapsed);
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -1997,14 +2132,43 @@ function AgentsThreadList(props: {
   const searchedArchivedCount = searchedArchivedThreads.length;
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1">
+      {overlayMode && !overlayShown ? (
+        // An invisible strip along the left edge: reaching it brings the sidebar over the chat.
+        <div
+          aria-hidden="true"
+          data-slot="agents-sidebar-edge"
+          className="absolute inset-y-0 left-0 z-30 w-2"
+          onPointerEnter={showOverlay}
+        />
+      ) : null}
       {/* ── Sidebar ── */}
       <div
+        ref={sidebarRef}
         className={cn(
-          "agents-tab flex shrink-0 flex-col bg-card/30 transition-[width] duration-200 ease-in-out",
-          collapsed ? "w-[52px]" : "w-72",
+          "agents-tab flex shrink-0 flex-col overflow-hidden",
+          overlayMode
+            ? cn(
+                "absolute inset-y-0 left-0 z-30 w-72 border-e border-border bg-card shadow-lg transition-transform duration-200 ease-out motion-reduce:transition-none",
+                overlayShown ? "translate-x-0" : "-translate-x-full shadow-none",
+              )
+            : cn("bg-card/30", collapsed ? "w-[52px]" : "w-72"),
         )}
         data-collapsed={collapsed ? "true" : "false"}
+        data-overlay={overlayMode ? (overlayShown ? "shown" : "hidden") : undefined}
+        {...(overlayMode
+          ? {
+              onPointerEnter: showOverlay,
+              onPointerLeave: hideOverlaySoon,
+              onFocus: showOverlay,
+              onBlur: (event: React.FocusEvent<HTMLDivElement>) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  hideOverlaySoon();
+                }
+              },
+              inert: !overlayShown,
+            }
+          : {})}
       >
         {/* ── Header ── */}
         {collapsed ? (
@@ -2163,7 +2327,7 @@ function AgentsThreadList(props: {
                       <span className="absolute -bottom-2 -left-2 -right-2 -mb-px h-0.5 rounded-full bg-foreground" />
                     )}
                   </span>
-                  <span className="inline-block max-w-0 overflow-hidden opacity-0 transition-all duration-200 ease-out group-hover:max-w-8 group-hover:ml-1.5 group-hover:opacity-70 text-[11px] font-normal text-muted-foreground align-baseline">
+                  <span className="inline-block max-w-0 overflow-hidden opacity-0 transition duration-200 ease-out group-hover:max-w-8 group-hover:ml-1.5 group-hover:opacity-70 text-[11px] font-normal text-muted-foreground align-baseline">
                     {actionableCount}
                   </span>
                 </button>
@@ -2260,7 +2424,7 @@ function AgentsThreadList(props: {
                 }}
                 aria-label="Search tasks"
                 placeholder="Search tasks…"
-                className="h-8 w-full rounded-xl border border-border/50 bg-muted/25 pl-8 pr-7 text-xs font-sans text-foreground placeholder:text-muted-foreground/50 shadow-2xs outline-none transition-all hover:border-border/80 hover:bg-muted/40 focus:border-border/90 focus:bg-background focus:ring-2 focus:ring-foreground/10"
+                className="h-8 w-full rounded-xl border border-border/50 bg-muted/25 pl-8 pr-7 text-xs font-sans text-foreground placeholder:text-muted-foreground/50 shadow-2xs outline-none transition hover:border-border/80 hover:bg-muted/40 focus:border-border/90 focus:bg-background focus:ring-2 focus:ring-foreground/10"
               />
               {threadSearch ? (
                 <button
@@ -2481,30 +2645,66 @@ function AgentsThreadList(props: {
                       {accessibleState}
                     </span>
                   </div>
-                  {thread.branch && projectGitStatusQuery.data?.branch && (
-                    <p
-                      className={cn(
-                        "flex items-start gap-2 rounded-lg border p-2.5 font-medium",
-                        thread.branch === projectGitStatusQuery.data.branch
-                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-                      )}
-                    >
-                      {thread.branch === projectGitStatusQuery.data.branch ? (
-                        <CircleCheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                      ) : (
-                        <TriangleAlertIcon
-                          aria-hidden="true"
-                          className="mt-0.5 size-3.5 shrink-0"
-                        />
-                      )}
-                      <span>
-                        {thread.branch === projectGitStatusQuery.data.branch
-                          ? `Checked out on this task’s branch: ${thread.branch}`
-                          : `Checked out on ${projectGitStatusQuery.data.branch}; this task uses ${thread.branch}.`}
-                      </span>
-                    </p>
-                  )}
+                  {thread.branch &&
+                    projectGitStatusQuery.data?.branch &&
+                    (() => {
+                      const isBranchMatch = thread.branch === projectGitStatusQuery.data.branch;
+                      return (
+                        <div
+                          className={cn(
+                            "rounded-[calc(var(--radius-surface)-12px)] border px-3.5 py-2.5 text-xs transition-colors",
+                            isBranchMatch
+                              ? "border-emerald-500/25 bg-emerald-500/[0.08] dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                              : "border-amber-500/25 bg-amber-500/[0.08] dark:border-amber-500/20 dark:bg-amber-500/10",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex items-center gap-1.5 font-semibold leading-none",
+                              isBranchMatch
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-amber-700 dark:text-amber-400",
+                            )}
+                          >
+                            {isBranchMatch ? (
+                              <CircleCheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                            ) : (
+                              <TriangleAlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                            )}
+                            <span>
+                              {isBranchMatch ? "On task branch" : "Different branch checked out"}
+                            </span>
+                          </div>
+                          <div className="mt-2 space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="shrink-0 text-muted-foreground">Checked out:</span>
+                              <code
+                                title={projectGitStatusQuery.data.branch}
+                                className={cn(
+                                  "max-w-[150px] truncate rounded px-1.5 py-0.5 font-mono text-[11px] font-medium leading-tight",
+                                  isBranchMatch
+                                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                                    : "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+                                )}
+                              >
+                                {projectGitStatusQuery.data.branch}
+                              </code>
+                            </div>
+                            {!isBranchMatch && (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="shrink-0 text-muted-foreground">Task branch:</span>
+                                <code
+                                  title={thread.branch}
+                                  className="max-w-[150px] truncate rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-tight text-foreground/80"
+                                >
+                                  {thread.branch}
+                                </code>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   <p className="flex items-center gap-2 text-muted-foreground">
                     <FolderSearchIcon aria-hidden="true" className="size-3.5 shrink-0" />
                     <span className="truncate">{props.project.name}</span>
@@ -2533,10 +2733,10 @@ function AgentsThreadList(props: {
                   </p>
                   <p className="text-muted-foreground/70">Local workspace · {thread.runtimeMode}</p>
                   {section === "snoozed" && wakeLabel && (
-                    <p className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
+                    <div className="flex items-center gap-2 rounded-[calc(var(--radius-surface)-12px)] border border-blue-500/25 bg-blue-500/10 px-3.5 py-2 text-xs text-blue-700 dark:text-blue-300">
                       <Clock3Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                      Wakes automatically at {wakeLabel}
-                    </p>
+                      <span>Wakes automatically at {wakeLabel}</span>
+                    </div>
                   )}
                 </div>
               );
@@ -2599,7 +2799,7 @@ function AgentsThreadList(props: {
                         : undefined
                     }
                     className={cn(
-                      "group relative flex items-center rounded-lg transition-all duration-150",
+                      "group relative flex items-center rounded-lg transition duration-150",
                       collapsed ? "justify-center" : "",
                       "bg-transparent hover:bg-accent/30",
                       !collapsed && section === "settled" && "opacity-75",
@@ -2747,7 +2947,7 @@ function AgentsThreadList(props: {
                                   }}
                                   aria-label="Cancel rename"
                                   title="Cancel (Esc)"
-                                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition active:scale-95 cursor-pointer"
                                 >
                                   <XIcon className="size-3 stroke-[2.5]" />
                                 </button>
@@ -2763,7 +2963,7 @@ function AgentsThreadList(props: {
                                   aria-label="Confirm rename"
                                   title="Save (Enter)"
                                   className={cn(
-                                    "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
+                                    "flex size-5 items-center justify-center rounded-md transition active:scale-95 cursor-pointer",
                                     renamingTitle.trim().length === 0
                                       ? "opacity-30 cursor-not-allowed text-muted-foreground"
                                       : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
@@ -2919,83 +3119,12 @@ function AgentsThreadList(props: {
                             </TooltipTrigger>
                             <TooltipPopup side="right" align="start" className="w-72 p-3">
                               {threadInspector}
-                              <div className="hidden space-y-2 text-xs">
-                                <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-2">
-                                  <p className="font-semibold leading-5 text-foreground">
-                                    {overmindDisplayTitle(thread.title)}
-                                  </p>
-                                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
-                                    {accessibleState}
-                                  </span>
-                                </div>
-                                <p className="flex items-center gap-2 text-muted-foreground">
-                                  <FolderSearchIcon aria-hidden="true" className="size-3.5" />
-                                  <span className="truncate">{props.project.name}</span>
-                                </p>
-                                {thread.branch && (
-                                  <p className="flex items-center gap-2 text-muted-foreground">
-                                    <GitBranchIcon aria-hidden="true" className="size-3.5" />
-                                    <span className="truncate">Thread branch: {thread.branch}</span>
-                                  </p>
-                                )}
-                                {projectGitStatusQuery.data?.branch && (
-                                  <p className="flex items-center gap-2 text-muted-foreground">
-                                    <GitBranchIcon aria-hidden="true" className="size-3.5" />
-                                    <span className="truncate">
-                                      Checked out: {projectGitStatusQuery.data.branch}
-                                    </span>
-                                  </p>
-                                )}
-                                {thread.branch &&
-                                  projectGitStatusQuery.data?.branch &&
-                                  thread.branch !== projectGitStatusQuery.data.branch && (
-                                    <p className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
-                                      <TriangleAlertIcon
-                                        aria-hidden="true"
-                                        className="mt-0.5 size-3.5 shrink-0"
-                                      />
-                                      <span>You are currently checked out on another branch.</span>
-                                    </p>
-                                  )}
-                                <p className="flex items-center gap-2 text-muted-foreground">
-                                  <MonitorIcon aria-hidden="true" className="size-3.5" />
-                                  <span className="truncate">
-                                    {thread.worktreePath ?? props.project.cwd}
-                                  </span>
-                                </p>
-                                <p className="flex items-center gap-2 text-muted-foreground">
-                                  <ProviderIcon
-                                    instanceId={thread.modelSelection.instanceId}
-                                    provider={thread.session?.provider}
-                                    className="size-3.5"
-                                  />
-                                  {thread.modelSelection.instanceId} · {thread.modelSelection.model}
-                                </p>
-                                <p className="text-muted-foreground/70">
-                                  Local workspace · {thread.runtimeMode}
-                                </p>
-                                <p className="text-muted-foreground/70">
-                                  {section === "settled"
-                                    ? "Wrapped"
-                                    : threadIsSnoozed
-                                      ? "Snoozed"
-                                      : lifecycleEntry.pinnedAt
-                                        ? "Pinned"
-                                        : "Active"}
-                                </p>
-                                {section === "snoozed" && wakeLabel && (
-                                  <p className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
-                                    <Clock3Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                                    Wakes automatically at {wakeLabel}
-                                  </p>
-                                )}
-                              </div>
                             </TooltipPopup>
                           </Tooltip>
                         )}
                         <div
                           className={cn(
-                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-stretch overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
+                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-stretch overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-md shadow-black/15 backdrop-blur-md transition duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
                             isRenaming
                               ? "hidden"
                               : openThreadMenuId === thread.id
@@ -8806,7 +8935,7 @@ function DesktopBrowserChrome(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-all duration-150 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition duration-150 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
                         disabled={!props.sessionState.canGoBack}
                         onClick={() => void bridge?.goBackBrowserSession(sessionArg)}
                         aria-label="Back"
@@ -8826,7 +8955,7 @@ function DesktopBrowserChrome(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-all duration-150 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition duration-150 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
                         disabled={!props.sessionState.canGoForward}
                         onClick={() => void bridge?.goForwardBrowserSession(sessionArg)}
                         aria-label="Forward"
@@ -8846,7 +8975,7 @@ function DesktopBrowserChrome(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-all duration-150 active:scale-95"
+                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition duration-150 active:scale-95"
                         onClick={() => void bridge?.reloadBrowserSession(sessionArg)}
                         aria-label={
                           props.sessionState.loading
@@ -8880,7 +9009,7 @@ function DesktopBrowserChrome(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-all duration-150 active:scale-95"
+                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition duration-150 active:scale-95"
                         onClick={() => props.setIsChromeExpanded(true)}
                         aria-label={`Show ${props.title} controls`}
                       >
@@ -8899,7 +9028,7 @@ function DesktopBrowserChrome(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition-all duration-150 active:scale-95"
+                        className="h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/80 hover:text-foreground transition duration-150 active:scale-95"
                         onClick={() =>
                           void api?.shell.openExternal(
                             props.sessionState.currentUrl ?? props.normalizedUrl,
@@ -8993,6 +9122,7 @@ function DesktopBrowserTool(props: {
   runningProcessIds?: ReadonlyArray<string> | undefined;
   onRunProcess?: ((processId: string) => void) | undefined;
 }) {
+  const startupOverlayMotionRef = useGsapEnter<HTMLDivElement>("backdrop");
   const [api, setBrowserEnvironmentApi] = useState<Awaited<
     ReturnType<typeof environmentApi>
   > | null>(null);
@@ -9413,7 +9543,10 @@ function DesktopBrowserTool(props: {
       toolbarTarget={toolbarTarget}
     >
       {isTransientStartup && matchingRunningPreset ? (
-        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl animate-in fade-in duration-200">
+        <div
+          ref={startupOverlayMotionRef}
+          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl"
+        >
           <div className="pointer-events-auto max-w-md w-full rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-5">
             <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -9784,8 +9917,12 @@ function UniversalDevServerOfflineNotice(props: {
   onRunProcess?: ((processId: string) => void) | undefined;
   onOpenServerTab?: (() => void) | undefined;
 }) {
+  const motionRef = useGsapEnter<HTMLDivElement>("backdrop");
   return (
-    <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl animate-in fade-in duration-200">
+    <div
+      ref={motionRef}
+      className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl"
+    >
       <div className="pointer-events-auto max-w-md w-full rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-5">
         {/* Header section with clean unboxed icon and subtle monotone pill */}
         <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
@@ -11519,21 +11656,20 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   useAutoRefreshModelsOnStartup();
   const navigate = useNavigate();
   const location = useLocation();
+  // Keep track of where the user is, so Settings' Back returns there in one step.
+  useEffect(() => {
+    rememberWorkspaceLocation(location.href, location.pathname);
+  }, [location.href, location.pathname]);
   const [isSettingsNavigationPending, setIsSettingsNavigationPending] = useState(false);
   const isInterfaceStudy = useSettingsLabsStore(
     (state) => state.editorialSettings && !state.editorialSettingsOnly,
   );
+  const surfaceMotion = useSurfaceMotionSettings();
   const openSettings = useCallback(() => {
     if (location.pathname === "/settings") return;
-
-    // TanStack Router can retain the current match while the destination is
-    // resolving. Hide that stale surface immediately so a slow first render of
-    // Settings never looks like an ignored click or a frozen Agents view.
-    setIsSettingsNavigationPending(true);
-    void navigate({ to: "/settings" }).catch(() => {
-      setIsSettingsNavigationPending(false);
-    });
-  }, [location.pathname, navigate]);
+    // A layer over the workspace: nothing is torn down or navigated, so it opens at once.
+    openSettingsLayer();
+  }, [location.pathname]);
 
   useEffect(() => {
     if (location.pathname === "/settings") {
@@ -11815,7 +11951,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     void bridge.syncBrowserSessions(workspaceState.session.openProjectIds).catch(() => undefined);
   }, [workspaceState.session.openProjectIds]);
 
-  useEffect(() => {
+  // The editor and browser are native windows drawn above the page. Hide them before the next
+  // paint, not after it: a passive effect ran only once the incoming tool had rendered and
+  // painted, so the frozen editor sat on top of Agents and then vanished (the Code → Agents
+  // lag). handleSelectTool also hides them the moment a switch is clicked.
+  useLayoutEffect(() => {
     const bridge = window.desktopBridge;
     if (!bridge || activeTool?.kind === "code") {
       return;
@@ -11823,7 +11963,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     void bridge.hideCodeSession().catch(() => undefined);
   }, [activeTool?.kind]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const bridge = window.desktopBridge;
     if (!bridge || activeTool?.kind === "browser" || activeTool?.kind === "custom_embed") {
       return;
@@ -12342,6 +12482,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       if (!nextTool) {
         return;
       }
+      closeSettingsLayer();
+      // Leaving the editor or browser: ask the main process to hide its native window right
+      // now, so it disappears while the next tool is still rendering instead of after it.
+      hideNativeSurfacesFor(activeTool?.kind, nextTool.kind);
+      // The switch happens at once; the new tool then eases in (TOOL_SWITCH_ENTRANCE).
       setActiveTool(activeProject.id, nextTool.id);
       if (location.pathname === "/settings") {
         return;
@@ -12353,21 +12498,23 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           workspaceState.session.rememberedThreadIdByProjectId[activeProject.id] ?? null,
         );
         if (nextThreadId && activeProject.environmentId) {
-          await navigate({
-            to: "/$environmentId/$threadId",
-            params: {
-              environmentId: activeProject.environmentId,
-              threadId: nextThreadId,
-            },
-          });
+          const environmentId = activeProject.environmentId;
+          // Committed at once, so the thread never lags behind the tool switch.
+          await navigateUrgently(() =>
+            navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId, threadId: nextThreadId },
+            }),
+          );
           return;
         }
-      } else if (location.pathname !== "/") {
-        await navigate({ to: "/" });
       }
+      // Other tools leave the route alone: it used to go to "/", which redirected straight back
+      // to the open thread and rebuilt the (now kept-alive) agents surface for nothing.
     },
     [
       activeProject,
+      activeTool?.kind,
       activeToolSettings,
       location.pathname,
       navigate,
@@ -12377,6 +12524,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     ],
   );
 
+  const { theme: themePreference, setTheme: setThemePreference } = useTheme();
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -12397,7 +12545,6 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           }
           if (event.key === "-") {
             event.preventDefault();
-  const { theme: themePreference, setTheme: setThemePreference } = useTheme();
             event.stopPropagation();
             zoomOut();
             return;
@@ -12431,26 +12578,6 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         return;
       }
 
-      if (command === "tab.new") {
-        event.preventDefault();
-        event.stopPropagation();
-        const pendingId = randomUUID();
-        openPendingTab(pendingId);
-        void navigate({ to: "/" });
-        return;
-      }
-
-      if (command === "chat.new" || command === "chat.newLocal") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (workspaceState.session.activeProjectId) {
-          void handleNewThread(workspaceState.session.activeProjectId, {
-            environmentId: activeProject?.environmentId,
-            envMode:
-              command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
-          });
-        }
-        return;
       if (command === "navigation.back" || command === "navigation.forward") {
         event.preventDefault();
         event.stopPropagation();
@@ -12476,18 +12603,27 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         return;
       }
 
-      }
-      if (
-        command === "rightPanel.close" ||
-        command === "rightPanel.new" ||
-        command === "rightPanel.toggleMaximized"
-      ) {
+      if (command === "tab.new") {
         event.preventDefault();
         event.stopPropagation();
-        runRightPanelCommand(command);
+        const pendingId = randomUUID();
+        openPendingTab(pendingId);
+        void navigate({ to: "/" });
         return;
       }
 
+      if (command === "chat.new" || command === "chat.newLocal") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (workspaceState.session.activeProjectId) {
+          void handleNewThread(workspaceState.session.activeProjectId, {
+            environmentId: activeProject?.environmentId,
+            envMode:
+              command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
+          });
+        }
+        return;
+      }
       if (command.startsWith("tool.jumpTo")) {
         const index = parseInt(command.slice(-1), 10) - 1;
         if (workspaceState.session.activeProjectId && availableTools.length > 0) {
@@ -12518,6 +12654,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     settings.defaultThreadEnvMode,
     availableTools,
     handleSelectTool,
+    themePreference,
+    setThemePreference,
   ]);
 
   useEffect(() => {
@@ -12527,8 +12665,6 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   // Tool-switching shortcuts (cmd/ctrl+alt+1..9 → the Nth visible tool of the
   // active project), via menu accelerators so they work everywhere — including
   // inside the embedded editor/browser views.
-    themePreference,
-    setThemePreference,
   const toolShortcutRef = useRef({
     availableTools,
     switchTool: handleSelectTool,
@@ -13543,7 +13679,78 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   // intent clear and guards against any unexpected state.
 
   const isSettingsRoute = location.pathname === "/settings";
-  const isSettingsSurfaceActive = isSettingsRoute || isSettingsNavigationPending;
+  // Settings opened from the workspace is a layer over it (lib/settingsLayerStore.ts). The chrome
+  // treats both the same; the workspace content underneath only cares about the route, so
+  // opening the layer never changes (and so never rebuilds) the workspace tree.
+  const settingsLayerOpen = useSettingsLayerStore((state) => state.open);
+  const settingsLayerMounted = useSettingsLayerStore((state) => state.mounted);
+  // This workspace hosts the Settings layer; entry points elsewhere open it instead of routing.
+  useEffect(() => {
+    useSettingsLayerStore.setState({ hosted: true });
+    return () => useSettingsLayerStore.setState({ hosted: false, open: false });
+  }, []);
+  const isSettingsShown = isSettingsRoute || settingsLayerOpen;
+  const activeToolKind = activeTool?.kind;
+  // Agents and Git surfaces visited in this project, most recent last (see renderedContent).
+  const [rememberedToolKeys, setRememberedToolKeys] = useState<readonly string[]>([]);
+  const activeKeptToolKey =
+    activeProject && activeTool && isKeptAliveToolKind(activeTool.kind)
+      ? keptToolKey(activeProject.id, activeTool.id)
+      : null;
+  // Include the tool being shown in this same render, so it mounts once, in its kept slot.
+  const keptToolKeys =
+    activeKeptToolKey && !rememberedToolKeys.includes(activeKeptToolKey)
+      ? [...rememberedToolKeys, activeKeptToolKey]
+      : rememberedToolKeys;
+  useEffect(() => {
+    if (!activeKeptToolKey) return;
+    setRememberedToolKeys((keys) =>
+      keys.includes(activeKeptToolKey)
+        ? keys
+        : [...keys, activeKeptToolKey].slice(-MAX_KEPT_TOOL_SURFACES),
+    );
+  }, [activeKeptToolKey]);
+  // Coming back from Settings, the workspace eases in (see WORKSPACE_RETURN_ENTRANCE).
+  const shellRootRef = useRef<HTMLDivElement>(null);
+  const wasSettingsShownRef = useRef(isSettingsShown);
+  useLayoutEffect(() => {
+    const cameBack = wasSettingsShownRef.current && !isSettingsShown;
+    wasSettingsShownRef.current = isSettingsShown;
+    const root = shellRootRef.current;
+    if (!cameBack || !root || !surfaceMotion.active) return;
+    return playScreenEnter(root, WORKSPACE_RETURN_ENTRANCE, surfaceMotion);
+  }, [isSettingsShown, surfaceMotion]);
+  // A tool switch lands at once, then the new tool eases in (TOOL_SWITCH_ENTRANCE). Editor and
+  // browser views are native windows placed by their on-screen box, so they are left still.
+  const previousToolIdRef = useRef(activeToolId);
+  useLayoutEffect(() => {
+    const changed = previousToolIdRef.current !== activeToolId;
+    previousToolIdRef.current = activeToolId;
+    const root = shellRootRef.current;
+    if (!changed || !root || !surfaceMotion.active || isSettingsShown) return;
+    if (activeToolKind === "code" || activeToolKind === "browser") return;
+    if (activeToolKind === "custom_embed") return;
+    return playScreenEnter(root, TOOL_SWITCH_ENTRANCE, surfaceMotion);
+  }, [activeToolId, activeToolKind, isSettingsShown, surfaceMotion]);
+
+  // Warm Settings while idle, so opening it is instant.
+  useEffect(() => {
+    if (!threadsHydrated) return;
+    const warm = () => {
+      // Pre-render the Settings layer, hidden, so even the first open only has to reveal it.
+      void import("./settings/SettingsScreen")
+        .then(() => useSettingsLayerStore.setState({ mounted: true }))
+        .catch(() => undefined);
+      void import("~/components/settings/GeneralSettings").catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(warm, 1500);
+    return () => window.clearTimeout(id);
+  }, [threadsHydrated]);
+  const isSettingsSurfaceActive = isSettingsShown || isSettingsNavigationPending;
   const isWelcomeSurface =
     !isSettingsSurfaceActive && (isActivePendingTab || !activeProject || !activeProjectSettings);
   const shouldHideShellChrome = embeddedMode.enabled;
@@ -13587,10 +13794,61 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     Boolean(embeddedMode.workspaceRoot) &&
     (!activeProject || activeProject.cwd !== embeddedMode.workspaceRoot || !activeProjectSettings);
 
+  const agentsTool = activeProject ? (
+    <AgentsThreadList
+      project={activeProject}
+      threads={sortProjectThreads(
+        threads.filter(
+          (thread) =>
+            thread.projectId === activeProject.id &&
+            thread.environmentId === activeProject.environmentId,
+        ),
+      )}
+      activeThreadId={routeThreadId}
+      onSelectThread={(threadId) => {
+        if (!activeProject.environmentId) return;
+        const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
+        agentsLayoutActions.openInActivePane(pKey, threadId);
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: activeProject.environmentId, threadId },
+        });
+      }}
+      onOpenThreadToSide={(threadId) => {
+        if (!activeProject.environmentId) return;
+        const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
+        agentsLayoutActions.openToSide(pKey, threadId);
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: activeProject.environmentId, threadId },
+        });
+      }}
+      onCreateThread={async () => {
+        if (!activeProject.environmentId) return;
+        const tid = await handleNewThread(activeProject.id, {
+          environmentId: activeProject.environmentId,
+          ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
+        });
+        if (tid) {
+          const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
+          agentsLayoutActions.openInActivePane(pKey, tid);
+        }
+      }}
+      onDeleteThread={handleDeleteThread}
+      onArchiveThread={handleArchiveThread}
+      onUnarchiveThread={handleUnarchiveThread}
+    >
+      {props.agentsContent}
+    </AgentsThreadList>
+  ) : null;
   let content: ReactNode;
   if (isSettingsNavigationPending) {
     content = (
-      <PageLoadingState label="Opening Settings" detail="Restoring your last settings section…" />
+      <PageLoadingState
+        label="Opening Settings"
+        detail="Restoring your last settings section…"
+        revealDelayMs={220}
+      />
     );
   } else if (!threadsHydrated) {
     content = (
@@ -13607,11 +13865,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       />
     );
   } else if (isSettingsRoute) {
-    content = (
-      <div className="flex h-full min-h-0 flex-col animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
-        {props.settingsContent}
-      </div>
-    );
+    content = <div className="flex h-full min-h-0 flex-col">{props.settingsContent}</div>;
   } else if (isActivePendingTab) {
     // The focused tab is a pending/unassigned "New Tab" — show the landing
     // screen inside that tab's content area so the user can pick a project.
@@ -13666,53 +13920,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       />
     );
   } else if (activeTool?.kind === "agents") {
-    content = (
-      <AgentsThreadList
-        project={activeProject}
-        threads={sortProjectThreads(
-          threads.filter(
-            (thread) =>
-              thread.projectId === activeProject.id &&
-              thread.environmentId === activeProject.environmentId,
-          ),
-        )}
-        activeThreadId={routeThreadId}
-        onSelectThread={(threadId) => {
-          if (!activeProject.environmentId) return;
-          const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
-          agentsLayoutActions.openInActivePane(pKey, threadId);
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId: activeProject.environmentId, threadId },
-          });
-        }}
-        onOpenThreadToSide={(threadId) => {
-          if (!activeProject.environmentId) return;
-          const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
-          agentsLayoutActions.openToSide(pKey, threadId);
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId: activeProject.environmentId, threadId },
-          });
-        }}
-        onCreateThread={async () => {
-          if (!activeProject.environmentId) return;
-          const tid = await handleNewThread(activeProject.id, {
-            environmentId: activeProject.environmentId,
-            ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
-          });
-          if (tid) {
-            const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);
-            agentsLayoutActions.openInActivePane(pKey, tid);
-          }
-        }}
-        onDeleteThread={handleDeleteThread}
-        onArchiveThread={handleArchiveThread}
-        onUnarchiveThread={handleUnarchiveThread}
-      >
-        {props.agentsContent}
-      </AgentsThreadList>
-    );
+    content = agentsTool;
   } else if (activeTool?.kind === "code") {
     content = codeTool;
   } else if (activeTool?.kind === "server") {
@@ -13760,16 +13968,60 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     activeTool?.kind !== "code" &&
     activeTool?.kind !== "browser" &&
     activeTool?.kind !== "custom_embed" &&
-    !isSettingsSurfaceActive;
-  const renderedContent = shouldAnimateReactSurface ? (
+    !isSettingsRoute &&
+    !isSettingsNavigationPending;
+  const activeSurface = shouldAnimateReactSurface ? (
     <div
       key={`${activeProject?.id ?? "none"}:${activeTool?.id ?? "none"}`}
-      className="tabs-surface-enter flex h-full min-h-0 min-w-0 flex-1 flex-col"
+      data-tool-surface=""
+      data-active
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
     >
       {content}
     </div>
   ) : (
     content
+  );
+  // Agents and Git stay mounted (hidden) once visited, so switching back to them is instant
+  // rather than a rebuild. The editor and browser are native windows and render fresh.
+  const keepAliveReady =
+    threadsHydrated &&
+    !isEmbeddedWorkspacePending &&
+    !isActivePendingTab &&
+    Boolean(activeProject && activeProjectSettings) &&
+    !isSettingsRoute &&
+    !isSettingsNavigationPending;
+  const keptSurfaces = keepAliveReady
+    ? keptToolKeys.flatMap((key) => {
+        const [projectId, toolId] = splitKeptToolKey(key);
+        if (projectId !== activeProject?.id) return [];
+        const tool = availableTools.find((candidate) => candidate.id === toolId);
+        if (!tool || !isKeptAliveToolKind(tool.kind)) return [];
+        return [{ key, tool }];
+      })
+    : [];
+  const activeIsKept =
+    keepAliveReady && Boolean(activeTool && isKeptAliveToolKind(activeTool.kind));
+  const renderedContent = keepAliveReady ? (
+    <>
+      {keptSurfaces.map(({ key, tool }) => {
+        const active = tool.id === activeTool?.id;
+        return (
+          <Activity key={key} mode={active ? "visible" : "hidden"}>
+            <div
+              data-tool-surface=""
+              data-active={active}
+              className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
+            >
+              {tool.kind === "agents" ? agentsTool : gitTool}
+            </div>
+          </Activity>
+        );
+      })}
+      {activeIsKept ? null : activeSurface}
+    </>
+  ) : (
+    activeSurface
   );
 
   const { confirm: confirmToolClose, confirmDialog: toolCloseDialog } = useConfirm();
@@ -13851,12 +14103,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       openPendingTab(randomUUID());
       await navigate({ to: "/" });
     } else if (id === "usage" || id === "customize" || id === "worktrees") {
-      await navigate({
-        to: "/settings",
-        search: {
-          section: id === "usage" ? "usage" : id === "customize" ? "quick-actions" : "maintenance",
-        },
-      });
+      goToSettings(
+        navigate,
+        id === "usage" ? "usage" : id === "customize" ? "quick-actions" : "maintenance",
+      );
     } else if (id === "popout") {
       await window.desktopBridge!.openPopoutWindow!({
         url: `/${encodeURIComponent(routeEnvironmentId!)}/${encodeURIComponent(routeThreadId!)}?conversationPopout=true`,
@@ -13946,7 +14196,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
 
   return (
     <QuickActionsHost execute={runQuickAction} disabled={quickActionDisabled}>
-      <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
+      <div
+        ref={shellRootRef}
+        className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground"
+      >
         {toolCloseDialog}
         <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
         <AgentCliActivityHost />
@@ -14122,6 +14375,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
             }}
             onReturnToProject={() => void navigate({ to: "/" })}
             onSelectTool={(toolId) => {
+              closeSettingsLayer();
               if (isSettingsRoute) void navigate({ to: "/" });
               void handleSelectTool(toolId);
             }}
@@ -14144,7 +14398,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
 
         <div
           className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "workspace-content-host relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             isInterfaceStudy &&
               !isSettingsSurfaceActive &&
               "study-workspace-card rounded-xl bg-card relative z-1",
@@ -14153,8 +14407,34 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           <ToolErrorBoundary
             resetKey={`${activeProject?.environmentId ?? "none"}:${activeProject?.id ?? "none"}:${activeTool?.id ?? "none"}`}
           >
-            {renderedContent}
+            {/* While Settings covers it, the workspace stays fully alive — effects, subscriptions
+                and sizes untouched — and only stops painting. Leaving Settings is then just
+                uncovering it: no effects re-attach, so there is no burst of work (and no jitter)
+                on Back. Hiding it with <Activity> detached every effect and re-ran them all on
+                the way back. */}
+            <div
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
+              style={settingsLayerOpen ? { visibility: "hidden" } : undefined}
+              inert={settingsLayerOpen}
+              aria-hidden={settingsLayerOpen || undefined}
+            >
+              {renderedContent}
+            </div>
           </ToolErrorBoundary>
+          {settingsLayerMounted && !isSettingsRoute ? (
+            <div
+              data-slot="settings-layer"
+              data-open={settingsLayerOpen ? "" : undefined}
+              className="absolute inset-0 z-10 flex min-h-0 flex-col bg-background"
+              style={settingsLayerOpen ? undefined : { display: "none" }}
+            >
+              <Activity mode={settingsLayerOpen ? "visible" : "hidden"}>
+                <Suspense fallback={null}>
+                  <LazySettingsScreen layer />
+                </Suspense>
+              </Activity>
+            </div>
+          ) : null}
         </div>
 
         {!shouldHideShellChrome &&
