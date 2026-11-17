@@ -583,7 +583,7 @@
 }
 .stash-draft-text,
 .queue-message-text {
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;

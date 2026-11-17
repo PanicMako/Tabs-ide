@@ -11,6 +11,12 @@ export interface CompanionSurface {
   selectedPath?: string | undefined;
   draftContents?: string | undefined;
   viewportWidth?: number;
+  /** Device tabs: the simulator or emulator this tab watches. */
+  hostId?: string;
+  deviceId?: string;
+  platform?: "ios" | "android";
+  /** Side chat tabs: the hidden fork this tab shows. */
+  sideChatThreadId?: string;
 }
 export interface CompanionWorkspace {
   tabs: CompanionSurface[];
@@ -39,7 +45,9 @@ export const useCompanionSurfaceStore = create<CompanionSurfaceState>()(
       open: (scope, kind, initial) => {
         const workspace = get().workspaces[scope] ?? EMPTY_COMPANION_WORKSPACE;
         const existing =
-          kind === "browser" ? null : workspace.tabs.find((tab) => tab.kind === kind);
+          kind === "browser" || kind === "device" || kind === "sidechat"
+            ? null
+            : workspace.tabs.find((tab) => tab.kind === kind);
         const id = existing?.id ?? crypto.randomUUID();
         set((state) => ({
           workspaces: {

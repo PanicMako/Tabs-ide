@@ -31,3 +31,25 @@ it("closing selects a neighbor without changing another thread or losing a file 
   store.getState().close("a", c);
   expect(store.getState().workspaces.a).toEqual({ tabs: [], activeId: null });
 });
+it("opens a new tab for every device, and keeps each device's identity", () => {
+  const a = store.getState().open("t", "device");
+  const b = store.getState().open("t", "device");
+  expect(a).not.toBe(b);
+  store.getState().update("t", a, { deviceId: "SIM-1", platform: "ios", title: "My phone" });
+  const tabs = store.getState().workspaces.t?.tabs;
+  expect(tabs?.map((tab) => tab.deviceId)).toEqual(["SIM-1", undefined]);
+  expect(tabs?.[0]?.title).toBe("My phone");
+});
+it("opens one tab per side chat and keeps each one's thread", () => {
+  const first = store.getState().open("p", "sidechat", { sideChatThreadId: "side-1" });
+  const second = store.getState().open("p", "sidechat", { sideChatThreadId: "side-2" });
+  expect(first).not.toBe(second);
+  expect(store.getState().workspaces.p?.tabs.map((tab) => tab.sideChatThreadId)).toEqual([
+    "side-1",
+    "side-2",
+  ]);
+  store.getState().close("p", first);
+  expect(store.getState().workspaces.p?.tabs.map((tab) => tab.sideChatThreadId)).toEqual([
+    "side-2",
+  ]);
+});
