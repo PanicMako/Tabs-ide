@@ -14,6 +14,7 @@ import type {
 } from "@tabs/contracts";
 import {
   isLiveSubagentShell,
+  isListedThreadLineage,
   isOlderSettledThreadShell,
   OrchestrationProjectShell as ProjectShellSchema,
   OrchestrationV2ThreadShell as ThreadShellSchema,
@@ -99,7 +100,7 @@ export function omitOlderSettledShells(input: {
   const nowMs = DateTime.toEpochMillis(input.now);
   const settledTimes = input.threads
     .flatMap((thread) =>
-      thread.lineage.relationshipToParent !== "subagent" &&
+      isListedThreadLineage(thread.lineage) &&
       thread.settledOverride === "settled" &&
       thread.settledAt !== null
         ? [DateTime.toEpochMillis(thread.settledAt)]
@@ -110,7 +111,9 @@ export function omitOlderSettledShells(input: {
   const beforeMs = settledTimes[NEWEST_SETTLED_KEPT - 1] ?? settledTimes.at(-1) ?? nowMs;
   const ancestorIds = new Set<string>();
   for (const thread of input.threads) {
-    if (thread.lineage.relationshipToParent !== "subagent") continue;
+    if (thread.lineage.relationshipToParent !== "subagent" && thread.lineage.sideChat !== true) {
+      continue;
+    }
     if (thread.lineage.parentThreadId !== null) ancestorIds.add(thread.lineage.parentThreadId);
     if (thread.lineage.rootThreadId !== null) ancestorIds.add(thread.lineage.rootThreadId);
   }
