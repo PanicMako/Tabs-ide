@@ -73,6 +73,27 @@ export function buildInitialCursorProviderSnapshot(
   });
 }
 
+/**
+ * Cursor's Auto. The SDK runs it as model id `default` (see `cursorSdkModelSelection`), and it is
+ * the one model every Cursor plan can run, including the free Hobby plan. It is always offered once
+ * Tabs holds a key, even when the catalog call fails or comes back empty, so a signed-in account is
+ * never left with nothing to pick.
+ */
+export const CURSOR_AUTO_MODEL: ServerProviderModel = {
+  slug: "auto",
+  name: "Auto",
+  isCustom: false,
+  capabilities: EMPTY_CAPABILITIES,
+};
+
+export function withCursorAutoModel(
+  models: ReadonlyArray<ServerProviderModel>,
+): ReadonlyArray<ServerProviderModel> {
+  return models.some((model) => model.slug === "auto" || model.slug === "default")
+    ? models
+    : [CURSOR_AUTO_MODEL, ...models];
+}
+
 function getCursorFallbackModels(
   cursorSettings: Pick<CursorSettings, "customModels">,
 ): ReadonlyArray<ServerProviderModel> {
@@ -231,7 +252,7 @@ export function buildCursorProviderSnapshot(input: {
     enabled: input.cursorSettings.enabled,
     checkedAt: input.checkedAt,
     models: providerModelsFromSettings(
-      input.discoveredModels ?? [],
+      withCursorAutoModel(input.discoveredModels ?? []),
       input.cursorSettings.customModels,
       EMPTY_CAPABILITIES,
     ),
@@ -297,21 +318,42 @@ export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(
       cause: catalogResult.failure.cause,
     });
     const authenticationFailure = catalogResult.failure.authenticationFailure;
+    if (authenticationFailure) {
+      return buildServerProvider({
+        presentation: CURSOR_PRESENTATION,
+        enabled: cursorSettings.enabled,
+        checkedAt,
+        models: fallbackModels,
+        probe: {
+          installed: true,
+          version: null,
+          status: "error",
+          auth: { status: "unauthenticated" },
+          message:
+            authenticationType === "browser"
+              ? "Cursor sign-in expired or was rejected. Sign in again in provider settings."
+              : "Cursor SDK authentication failed. Check CURSOR_API_KEY.",
+        },
+      });
+    }
+    // The key works but the model list did not load. Cursor rejects that list for some free
+    // accounts, so Auto stays available instead of leaving an empty picker.
     return buildServerProvider({
       presentation: CURSOR_PRESENTATION,
       enabled: cursorSettings.enabled,
       checkedAt,
-      models: fallbackModels,
+      models: providerModelsFromSettings(
+        [CURSOR_AUTO_MODEL],
+        cursorSettings.customModels,
+        EMPTY_CAPABILITIES,
+      ),
       probe: {
         installed: true,
         version: null,
-        status: "error",
-        auth: { status: authenticationFailure ? "unauthenticated" : "unknown" },
-        message: authenticationFailure
-          ? authenticationType === "browser"
-            ? "Cursor sign-in expired or was rejected. Sign in again in provider settings."
-            : "Cursor SDK authentication failed. Check CURSOR_API_KEY."
-          : "Cursor SDK catalog request failed. Check server logs for details.",
+        status: "warning",
+        auth: { status: "unknown" },
+        message:
+          "Couldn't load Cursor's model list, so only Auto is offered. On the free Hobby plan Cursor only runs Auto.",
       },
     });
   }

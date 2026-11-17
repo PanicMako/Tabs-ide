@@ -58,6 +58,7 @@ import { t3OrchestrationPromptForFirstRun } from "../../provider/T3Orchestration
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import * as IdAllocator from "../IdAllocator.ts";
 import { makeProviderFailure } from "../ProviderFailure.ts";
+import { describeCursorRunFailure } from "./cursorRunFailure.ts";
 import { turnScopedSelectionTransition } from "../ProviderSelectionTransition.ts";
 import {
   isProviderNativeImageAttachment,
@@ -190,14 +191,20 @@ export function cursorRuntimeAgentPolicy(
     typeof runtimePolicy.sandboxPolicy.type === "string"
       ? runtimePolicy.sandboxPolicy.type
       : undefined;
+  // Supervised and Auto both keep Cursor's auto-review on (Auto lets it approve routine actions
+  // itself); Auto-accept edits and Full access skip it. Matches T3 Code's mapping.
+  const autoReview =
+    runtimePolicy.approvalPolicy === undefined
+      ? runtimePolicy.runtimeMode === "approval-required" || runtimePolicy.runtimeMode === "auto"
+      : runtimePolicy.approvalPolicy !== "never";
   return {
-    autoReview:
-      runtimePolicy.approvalPolicy === undefined
-        ? runtimePolicy.runtimeMode === "approval-required"
-        : runtimePolicy.approvalPolicy !== "never",
+    autoReview,
+    // The Windows SDK has no filesystem sandbox; omit the default only when auto-review still
+    // gates execution. Explicit policies remain authoritative.
     sandboxEnabled:
       runtimePolicy.sandboxPolicy === undefined
-        ? runtimePolicy.runtimeMode !== "full-access"
+        ? runtimePolicy.runtimeMode !== "full-access" &&
+          !(process.platform === "win32" && autoReview)
         : sandboxPolicyType !== "dangerFullAccess",
   };
 }
@@ -2298,14 +2305,26 @@ export function makeCursorAdapterV2(
                       status,
                       ...(status === "failed"
                         ? {
-                            failure: makeProviderFailure({
-                              cause:
-                                transportFailure ?? (result as { readonly error?: unknown }).error,
-                              class:
-                                transportFailure === undefined
-                                  ? "provider_error"
-                                  : "transport_error",
-                            }),
+                            failure:
+                              transportFailure === undefined
+                                ? (() => {
+                                    const described = describeCursorRunFailure({
+                                      requestedModel: turnInput.modelSelection.model,
+                                      error: result.error,
+                                    });
+                                    return makeProviderFailure({
+                                      message: described.message,
+                                      code: described.code,
+                                      // Not "usage_limit": that schedules a retry at the reset
+                                      // time, and a plan restriction never clears on its own.
+                                      class: "provider_error",
+                                      retryable: false,
+                                    });
+                                  })()
+                                : makeProviderFailure({
+                                    cause: transportFailure,
+                                    class: "transport_error",
+                                  }),
                           }
                         : {}),
                     });
