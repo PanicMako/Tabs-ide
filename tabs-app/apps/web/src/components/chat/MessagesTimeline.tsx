@@ -63,6 +63,7 @@ import { MessageCopyButton } from "./MessageCopyButton";
 import { UserReadReceipt, seenUserMessageIds } from "./UserReadReceipt";
 import { computeMessageDurationStart, normalizeCompactToolLabel } from "./MessagesTimeline.logic";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
+import { useTimelineRowEntrance } from "./useTimelineRowEntrance";
 import {
   deriveDisplayedUserMessageState,
   type ParsedTerminalContextEntry,
@@ -236,6 +237,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   }, [timelineEntries, completionDividerBeforeEntryId, isWorking, activeTurnStartedAt]);
 
   const seenPromptIds = useMemo(() => seenUserMessageIds(rows), [rows]);
+  const timelineRootRef = useRef<HTMLDivElement>(null);
+  const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  useTimelineRowEntrance(timelineRootRef, rowIds);
 
   const { target: citationTarget } = useAssistantCitationTarget({
     request: citationRequest ?? null,
@@ -632,9 +636,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
   return (
     <div
+      ref={timelineRootRef}
       data-timeline-root="true"
       data-assistant-citation-viewport="true"
-      className="mx-auto w-full min-w-0 max-w-3xl overflow-x-hidden"
+      className="mx-auto w-full min-w-0 max-w-(--chat-column-width) overflow-x-hidden"
     >
       {onCiteAssistantText && citationThreadRef ? (
         <AssistantSelectionToolbar
@@ -657,7 +662,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             row.kind === "work" ? row.groupedEntries.length : undefined,
           ]}
         >
-          <div key={`timeline-row-group:${row.id}`}>
+          <div key={`timeline-row-group:${row.id}`} data-timeline-row-id={row.id}>
             <div key={`timeline-row:${row.id}`}>{renderRowContent(row)}</div>
             {changedFilesMapByIndex.get(index)?.map((msgId) => (
               <div key={`changed-files-for:${msgId}`}>{renderChangedFilesForMessage(msgId)}</div>
