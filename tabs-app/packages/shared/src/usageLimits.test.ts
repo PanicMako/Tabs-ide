@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   type LimitAccount,
   isUsageLimitsCommand,
+  limitAccountName,
   collectProviderUsageLimits,
   sameUsageLimitCommandCoverage,
   withUsageLimitsCommands,
@@ -389,6 +390,48 @@ describe("pools", () => {
     expect(accounts[0]?.limits.windows[0]?.usedPercent).toBe(55);
   });
 
+  it("lists two Antigravity instances as separate accounts", () => {
+    const antigravity = ProviderDriverKind.make("antigravity");
+    const make = (id: string, email: string | undefined, used: number) =>
+      provider({
+        driver: antigravity,
+        instanceId: ProviderInstanceId.make(id),
+        displayName: id,
+        auth: { status: "authenticated", ...(email ? { email } : {}) },
+        usageLimits: { checkedAt, windows: [{ ...window, usedPercent: used }] },
+      });
+    const input = new Map([
+      [
+        EnvironmentId.make("env-a"),
+        {
+          ...laptop,
+          serverConfig: {
+            providers: [
+              make("antigravity", "one@example.com", 10),
+              make("antigravity_work", "two@example.com", 70),
+              make("antigravity_third", undefined, 30),
+            ],
+            usageLimitSources: [],
+          },
+        },
+      ],
+    ]);
+    const accounts = collectLimitAccounts(input);
+    expect(accounts.map((account) => account.key)).toEqual([
+      "env-a:antigravity",
+      "env-a:antigravity_work",
+      "env-a:antigravity_third",
+    ]);
+    expect(accounts.map((account) => account.limits.windows[0]?.usedPercent)).toEqual([10, 70, 30]);
+    expect(accounts.map((account) => account.ordinal)).toEqual([1, 2, 3]);
+    expect(limitAccountName({ ...accounts[0]!, displayName: null }, "Antigravity")).toBe(
+      "Antigravity 1",
+    );
+    expect(limitAccountName({ ...accounts[1]!, displayName: "Antigravity 2" }, "Antigravity")).toBe(
+      "Antigravity 2",
+    );
+  });
+
   it("takes windows from a fresher hub read but credits and redeem from the native instance", () => {
     const native = provider({
       driver: claude,
@@ -749,6 +792,9 @@ describe("pools", () => {
         {
           key: "go",
           driver: claude,
+          instanceId: null,
+          ordinal: 1,
+          accountCount: 1,
           displayName: "Go",
           email: undefined,
           plan: undefined,
@@ -795,6 +841,9 @@ describe("pooled account columns", () => {
   const account = (key: string, windows: LimitAccount["limits"]["windows"]): LimitAccount => ({
     key,
     driver: ProviderDriverKind.make("claudeAgent"),
+    instanceId: null,
+    ordinal: 1,
+    accountCount: 1,
     displayName: key,
     email: undefined,
     plan: undefined,

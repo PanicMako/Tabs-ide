@@ -194,6 +194,12 @@ export interface LimitAccount {
   readonly driver: ServerProvider["driver"];
   /** The instance's configured name, which is not sensitive; null for hub accounts. */
   readonly displayName: string | null;
+  /** The native instance behind the account; null for hub accounts. */
+  readonly instanceId: string | null;
+  /** 1 for a provider's first account (its default instance), 2 for the next, and so on. */
+  readonly ordinal: number;
+  /** How many accounts this provider has in view. */
+  readonly accountCount: number;
   readonly email: string | undefined;
   readonly plan: string | undefined;
   readonly accentColor: string | undefined;
@@ -293,6 +299,9 @@ export function collectLimitAccounts(
           key: `${environmentId}:${provider.instanceId}`,
           driver: provider.driver,
           displayName: provider.displayName?.trim() || null,
+          instanceId: provider.instanceId,
+          ordinal: 1,
+          accountCount: 1,
           email: provider.auth.email,
           plan: provider.auth.label,
           accentColor: provider.accentColor,
@@ -319,6 +328,9 @@ export function collectLimitAccounts(
           key: `${source.id}:${account.id}`,
           driver: account.driver,
           displayName: account.email ? null : account.id.replace(/\.json$/i, ""),
+          instanceId: null,
+          ordinal: 1,
+          accountCount: 1,
           email: account.email,
           plan: account.plan,
           accentColor: undefined,
@@ -339,7 +351,45 @@ export function collectLimitAccounts(
       }
     }
   }
-  return [...accounts.values()];
+  return numberAccounts([...accounts.values()]);
+}
+
+/**
+ * Numbers each provider's accounts so two logins of one provider can be told
+ * apart: the default instance is 1, the rest follow in the order they appear.
+ */
+function numberAccounts(accounts: readonly LimitAccount[]): readonly LimitAccount[] {
+  const byDriver = new Map<string, LimitAccount[]>();
+  for (const account of accounts) {
+    const list = byDriver.get(account.driver) ?? [];
+    list.push(account);
+    byDriver.set(account.driver, list);
+  }
+  const numbered = new Map<LimitAccount, LimitAccount>();
+  for (const [driver, list] of byDriver) {
+    const ordered = [
+      ...list.filter((account) => account.instanceId === driver),
+      ...list.filter((account) => account.instanceId !== driver),
+    ];
+    ordered.forEach((account, index) =>
+      numbered.set(account, { ...account, ordinal: index + 1, accountCount: ordered.length }),
+    );
+  }
+  return accounts.map((account) => numbered.get(account) ?? account);
+}
+
+/**
+ * The name to show for an account: its own name, or the provider's, with a
+ * quiet number when the provider has several ("Antigravity 1", "Antigravity 2").
+ * A name that already carries a number is left alone.
+ */
+export function limitAccountName(
+  account: Pick<LimitAccount, "displayName" | "ordinal" | "accountCount">,
+  driverLabel: string,
+): string {
+  const base = account.displayName?.trim() || driverLabel;
+  if (account.accountCount < 2 || /\d/.test(base)) return base;
+  return `${base} ${account.ordinal}`;
 }
 
 /**
