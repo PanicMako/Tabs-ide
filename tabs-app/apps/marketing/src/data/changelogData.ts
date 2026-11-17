@@ -21,15 +21,35 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 185;
+export const TOTAL_TAGS_COUNT = 195;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.7.0",
+    title: "Companion surface, Antigravity provider, and robust thread orchestration",
+    date: "November 18, 2026",
+    shortDate: "Nov 18",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.7.0 introduces the companion surface with an embedded web browser and interactive omnibox, native integration for Google Antigravity with local ACP and quota telemetry, enhanced Cursor adapter v2 error reporting, thread context handoffs, local speech transcription models, and expanded workspace layout controls.",
+    highlights: [
+      "Work inside the integrated companion pane with an interactive omnibox browser, start page, multi-view diff layouts, terminal panels, and swift surface switching.",
+      "Connect Google Antigravity with automatic CLI discovery, local ACP protocol bridging, OAuth credential handling, and realtime quota telemetry.",
+      "Get clearer error diagnostics with modernized Cursor adapter v2 structured run failure reporting.",
+      "Safely capture file system checkpoints with instant rollback mechanics, thread branching, and context handoffs across sessions.",
+      "Keep prompts in persistent stash storage across restarts, queue follow-up messages while turns run, and open composer sheets.",
+      "Split agent panes with drag-and-drop handles and open auxiliary side-chat panels for parallel sub-agent workflows.",
+      "Dictate prompts with local speech transcription models, custom vocabulary dictionaries, and external speech app detection.",
+      "Filter branches quickly in the redesigned branch toolbar and review pull requests with linked conversation threads.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.3.0",
     title: "Guided workspace setup and a refreshed editor",
     date: "November 8, 2026",
     shortDate: "Nov 8",
-    isLatest: true,
     type: "feature",
     summary:
       "Start with a project and follow a hands-on tour of Tabs. The embedded editor now runs Code OSS 1.145.0 and restores Markdown editing and preview in the installed app.",

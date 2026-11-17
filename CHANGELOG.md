@@ -2,6 +2,24 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.7.0] - 2026-11-18
+
+### Companion surface, Antigravity provider, and robust thread orchestration
+
+Tabs 2.7.0 introduces the companion surface with an embedded web browser and interactive omnibox, native integration for Google Antigravity with local ACP and quota telemetry, enhanced Cursor adapter v2 error reporting, thread context handoffs, local speech transcription models, and expanded workspace layout controls.
+
+### What changed
+
+- **Companion Surface & Embedded Browser**: An integrated companion pane featuring an interactive omnibox browser, start page, multi-view diff layouts, terminal panels, and swift surface switching.
+- **Google Antigravity Provider**: Native support for Google Antigravity including automatic CLI discovery, local ACP protocol bridging, OAuth credential handling, and realtime quota telemetry.
+- **Cursor Adapter V2**: Modernized Cursor driver integration with structured run failure reporting and recovery diagnostics.
+- **Orchestration V2 Services**: File system checkpoint capture, restore safety verification, instant rollback mechanics, thread branching, and context handoffs across sessions.
+- **Composer & Prompt Stash**: Persistent prompt stashing surviving restarts, sequential message queueing during active turns, and extensible composer sheet controls.
+- **Side Chats & Multi-Agent Splits**: Drag-and-drop agent split panes and auxiliary side-chat panels for running parallel sub-agent workflows.
+- **Voice Dictation & Custom Dictionary**: Local transcription services with download management for speech models, custom dictionary vocabulary, and external speech app detection.
+- **Git & Pull Request Workflows**: Redesigned branch toolbar with search filtering, linked PR conversation threads, and integrated code review thread cards.
+- **Settings & Navigation Ergonomics**: Streamlined provider addition flow, motion duration controls, token pricing overrides, and hierarchical settings navigation with history stack.
+
 ## [v2.6.0] - 2026-11-16
 
 ### Overmind and Ultrathink banners, Ultracode toggle, and redesigned context meter
