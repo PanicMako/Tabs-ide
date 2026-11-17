@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
+import { goToSettings } from "~/lib/settingsLayerStore";
 import { useEffect, useMemo, useRef } from "react";
 
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
@@ -67,7 +68,7 @@ export function ProviderUpdateNotification() {
         onClick: () => {
           toastManager.close(id);
           activeToast.current = null;
-          void navigate({ to: "/settings" });
+          goToSettings(navigate);
         },
       },
       data: {

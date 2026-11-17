@@ -18,7 +18,7 @@ export interface InboxItem {
 type ProjectNames = ReadonlyMap<string, string>;
 
 function liveThreads(threads: readonly Thread[]): Thread[] {
-  return threads.filter((thread) => !thread.archivedAt && !thread.isSubagent);
+  return threads.filter((thread) => !thread.archivedAt && !thread.isSubagent && !thread.isSideChat);
 }
 
 function approvalSummary(kind: "command" | "file-read" | "file-change", detail?: string): string {
