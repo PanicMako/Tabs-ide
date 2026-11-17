@@ -114,6 +114,17 @@ describe("detectComposerTrigger", () => {
     });
   });
 
+  it("offers /side and /btw as slash commands while typing", () => {
+    for (const text of ["/si", "/bt"]) {
+      expect(detectComposerTrigger(text, text.length)).toEqual({
+        kind: "slash-command",
+        query: text.slice(1),
+        rangeStart: 0,
+        rangeEnd: text.length,
+      });
+    }
+  });
+
   it("detects @path trigger in the middle of existing text", () => {
     // User typed @ between "inspect " and "in this sentence"
     const text = "Please inspect @in this sentence";
