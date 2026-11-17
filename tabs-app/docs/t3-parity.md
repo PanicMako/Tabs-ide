@@ -92,3 +92,13 @@ Beyond the brief, `modelPicker.*`, `thread.editQueuedMessage`, `thread.regenerat
 
 - i18n: skipped by default (optional per brief).
 - T3 Connect, Clerk, hosted pairing, ChatGPT sharing, mobile app and T3 branding are out of scope.
+
+## Progress log
+
+| Item | Status | Files | How to check by hand |
+| --- | --- | --- | --- |
+| `rightPanel.close`, `rightPanel.new`, `rightPanel.toggleMaximized` (5.16) | done | `packages/contracts/src/keybindings.ts`, `packages/shared/src/keybindings.ts`, `apps/web/src/stores/rightPanelStore.ts` (+ test), `WorkspaceShell.tsx` | Open the right panel, press Cmd/Ctrl+Alt+M to maximize, Cmd/Ctrl+Alt+W to close, Cmd/Ctrl+Alt+N to reopen on the "Open a surface" launcher. Not run in the app. Checked by unit tests and `vp run typecheck` (16/16 pass). |
+| Other 5.16 commands (41 remain) | not started | | |
+| 5.1 to 5.15, 5.17 | not started except the Antigravity investigation above | | |
+
+`vp check`, the web and server suites and `build:desktop` have not been run for this branch.
