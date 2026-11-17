@@ -7,7 +7,14 @@ export interface GitCheckingStateProps {
   inline?: boolean;
   className?: string;
   rotateMessages?: boolean;
+  /**
+   * Stay hidden this long before appearing. Most Git reads finish well inside it, so the panel
+   * goes straight to its content instead of flashing a spinner; slow ones still show it.
+   */
+  revealDelayMs?: number;
 }
+
+export const GIT_LOADER_REVEAL_DELAY_MS = 300;
 
 const ROTATING_MESSAGES = [
   "Asking GitHub nicely if we can push…",
@@ -32,8 +39,17 @@ export function GitCheckingState({
   inline = false,
   className,
   rotateMessages = false,
+  revealDelayMs = GIT_LOADER_REVEAL_DELAY_MS,
 }: GitCheckingStateProps) {
   const [index, setIndex] = useState(0);
+  const [revealed, setRevealed] = useState(revealDelayMs <= 0);
+
+  useEffect(() => {
+    if (revealDelayMs <= 0) return;
+    const timer = window.setTimeout(() => setRevealed(true), revealDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [revealDelayMs]);
+  const revealClass = `transition-opacity duration-200 ${revealed ? "opacity-100" : "opacity-0"}`;
 
   useEffect(() => {
     if (!rotateMessages) return;
@@ -48,7 +64,8 @@ export function GitCheckingState({
   if (inline) {
     return (
       <div
-        className={`flex items-center gap-2.5 text-xs text-muted-foreground/70 ${className ?? ""}`}
+        aria-hidden={revealed ? undefined : true}
+        className={`flex items-center gap-2.5 text-xs text-muted-foreground/70 ${revealClass} ${className ?? ""}`}
       >
         <MercuryChromeLoader size={size} color="var(--primary)" />
         <span className="transition-all duration-300">{displayMessage}</span>
@@ -58,7 +75,8 @@ export function GitCheckingState({
 
   return (
     <div
-      className={`flex flex-col items-center justify-center p-8 gap-4 text-center ${className ?? ""}`}
+      aria-hidden={revealed ? undefined : true}
+      className={`flex flex-col items-center justify-center p-8 gap-4 text-center ${revealClass} ${className ?? ""}`}
     >
       <MercuryChromeLoader size={size} color="var(--primary)" />
       <span className="text-xs text-muted-foreground/70 font-medium transition-all duration-300 min-h-[20px] flex items-center justify-center">

@@ -5,7 +5,6 @@ import type { GitEnvironmentResult } from "@tabs/contracts";
 import { isWindowsPlatform } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
-import { GitCheckingState } from "./GitCheckingState";
 
 const GIT_DOWNLOAD_URL = "https://git-scm.com/downloads";
 
@@ -112,12 +111,17 @@ export function GitEnvironmentGate(props: {
     );
   }
 
-  // Block only while core data is resolving, unless the user explicitly opted
-  // into displaying the complete loading animation.
+  // While Git's environment and branches resolve (once per session; they are cached after),
+  // show only a thin slider along the top. A full spinner here only flashed before the content.
   if (!isDataReady) {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center p-12 text-center">
-        <GitCheckingState rotateMessages size={56} />
+      <div
+        className="relative h-full min-h-0"
+        role="status"
+        aria-busy="true"
+        aria-label="Loading Git"
+      >
+        <div className="git-loading-slider" aria-hidden="true" />
       </div>
     );
   }

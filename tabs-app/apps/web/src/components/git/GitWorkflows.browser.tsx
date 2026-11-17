@@ -277,7 +277,7 @@ describe("Git workflow interaction states", () => {
     expect(listPullRequests).toHaveBeenCalledWith({
       cwd: "/workspace",
       state: "merged",
-      limit: 50,
+      limit: 20,
     });
   });
 
@@ -333,7 +333,7 @@ describe("Git workflow interaction states", () => {
       expect(listPullRequests).toHaveBeenCalledWith({
         cwd: "/workspace",
         state: "all",
-        limit: 50,
+        limit: 20,
         query: 'fix "auth"',
       }),
     );

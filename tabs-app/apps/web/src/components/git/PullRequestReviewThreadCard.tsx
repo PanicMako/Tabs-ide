@@ -97,7 +97,7 @@ export function PullRequestReviewThreadCard({
 
   return (
     <article
-      className={`my-1.5 overflow-hidden rounded-lg border text-xs shadow-sm transition-all ${
+      className={`my-1.5 overflow-hidden rounded-lg border text-xs shadow-sm transition ${
         isResolved
           ? "border-border/50 bg-muted/20 opacity-90"
           : "border-primary/30 bg-background/95 ring-1 ring-primary/10"
