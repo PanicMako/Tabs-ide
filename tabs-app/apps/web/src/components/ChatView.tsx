@@ -3539,6 +3539,14 @@ export default function ChatView({
         return;
       }
 
+      if (command === "composer.mode") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        toggleInteractionMode();
+        return;
+      }
+
       if (command === "composer.stash") {
         event.preventDefault();
         event.stopPropagation();
@@ -3673,6 +3681,7 @@ export default function ChatView({
     keybindings,
     onToggleDiff,
     stashCurrentPrompt,
+    toggleInteractionMode,
     toggleTerminalVisibility,
     isServerThread,
     isActivePane,
