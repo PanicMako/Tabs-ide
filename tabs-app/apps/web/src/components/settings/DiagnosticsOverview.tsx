@@ -64,7 +64,7 @@ export function DiagnosticsOverview({
               size="xs"
               variant="outline"
               onClick={onQuickCheck}
-              className="h-6.5 px-2.5 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
+              className="h-6.5 px-2.5 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition font-medium"
             >
               <ActivityIcon className="mr-1.5 size-3 text-primary" aria-hidden="true" />
               Quick check

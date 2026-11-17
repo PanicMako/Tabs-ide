@@ -182,7 +182,7 @@ function StatBlock({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-3.5 shadow-xs/5 transition-all duration-200 hover:border-border hover:shadow-xs",
+        "relative overflow-hidden rounded-2xl border border-border/60 bg-card/85 p-3.5 shadow-xs/5 transition duration-200 hover:border-border hover:shadow-xs",
         "before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
       )}
     >
@@ -450,7 +450,7 @@ function ProcessSignalActions({
             <button
               type="button"
               disabled={isSignaling}
-              className="cursor-pointer rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground/80 hover:border-border hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 active:scale-95 transition-all"
+              className="cursor-pointer rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground/80 hover:border-border hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 active:scale-95 transition"
               onClick={() => onSignal(process.pid, "SIGINT")}
             >
               INT
@@ -465,7 +465,7 @@ function ProcessSignalActions({
             <button
               type="button"
               disabled={isSignaling}
-              className="cursor-pointer rounded border border-destructive/25 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive hover:border-destructive/40 hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50 active:scale-95 transition-all"
+              className="cursor-pointer rounded border border-destructive/25 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-destructive hover:border-destructive/40 hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50 active:scale-95 transition"
               onClick={() => onSignal(process.pid, "SIGKILL")}
             >
               KILL
@@ -1090,7 +1090,7 @@ export function DiagnosticsSettings() {
                 size="xs"
                 variant="outline"
                 onClick={handleQuickResourceCheck}
-                className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
+                className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition font-medium"
               >
                 <ActivityIcon className="mr-1 size-3" aria-hidden="true" />
                 Quick check
@@ -1217,7 +1217,7 @@ export function DiagnosticsSettings() {
                 aria-label="Diagnostics navigation tabs"
                 orbitKind="spotlight"
                 className="diagnostics-navigation"
-                itemClassName="rounded-xl px-3.5 py-1.5 text-xs transition-all font-medium"
+                itemClassName="rounded-xl px-3.5 py-1.5 text-xs transition font-medium"
               />
             </div>
           </div>
@@ -1226,7 +1226,7 @@ export function DiagnosticsSettings() {
         {resourceAssessment ? (
           <div
             className={cn(
-              "rounded-xl border p-4 shadow-sm transition-all",
+              "rounded-xl border p-4 shadow-sm transition",
               resourceAssessment.status === "healthy"
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
                 : resourceAssessment.status === "warning"

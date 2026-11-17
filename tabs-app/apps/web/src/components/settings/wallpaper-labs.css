@@ -105,43 +105,32 @@
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
 }
 
-/* Chat Header (Dark & Light) — seamless match with agents sidebar */
-.agents-tab,
-.chat-workspace-root {
+/* Agents chat header — a seamless match with the Agents sidebar.
+ * Everything here is scoped to the Agents chat area. These rules used to be global, so they
+ * repainted every <header> in the app and the Code tab's side chat too. */
+[data-wallpaper-shell="chat-area"] .chat-workspace-root {
   background-color: color-mix(in srgb, var(--card) 30%, transparent) !important;
 }
 
-header {
+[data-wallpaper-shell="chat-area"] .chat-workspace-root > header {
   background-color: transparent !important;
   border-bottom: none !important;
 }
 
-.agents-tab {
-  border-right: none !important;
-}
-
-.chat-workspace-body {
-  border-top-left-radius: 20px !important;
+/* Without a wallpaper the body is a plain sheet with one rounded corner under the header. */
+[data-wallpaper-shell="chat-area"]:not(:has([data-agent-wallpaper="active"])) .chat-workspace-body {
+  border-top-left-radius: var(--radius-tile) !important;
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
   border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
   background-color: var(--background) !important;
 }
 
-.chat-workspace-body {
-  border-top-left-radius: 20px !important;
-  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
-  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
-  background-color: var(--background) !important;
-}
-
+/* Over a wallpaper the body must NOT round or clip. It is overflow-hidden and holds every glass
+ * sheet, and a rounded clip there forces each backdrop-filter into a masked render surface. In
+ * Electron that blanked bubble text and made the chat flicker on cursor move and sidebar
+ * toggles. The rounded corner lives on the single wallpaper backdrop layer instead. */
 [data-agent-wallpaper="active"] .chat-workspace-body {
-  border-top-left-radius: 20px !important;
-  border: none !important;
-  background-color: transparent !important;
-}
-
-[data-agent-wallpaper="active"] .chat-workspace-body {
-  border-top-left-radius: 20px !important;
+  border-radius: 0 !important;
   border: none !important;
   background-color: transparent !important;
 }
@@ -161,22 +150,12 @@ header {
 
 /* ── LIGHT MODE WALLPAPER AESTHETICS (Matching Reference from X) ───────── */
 
-/* Scope wallpaper background layers to below the header with rounded corner */
-[data-agent-wallpaper="active"] > div.pointer-events-none.absolute {
-  top: 52px;
-  border-top-left-radius: 20px;
+/* The wallpaper starts below the chat header with one rounded corner. Every layer (image, scrim,
+ * print, veil) lives in this one backdrop, so there is a single clip rather than one per layer. */
+.agent-wallpaper-backdrop {
+  top: 48px;
+  border-top-left-radius: var(--radius-tile);
   overflow: hidden;
-}
-
-[data-agent-wallpaper="active"] .chat-workspace-root {
-  background-color: color-mix(in srgb, var(--card) 30%, transparent) !important;
-}
-
-[data-agent-wallpaper="active"] .chat-workspace-body {
-  border-top-left-radius: 20px !important;
-  border: none !important;
-  border-top: none !important;
-  border-left: none !important;
 }
 
 /* Work logs and tool calls (Light) */

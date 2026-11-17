@@ -921,7 +921,7 @@ export function DocumentationSettings({
                 <div
                   key={topic.id}
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border border-zinc-200/90 dark:border-border/60 bg-card transition-all duration-200 shadow-2xs",
+                    "group relative overflow-hidden rounded-2xl border border-zinc-200/90 dark:border-border/60 bg-card transition duration-200 shadow-2xs",
                     "hover:border-zinc-300 dark:hover:border-border/80 hover:shadow-xs",
                     isExpanded && "border-zinc-300 dark:border-border/80 shadow-xs",
                   )}
