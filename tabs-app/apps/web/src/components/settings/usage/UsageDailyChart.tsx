@@ -383,7 +383,7 @@ export function UsageDailyChart({
               <path
                 d={areaPath}
                 fill="url(#usageAreaGradient)"
-                className="transition-all duration-300"
+                className="transition duration-300"
               />
             ) : null}
 
@@ -396,7 +396,7 @@ export function UsageDailyChart({
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="transition-all duration-300"
+                className="transition duration-300"
               />
             ) : null}
 

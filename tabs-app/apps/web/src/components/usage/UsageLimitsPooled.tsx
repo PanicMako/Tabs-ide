@@ -1,5 +1,6 @@
 import {
   collectLimitAccounts,
+  limitAccountName,
   collectLimitNotices,
   collectLimitPools,
   formatDuration,
@@ -100,19 +101,21 @@ function AccountName({
   readonly account: LimitAccount;
   readonly className?: string;
 }) {
-  if (account.displayName) return <span className={className}>{account.displayName}</span>;
+  const driverLabel = getDriverOption(account.driver)?.label ?? String(account.driver);
+  if (account.displayName) {
+    return <span className={className}>{limitAccountName(account, driverLabel)}</span>;
+  }
   if (account.email) {
     return (
-      <span className={cn("inline-flex min-w-0 items-center", className)}>
+      <span className={cn("inline-flex min-w-0 items-center gap-1", className)}>
         <AccountChip email={account.email} />
+        {account.accountCount > 1 ? (
+          <span className="text-[10px] font-normal text-muted-foreground">{account.ordinal}</span>
+        ) : null}
       </span>
     );
   }
-  return (
-    <span className={className}>
-      {getDriverOption(account.driver)?.label ?? String(account.driver)}
-    </span>
-  );
+  return <span className={className}>{limitAccountName(account, driverLabel)}</span>;
 }
 
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {
@@ -160,7 +163,7 @@ function SegmentPopover({
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
           <AccountAvatar account={account} />
           <span className="truncate">
-            {account.displayName ?? getDriverOption(account.driver)?.label ?? account.driver}
+            {limitAccountName(account, getDriverOption(account.driver)?.label ?? account.driver)}
           </span>
         </span>
         {account.email ? (
@@ -244,7 +247,7 @@ function PoolSegment({
           <button
             type="button"
             style={{ gridColumn: index, gridRow: 1 }}
-            aria-label={`${account.displayName ?? (account.email ? accountInitials(account.email) : account.driver)}: ${remaining}% left${resetsIn ? `, ${resetsIn}` : ""}${credits ? `, ${credits} reset ${credits === 1 ? "credit" : "credits"} banked` : ""}`}
+            aria-label={`${account.displayName ? limitAccountName(account, String(account.driver)) : account.email ? `${accountInitials(account.email)}${account.accountCount > 1 ? ` ${account.ordinal}` : ""}` : limitAccountName(account, String(account.driver))}: ${remaining}% left${resetsIn ? `, ${resetsIn}` : ""}${credits ? `, ${credits} reset ${credits === 1 ? "credit" : "credits"} banked` : ""}`}
             className="relative h-5 min-w-0 cursor-pointer overflow-hidden rounded-md bg-muted text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[popup-open]:ring-1 data-[popup-open]:ring-border @2xl/pool:h-8"
           />
         }
@@ -559,7 +562,7 @@ export function UsageLimitsPooled({
 }
 
 /** Sources and providers that could not be read, so a missing bar is not mistaken for a full one. */
-function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
+export function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
   if (notices.length === 0) return null;
   return (
     <ul className="flex flex-col gap-1 text-xs text-muted-foreground">

@@ -13,6 +13,19 @@ export function LimitsTab({ subTabControl }: { subTabControl?: ReactNode } = {})
   const reported = snapshots.filter((snapshot) => snapshot.status === "ok");
   const unavailable = snapshots.filter((snapshot) => snapshot.status !== "ok");
 
+  // Count snapshots per provider driver so we can label "Antigravity 1" / "Antigravity 2" etc.
+  const providerCounts = new Map<string, number>();
+  for (const snapshot of snapshots) {
+    providerCounts.set(snapshot.provider, (providerCounts.get(snapshot.provider) ?? 0) + 1);
+  }
+  // Assign ordinals in render order (1-based, per driver).
+  const ordinalCounters = new Map<string, number>();
+  const nextOrdinal = (provider: string): number => {
+    const n = (ordinalCounters.get(provider) ?? 0) + 1;
+    ordinalCounters.set(provider, n);
+    return n;
+  };
+
   return (
     <div className="usage-dashboard">
       {subTabControl ? <div className="usage-toolbar">{subTabControl}</div> : null}
@@ -33,7 +46,12 @@ export function LimitsTab({ subTabControl }: { subTabControl?: ReactNode } = {})
       ) : reported.length > 0 ? (
         <div className="usage-quota-grid">
           {reported.map((snapshot) => (
-            <ProviderQuotaCard key={snapshot.provider} snapshot={snapshot} />
+            <ProviderQuotaCard
+              key={snapshot.providerInstanceId ?? snapshot.provider}
+              snapshot={snapshot}
+              accountOrdinal={nextOrdinal(snapshot.provider)}
+              accountCount={providerCounts.get(snapshot.provider)}
+            />
           ))}
         </div>
       ) : (
@@ -57,7 +75,12 @@ export function LimitsTab({ subTabControl }: { subTabControl?: ReactNode } = {})
           </summary>
           <div className="usage-quota-grid">
             {unavailable.map((snapshot) => (
-              <ProviderQuotaCard key={snapshot.provider} snapshot={snapshot} />
+              <ProviderQuotaCard
+                key={snapshot.providerInstanceId ?? snapshot.provider}
+                snapshot={snapshot}
+                accountOrdinal={nextOrdinal(snapshot.provider)}
+                accountCount={providerCounts.get(snapshot.provider)}
+              />
             ))}
           </div>
         </details>

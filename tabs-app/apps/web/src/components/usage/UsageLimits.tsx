@@ -33,7 +33,8 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { UsageLimitsCompact, UsageLimitsPooled } from "./UsageLimitsPooled";
+import { UsageLimitsPooled } from "./UsageLimitsPooled";
+import { UsageLimitsCompact } from "./UsageLimitsPager";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
 
 const PACE: Record<LimitPace, { readonly label: string; readonly icon: typeof GaugeIcon }> = {
@@ -328,10 +329,15 @@ export function ResetCredits({
 export function UsageLimitsSection({
   selectedEnvironmentIds,
   compact = false,
+  pinnedDrivers,
+  onTogglePinned,
 }: {
   readonly selectedEnvironmentIds?: ReadonlySet<EnvironmentId> | null;
   /** Stacked rows for a narrow card instead of the full-page layout. */
   readonly compact?: boolean;
+  /** Compact only: the pinned providers, and how to pin or unpin one. */
+  readonly pinnedDrivers?: readonly string[];
+  readonly onTogglePinned?: (driver: string) => void;
 } = {}) {
   const serverConfig = useServerConfig();
   // Anchored once per mount on purpose: countdowns must not tick (see above).
@@ -361,7 +367,12 @@ export function UsageLimitsSection({
   }, [serverConfig, selectedEnvironmentIds]);
 
   return compact ? (
-    <UsageLimitsCompact presentations={presentations} now={now} />
+    <UsageLimitsCompact
+      presentations={presentations}
+      now={now}
+      pinnedDrivers={pinnedDrivers}
+      onTogglePinned={onTogglePinned}
+    />
   ) : (
     <UsageLimitsPooled presentations={presentations} now={now} />
   );
