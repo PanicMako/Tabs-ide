@@ -35,3 +35,22 @@ describe("curateModels", () => {
     expect(curateModels(short, () => false)).toEqual({ shown: short, hidden: 0 });
   });
 });
+
+describe("curateModels shortlist limit", () => {
+  it("keeps the first few newest models and always the selected one", () => {
+    const models = Array.from({ length: 12 }, (_, index) => ({
+      slug: `family-${index}-1`,
+      name: `Family${String.fromCharCode(65 + index)} 1`,
+    }));
+    const { shown, hidden } = curateModels(models, (model) => model.slug === "family-11-1", 5);
+    expect(shown.map((model) => model.slug)).toEqual([
+      "family-0-1",
+      "family-1-1",
+      "family-2-1",
+      "family-3-1",
+      "family-4-1",
+      "family-11-1",
+    ]);
+    expect(hidden).toBe(6);
+  });
+});
