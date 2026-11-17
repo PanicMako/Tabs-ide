@@ -77,7 +77,7 @@ import {
 import { CheckpointServiceV2 } from "./CheckpointService.ts";
 import { CommandPolicyV2, resolveMessageDispatchIntent } from "./CommandPolicy.ts";
 import { CommandReceiptStoreV2 } from "./CommandReceiptStore.ts";
-import { ContextHandoffServiceV2 } from "./ContextHandoffService.ts";
+import { ContextHandoffServiceV2, isSideChatContextHandoff } from "./ContextHandoffService.ts";
 import { notificationTurnItem } from "./Notification.ts";
 import { isRestartNoteSource } from "./RestartBackgroundNote.ts";
 import { isUndeliveredMailboxSteer } from "./NotificationMailbox.ts";
@@ -123,7 +123,7 @@ import {
   isForkableSourceRunStatus,
   ThreadForkServiceV2,
 } from "./ThreadForkService.ts";
-import { planThreadDeletion } from "./ThreadDeletion.ts";
+import { planThreadDeletion, type ThreadDeletionPlan } from "./ThreadDeletion.ts";
 
 export class OrchestratorDispatchError extends Schema.TaggedError<OrchestratorDispatchError>()(
   "OrchestratorDispatchError",
@@ -3464,21 +3464,26 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
     const sourceRun = runForSourcePoint(sourceProjection, command.sourcePoint);
 
-    if (sourceRun === null) {
+    // A side chat may open before the parent's first turn finishes; it starts from a digest.
+    if (
+      sourceRun === null &&
+      !(command.sideChat === true && command.sourcePoint.type === "latest_stable")
+    ) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
         cause: `No stable source run was found for fork source ${command.sourcePoint.type}.`,
       });
     }
-    if (!isForkableSourceRunStatus(sourceRun.status)) {
+    if (sourceRun !== null && !isForkableSourceRunStatus(sourceRun.status)) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
         cause: forkableSourceRunStatusError(sourceRun),
       });
     }
-    const sourceProviderThread = providerThreadForRun(sourceProjection, sourceRun);
+    const sourceProviderThread =
+      sourceRun === null ? undefined : providerThreadForRun(sourceProjection, sourceRun);
     const now = command.createdAt ?? (yield* DateTime.now);
     const emitEvent = emit(events, command);
     const transferId = yield* mapDispatchError(command)(
@@ -3493,10 +3498,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         sourceProjection,
         sourceRun,
         sourceProviderThread,
-        canonicalSourcePoint: contextSourcePointForRun(sourceProjection, sourceRun),
+        canonicalSourcePoint:
+          sourceRun === null
+            ? { threadId: sourceProjection.thread.id }
+            : contextSourcePointForRun(sourceProjection, sourceRun),
         transferId,
         targetThreadId: command.targetThreadId,
         ...(command.title === undefined ? {} : { title: command.title }),
+        ...(command.sideChat ? { sideChat: true } : {}),
         createdBy: command.createdBy ?? "user",
         creationSource: command.creationSource ?? "web",
         createdAt: now,
@@ -3510,13 +3519,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       occurredAt: now,
       payload: targetThread,
     });
-    yield* emitEvent({
-      type: "context-transfer.created",
-      threadId: command.targetThreadId,
-      providerInstanceId: sourceRun.providerInstanceId,
-      occurredAt: now,
-      payload: transfer,
-    });
+    if (transfer !== null) {
+      yield* emitEvent({
+        type: "context-transfer.created",
+        threadId: command.targetThreadId,
+        providerInstanceId: transfer.sourceProviderInstanceId ?? targetThread.providerInstanceId,
+        occurredAt: now,
+        payload: transfer,
+      });
+    }
   });
 
   const dispatchThreadMergeBack = Effect.fn("orchestrationV2.dispatch.threadMergeBack")(function* (
@@ -6250,6 +6261,63 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           occurredAt: now,
           payload: mergeBackHandoff,
         });
+      }
+      // A side chat's first turn carries what the main thread did since the fork point.
+      const sideChatParentId =
+        projection.thread.lineage.sideChat === true
+          ? projection.thread.lineage.parentThreadId
+          : null;
+      if (sideChatParentId !== null && !projection.contextHandoffs.some(isSideChatContextHandoff)) {
+        const parentProjection = yield* projectionStore
+          .getThreadRecords(sideChatParentId, ["runs"])
+          .pipe(
+            Effect.catchTags({
+              ProjectionStoreThreadNotFoundError: () => Effect.succeed(null),
+            }),
+            Effect.mapError(
+              (cause) => new OrchestratorProjectionError({ threadId: sideChatParentId, cause }),
+            ),
+          );
+        if (parentProjection !== null) {
+          const forkedRunId =
+            projection.thread.forkedFrom?.type === "run"
+              ? projection.thread.forkedFrom.runId
+              : null;
+          const forkOrdinal =
+            parentProjection.runs.find((candidate) => candidate.id === forkedRunId)?.ordinal ?? 0;
+          // Queued messages have not reached the main thread yet.
+          const parentRunsAfterFork = parentProjection.runs.filter(
+            (candidate) => candidate.ordinal > forkOrdinal && candidate.status !== "queued",
+          );
+          const parentItems =
+            parentRunsAfterFork.length === 0
+              ? []
+              : yield* readHandoffItems(
+                  sideChatParentId,
+                  parentRunsAfterFork.map((candidate) => candidate.id),
+                );
+          const sideChatHandoff = yield* contextHandoffService
+            .prepareSideChatContext({
+              threadId: command.threadId,
+              parentThreadId: sideChatParentId,
+              targetRunId: runId,
+              transferId: pendingForkTransfer?.id ?? null,
+              toProviderThreadId: ensuredProviderThread.id,
+              toProviderInstanceId: modelSelection.instanceId,
+              coveredRunOrdinals: visibleDeltaRunOrdinals(parentProjection, parentItems),
+              parentItems,
+              createdAt: now,
+            })
+            .pipe(mapDispatchError(command));
+          yield* emitEvent({
+            type: "context-handoff.updated",
+            threadId: command.threadId,
+            runId,
+            providerInstanceId: modelSelection.instanceId,
+            occurredAt: now,
+            payload: sideChatHandoff,
+          });
+        }
       }
       for (const supersededTransfer of supersededMergeBackTransfers) {
         yield* emitEvent({
@@ -9929,31 +9997,46 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         break;
       }
       case "thread.delete": {
-        const projection = yield* projectionStore
-          .getThreadRecords(command.threadId, [
-            "runs",
-            "attempts",
-            "nodes",
-            "runtimeRequests",
-            "subagents",
-            "providerSessions",
-          ])
-          .pipe(
-            Effect.mapError(
-              (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
+        // Side chats live inside their parent, so one commit deletes them with it.
+        const sideChatIds = yield* liveSideChatIds(command.threadId);
+        const now = yield* DateTime.now;
+        const plans: Array<ThreadDeletionPlan> = [];
+        for (const threadId of [...sideChatIds, command.threadId]) {
+          const projection = yield* projectionStore
+            .getThreadRecords(threadId, [
+              "runs",
+              "attempts",
+              "nodes",
+              "runtimeRequests",
+              "subagents",
+              "providerSessions",
+            ])
+            .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+          plans.push(
+            yield* mapDispatchError(command)(
+              planThreadDeletion({
+                command:
+                  threadId === command.threadId
+                    ? command
+                    : {
+                        ...command,
+                        commandId: CommandId.make(`${command.commandId}:side-chat:${threadId}`),
+                        threadId,
+                      },
+                projection,
+                attachmentIds: yield* projectionStore
+                  .getThreadAttachmentIds(threadId)
+                  .pipe(mapDispatchError(command)),
+                now,
+                idAllocator,
+              }),
             ),
           );
-        return yield* mapDispatchError(command)(
-          planThreadDeletion({
-            command,
-            projection,
-            attachmentIds: yield* projectionStore
-              .getThreadAttachmentIds(command.threadId)
-              .pipe(mapDispatchError(command)),
-            now: yield* DateTime.now,
-            idAllocator,
-          }),
-        );
+        }
+        return {
+          events: plans.flatMap((plan) => plan.events),
+          effects: plans.flatMap((plan) => plan.effects),
+        };
       }
       case "thread.archive":
       case "thread.unarchive":
@@ -10348,8 +10431,40 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     } satisfies OrchestratorV2DispatchResult;
   });
 
+  /** Side chats live inside their parent, so deleting the parent deletes them too. */
+  const liveSideChatIds = Effect.fn("Orchestrator.liveSideChatIds")(
+    function* (threadId: ThreadId) {
+      // Found by lineage: a side chat opened before its parent's first run has no fork transfer.
+      const shell = yield* projectionStore.getShellSnapshot();
+      return [...shell.threads, ...shell.archivedThreads]
+        .filter(
+          (candidate) =>
+            candidate.lineage.sideChat === true &&
+            candidate.lineage.parentThreadId === threadId &&
+            candidate.deletedAt == null,
+        )
+        .map((candidate) => candidate.id);
+    },
+    (effect, threadId) =>
+      effect.pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause }))),
+  );
+
   const dispatchWithReceipt = (command: OrchestrationV2ServerCommand) =>
-    threadDispatch.withLock(commandThreadId(command), dispatchWithReceiptEffect(command));
+    command.type === "thread.delete"
+      ? // The parent's lock comes first, then each side chat's, so the one commit that deletes
+        // them all cannot race a message to a side chat.
+        threadDispatch.withLock(
+          command.threadId,
+          liveSideChatIds(command.threadId).pipe(
+            Effect.flatMap((sideChatIds) =>
+              sideChatIds.reduce(
+                (locked, sideChatId) => threadDispatch.withLock(sideChatId, locked),
+                dispatchWithReceiptEffect(command),
+              ),
+            ),
+          ),
+        )
+      : threadDispatch.withLock(commandThreadId(command), dispatchWithReceiptEffect(command));
 
   const handleTerminalRun = (stored: OrchestrationV2StoredEvent) =>
     Effect.gen(function* () {

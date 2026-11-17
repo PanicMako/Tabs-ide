@@ -551,7 +551,10 @@ it.effect("rechecks run ownership immediately before calling the provider", () =
 
     yield* runExecution.startRootRun({
       commandId: CommandId.make("command:run-execution-start-guard"),
-      appThread: { id: threadId } as OrchestrationV2AppThread,
+      appThread: {
+        id: threadId,
+        lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      } as OrchestrationV2AppThread,
       providerSessionId,
       session,
       run,
@@ -623,7 +626,10 @@ it.effect("fails the run when its ownership check cannot be read before calling 
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make("command:run-execution-start-guard-read"),
-        appThread: { id: threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: threadId,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+        } as OrchestrationV2AppThread,
         providerSessionId: ProviderSessionId.make("session:run-execution-start-guard-read"),
         session: {
           events: Stream.never,
@@ -721,7 +727,10 @@ it.effect(
         const attemptId = RunAttemptId.make(`attempt:compact-routing:${index}`);
         yield* runExecution.startRootRun({
           commandId: CommandId.make(`command:compact-routing:${index}`),
-          appThread: { id: threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: threadId,
+            lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make(`session:compact-routing:${index}`),
           session: {
             events: Stream.never,
@@ -795,7 +804,10 @@ it.effect("refreshes MCP credential liveness before calling the provider", () =>
     yield* runExecution
       .startRootRun({
         commandId: CommandId.make("command:run-execution-mcp-liveness"),
-        appThread: { id: threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: threadId,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+        } as OrchestrationV2AppThread,
         providerSessionId: ProviderSessionId.make("session:run-execution-mcp-liveness"),
         session: {
           events: Stream.never,
@@ -906,7 +918,10 @@ it.effect("starts the provider when checkpoint baseline capture fails", () =>
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make("command:run-execution-baseline-failure"),
-        appThread: { id: threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: threadId,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+        } as OrchestrationV2AppThread,
         providerSessionId,
         session: {
           events: Stream.never,
@@ -1042,7 +1057,10 @@ it.effect.each(["failure", "interruption", "stale-attempt", "start-guard"] as co
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make("command:run-execution-settings-failure"),
-          appThread: { id: threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: threadId,
+            lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+          } as OrchestrationV2AppThread,
           providerSessionId,
           session: {
             events: Stream.never,
@@ -1291,7 +1309,10 @@ it.effect("keeps ingesting owned child events after the root turn terminalizes",
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make("command:run-execution-late-child"),
-        appThread: { id: threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: threadId,
+          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+        } as OrchestrationV2AppThread,
         providerSessionId,
         session: {
           events: Stream.fromIterable(events),
@@ -1671,7 +1692,14 @@ it.effect(
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make(`command:${key}`),
-          appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: ids.threadId,
+            lineage: {
+              parentThreadId: null,
+              relationshipToParent: null,
+              rootThreadId: ids.threadId,
+            },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make(`session:${key}`),
           session: {
             events: Stream.empty,
@@ -1888,7 +1916,14 @@ it.effect("drops late root provider-thread writes from a superseded attempt", ()
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make(`command:${key}`),
-        appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: ids.threadId,
+          lineage: {
+            parentThreadId: null,
+            relationshipToParent: null,
+            rootThreadId: ids.threadId,
+          },
+        } as OrchestrationV2AppThread,
         providerSessionId: ProviderSessionId.make(`session:${key}`),
         session: {
           events: Stream.empty,
@@ -2080,7 +2115,14 @@ it.effect(
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make(`command:${key}`),
-          appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: ids.threadId,
+            lineage: {
+              parentThreadId: null,
+              relationshipToParent: null,
+              rootThreadId: ids.threadId,
+            },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make(`session:${key}`),
           session: {
             events: Stream.empty,
@@ -2240,7 +2282,14 @@ it.effect(
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make(`command:${key}`),
-          appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: ids.threadId,
+            lineage: {
+              parentThreadId: null,
+              relationshipToParent: null,
+              rootThreadId: ids.threadId,
+            },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make(`session:${key}`),
           session: {
             events: Stream.empty,
@@ -2424,7 +2473,14 @@ it.effect(
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make("command:subagent-interrupt-cascade"),
-          appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: ids.threadId,
+            lineage: {
+              parentThreadId: null,
+              relationshipToParent: null,
+              rootThreadId: ids.threadId,
+            },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make("session:subagent-interrupt-cascade"),
           session: {
             events: Stream.empty,
@@ -2778,7 +2834,14 @@ it.effect(
         const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
         yield* runExecution.startRootRun({
           commandId: CommandId.make("command:subagent-link-survives-terminal"),
-          appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+          appThread: {
+            id: ids.threadId,
+            lineage: {
+              parentThreadId: null,
+              relationshipToParent: null,
+              rootThreadId: ids.threadId,
+            },
+          } as OrchestrationV2AppThread,
           providerSessionId: ProviderSessionId.make("session:subagent-link-survives-terminal"),
           session: {
             events: Stream.empty,
@@ -3456,7 +3519,14 @@ function captureRootRunTermination(input: {
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make(`command:${input.key}`),
-        appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: ids.threadId,
+          lineage: {
+            parentThreadId: null,
+            relationshipToParent: null,
+            rootThreadId: ids.threadId,
+          },
+        } as OrchestrationV2AppThread,
         providerSessionId: ProviderSessionId.make(`session:${input.key}`),
         session: {
           events: Stream.empty,
@@ -3924,7 +3994,14 @@ function runBackgroundItemScenario(
       const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
       yield* runExecution.startRootRun({
         commandId: CommandId.make(`command:${key}`),
-        appThread: { id: ids.threadId } as OrchestrationV2AppThread,
+        appThread: {
+          id: ids.threadId,
+          lineage: {
+            parentThreadId: null,
+            relationshipToParent: null,
+            rootThreadId: ids.threadId,
+          },
+        } as OrchestrationV2AppThread,
         providerSessionId: ProviderSessionId.make(`session:${key}`),
         session: {
           events: Stream.empty,

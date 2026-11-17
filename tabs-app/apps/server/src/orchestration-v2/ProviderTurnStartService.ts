@@ -3,6 +3,7 @@ import { projectComposerContextForProvider } from "@tabs/shared/composerContextR
 import {
   CommandId,
   latestProviderTurnForAttempt,
+  type OrchestrationV2ContextHandoff,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ExecutionNode,
   type OrchestrationV2ProviderThread,
@@ -238,8 +239,19 @@ export const layer: Layer.Layer<
       const checkpointScope = projection.checkpointScopes.find(
         (candidate) => candidate.id === rootNode?.checkpointScopeId,
       );
+      const isSideChatHandoff = (handoff: OrchestrationV2ContextHandoff) =>
+        projection.thread.lineage.sideChat === true &&
+        ContextHandoffService.isSideChatContextHandoff(handoff);
+      // Carried forward until a provider turn accepts it, also after a provider switch.
+      const sideChatHandoff = projection.contextHandoffs.find(
+        (handoff) =>
+          isSideChatHandoff(handoff) &&
+          handoff.status === "ready" &&
+          handoff.delivery === undefined,
+      );
       const handoffs = projection.contextHandoffs.filter(
         (handoff) =>
+          !isSideChatHandoff(handoff) &&
           handoff.status === "ready" &&
           (handoff.targetRunId === run.id ||
             (handoff.toProviderThreadId === run.providerThreadId &&
@@ -522,11 +534,15 @@ export const layer: Layer.Layer<
       });
       // The git baseline snapshot is independent of provider startup, so run
       // both together and join the snapshot just before the turn starts.
-      const baselineCapture = yield* runExecution.beginBaselineCapture({
-        runId: run.id,
-        scope: checkpointScope,
-        ordinalWithinScope: Math.max(0, run.ordinal - 1),
-      });
+      // Side chats share the parent's worktree; a snapshot would capture the parent's edits.
+      const baselineCapture =
+        projection.thread.lineage.sideChat === true
+          ? undefined
+          : yield* runExecution.beginBaselineCapture({
+              runId: run.id,
+              scope: checkpointScope,
+              ordinalWithinScope: Math.max(0, run.ordinal - 1),
+            });
       const existingSessionProjection = projection.providerSessions.find(
         (candidate) => candidate.id === providerSessionId,
       );
@@ -1172,7 +1188,10 @@ export const layer: Layer.Layer<
           });
           if (!(yield* isCurrentAttemptInStatus("running"))) return;
           const start = compact ? session.compactThread! : session.startTurn;
-          const context = [delivery.context, restartNote]
+          // Like history, the side chat context waits for a turn that sends a prompt.
+          const sideChatContext =
+            sideChatHandoff === undefined || compact ? "" : sideChatHandoff.summaryText;
+          const context = [delivery.context, sideChatContext, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
           // A note continuation has no turn to resume; its text is the prompt.
@@ -1186,7 +1205,32 @@ export const layer: Layer.Layer<
           });
           // The provider already accepted the turn. A stale pending marker
           // can force a fresh thread later, but must not stop live ingestion.
-          yield* delivery.delivered.pipe(
+          const nativeThreadId = runningProviderThread.nativeThreadRef?.nativeId;
+          const sideChatDelivered =
+            sideChatContext === "" || sideChatHandoff === undefined || nativeThreadId == null
+              ? Effect.void
+              : Effect.gen(function* () {
+                  const updatedAt = yield* DateTime.now;
+                  yield* eventSink.write({
+                    events: [
+                      {
+                        id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
+                        type: "context-handoff.updated",
+                        threadId: projection.thread.id,
+                        runId: run.id,
+                        providerInstanceId: run.providerInstanceId,
+                        occurredAt: updatedAt,
+                        payload: {
+                          ...sideChatHandoff,
+                          toProviderThreadId: runningProviderThread.id,
+                          delivery: { nativeThreadId, status: "inline" as const, itemIds: [] },
+                          updatedAt,
+                        },
+                      },
+                    ],
+                  });
+                });
+          yield* Effect.all([delivery.delivered, sideChatDelivered], { discard: true }).pipe(
             Effect.catchCause(() =>
               Effect.logWarning("Failed to record accepted context handoff delivery", {
                 runId: run.id,
@@ -1210,6 +1254,7 @@ export const layer: Layer.Layer<
       const deliverySession =
         effectiveHandoffs.length === 0 &&
         missedItems.length === 0 &&
+        sideChatHandoff === undefined &&
         restartNote === "" &&
         !noteContinuation
           ? session
@@ -1222,7 +1267,7 @@ export const layer: Layer.Layer<
         run: runningRun,
         rootNode: runningRootNode,
         checkpointScope,
-        baselineCapture,
+        ...(baselineCapture === undefined ? {} : { baselineCapture }),
         providerThread: runningProviderThread,
         attempt: runningAttempt,
         attemptId: attempt.id,
