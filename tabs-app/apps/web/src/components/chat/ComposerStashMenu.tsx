@@ -1,4 +1,5 @@
 import { BookmarkIcon, FileIcon, FileTextIcon, Trash2Icon, XIcon } from "lucide-react";
+import { useGsapEnter } from "~/hooks/useGsapSurface";
 import { memo, useEffect, useRef, useState } from "react";
 import type { EnvironmentId } from "@tabs/contracts";
 import { formatRelativeTime } from "~/timestampFormat";
@@ -31,6 +32,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu({
   className,
 }: ComposerStashMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const motionRef = useGsapEnter<HTMLDivElement>("popover", containerRef);
   const [highlightedId, setHighlightedId] = useState<string | null>(entries[0]?.id ?? null);
 
   useEffect(() => {
@@ -120,13 +122,13 @@ export const ComposerStashMenu = memo(function ComposerStashMenu({
 
   return (
     <div
-      ref={containerRef}
+      ref={motionRef}
       role="dialog"
       aria-label="Stashed Prompts"
       data-composer-stash-drawer="true"
       className={cn(
         "absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-xl border border-border/80 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur-md",
-        "animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none",
+        "origin-bottom",
         className,
       )}
     >

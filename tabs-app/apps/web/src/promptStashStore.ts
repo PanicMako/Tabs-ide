@@ -52,6 +52,11 @@ interface PromptStashState {
   take: (id: string) => PromptStashEntry | null;
   takeEntry: (id: string) => { entry: PromptStashEntry | null; durable: boolean };
   remove: (id: string) => void;
+  /** Rewrites a saved draft's text and images in place. Returns whether storage kept it. */
+  updateEntry: (
+    id: string,
+    changes: { prompt: string; attachments?: PromptStashEntry["attachments"] },
+  ) => { updated: boolean; durable: boolean };
   clear: (environmentId?: EnvironmentId) => void;
   finalizeEntryImages: (
     entryId: string,
@@ -172,7 +177,7 @@ function storeImagesInBackground(entries: ReadonlyArray<PromptStashEntry>): void
 
 /** Resolves once every image handed to the image store has been written. */
 export async function flushStashImageWrites(): Promise<void> {
-  while (pendingImageWrites.size > 0) await Promise.all([...pendingImageWrites]);
+  while (pendingImageWrites.size > 0) await Promise.all(pendingImageWrites);
 }
 
 function withoutStoredPixels(entry: PromptStashEntry): PromptStashEntry {
@@ -263,6 +268,22 @@ export const usePromptStashStore = create<PromptStashState>()((set, get) => ({
     set({ entries: next });
     if (removed) releaseStoredImages(entryImageKeys(removed));
   },
+  updateEntry: (id, changes) => {
+    if (!get().entries.some((candidate) => candidate.id === id))
+      return { updated: false, durable: false };
+    const next = get().entries.map((candidate) =>
+      candidate.id === id
+        ? {
+            ...candidate,
+            prompt: changes.prompt,
+            ...(changes.attachments ? { attachments: changes.attachments } : {}),
+          }
+        : candidate,
+    );
+    const result = persist(next);
+    set({ entries: next });
+    return { updated: true, durable: result.written && result.durable };
+  },
   clear: (environmentId) => {
     const next = environmentId
       ? get().entries.filter(
@@ -297,6 +318,18 @@ export const usePromptStashStore = create<PromptStashState>()((set, get) => ({
     return { attached: true, durable };
   },
 }));
+
+/**
+ * A draft's full text as shown when it is expanded: citations as plain text, and without the
+ * blank lines or indentation it was saved with at either end. Drafts are shown pre-wrapped, so
+ * those used to appear as a large empty gap before the text.
+ */
+export function promptStashText(entry: PromptStashEntry): string {
+  return assistantCitationsToPlainText(entry.prompt)
+    .replace(/^\s*\n/, "")
+    .replace(/^[ \t]+/, "")
+    .trimEnd();
+}
 
 export function promptStashSnippet(entry: PromptStashEntry): string {
   const normalized = assistantCitationsToPlainText(entry.prompt).trim().replace(/\s+/g, " ");
