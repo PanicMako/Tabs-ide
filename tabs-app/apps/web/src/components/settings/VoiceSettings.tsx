@@ -7,6 +7,7 @@ import {
   updateEnvironmentSpeechModelUnloadTimeout,
 } from "@tabs/client-runtime/voice-input";
 import type {
+  EnvironmentSpeechFoundModel,
   EnvironmentSpeechModel,
   EnvironmentSpeechStatus,
   SpeechModelUnloadTimeout,
@@ -22,11 +23,12 @@ import { primaryVoiceConnection } from "../../speech/primaryVoiceConnection";
 import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "../ui/select";
 import { Switch } from "../ui/switch";
-import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 import { MicrophoneTest } from "./MicrophoneTest";
 import { SpeechModelPicker } from "./SpeechModelPicker";
+import { CustomWordsField } from "./CustomWordsField";
+import { FoundOnThisMac } from "./FoundOnThisMac";
 import { VoiceTranscriptionSettings } from "./VoiceTranscriptionSettings";
 
 const SHORTCUT_MODES: ReadonlyArray<{ value: VoiceShortcutMode; label: string }> = [
@@ -48,6 +50,9 @@ const UNLOAD_TIMEOUTS: ReadonlyArray<{ value: SpeechModelUnloadTimeout; label: s
 function useSpeechCatalog() {
   const [status, setStatus] = useState<EnvironmentSpeechStatus | null>(null);
   const [models, setModels] = useState<ReadonlyArray<EnvironmentSpeechModel>>([]);
+  const [foundElsewhere, setFoundElsewhere] = useState<ReadonlyArray<EnvironmentSpeechFoundModel>>(
+    [],
+  );
   const [busyModelId, setBusyModelId] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     const prepared = await primaryVoiceConnection();
@@ -57,6 +62,7 @@ function useSpeechCatalog() {
     ]);
     setStatus(nextStatus);
     setModels(catalog.models);
+    setFoundElsewhere(catalog.foundElsewhere ?? []);
   }, []);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads the environment's speech status and model catalog when the page opens
@@ -100,7 +106,7 @@ function useSpeechCatalog() {
     [refresh],
   );
 
-  return { status, models, busyModelId, run, refresh };
+  return { status, models, foundElsewhere, busyModelId, run, refresh };
 }
 
 export default function VoiceSettings({ onBack }: { onBack?: () => void } = {}) {
@@ -108,7 +114,6 @@ export default function VoiceSettings({ onBack }: { onBack?: () => void } = {}) 
   const { updateSettings } = useUpdateSettings();
   const catalog = useSpeechCatalog();
   const [microphones, setMicrophones] = useState<ReadonlyArray<BrowserMicrophone>>([]);
-  const [customWords, setCustomWords] = useState(() => settings.speechCustomWords.join(", "));
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- lists the browser's audio inputs when the page opens
   useEffect(() => {
@@ -264,20 +269,20 @@ export default function VoiceSettings({ onBack }: { onBack?: () => void } = {}) 
         />
         <SettingsRow
           title="Custom words"
-          description="Names and terms to recognize, separated by commas."
+          description="Names and terms dictation should spell right. Press Enter after each one."
         >
           <div className="px-3 pb-3">
-            <Textarea
-              aria-label="Custom words"
-              placeholder="Tabs, Effect, OpenCode"
-              value={customWords}
-              onChange={(event) => setCustomWords(event.target.value)}
-              onBlur={() =>
+            <CustomWordsField
+              words={settings.speechCustomWords.map((entry) => entry.term)}
+              onChange={(words) =>
                 void updateSettings({
-                  speechCustomWords: customWords
-                    .split(",")
-                    .map((word) => word.trim())
-                    .filter((word) => word.length > 0),
+                  // Keep the aliases a term already has; new terms start without any.
+                  speechCustomWords: words.map((term) => ({
+                    term,
+                    aliases:
+                      settings.speechCustomWords.find((entry) => entry.term === term)?.aliases ??
+                      [],
+                  })),
                 })
               }
             />
@@ -289,6 +294,12 @@ export default function VoiceSettings({ onBack }: { onBack?: () => void } = {}) 
           <SettingsRow title="Not available" description={status.reason} />
         ) : (
           <>
+            <FoundOnThisMac
+              found={catalog.foundElsewhere}
+              models={catalog.models}
+              busyModelId={catalog.busyModelId}
+              onAction={(modelId, action) => void catalog.run(modelId, action)}
+            />
             <SpeechModelPicker
               models={catalog.models}
               language={settings.speechLanguage}
