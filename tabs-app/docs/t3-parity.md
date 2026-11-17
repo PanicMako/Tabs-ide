@@ -150,3 +150,5 @@ Latest check run on the working tree (includes other people's uncommitted edits)
 ## Antigravity sign-in across updates: handled outside this branch
 
 The working tree holds an uncommitted port of T3's native Antigravity CLI (`provider/antigravityCliRelease.ts` and its test, plus edits to `AntigravityInstallation.ts`, `AntigravityProvider.ts`, `Drivers/AntigravityDriver.modern.ts`, `acp/AntigravityAcpSupport.ts` and `antigravityAuthSupport.ts`). It was not written by the parity work. Status here is **partial, owned elsewhere**: the investigation above stands, and the "an upgrade keeps the token" test the brief asks for should be added when that port lands. The parity work does not touch those files.
+
+Server suite, latest full run on the working tree: 8167 pass, 39 fail. All 39 are in `orchestration-v2/RunExecutionService.test.ts` (36) and `CheckpointRollbackService.test.ts` (3); `RunExecutionService.ts`, its test and the `Checkpoint*` services have uncommitted edits that are not part of the parity branch. The earlier `ProviderTurnStartService.memory` failures were fixed by a fixture update (`f2b0aa01f`). `vp check` and typecheck are clean on this tree.
