@@ -149,3 +149,15 @@ nav.settings-navigation[data-slot="settings-nav"] button:focus-visible {
     padding-block: 3px;
   }
 }
+
+/* The Devices page made the index one row longer. At 740px tall and below, rows give
+   up two more pixels each so the whole index still fits without scrolling the rail. */
+@media (max-height: 740px) and (min-width: 561px) {
+  nav.settings-navigation[data-slot="settings-nav"] {
+    padding-block: 10px;
+  }
+  nav.settings-navigation[data-slot="settings-nav"] button {
+    min-height: 23px;
+    padding-block: 2px;
+  }
+}
