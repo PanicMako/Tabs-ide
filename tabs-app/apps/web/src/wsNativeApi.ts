@@ -26,6 +26,7 @@ import {
   type NativeApi,
   type ServerConfig,
   type AssetCreateUrlResult,
+  DeviceServiceState as DeviceServiceStateSchema,
   ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
   ServerProviderUpdatedPayload,
@@ -1247,6 +1248,24 @@ export function createWsNativeApi(options?: {
         throw new Error("Unsupported in web");
       },
     } as any,
+    device: {
+      list: (input) => transport.request(WS_METHODS.deviceList, input),
+      configure: (input) => transport.request(WS_METHODS.deviceConfigure, input),
+      testHost: (input) => transport.request(WS_METHODS.deviceTestHost, input),
+      open: (input) => transport.request(WS_METHODS.deviceOpen, input, { timeoutMs: null }),
+      close: (input) => transport.request(WS_METHODS.deviceClose, input),
+      shutdown: (input) => transport.request(WS_METHODS.deviceShutdown, input),
+      detail: (input) => transport.request(WS_METHODS.deviceDetail, input),
+      action: (input) => transport.request(WS_METHODS.deviceAction, input),
+      subscribe: (callback, onError) =>
+        transport.subscribeRpc(
+          WS_METHODS.subscribeDeviceState,
+          () => ({}),
+          Schema.decodeUnknownSync(DeviceServiceStateSchema),
+          callback,
+          onError,
+        ),
+    },
     preview: {
       open: (input) => transport.request(WS_METHODS.previewOpen, input),
       navigate: (input) => transport.request(WS_METHODS.previewNavigate, input),
