@@ -137,6 +137,8 @@ export interface CheckpointServiceV2Shape {
   readonly materializeBaselineCheckpoint: (input: {
     readonly scope: OrchestrationV2CheckpointScope;
     readonly ordinalWithinScope: number;
+    /** Records a missing checkpoint without touching git, for side chats sharing a parent's worktree. */
+    readonly forceMissing?: boolean;
   }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;
   readonly capture: (input: {
     readonly scope: OrchestrationV2CheckpointScope;
@@ -145,6 +147,7 @@ export interface CheckpointServiceV2Shape {
     readonly ordinalWithinScope: number;
     readonly appRunOrdinal: number | null;
     readonly capturedAt: DateTime.Utc;
+    readonly forceMissing?: boolean;
   }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;
   readonly restore: (input: {
     readonly scope: OrchestrationV2CheckpointScope;
@@ -312,7 +315,8 @@ export const layer: Layer.Layer<
               scopeId: input.scope.id,
               ordinalWithinScope: input.ordinalWithinScope,
             });
-            const checkpointable = yield* isGitCheckpointable(input.scope.cwd);
+            const checkpointable =
+              input.forceMissing === true ? false : yield* isGitCheckpointable(input.scope.cwd);
             const available = checkpointable
               ? yield* checkpointStore
                   .hasCheckpointRef({
@@ -377,7 +381,7 @@ export const layer: Layer.Layer<
             ordinalWithinScope: Math.max(0, input.ordinalWithinScope - 1),
           });
 
-          if (!(yield* isGitCheckpointable(input.scope.cwd))) {
+          if (input.forceMissing === true || !(yield* isGitCheckpointable(input.scope.cwd))) {
             return makeCheckpoint({
               id: checkpointId,
               scope: input.scope,
