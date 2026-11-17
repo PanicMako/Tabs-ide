@@ -16,6 +16,7 @@ import {
 import { buildOvermindStartMessage } from "@tabs/shared/overmind";
 import { resolveSubagentModel } from "@tabs/shared/subagents";
 import { OvermindSection } from "./OvermindSection";
+import { WorkspaceSideChats } from "./WorkspaceSideChats";
 import { SubagentTeamCard } from "./OvermindWorkerPicker";
 import { useSubagentModels } from "../../state/overmindSettings";
 import { useState, useId, useEffect, useRef } from "react";
@@ -923,6 +924,9 @@ function ScopedWorkspaceAgents({
           }}
         />
       </section>
+      {!nativeChild && (
+        <WorkspaceSideChats threadId={context.thread.id} environmentId={environmentId} />
+      )}
       {!nativeChild && showAutomations && (
         <WorkspaceAutomations context={context} environmentId={environmentId} />
       )}
