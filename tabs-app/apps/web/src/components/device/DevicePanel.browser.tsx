@@ -42,9 +42,8 @@ it("picker lists running devices first and opens a device on click", async () =>
   );
   const onChoose = vi.fn();
   await render(<DevicePicker api={fake.api} onChoose={onChoose} />);
-  const buttons = page.getByRole("button", { name: /^(Open|Start)$/ });
-  await expect.element(buttons.first()).toHaveTextContent("Open");
-  await page.getByRole("button", { name: "Start" }).click();
+  await expect.element(page.getByRole("button", { name: "Open iPhone 16" })).toBeVisible();
+  await page.getByRole("button", { name: "Start Pixel" }).click();
   expect(onChoose).toHaveBeenCalledWith(expect.objectContaining({ id: "off" }));
 });
 
@@ -52,9 +51,40 @@ it("tools drawer shows only what the platform reads back and sends actions", asy
   const fake = createFakeDeviceApi();
   fake.api.detail = async () =>
     fakeDeviceDetail({ settings: { appearance: "light", voiceOver: false } });
-  await render(<DeviceToolsDrawer api={fake.api} hostId="local" deviceId="SIM-1" platform="ios" />);
+  await render(
+    <DeviceToolsDrawer
+      api={fake.api}
+      hostId="local"
+      deviceId="SIM-1"
+      platform="ios"
+      open
+      onClose={() => {}}
+    />,
+  );
   await expect.element(page.getByText("VoiceOver")).toBeVisible();
   expect(page.getByText("Network").elements()).toHaveLength(0);
   await page.getByRole("button", { name: "dark" }).click();
   expect(fake.calls.at(-1)?.input).toMatchObject({ type: "setAppearance", value: "dark" });
+});
+
+it("keeps the controls rail inside a narrow panel", async () => {
+  const { DeviceStreamView } = await import("./DeviceStreamView");
+  acceptDeviceState(fakeDeviceState());
+  const view = await render(
+    <div style={{ width: 300 }} className="dv-panel">
+      <DeviceStreamView
+        deviceId="SIM-1"
+        platform="ios"
+        visible={false}
+        onPowerOff={() => {}}
+        onToggleTools={() => {}}
+      />
+    </div>,
+  );
+  const rail = view.container.querySelector<HTMLElement>(".dv-rail")!;
+  const host = view.container.querySelector<HTMLElement>(".dv-panel")!;
+  expect(host.scrollWidth).toBeLessThanOrEqual(host.clientWidth);
+  expect(rail.getBoundingClientRect().right).toBeLessThanOrEqual(
+    host.getBoundingClientRect().right,
+  );
 });

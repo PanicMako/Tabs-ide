@@ -5,6 +5,7 @@ import { isDeviceSetupComplete } from "~/device/deviceLogic";
 import { useDeviceApi } from "~/device/useDeviceApi";
 import { useCompanionSurfaceStore, type CompanionSurface } from "~/stores/companionSurfaceStore";
 import { useComposerDraftStore } from "~/composerDraftStore";
+import "./device.css";
 import { DevicePicker } from "./DevicePicker";
 import { DeviceSetup } from "./DeviceSetup";
 import { DeviceStreamView } from "./DeviceStreamView";
@@ -30,10 +31,15 @@ export function CompanionDevicePanel({
   const [tools, setTools] = useState(false);
   const update = useCompanionSurfaceStore((s) => s.update);
 
-  if (!api || !state) return <div className="device-panel device-muted">Loading devices…</div>;
+  if (!api || !state)
+    return (
+      <div className="dv-panel">
+        <p className="dv-page dv-muted">Loading devices…</p>
+      </div>
+    );
   if (!isDeviceSetupComplete(state))
     return (
-      <div className="device-panel">
+      <div className="dv-panel">
         <DeviceSetup api={api} />
       </div>
     );
@@ -56,9 +62,9 @@ export function CompanionDevicePanel({
         });
     };
     return (
-      <div className="device-panel">
+      <div className="dv-panel">
         <DevicePicker api={api} onChoose={(device) => void choose(device)} />
-        {!threadId && <p className="device-muted">Open a thread to attach a device.</p>}
+        {!threadId && <p className="dv-muted">Open a thread to attach a device.</p>}
       </div>
     );
   }
@@ -83,20 +89,26 @@ export function CompanionDevicePanel({
     });
   };
   return (
-    <div className="device-panel">
+    <div className="dv-panel">
       <DeviceStreamView
         deviceId={deviceId}
         platform={platform}
         visible={visible}
         onPowerOff={() => void powerOff()}
+        toolsOpen={tools}
         onToggleTools={() => setTools((value) => !value)}
         onScreenshot={threadId ? attach : undefined}
       />
-      {tools && (
-        <DeviceToolsDrawer api={api} hostId={hostId} deviceId={deviceId} platform={platform} />
-      )}
+      <DeviceToolsDrawer
+        api={api}
+        hostId={hostId}
+        deviceId={deviceId}
+        platform={platform}
+        open={tools}
+        onClose={() => setTools(false)}
+      />
       {error && (
-        <p role="alert" className="device-error">
+        <p role="alert" className="dv-error">
           {error}
         </p>
       )}

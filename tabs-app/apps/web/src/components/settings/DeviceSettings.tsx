@@ -75,8 +75,13 @@ export default function DeviceSettings() {
             title={host.label}
             description={
               host.kind === "local"
-                ? "Devices on the machine running the environment server."
-                : `Machine over SSH. ${checked[host.id] ?? ""}`
+                ? `Devices on the machine running the environment server. ${host.platforms
+                    .map(
+                      (p) =>
+                        `${p.platform === "ios" ? "iOS" : "Android"}: ${p.available ? "ready" : "not available"}`,
+                    )
+                    .join(" · ")}.`
+                : `Machine over SSH. ${checked[host.id] ?? "Not tested yet."}`
             }
             control={
               host.kind === "ssh" ? (

@@ -8,7 +8,6 @@ import {
   WrenchIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from "react";
-import { Button } from "~/components/ui/button";
 import { canStreamVideo, deviceRailButtons } from "~/device/deviceLogic";
 import {
   captureDeviceScreenshot,
@@ -16,6 +15,7 @@ import {
   sameOriginHubAccess,
   type DeviceButton,
 } from "~/device/deviceStreamClient";
+import "./device.css";
 import { useDeviceStore } from "~/device/deviceStore";
 import type { DevicePlatform } from "@tabs/contracts";
 
@@ -29,6 +29,7 @@ export function DeviceStreamView({
   onPowerOff,
   onToggleTools,
   onScreenshot,
+  toolsOpen = false,
 }: {
   deviceId: string;
   platform: DevicePlatform;
@@ -37,6 +38,7 @@ export function DeviceStreamView({
   onPowerOff: () => void;
   onToggleTools: () => void;
   onScreenshot?: ((blob: Blob) => void) | undefined;
+  toolsOpen?: boolean;
 }) {
   const hubBasePath = useDeviceStore((s) => s.state?.hubBasePath);
   const access = useMemo(
@@ -140,77 +142,103 @@ export function DeviceStreamView({
     },
     power: { label: "Power off", icon: <PowerIcon size={15} />, run: onPowerOff },
   };
+  const navButtons = deviceRailButtons(platform).filter((id) => id !== "power");
 
   return (
-    <div className="device-stage">
-      <div className="device-frame" data-platform={platform}>
-        <div
-          ref={screen}
-          className="device-screen"
-          tabIndex={0}
-          role="application"
-          aria-label="Device screen"
-          onPointerDown={touch("begin")}
-          onPointerMove={touch("move")}
-          onPointerUp={touch("end")}
-          onPointerCancel={touch("end")}
-          onKeyDown={(event) => {
-            streamRef.current?.sendKey(event);
-          }}
-        >
-          {visible && access && !useStills && streamRef.current?.videoUrl ? (
-            <img
-              className="device-image"
-              alt="Live device screen"
-              draggable={false}
-              src={streamRef.current.videoUrl}
-            />
-          ) : still ? (
-            <img className="device-image" alt="Device screen" draggable={false} src={still} />
-          ) : (
-            <p className="device-muted device-connecting">Connecting…</p>
+    <div className="dv-stage">
+      <div className="dv-device">
+        <div className="dv-frame" data-platform={platform}>
+          <div
+            ref={screen}
+            className="dv-screen"
+            tabIndex={0}
+            role="application"
+            aria-label="Device screen"
+            onPointerDown={touch("begin")}
+            onPointerMove={touch("move")}
+            onPointerUp={touch("end")}
+            onPointerCancel={touch("end")}
+            onKeyDown={(event) => {
+              streamRef.current?.sendKey(event);
+            }}
+          >
+            {visible && access && !useStills && streamRef.current?.videoUrl ? (
+              <img
+                className="dv-image"
+                alt="Live device screen"
+                draggable={false}
+                src={streamRef.current.videoUrl}
+              />
+            ) : still ? (
+              <img className="dv-image" alt="Device screen" draggable={false} src={still} />
+            ) : (
+              <p className="dv-connecting">Connecting to the screen…</p>
+            )}
+          </div>
+        </div>
+        <div className="dv-status" aria-live="polite">
+          {!connected && visible && <span className="dv-muted">Touch input is reconnecting…</span>}
+          {!video && (
+            <span className="dv-muted">
+              Live video needs HTTPS or localhost, so this shows still frames.
+            </span>
           )}
+          {notice && <span className="dv-muted">{notice}</span>}
         </div>
       </div>
-      <div className="device-rail" role="toolbar" aria-label="Device controls">
-        {deviceRailButtons(platform).map((id) => {
+      <div
+        className="dv-rail"
+        role="toolbar"
+        aria-label="Device controls"
+        aria-orientation="vertical"
+      >
+        {navButtons.map((id) => {
           const item = labels[id]!;
           return (
-            <Button
+            <button
               key={id}
-              size="icon-sm"
-              variant="ghost"
+              type="button"
+              className="cd-icon rounded-full"
               aria-label={item.label}
               title={item.label}
               onClick={item.run}
             >
               {item.icon}
-            </Button>
+            </button>
           );
         })}
-        <Button
-          size="icon-sm"
-          variant="ghost"
+        <span className="dv-rail-rule" aria-hidden="true" />
+        <button
+          type="button"
+          className="cd-icon rounded-full"
           aria-label="Screenshot to composer"
           title="Screenshot to composer"
           disabled={!onScreenshot}
           onClick={() => void capture()}
         >
           <CameraIcon size={15} />
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onToggleTools} aria-label="Tools">
-          <WrenchIcon size={14} /> Tools
-        </Button>
+        </button>
+        <button
+          type="button"
+          className="cd-icon rounded-full"
+          aria-label="Tools"
+          title="Tools"
+          aria-pressed={toolsOpen}
+          onClick={onToggleTools}
+        >
+          <WrenchIcon size={15} />
+        </button>
+        <span className="dv-rail-rule" aria-hidden="true" />
+        <button
+          type="button"
+          className="cd-icon sl-danger rounded-full"
+          aria-label={labels.power!.label}
+          title={labels.power!.label}
+          onClick={labels.power!.run}
+        >
+          {labels.power!.icon}
+        </button>
       </div>
-      {!connected && visible && <p className="device-muted">Input is reconnecting…</p>}
-      {!video && (
-        <p className="device-muted">Live video needs HTTPS or localhost; showing still frames.</p>
-      )}
-      {notice && (
-        <p role="status" className="device-muted">
-          {notice}
-        </p>
-      )}
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import { RefreshCwIcon } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { useRef } from "react";
+import { useStaggerIn } from "~/components/agents/companion/designs/motion";
 import { groupDevicesByHost, isDeviceBooting } from "~/device/deviceLogic";
 import { refreshDevices, useDeviceStore } from "~/device/deviceStore";
 import type { DeviceApi } from "~/device/useDeviceApi";
 import type { DeviceSummary } from "@tabs/contracts";
+import "./device.css";
 
-/** Running devices first, Start beside stopped ones, grouped by host when there are several. */
+/** Ledger of devices: running first with Open, stopped ones with Start, grouped by host. */
 export function DevicePicker({
   api,
   onChoose,
@@ -16,62 +18,78 @@ export function DevicePicker({
   const state = useDeviceStore((s) => s.state);
   const refreshing = useDeviceStore((s) => s.refreshing);
   const error = useDeviceStore((s) => s.error);
+  const root = useRef<HTMLDivElement>(null);
   const groups = groupDevicesByHost(state);
-  const showHosts = (state?.hosts.length ?? 0) > 1;
+  const count = groups.reduce((total, group) => total + group.devices.length, 0);
+  useStaggerIn(root, ".dv-row", String(count), { y: 12, stagger: 0.04 });
   return (
-    <div className="device-picker" role="region" aria-label="Choose a device">
-      <div className="device-picker-head">
-        <h2 className="device-title">Devices</h2>
-        <Button
-          size="icon-sm"
-          variant="ghost"
+    <div className="dv-page" role="region" aria-label="Choose a device" ref={root}>
+      <div className="dv-head">
+        <div>
+          <h2 className="dv-title">Pick a device</h2>
+          <p className="dv-lede">
+            {state?.hostStatus === "installing"
+              ? "Installing device tools. This takes a minute."
+              : "Open a running one, or start one. It keeps running if you close this tab."}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="cd-icon rounded-full"
           aria-label="Refresh devices"
+          title="Refresh devices"
           disabled={refreshing}
           onClick={() => void refreshDevices(api)}
         >
           <RefreshCwIcon size={14} />
-        </Button>
+        </button>
       </div>
-      {state?.hostStatus === "installing" && (
-        <p className="device-muted">Installing device tools. This can take a minute.</p>
-      )}
-      {groups.length === 0 && (
-        <p className="device-muted">
-          {refreshing
-            ? "Looking for devices…"
-            : "No simulators or emulators found. Create one in Xcode or Android Studio, then refresh."}
-        </p>
-      )}
-      {groups.map((group) => (
-        <section key={group.hostId} aria-label={group.label}>
-          {showHosts && <h3 className="device-host">{group.label}</h3>}
-          <ul className="device-list">
+      {count === 0 ? (
+        <div className="dv-ledger dv-empty">
+          <strong>{refreshing ? "Looking for devices…" : "No simulators or emulators yet"}</strong>
+          <span className="dv-muted">
+            Create one in Xcode (Window → Devices and Simulators) or Android Studio (Device
+            Manager), then refresh.
+          </span>
+        </div>
+      ) : (
+        groups.map((group) => (
+          <section key={group.hostId} className="dv-ledger" aria-label={group.label}>
+            <div className="dv-ledger-head">
+              <span>{group.label}</span>
+              <span>{group.devices.length}</span>
+            </div>
             {group.devices.map((device) => {
               const booting = isDeviceBooting(state, device);
               return (
-                <li key={`${device.hostId}:${device.id}`} className="device-list-row">
-                  <div className="device-list-name">
-                    <span>{device.name}</span>
-                    <span className="device-muted">
-                      {device.platform === "ios" ? "iOS" : "Android"} · {device.version}
+                <div key={`${device.hostId}:${device.id}`} className="dv-row">
+                  <span className="dv-index">{device.platform === "ios" ? "iOS" : "And"}</span>
+                  <div className="dv-row-main">
+                    <span className="dv-name">{device.name}</span>
+                    <span className="dv-state" data-running={device.booted}>
+                      {booting ? "Starting" : device.booted ? "Running" : "Stopped"} ·{" "}
+                      {device.version}
                     </span>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={device.booted ? "default" : "outline"}
+                  <button
+                    type="button"
+                    className={
+                      device.booted ? "sl-primary rounded-full" : "sl-secondary rounded-full"
+                    }
                     disabled={booting}
+                    aria-label={`${device.booted ? "Open" : "Start"} ${device.name}`}
                     onClick={() => onChoose(device)}
                   >
                     {booting ? "Starting…" : device.booted ? "Open" : "Start"}
-                  </Button>
-                </li>
+                  </button>
+                </div>
               );
             })}
-          </ul>
-        </section>
-      ))}
+          </section>
+        ))
+      )}
       {error && (
-        <p role="alert" className="device-error">
+        <p role="alert" className="dv-error">
           {error}
         </p>
       )}
