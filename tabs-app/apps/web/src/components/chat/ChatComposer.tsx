@@ -165,7 +165,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     <div className={cn("flex flex-col gap-4 p-4 border-t bg-background", className)}>
       {/* Error Banner */}
       {error && (
-        <div className="pt-3 mx-auto max-w-3xl">
+        <div className="pt-3 mx-auto max-w-(--chat-column-width)">
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
             {error}
           </div>
@@ -174,7 +174,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
       {/* Provider Status */}
       {availableProviders.find((p) => p.instanceId === provider && p.status !== "ready") && (
-        <div className="pt-3 mx-auto max-w-3xl">
+        <div className="pt-3 mx-auto max-w-(--chat-column-width)">
           <div className="rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
             Provider {provider} has limited availability
           </div>

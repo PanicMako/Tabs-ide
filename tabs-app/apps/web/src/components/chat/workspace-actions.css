@@ -239,8 +239,9 @@
 }
 
 /* Use the actual Agents sidebar state rather than guessing from window width. */
+/* Collapsed sidebar: a middle ground between the open-sidebar width and a wide rail. */
 :has(> .agents-tab[data-collapsed="true"]) .chat-workspace-root {
-  --workspace-actions-width: 360px;
+  --workspace-actions-width: 330px;
 }
 :has(> .agents-tab[data-collapsed="false"]) .chat-workspace-root {
   --workspace-actions-width: 300px;
@@ -262,4 +263,12 @@
 }
 .chat-status-area [data-slot="alert"] {
   pointer-events: auto;
+}
+
+/* With the Agents sidebar open the chat area is narrow and the workspace rail floats over its right
+   edge. Pull the messages in to the composer's width so they stay centred and clear of the rail.
+   With the sidebar collapsed there is room, so the wider column stays. */
+:has(> .agents-tab[data-collapsed="false"]) .chat-workspace-root {
+  --composer-column-width: calc(clamp(48rem, 64cqi, 60rem) * 0.85);
+  --chat-column-width: var(--composer-column-width);
 }
