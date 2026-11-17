@@ -47,6 +47,8 @@ import { showCustomConfirm } from "~/lib/customConfirm";
 import { environmentApi } from "~/connection/environmentApiRegistry";
 import { CompanionEmpty } from "./CompanionChrome";
 import { CompanionBrowserSession, emptyBrowserState } from "./browserSession";
+import { BrowserStartPage } from "./BrowserStartPage";
+import { displayAddress, resolveOmniboxInput } from "./browserOmnibox";
 
 export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   threadId,
@@ -88,6 +90,9 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const [state, setState] = useState<DesktopBrowserSessionState>(() =>
     emptyBrowserState(target?.projectId ?? "", sessionId),
   );
+  // A new tab opens on a start page instead of loading a default site.
+  const [started, setStarted] = useState(() => Boolean(surface.url));
+  const [addressFocused, setAddressFocused] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [address, setAddress] = useState(initialUrl.current || "https://www.google.com");
@@ -113,7 +118,7 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     }
   }, []);
   useEffect(() => {
-    if (!bridge || !target) return;
+    if (!bridge || !target || !started) return;
     let disposed = false;
     const session = new CompanionBrowserSession(bridge, target.projectId, sessionId, (next) => {
       if (disposed) return;
@@ -137,7 +142,7 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
       controller.current = null;
       session.dispose();
     };
-  }, [bridge, target?.projectId, sessionId, scope, surface.id, update]);
+  }, [bridge, target?.projectId, sessionId, scope, surface.id, update, started]);
   useLayoutEffect(() => {
     if (
       !bridge ||
@@ -222,6 +227,22 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
         Open a project to start browsing.
       </CompanionEmpty>
     );
+  if (!started)
+    return (
+      <div className="companion-workspace">
+        <BrowserStartPage
+          surfaceId={surface.id}
+          projectName={target.projectName}
+          homeUrl={settings?.browser.defaultUrl}
+          onStart={(url) => {
+            initialUrl.current = url;
+            setAddress(url);
+            update(scope, surface.id, { url });
+            setStarted(true);
+          }}
+        />
+      </div>
+    );
   const failure = error ?? state.lastError ?? state.transientError;
   return (
     <div className="companion-workspace">
@@ -260,7 +281,7 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
           className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-card px-2.5"
           onSubmit={(event) => {
             event.preventDefault();
-            command(() => controller.current?.navigate(address));
+            command(() => controller.current?.navigate(resolveOmniboxInput(address)));
           }}
         >
           <Globe size={13} className="shrink-0 text-muted-foreground" />
@@ -268,12 +289,16 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
             aria-label="Browser URL"
             spellCheck={false}
             className="min-w-0 flex-1 bg-transparent font-mono text-xs outline-none"
-            value={address}
-            onFocus={() => {
+            value={addressFocused ? address : displayAddress(address)}
+            onFocus={(event) => {
               editing.current = true;
+              setAddressFocused(true);
+              const input = event.currentTarget;
+              requestAnimationFrame(() => input.select());
             }}
             onBlur={() => {
               editing.current = false;
+              setAddressFocused(false);
             }}
             onChange={(event) => setAddress(event.target.value)}
           />
