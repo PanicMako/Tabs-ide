@@ -3,6 +3,7 @@
 Goal: bring Tabs to full parity with T3 Code for everything except T3's phone app: every feature, setting, keyboard command and quality-of-life detail T3 has and Tabs lacks or does worse. Build each one in Tabs' own UI and personality, verify it, and commit area by area on one branch.
 
 # 1. Context
+
 - **Repo:** `/Users/rushil.dev/Desktop/tabs/tabs-app`: an Electron desktop app (`apps/desktop`), a Node/Effect server (`apps/server`) and a React/Vite UI (`apps/web`), plus `packages/contracts` (schemas only) and `packages/shared`.
 - **Relationship to T3:** Tabs started as an MIT-licensed fork of T3 Code, and T3 Code is MIT too, so porting logic is allowed. Keep T3's copyright notice in files where you port substantial code. Many Tabs files have been renamed or merged since the fork; Tabs' desktop code lives largely in `apps/desktop/src/main.ts`.
 - **Reference:** clone https://github.com/pingdotgg/t3code read-only into `~/tmp/t3code-ref` (outside this repo). Never import from it.
@@ -14,6 +15,7 @@ Goal: bring Tabs to full parity with T3 Code for everything except T3's phone ap
   - `packages/contracts/src/keybindings.ts`: every keyboard command.
 
 # 2. Rules (from `tabs-app/CLAUDE.md`; read it in full first)
+
 - **Look:**
   - No "AI-generated" look: no glows, coloured accent edges, gradient washes or floating bubbles.
   - Use neutral surfaces, hairline borders, real type hierarchy, and blur over imagery.
@@ -33,6 +35,7 @@ Goal: bring Tabs to full parity with T3 Code for everything except T3's phone ap
 - **Additive:** add new features alongside Tabs' existing ones. Where Tabs already has something, keep its UI and raise the behaviour to T3's level.
 
 # 3. What "Tabs style" means
+
 - **Obvious to a first-time user:**
   - Plain-language labels, with a one-line explanation under each setting.
   - Sensible defaults.
@@ -51,7 +54,9 @@ Goal: bring Tabs to full parity with T3 Code for everything except T3's phone ap
   - Neutral focus (`--ring` is neutral inside text fields).
 
 # 4. Phase 0: inventory (commit this before any feature)
+
 For every item in section 5, and anything else you find in T3's docs, settings search or keybindings:
+
 1. Read the T3 files named.
 2. Find the Tabs equivalent by **behaviour**, not by file name.
 3. Classify it as **Have**, **Weaker** or **Missing**.
@@ -59,9 +64,11 @@ For every item in section 5, and anything else you find in T3's docs, settings s
 Write `tabs-app/docs/t3-parity.md` as a table: area, item, T3 files, Tabs files, status, planned Tabs design. Then build every **Missing** and **Weaker** item area by area, in the order in section 6. Keep the table up to date as you go.
 
 # 5. Checklist
+
 The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/` is `apps/server/src`, `desktop/` is `apps/desktop/src`.
 
 ## 5.1 Providers and accounts
+
 - **Antigravity stays signed in across updates.** T3: "updates keep your profile" (`server/provider/antigravityCliRelease.ts`, `managedRelease.ts`, `Drivers/AntigravityUsage.ts`, `docs/user/providers-antigravity.md`). Tabs today makes the user sign in with Google again after every Antigravity update. Start in `apps/server/src/provider/AntigravityAuth.ts`, `AntigravityInstallation.ts`, `antigravityAuthSupport.ts` and `Drivers/AntigravityDriver*.ts`, and find where the credentials live and why an update loses them. Add a test that simulates an upgrade and keeps the session.
 - **Antigravity sign-in methods:** Google account, Gemini Enterprise, Gemini API key and Vertex AI. Also let the user paste the return URL to finish a sign-in started from another device.
 - **Antigravity models come from the account,** including Claude and GPT models when the plan has them (Tabs shows only 3). See `server/provider/codexModelCatalog.ts`, `ClaudeCodeModelRoutes.ts`, and Tabs' `provider/ModelManifest.ts`.
@@ -80,6 +87,7 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
 - **Model defaults:** default model, fallback model, text-generation model and thread title instructions (`ThreadTitleInstructionsSettings.tsx`, `server/orchestration-v2/modelSwitch.ts`, `placeholderThreadTitle.ts`).
 
 ## 5.2 Devices and simulators (high priority: the user specifically asked for this)
+
 **What T3 does:** read `docs/user/devices.md` in full; it is the spec. A **Device** surface in the right panel streams a live iOS Simulator or Android Emulator beside the thread. The user taps, drags and types on it, while agents drive the same device through `device_*` tools and the `agent-device` command line. It is how you build a mobile app with an agent and watch it run.
 
 **What Tabs already has, server side** (re-check every file against T3 before reusing it): `apps/server/src/device/` (`DeviceService`, `DeviceHost`, `LocalDeviceHost`, `SshDeviceHost`, `localSshDeviceHost`, `DeviceHubProxy`, `DeviceActions`, `DeviceToolchain`, `deviceToolMaintenance`, `AgentDeviceShim`, `AgentDeviceTarget`, `sshDeviceScript`) and the agent tools in `apps/server/src/mcp/toolkits/device/`.
@@ -87,6 +95,7 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
 **What Tabs is missing:** the whole user-facing feature. There is no `components/device/` in the web app, no Device surface, no settings, and no stream viewer.
 
 **Build it.** T3 reference: `web/components/device/*` (`DevicePanel`, `DeviceWorkspace`, `DeviceStreamView`, `deviceStreamSession`, `DevicePhoneViewport`, `DeviceControlsRail`, `DeviceToolsPanel`, `DeviceSetup`, `DeviceLoadingView`, `DeviceHostAvailability`, `DeviceHostUpdates`, `DeviceToolVersions`, `deviceHubApi`, `deviceHubAtoms`, `deviceModels`, `deviceFrameLayout`, `mountDeviceViewer`, `phoneTrackpad`, `useDeviceControls`, `deviceFold`, `DeviceDuo*`, `DeviceAndroidFoldControls`), `web/routes/_chat.settings.devices.tsx`, `DeviceSourcesSettings.tsx`, `DeviceHostEditor.tsx`, `deviceHostsSettings.logic.ts`, `deviceHostConnectionChecks.ts`, `useHostConnectionChecks.ts`, `server/device/DeviceHubOperations.ts`, `mjpegStillFrame.ts`.
+
 - **A new "Device" surface:**
   - Add it to `RightPanelTab` in `apps/web/src/stores/rightPanelStore.ts`, to the `surfaces` list in `apps/web/src/components/agents/companion/SurfaceTabs.tsx` (with a key, a tint and its own hover font), to the segmented bar in `designs/GroupedDesign.tsx`, and to the body switch in `apps/web/src/components/RightPanelTabs.tsx`.
   - `useCompanionSurfaceStore.open` should create a new tab every time for devices, as it does for browsers.
@@ -98,6 +107,7 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
   3. Choose whether agents may use devices.
 
   Opening the panel alone must not download or start anything. Explain every missing dependency with the exact fix. If the hub is already installed, say so and reuse it.
+
 - **The device picker:** running devices first, with **Start** beside stopped ones, grouped by host when there are several. Device activity also appears in the thread timeline.
 - **The live screen:**
   - The stream sits inside a realistic device frame. Click and drag to touch, type while focused.
@@ -115,6 +125,7 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
 - **Tests:** port and adapt T3's device tests with their fakes. Never boot a real simulator in tests.
 
 ## 5.3 Threads, limits and the sidebar (`web/routes/_chat.settings.threads.tsx`, `docs/user/thread-sidebar.md`)
+
 - **Resume after usage limits, and snooze until limits reset:** the thread continues by itself when limits reset. Also snooze presets and a custom snooze (`SnoozePresetsSettings*`, `web/components/CustomSnoozeDialog.tsx`, `web/components/Sidebar.snooze.ts`, `server/scheduling/DueHint.ts`, `orchestration-v2/manualContinuation.ts`, `DispatchModeLimit.ts`).
 - **Auto-settle:** inactive threads, merged threads, the number of days, and keeping threads that have a PR (`web/settleAndAdvance.ts`).
 - **New-thread options:** response streaming, permission defaults, where "add project" starts, cloning into host folders, and project defaults with per-project overrides and inheritance (`SettingInheritance.tsx`, `scopedSettings.ts`, `settingsScope*.ts`, `ProjectDefaultsSettings*`).
@@ -132,6 +143,7 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
 - **Empty state:** a no-projects welcome (`NoProjectsHero.tsx`).
 
 ## 5.4 Composer and chat (`docs/user/composer.md`, `web/routes/_chat.settings.chat.tsx`)
+
 - **Prompt editing:** edit an earlier prompt, recall a sent prompt, a suggested next prompt, goals, quoting an assistant reply, send while the agent works, and follow-up behaviour.
 - **Sending options:** send in the background, send and start a new thread, and an alternate send.
 - **Rich text composer, as an optional toggle:** code blocks with a language picker, list continuation, markdown copy and paste, mentions, inline chips and token paste, undo grouping, and text direction (`web/components/ComposerPromptEditorTiptap.tsx`, `composer-*.ts`, `composerInline*.ts`, `markdown-clipboard.ts`, `textDirection.ts`).
@@ -141,13 +153,16 @@ The T3 paths below are relative to the clone. `web/` is `apps/web/src`, `server/
 - **Attachments and files:** attachment upload progress (`useAttachmentUploadProgress.ts`), files in question answers (`questionAttachments.ts`), files outside the workspace, and paths truncated from the start so the file name stays visible (`StartTruncatedPath.tsx`).
 
 ## 5.5 Files and previews (`web/components/files/*`)
+
 Compare Tabs' file viewer with T3's previews and fill the gaps:
+
 - **Documents:** PDF pages (`PdfViewer.tsx`, `DocumentPages.tsx`, `server/preview/PdfDocumentNavigation.ts`) and Office documents (`OfficeViewer.tsx`, `OpenXmlOfficeViewer.tsx`).
 - **Data and diagrams:** notebooks (`NotebookPreview.tsx`), Mermaid (`MermaidViewer.tsx`) and CSV/TSV tables (`DelimitedTablePreview.tsx`).
 - **Media and other files:** fonts (`FontViewer.tsx`), audio (`AudioPreview.tsx`), large text (`LargeTextViewer.tsx`), binary files, and media actions (`web/components/media/*`).
 - **Navigation:** breadcrumbs (`FileBreadcrumbs.tsx`) and the project file picker (`ProjectFilePicker*`).
 
 ## 5.6 Source control, pull requests and diffs (`web/routes/_chat.settings.source-control.tsx`, `_chat.settings.diffs.tsx`, `docs/user/source-control.md`)
+
 - **Pulling:** automatic pull and a git fetch interval (`server/vcs/VcsAutomaticFetchInterval.ts`).
 - **Merging:** default merge method, removing agent credits when merging, and following PR templates.
 - **Writing:** commit and PR writing with a writer model (`SourceControlWritingSettings.tsx`), and review guides with their own model and instructions (Tabs has review guides; compare).
@@ -168,12 +183,14 @@ Compare Tabs' file viewer with T3's previews and fill the gaps:
   - Update `GitWorkflows.browser.tsx` and `CompanionPRPanel.browser.tsx`.
 
 ## 5.7 Worktrees (`web/routes/_chat.settings.worktrees.tsx`, `docs/user/project-settings.md`)
+
 - **Creating:** worktree location, branch naming (`BranchNamingSettings.tsx`), a base-branch picker (`WorktreeBaseBranchPicker.tsx`), start from remote, submodules, and keeping the default branch current.
 - **Cleaning up:** cleanup, keeping worktrees with local changes, and restoring a missing worktree (`web/worktreeCleanup.ts`, `server/vcs/worktreeRemoval.ts`, `server/workspace/restoreMissingWorktree.ts`).
 - **Speed:** fast checkout on macOS (`server/vcs/worktreeCheckoutCache.ts`, `server/noCopyOnWrite.ts`).
 - **Composer:** jump to the previous worktree from the composer (`composer.previousWorktree`).
 
 ## 5.8 Connections, environments and access (`_chat.settings.connections.tsx`, `_chat.settings.access.tsx`, `docs/user/remote-access.md`)
+
 - **Environments:** the environments list, linked environments, local environment and PR sharing (`ConnectionsSettings*`, `LinkedEnvironmentsSettings.tsx`, `EnvironmentRoutesList.tsx`, `AddEnvironmentDialog.tsx`, `EnvironmentIconPicker.tsx`), and switching host from the composer (`composer.host`, `composer.cycleHost`).
 - **SSH and WSL environments** (`desktop/ssh/*`, `desktop/wsl/*`).
 - **Network:** Tailscale HTTPS and network access (Tabs has Tailscale; compare).
@@ -182,12 +199,14 @@ Compare Tabs' file viewer with T3's previews and fill the gaps:
 - **Outside agents:** Tabs as an MCP server for other assistants, with sign-in approval (`server/mcp/*`, `server/auth/McpOAuth.ts`, `docs/user/outside-agents.md`). Tabs has MCP pieces; compare.
 
 ## 5.9 Browser and preview (`_chat.settings.browser.tsx`)
+
 - **Defaults:** search engine; default appearance, profile, viewport and zoom; browser profiles; agent browser access; auto-show floating preview; "open links in".
 - **Recording:** frame rate, and showing key presses and mouse presses.
 - **Import and identity:** import sessions from other browsers (`desktop/preview/BrowserImport/*`), passkeys (`desktop/preview/Passkey*`), and using Tabs as the default browser (`docs/user/default-browser.md`).
 - **Other:** port discovery (`portDiscoveryState.ts`), the preview mini player (`previewMiniPlayerStore.ts`), browser history and favicons, and find in page (`preview.find`).
 
 ## 5.10 General and appearance
+
 - **General:** time format, project grouping and order, the working section, and confirmations (archive, delete, unpin).
 - **Quitting:** a quit shortcut with a hold-to-quit overlay (`QuitHoldOverlay.tsx`, `desktop/window/QuitHold.ts`).
 - **Notifications:** in-app notifications.
@@ -198,26 +217,33 @@ Compare Tabs' file viewer with T3's previews and fill the gaps:
 - **Errors:** a render error boundary that keeps the rest of the app usable (`RenderErrorBoundary.tsx`), and a toast for slow requests (`SlowRpcRequestToastCoordinator.tsx`).
 
 ## 5.11 Voice (`VoiceSettingsPanel.tsx`; Tabs has voice settings, so compare)
+
 Per-project dictionary, cleanup model and transcript cleanup, correction cue, silence filtering, streaming transcription, transcription language, model unloading, and test microphone / test model.
 
 ## 5.12 Terminal
+
 Terminals that persist per thread across navigation (`PersistentThreadTerminals.tsx`), terminal history (`docs/user/terminal.md`), and closing terminals cleanly (`web/components/terminal/*`).
 
 ## 5.13 Maintenance, storage and diagnostics
+
 - **Storage and logs:** artifacts and log cleanup with "Delete now", and database maintenance with reclaim space (`server/persistence/DatabaseMaintenance.ts`, `DatabaseStorage.ts`).
 - **Background running:** background activity, keep awake while agents work (`server/background/KeepAwake.ts`), and a background service (`docs/user/background-service.md`).
 - **Diagnostics:** OpenTelemetry export, resource telemetry and diagnostics.
 - **Optional:** managed policy (`server/policy/*`).
 
 ## 5.14 Automation and capture
+
 - **Scheduled tasks and webhook automations** (`ScheduledTasksSettings.tsx`, `server/scheduledTasks/webhookFilter.ts`, `webhookDedupe.ts`). Tabs has scheduled tasks; compare.
 - **SnapShot screen capture into a thread:** shortcut, flash, sound, animations, and including app text (`desktop/snapShot/*`, `SnapShotSettings*`).
 
 ## 5.15 Usage (`web/routes/_chat.usage.tsx`, `web/components/usage/*`, `docs/user/usage.md`)
+
 A usage page with limits (pooled across accounts), per-provider charts, custom model prices, tokens and cost views by day, week, month and quarter (`usage.*` shortcuts), a CLIProxyAPI hub, and a subscription usage widget.
 
 ## 5.16 Keyboard commands
+
 Tabs lacks these T3 commands (`packages/contracts/src/keybindings.ts` in both repos). Add each with a sensible default binding, show it in keybinding settings and the command palette, and avoid clashes with Tabs' existing bindings:
+
 - **Appearance and themes:** `appearance.cycle`, `theme.select`, `themeEditor.toggle`.
 - **Chat:** `chat.find`, `chat.newWithoutProject`.
 - **Composer:** `composer.branch`, `composer.cycleHost`, `composer.decreaseEffort`, `composer.effort`, `composer.host`, `composer.increaseEffort`, `composer.mode`, `composer.previousWorktree`, `composer.sendAlternate`, `composer.sendAndNewThread`, `composer.sendBackground`, `composer.stash`, `composer.workspace`.
@@ -226,6 +252,7 @@ Tabs lacks these T3 commands (`packages/contracts/src/keybindings.ts` in both re
 - **Usage:** `usage.open`, `usage.cost`, `usage.tokens`, `usage.limits`, `usage.period.day`, `usage.period.week`, `usage.period.month`, `usage.period.quarter`.
 
 ## 5.17 Everything else
+
 - **Sharing and handoffs:** prompt links and sharing a thread (`web/components/promptLinks/*`, `docs/user/prompt-links.md`), portable handoffs (Tabs has handoffs; compare), and visual replies / MCP apps (`server/mcpApps/*`, `docs/user/html-renders.md`).
 - **Issues:** issue triage (`server/triage/*`, `useStartTriage.ts`, `docs/user/triage.md`).
 - **Onboarding:** a welcome page (`docs/user/welcome-page.md`, `web/components/onboarding/*`).
@@ -236,12 +263,14 @@ Tabs lacks these T3 commands (`packages/contracts/src/keybindings.ts` in both re
 - **Anything else** you find in T3's docs, settings search or components that Tabs lacks: add it to the inventory and build it if it is small, or list it as a follow-up if it is large.
 
 # 6. Order of work and commits
+
 1. Phase 0 inventory, committed alone.
 2. Then 5.1 → 5.17 in order. 5.2 (Devices) may run in parallel with 5.1.
 3. Inside each section, do first the items that remove the most daily friction.
 4. One commit per feature, each with its tests (unit tests for logic, browser tests for UI). After each section, run the full check list in section 2 before moving on.
 
 # 7. Definition of done
+
 - Everything in section 2's testing list passes at the end.
 - `docs/t3-parity.md` ends with a final table showing every item as done, partial (what is left) or skipped (why), the files changed, and a short "how to check it by hand" for each, so a person can verify it in the running app.
 - Never mark something done unless its tests pass. When time or scope runs out, stop and record the remaining items in the doc instead of half-building them.
