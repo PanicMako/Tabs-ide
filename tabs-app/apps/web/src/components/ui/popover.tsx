@@ -20,14 +20,16 @@ function PopoverTrigger({ className, children, ...props }: PopoverPrimitive.Trig
 }
 
 function PopoverBackdrop({ className, ...props }: PopoverPrimitive.Backdrop.Props) {
+  const motionRef = useGsapSurface(props.ref, "backdrop");
   return (
     <PopoverPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-40 bg-black/50 backdrop-blur-[8px] transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-40 bg-black/50 backdrop-blur-[8px] transition-opacity duration-200 motion-reduce:transition-none",
         className,
       )}
       data-slot="popover-backdrop"
       {...props}
+      ref={motionRef}
     />
   );
 }

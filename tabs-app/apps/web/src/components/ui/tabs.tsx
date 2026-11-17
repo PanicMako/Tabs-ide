@@ -122,7 +122,7 @@ export function TabsContent({
   const context = React.useContext(TabsContext);
   if (!context) throw new Error("TabsContent must be used within Tabs");
 
-  const motionRef = useGsapSurface<HTMLDivElement>();
+  const motionRef = useGsapSurface<HTMLDivElement>(undefined, "panel");
 
   if (context.value !== value) return null;
 

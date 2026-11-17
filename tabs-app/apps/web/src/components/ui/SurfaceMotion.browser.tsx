@@ -5,9 +5,20 @@ import { render } from "vitest-browser-react";
 import { Dialog, DialogTrigger, DialogPopup, DialogTitle, DialogDescription } from "./dialog";
 import { Menu, MenuTrigger, MenuPopup, MenuItem } from "./menu";
 
-vi.mock("../../panelAnimations", () => ({
-  usePanelAnimationSettings: () => ({ active: true, durationMs: 200, reducedMotion: false }),
-}));
+vi.mock("../../panelAnimations", async () => {
+  const { MOTION_PROFILE } = await vi.importActual<typeof import("../../lib/motionProfiles")>(
+    "../../lib/motionProfiles",
+  );
+  return {
+    usePanelAnimationSettings: () => ({ active: true, durationMs: 200, reducedMotion: false }),
+    useSurfaceMotionSettings: () => ({
+      active: true,
+      reducedMotion: false,
+      seconds: (s: number) => s,
+      profile: MOTION_PROFILE,
+    }),
+  };
+});
 
 it("dismisses animated dialogs and menus and restores keyboard focus on repeated opens", async () => {
   const view = await render(

@@ -42,6 +42,8 @@ it("avoids double padding and keeps long modal content scrollable with reachable
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "Compact form" });
     await expect.element(dialog).toBeVisible();
+    // Measure the settled layout, not a frame of the entrance scale.
+    await expect.poll(() => dialog.element().style.transform).toBe("");
     const header = dialog.element().querySelector('[data-slot="dialog-header"]')!;
     expect(getComputedStyle(header).paddingLeft).toBe("0px");
     expect(getComputedStyle(header).paddingTop).toBe("0px");

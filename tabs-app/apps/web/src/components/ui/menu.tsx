@@ -103,7 +103,7 @@ function MenuPopup({
       >
         <MenuPrimitive.Popup
           className={cn(
-            "transition-opacity duration-150 ease-out motion-reduce:transition-none data-ending-style:opacity-0 relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-xl border bg-popover not-dark:bg-clip-padding shadow-xl/10 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-xl border bg-popover not-dark:bg-clip-padding shadow-xl/10 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}
           style={style}
