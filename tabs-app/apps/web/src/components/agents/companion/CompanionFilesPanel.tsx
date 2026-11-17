@@ -40,6 +40,7 @@ import { showCustomConfirm } from "~/lib/customConfirm";
 import { Button } from "~/components/ui/button";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { useTheme } from "~/hooks/useTheme";
+import { StartTruncatedPath } from "~/components/StartTruncatedPath";
 import { CompanionEmpty } from "./CompanionChrome";
 import { FontPreview } from "./FontPreview";
 import { NotebookPreview } from "./NotebookPreview";
@@ -400,9 +401,7 @@ function FilePreview({
         >
           <ArrowLeft size={15} />
         </button>
-        <span title={path} className="min-w-0 flex-1 truncate font-mono text-[11px]">
-          {path}
-        </span>
+        <StartTruncatedPath path={path} className="flex-1 font-mono text-[11px]" />
         {!binary && !editing && !file.data?.truncated && (
           <button
             type="button"
