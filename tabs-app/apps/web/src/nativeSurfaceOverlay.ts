@@ -14,6 +14,7 @@ const BLOCKING_NATIVE_SURFACE_OVERLAY_SELECTORS = [
   "[data-slot='code-resize-overlay']",
   "[data-slot='quick-actions-overlay']",
   "[data-slot='workspace-tour-overlay']",
+  "[data-slot='settings-layer'][data-open]",
 ] as const;
 
 /**

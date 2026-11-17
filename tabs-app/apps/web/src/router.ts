@@ -3,13 +3,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
 import { routeTree } from "./routeTree.gen";
+import { installUrgentNavigation } from "./lib/urgentNavigation";
 
 type RouterHistory = NonNullable<Parameters<typeof createRouter>[0]["history"]>;
 
 export function getRouter(history: RouterHistory) {
   const queryClient = new QueryClient();
 
-  return createRouter({
+  const router = createRouter({
     routeTree,
     history,
     // Preload a route's (now code-split) chunk + data on hover/touch intent, so
@@ -22,6 +23,8 @@ export function getRouter(history: RouterHistory) {
     },
     Wrap: ({ children }) => createElement(QueryClientProvider, { client: queryClient }, children),
   });
+  installUrgentNavigation(router);
+  return router;
 }
 
 export type AppRouter = ReturnType<typeof getRouter>;

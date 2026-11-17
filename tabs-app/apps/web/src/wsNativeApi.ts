@@ -783,6 +783,9 @@ export function createWsNativeApi(options?: {
           patch: {},
           providerInstanceMutation,
         }),
+      searchAcpRegistry: (input) => transport.request(WS_METHODS.serverSearchAcpRegistry, input),
+      prepareAcpRegistryAgent: (input) =>
+        transport.request(WS_METHODS.serverPrepareAcpRegistryAgent, input),
       discoverSourceControl: () => transport.request(WS_METHODS.serverDiscoverSourceControl),
       checkSecretSource: (source) =>
         transport.request(WS_METHODS.serverCheckSecretSource, { source }),
