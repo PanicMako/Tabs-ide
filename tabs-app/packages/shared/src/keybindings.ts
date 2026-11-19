@@ -59,6 +59,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+[", command: "navigation.back", when: "!terminalFocus" },
   { key: "mod+]", command: "navigation.forward", when: "!terminalFocus" },
   { key: "mod+alt+t", command: "appearance.cycle" },
+  { key: "mod+alt+y", command: "theme.select" },
   { key: "mod+alt+e", command: "themeEditor.toggle" },
   { key: "mod+alt+w", command: "rightPanel.close", when: "!terminalFocus" },
   { key: "mod+alt+n", command: "rightPanel.new", when: "!terminalFocus" },

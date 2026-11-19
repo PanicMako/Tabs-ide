@@ -77,6 +77,7 @@ export type CommandPaletteUiAction =
   | { readonly _tag: "SetOpen"; readonly open: boolean }
   | { readonly _tag: "ToggleMode"; readonly mode: SearchOverlayMode }
   | { readonly _tag: "OpenAddProject"; readonly workspace?: WorkspaceProjectSourceActions }
+  | { readonly _tag: "OpenWithQuery"; readonly query: string }
   | { readonly _tag: "ClearOpenIntent" };
 
 export function reduceCommandPaletteUiState(
@@ -101,6 +102,8 @@ export function reduceCommandPaletteUiState(
           ...(action.workspace ? { workspace: action.workspace } : {}),
         },
       };
+    case "OpenWithQuery":
+      return { open: true, mode: "command", openIntent: { kind: "search", query: action.query } };
     case "ClearOpenIntent":
       return { ...state, openIntent: null };
   }
@@ -584,6 +587,50 @@ export function getCommandPaletteMode(input: {
     return input.isBrowsing ? "submenu-browse" : "submenu";
   }
   return input.isBrowsing ? "root-browse" : "root";
+}
+
+export interface ThemePaletteChoice {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string | undefined;
+}
+
+/** "Switch theme…": one entry per theme, the one in use marked, plus follow-the-system first. */
+export function buildThemeSubmenuItem(input: {
+  readonly themes: ReadonlyArray<ThemePaletteChoice>;
+  readonly activeThemeId: string;
+  readonly onSelect: (themeId: string) => void;
+  readonly icon: ReactNode;
+  readonly addonIcon: ReactNode;
+  readonly itemIcon: ReactNode;
+}): CommandPaletteSubmenuItem {
+  const choices: ReadonlyArray<ThemePaletteChoice> = [
+    { id: "system", name: "System", description: "Follow your computer's light or dark setting" },
+    ...input.themes,
+  ];
+  return {
+    kind: "submenu",
+    value: "action:switch-theme",
+    searchTerms: ["theme", "appearance", "dark", "light", "colors", "switch theme"],
+    title: "Switch theme...",
+    icon: input.icon,
+    addonIcon: input.addonIcon,
+    groups: [
+      {
+        value: "themes",
+        label: "Themes",
+        items: choices.map((choice) => ({
+          kind: "action" as const,
+          value: `theme:${choice.id}`,
+          searchTerms: [choice.name, choice.id],
+          title: choice.id === input.activeThemeId ? `${choice.name} (current)` : choice.name,
+          ...(choice.description ? { description: choice.description } : {}),
+          icon: input.itemIcon,
+          run: async () => input.onSelect(choice.id),
+        })),
+      },
+    ],
+  };
 }
 
 export function buildRootGroups(input: {

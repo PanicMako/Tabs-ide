@@ -19,6 +19,7 @@ import {
   LinkIcon,
   PuzzleIcon,
   XIcon,
+  PaletteIcon,
 } from "lucide-react";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { useInstalledExtensions } from "~/state/extensions";
@@ -77,7 +78,10 @@ import {
   type CommandPaletteSubmenuItem,
   type CommandPaletteView,
   type SearchOverlayMode,
+  buildThemeSubmenuItem,
 } from "./CommandPalette.logic";
+import { useTheme } from "../hooks/useTheme";
+import { THEME_DEFINITIONS, type ThemePreference } from "../lib/themes";
 import { CommandPaletteResults } from "./CommandPaletteResults";
 import { validateCloneSource } from "./cloneRepositoryValidation";
 import "./project-source-picker.css";
@@ -135,6 +139,13 @@ export function CommandPalette({ children }: { children: ReactNode }) {
           shellChromeFocus: true,
         },
       });
+      if (command === "theme.select") {
+        event.preventDefault();
+        event.stopPropagation();
+        dispatch({ _tag: "OpenWithQuery", query: "Switch theme" });
+        return;
+      }
+
       if (command === "commandPalette.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -243,6 +254,7 @@ function OpenCommandPaletteDialog(props: {
 
   const workspaceSourceActions = useRef<WorkspaceProjectSourceActions | undefined>(undefined);
   const [query, setQuery] = useState("");
+  const { theme: themePreference, setTheme: setThemePreference } = useTheme();
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
 
   const projects = useAtomValue(readModelStateAtom, (state) => state.projects);
@@ -790,6 +802,9 @@ function OpenCommandPaletteDialog(props: {
     if (openIntent?.kind === "add-project") {
       clearOpenIntent();
       openAddProjectSourcesView(openIntent.workspace);
+    } else if (openIntent?.kind === "search") {
+      clearOpenIntent();
+      setQuery(openIntent.query);
     }
   }, [clearOpenIntent, openAddProjectSourcesView, openIntent]);
 
@@ -856,6 +871,21 @@ function OpenCommandPaletteDialog(props: {
       openAddProjectSourcesView();
     },
   });
+
+  actionItems.push(
+    buildThemeSubmenuItem({
+      themes: Object.values(THEME_DEFINITIONS).map((definition) => ({
+        id: definition.id,
+        name: definition.name,
+        description: definition.description,
+      })),
+      activeThemeId: themePreference,
+      onSelect: (themeId) => setThemePreference(themeId as ThemePreference),
+      icon: <PaletteIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <PaletteIcon className={ADDON_ICON_CLASS} />,
+      itemIcon: <PaletteIcon className={ITEM_ICON_CLASS} />,
+    }),
+  );
 
   actionItems.push({
     kind: "action",
