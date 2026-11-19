@@ -357,3 +357,7 @@ Done (unit tests for the decision and for the session passing the profile, a bro
 ## 5.9 Browser recording frame rate
 
 Done (unit test for the capture constraints, a browser test for the settings row, typecheck; the recorder itself was not exercised because it needs the desktop app). Settings → Browser Profiles → Browsing has "Recording smoothness" (30 or 60 frames per second). The recorder used a fixed 30; it now reads the saved choice when a recording starts (`browserRecordingVideoConstraints` in `NativePreviewAutomationHost.tsx`). Showing key presses and mouse presses in recordings (`browserRecordingShowKeyPresses`, `browserRecordingShowMousePresses`) and the default viewport (`browserDefaultViewport`) are still unwired: they need an overlay drawn into the recording and a viewport call on the browser host, neither of which exists. By hand: set 60, record a browser tab and check the file plays smoothly.
+
+## Latest full check run (branch `t3-parity-2`, after the default profile and recording settings)
+
+`vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2264 pass; browser suite 527 of 527 pass; server suite 8212 pass, 35 skipped, 0 failures; `bun run build:desktop` succeeds.
