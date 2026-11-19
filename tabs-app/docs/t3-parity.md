@@ -436,3 +436,7 @@ Done in code, unverified in the running app (unit tests for the chord, the gate 
 ## Section 2 checks: full run on `bfa9d82d9` (hold-to-quit wired)
 
 `vp check` 0 errors (578 warnings); `vp run typecheck` 16/16; web unit tests 2285 pass; web browser suite 530 of 530 pass; contracts 654 pass; shared 1345 pass; server 8212 pass, 35 skipped, 0 failed; desktop 781 pass; `bun run build:desktop` succeeds. The desktop app was not launched. This supersedes the earlier run notes.
+
+## 5.14 Desktop-wide SnapShot shortcut: why it stays skipped
+
+The default shortcut in the contracts is both Shift keys (`kind: "both-shift-keys"`), and the other non-chord choice is a pair of the same modifier. Electron's `globalShortcut` only registers a key with modifiers, never a modifier on its own, so neither form can be heard while Tabs is in the background without a native keyboard hook (an extra native module that would also need the macOS input-monitoring permission). Only the key-chord form could use `globalShortcut`, and the desktop main process does not read the saved client settings (`snapShotEnabled`, `snapShotShortcut`) to know when to register it. Both would need the running desktop app to check. The in-app shortcut (`snapshot.capture`), flash and sound are done; see "5.14 SnapShot: in-app shortcut, flash and sound".
