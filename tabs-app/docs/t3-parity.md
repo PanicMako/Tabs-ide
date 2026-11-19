@@ -234,3 +234,7 @@ Done (browser tests for the worktree folder; the other two rows are covered by t
 - **Let agents use the browser** (`enableAgentBrowserAccess`): Settings → Browser Profiles → Browsing. This is the brief's agent browser access item; the per-project override (`projectAgentBrowserAccessOverrides`) is not built.
 
 Voice model, acceleration and unload settings were checked and already have their own controls through the speech model APIs in `VoiceSettings.tsx`, so they are **Have**, not gaps. By hand: change each setting, reload Settings, and check it was kept.
+
+## 5.6 Commit and pull request writing
+
+Done (unit and browser tests; not run in the app). Settings → Source Control → "Commit and pull request writing": a writing style (match the repository, Conventional Commits, or your own instructions), follow pull request templates, and a writer model for commits and pull requests that falls back to the General text generation model until you pick one (`sourceControlWritingStyle`, `sourceControlWriterModelSelection`, both already used by the server). Files: `settings/SourceControlWritingSettings.tsx`, `flowSettings.logic.ts`, `SourceControlSettings.tsx`, `FlowSettings.browser.tsx`. Review guides with their own model and instructions were not touched (Tabs already has review guides). By hand: open Settings → Source Control, switch the style to Conventional Commits, then write a commit message from a diff and check its format.

@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { SourceControlFlowSettings } from "./SourceControlFlowSettings";
+import { SourceControlWritingSettings } from "./SourceControlWritingSettings";
 import { ThreadFlowSettings } from "./ThreadFlowSettings";
 
 it("lists what threads do on their own", async () => {
@@ -34,6 +35,18 @@ it("lists how branches stay current and how pull requests merge", async () => {
       await expect.element(page.getByText(title, { exact: true })).toBeVisible();
     }
     await expect.element(page.getByText("Ask each time", { exact: true })).toBeVisible();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("lists how commits and pull requests are written", async () => {
+  const view = await render(<SourceControlWritingSettings />);
+  try {
+    for (const title of ["Writing style", "Follow pull request templates", "Writer model"]) {
+      await expect.element(page.getByText(title, { exact: true })).toBeVisible();
+    }
+    await expect.element(page.getByText("Match the repository", { exact: true })).toBeVisible();
   } finally {
     await view.unmount();
   }

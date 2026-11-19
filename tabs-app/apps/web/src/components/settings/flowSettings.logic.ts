@@ -46,3 +46,20 @@ export const mergeMethodChoice = (value: PullRequestMergeMethod | null): MergeMe
   value ?? "ask";
 export const mergeMethodFromChoice = (choice: MergeMethodChoice): PullRequestMergeMethod | null =>
   choice === "ask" ? null : choice;
+
+export type WritingStyleMode = "repo_conventions" | "conventional_commits" | "custom";
+
+export const WRITING_STYLE_LABELS: Record<WritingStyleMode, { label: string; hint: string }> = {
+  repo_conventions: {
+    label: "Match the repository",
+    hint: "Read recent commits and pull requests, and write the way this project already does.",
+  },
+  conventional_commits: {
+    label: "Conventional Commits",
+    hint: "Use the type(scope): summary format, such as feat(search): add filters.",
+  },
+  custom: {
+    label: "My own instructions",
+    hint: "Tell the model exactly how commit messages and pull request text should read.",
+  },
+};

@@ -35,3 +35,14 @@ describe("flow settings helpers", () => {
     expect(mergeMethodFromChoice(mergeMethodChoice("squash"))).toBe("squash");
   });
 });
+
+import { WRITING_STYLE_LABELS } from "./flowSettings.logic";
+
+describe("writing style labels", () => {
+  it("has a label and a hint for every mode", () => {
+    for (const mode of ["repo_conventions", "conventional_commits", "custom"] as const) {
+      expect(WRITING_STYLE_LABELS[mode].label.length).toBeGreaterThan(0);
+      expect(WRITING_STYLE_LABELS[mode].hint.length).toBeGreaterThan(0);
+    }
+  });
+});
