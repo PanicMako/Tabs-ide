@@ -1,4 +1,5 @@
 import { InstallerCleanupDialog } from "./components/InstallerCleanupDialog";
+import { QuitKeyOverlay } from "./components/QuitKeyOverlay";
 import { useState, useEffect } from "react";
 import { RouterProvider } from "@tanstack/react-router";
 
@@ -65,6 +66,7 @@ export function AppRoot({ router }: { readonly router: AppRouter }) {
     <AppAtomRegistryProvider>
       <RouterProvider router={router} />
       {!isClosing && !isQuitConfirmationOpen && <InstallerCleanupDialog />}
+      <QuitKeyOverlay />
       <QuitConfirmationModal open={isQuitConfirmationOpen} onChoice={respondToQuitConfirmation} />
       {isClosing && <CloseScreenOverlay cleanupDone={cleanupDone} />}
     </AppAtomRegistryProvider>

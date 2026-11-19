@@ -1,5 +1,6 @@
 import { diskIconPath, windowsIconDetails, updateWindowsIconShortcuts } from "./windowsAppIcon";
 import { installNativeQuickActionsForwarding } from "./nativeQuickActions";
+import { createQuitKeyGate, isQuitChord, type QuitConfirmationMode } from "./quitConfirmation";
 import { isTabsLogoVariant, resolveTabsLogoVariant } from "@tabs/shared/tabsBrand";
 import {
   findDownloadedInstaller,
@@ -190,6 +191,9 @@ const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
 const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
+const GET_QUIT_KEY_MODE_CHANNEL = "desktop:get-quit-key-mode";
+const SET_QUIT_KEY_MODE_CHANNEL = "desktop:set-quit-key-mode";
+const QUIT_KEY_PROGRESS_CHANNEL = "desktop:quit-key-progress";
 const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
 const GET_BACKEND_STARTUP_ERROR_CHANNEL = "desktop:get-backend-startup-error";
 const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
@@ -510,6 +514,8 @@ const LOG_FILE_MAX_FILES = 10;
 type DesktopPreferences = {
   iconTheme?: DesktopIconTheme;
   confirmBeforeQuit?: boolean;
+  /** Absent means the quit key opens the confirmation dialog, as it always has. */
+  quitKeyMode?: Exclude<QuitConfirmationMode, "direct"> | "dialog";
 };
 const APP_RUN_ID = Crypto.randomBytes(6).toString("hex");
 const AUTO_UPDATE_STARTUP_DELAY_MS = 15_000;
@@ -1809,6 +1815,45 @@ function loadDesktopIconThemePreference(): DesktopIconTheme {
 
 function shouldConfirmBeforeQuit(): boolean {
   return readDesktopPreferences().confirmBeforeQuit !== false;
+}
+
+function readQuitKeyMode(): Exclude<QuitConfirmationMode, "direct"> | "dialog" {
+  const mode = readDesktopPreferences().quitKeyMode;
+  return mode === "hold" || mode === "double-click" ? mode : "dialog";
+}
+
+const quitKeyGate = createQuitKeyGate({
+  // Only called while the mode is hold or double-click; "dialog" never reaches the gate.
+  mode: () => (readQuitKeyMode() === "double-click" ? "double-click" : "hold"),
+  now: () => Date.now(),
+  onProgress: (progress, armed) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(QUIT_KEY_PROGRESS_CHANNEL, { progress, armed });
+    }
+  },
+  onQuit: () => {
+    codeHostManager.saveAllOpenSessions();
+    isQuittingConfirmed = true;
+    app.quit();
+  },
+});
+
+/**
+ * Hold or double-press Cmd/Ctrl+Q. If the platform menu delivers the quit before
+ * this sees the key, the normal confirmation dialog still appears, so quitting
+ * is never blocked.
+ */
+function installQuitKeyGate(window: BrowserWindow): void {
+  window.webContents.on("before-input-event", (event, input) => {
+    if (readQuitKeyMode() === "dialog" || !isQuitChord(input, process.platform)) return;
+    if (input.type === "keyDown") {
+      event.preventDefault();
+      quitKeyGate.keyDown();
+    } else if (input.type === "keyUp") {
+      quitKeyGate.keyUp();
+    }
+  });
+  window.on("blur", () => quitKeyGate.reset());
 }
 
 function setConfirmBeforeQuit(confirmBeforeQuit: boolean): void {
@@ -3325,6 +3370,17 @@ function registerIpcHandlers(): void {
 
   ipcMain.removeHandler(GET_CONFIRM_BEFORE_QUIT_CHANNEL);
   handleTabsIpc(GET_CONFIRM_BEFORE_QUIT_CHANNEL, async () => shouldConfirmBeforeQuit());
+
+  ipcMain.removeHandler(GET_QUIT_KEY_MODE_CHANNEL);
+  handleTabsIpc(GET_QUIT_KEY_MODE_CHANNEL, async () => readQuitKeyMode());
+
+  ipcMain.removeHandler(SET_QUIT_KEY_MODE_CHANNEL);
+  handleTabsIpc(SET_QUIT_KEY_MODE_CHANNEL, async (_event, value: unknown) => {
+    if (value === "dialog" || value === "hold" || value === "double-click") {
+      writeDesktopPreferences({ ...readDesktopPreferences(), quitKeyMode: value });
+      quitKeyGate.reset();
+    }
+  });
 
   ipcMain.removeHandler(SET_CONFIRM_BEFORE_QUIT_CHANNEL);
   handleTabsIpc(SET_CONFIRM_BEFORE_QUIT_CHANNEL, async (_event, value: unknown) => {
@@ -5140,6 +5196,7 @@ function createTabsWindow(): BrowserWindow {
 
 function createWindow(): BrowserWindow {
   const window = createTabsWindow();
+  installQuitKeyGate(window);
   window.on("close", (event) => {
     const nonPopoutWindowsCount = BrowserWindow.getAllWindows().filter(
       (w) => !popoutWindows.has(w),

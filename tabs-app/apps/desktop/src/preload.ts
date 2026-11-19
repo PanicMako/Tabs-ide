@@ -29,6 +29,9 @@ const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
 const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
+const GET_QUIT_KEY_MODE_CHANNEL = "desktop:get-quit-key-mode";
+const SET_QUIT_KEY_MODE_CHANNEL = "desktop:set-quit-key-mode";
+const QUIT_KEY_PROGRESS_CHANNEL = "desktop:quit-key-progress";
 const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
 const GET_BACKEND_STARTUP_ERROR_CHANNEL = "desktop:get-backend-startup-error";
 const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
@@ -514,6 +517,16 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getDataResetStartupError: () => ipcRenderer.invoke(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL),
   setConfirmBeforeQuit: (value: boolean) =>
     ipcRenderer.invoke(SET_CONFIRM_BEFORE_QUIT_CHANNEL, value),
+  getQuitKeyMode: () => ipcRenderer.invoke(GET_QUIT_KEY_MODE_CHANNEL),
+  setQuitKeyMode: (value) => ipcRenderer.invoke(SET_QUIT_KEY_MODE_CHANNEL, value),
+  onQuitKeyProgress: (listener) => {
+    const wrapped = (_event: unknown, payload: { progress: number | null; armed: boolean }) =>
+      listener(payload);
+    ipcRenderer.on(QUIT_KEY_PROGRESS_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(QUIT_KEY_PROGRESS_CHANNEL, wrapped);
+    };
+  },
   onQuitConfirmationRequested: (listener) => {
     const wrapped = () => listener();
     ipcRenderer.on(QUIT_CONFIRMATION_REQUEST_CHANNEL, wrapped);

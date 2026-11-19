@@ -184,10 +184,14 @@ export function GeneralSettings() {
   });
 
   const [confirmBeforeQuit, setConfirmBeforeQuit] = useState(true);
+  const [quitKeyMode, setQuitKeyMode] = useState<"dialog" | "hold" | "double-click">("dialog");
   useEffect(() => {
     let cancelled = false;
     void window.desktopBridge?.getConfirmBeforeQuit?.().then((value) => {
       if (!cancelled && typeof value === "boolean") setConfirmBeforeQuit(value);
+    });
+    void window.desktopBridge?.getQuitKeyMode?.().then((value) => {
+      if (!cancelled && value) setQuitKeyMode(value);
     });
     return () => {
       cancelled = true;
@@ -911,6 +915,44 @@ export function GeneralSettings() {
             />
           }
         />
+        {window.desktopBridge?.setQuitKeyMode ? (
+          <SettingsRow
+            title="Quit shortcut"
+            description="What Cmd/Ctrl+Q does. Hold needs the key held for a moment, so a stray tap cannot close Tabs. If your system handles the shortcut first, the confirmation dialog appears instead."
+            control={
+              <Select
+                value={quitKeyMode}
+                onValueChange={(value) => {
+                  const next =
+                    value === "hold" || value === "double-click" ? value : ("dialog" as const);
+                  setQuitKeyMode(next);
+                  void window.desktopBridge?.setQuitKeyMode?.(next);
+                }}
+              >
+                <SelectTrigger className="w-44" aria-label="Quit shortcut">
+                  <SelectValue>
+                    {quitKeyMode === "hold"
+                      ? "Hold to quit"
+                      : quitKeyMode === "double-click"
+                        ? "Press twice"
+                        : "Ask first"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  <SelectItem hideIndicator value="dialog">
+                    Ask first
+                  </SelectItem>
+                  <SelectItem hideIndicator value="hold">
+                    Hold to quit
+                  </SelectItem>
+                  <SelectItem hideIndicator value="double-click">
+                    Press twice
+                  </SelectItem>
+                </SelectPopup>
+              </Select>
+            }
+          />
+        ) : null}
         <SettingsRow
           title="System notifications"
           description="Show OS-level notifications for errors and warnings, so you're alerted even when Tabs is in the background. Excludes transient watchdog alerts."

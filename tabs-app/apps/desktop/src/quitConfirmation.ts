@@ -86,3 +86,81 @@ export function quitKeyUp(
   }
   return step(INITIAL_QUIT_CONFIRMATION, false, null);
 }
+
+/** The bits of an Electron `before-input-event` input this needs. */
+export interface QuitKeyInput {
+  readonly type: string;
+  readonly key: string;
+  readonly meta?: boolean;
+  readonly control?: boolean;
+  readonly alt?: boolean;
+  readonly shift?: boolean;
+}
+
+/** Cmd+Q on macOS, Ctrl+Q elsewhere, with no other modifier. */
+export function isQuitChord(input: QuitKeyInput, platform: string): boolean {
+  if (input.key.toLowerCase() !== "q" || input.alt || input.shift) return false;
+  return platform === "darwin" ? input.meta === true && !input.control : input.control === true;
+}
+
+export interface QuitKeyGateOptions {
+  readonly mode: () => QuitConfirmationMode;
+  readonly now: () => number;
+  readonly onProgress: (progress: number | null, armed: boolean) => void;
+  readonly onQuit: () => void;
+  readonly holdMs?: number;
+  readonly doublePressMs?: number;
+  /** How often a hold refreshes the overlay while no key repeat arrives. */
+  readonly setInterval?: (callback: () => void, ms: number) => unknown;
+  readonly clearInterval?: (handle: unknown) => void;
+}
+
+/**
+ * Connects the pure quit rules to key events and a clock. A held key is
+ * refreshed on a timer, because a key repeat can be slower than the hold.
+ */
+export function createQuitKeyGate(options: QuitKeyGateOptions) {
+  const timing = {
+    ...(options.holdMs === undefined ? {} : { holdMs: options.holdMs }),
+    ...(options.doublePressMs === undefined ? {} : { doublePressMs: options.doublePressMs }),
+  };
+  const startTimer = options.setInterval ?? ((cb, ms) => setInterval(cb, ms));
+  const stopTimer = options.clearInterval ?? ((h) => clearInterval(h as never));
+  let state: QuitConfirmationState = INITIAL_QUIT_CONFIRMATION;
+  let timer: unknown = null;
+  let quitSent = false;
+
+  const stop = () => {
+    if (timer !== null) stopTimer(timer);
+    timer = null;
+  };
+  const apply = (result: QuitConfirmationStep) => {
+    state = result.state;
+    options.onProgress(result.progress, result.armed);
+    if (result.quit && !quitSent) {
+      quitSent = true;
+      stop();
+      options.onQuit();
+    }
+  };
+
+  return {
+    keyDown() {
+      const mode = options.mode();
+      apply(quitKeyDown(mode, state, options.now(), timing));
+      if (mode === "hold" && timer === null && !quitSent) {
+        timer = startTimer(() => apply(quitKeyDown("hold", state, options.now(), timing)), 50);
+      }
+    },
+    keyUp() {
+      stop();
+      apply(quitKeyUp(options.mode(), state, options.now(), timing));
+    },
+    /** Forget everything, for example when the window loses focus mid-hold. */
+    reset() {
+      stop();
+      state = INITIAL_QUIT_CONFIRMATION;
+      options.onProgress(null, false);
+    },
+  };
+}

@@ -1619,6 +1619,12 @@ export interface DesktopBridge {
   getBackendStartupError?: () => Promise<string | null>;
   getDataResetStartupError?: () => Promise<string | null>;
   setConfirmBeforeQuit: (value: boolean) => Promise<void>;
+  /** How Cmd/Ctrl+Q behaves: the confirmation dialog, hold to quit, or press twice. */
+  getQuitKeyMode?: () => Promise<"dialog" | "hold" | "double-click">;
+  setQuitKeyMode?: (value: "dialog" | "hold" | "double-click") => Promise<void>;
+  onQuitKeyProgress?: (
+    listener: (state: { progress: number | null; armed: boolean }) => void,
+  ) => () => void;
   onQuitConfirmationRequested: (listener: () => void) => () => void;
   respondToQuitConfirmation: (choice: "save-and-quit" | "cancel") => void;
   setQuickActionsEnabled?: (enabled: boolean) => Promise<void>;
