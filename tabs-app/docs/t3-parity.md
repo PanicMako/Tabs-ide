@@ -206,3 +206,7 @@ Checked against `packages/contracts/src/settings.ts`. These were listed as unver
 ## 5.6 Link a pull request to a thread
 
 Done (unit and browser tests; not run in the app). Right-click a thread in the sidebar → "Link pull request…", paste the pull request's address, and the thread is linked through the existing `thread.pull-request.link` server command (previously nothing in the web app called it). A pasted link that is not a pull request gets a plain explanation and the dialog stays open. Files: `lib/linkPullRequest.ts` (+ test), `components/LinkPullRequestDialog.tsx` (+ browser test), `linkPullRequestStore.ts`, `Sidebar.tsx`, `routes/__root.tsx`. The candidate picker (suggesting open PRs for the thread's branch) and the checks popover are not built. By hand: right-click a thread, choose Link pull request…, paste a GitHub PR address.
+
+## Section 2 checks: current state (supersedes the earlier check notes above)
+
+Run on branch `t3-parity-2` after the PR #45 merge, with the working tree otherwise clean of other people's server edits: `vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2199 pass; server suite 8210 pass, 35 skipped, 0 failures; browser suite 489 of 489 pass; `bun run build:desktop` succeeds. The earlier server failures (39 in `RunExecutionService`/`CheckpointRollbackService`, 4 in `ProviderTurnStartService.memory`) came from other people's uncommitted edits and the old memory-test fixture, and are gone. The checks pass; the checklist itself is not finished (see the status table and the sections above for each item).
