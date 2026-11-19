@@ -25,3 +25,18 @@ export function browserDefaultsToApply(input: {
 export function zoomLabel(zoomFactor: number): string {
   return `${Math.round(zoomFactor * 100)}%`;
 }
+
+/**
+ * The profile a brand-new tab should open under: the chosen default, when it is not the built-in
+ * one and still exists. Anything else leaves the choice to the browser, so deleting a profile
+ * never strands new tabs.
+ */
+export function newTabProfileId(input: {
+  readonly isNewTab: boolean;
+  readonly defaultProfileId: string;
+  readonly profileIds: ReadonlyArray<string>;
+}): string | undefined {
+  if (!input.isNewTab) return undefined;
+  if (input.defaultProfileId === "default") return undefined;
+  return input.profileIds.includes(input.defaultProfileId) ? input.defaultProfileId : undefined;
+}

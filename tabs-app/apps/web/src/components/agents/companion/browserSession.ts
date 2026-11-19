@@ -56,7 +56,7 @@ export class CompanionBrowserSession {
   ) {
     this.input = { projectId, sessionId };
   }
-  async start(initialUrl: string) {
+  async start(initialUrl: string, options: { profileId?: string | undefined } = {}) {
     this.unsubscribe?.();
     this.unsubscribe = this.bridge.onBrowserSessionState((state) => {
       if (
@@ -72,6 +72,7 @@ export class CompanionBrowserSession {
       throw new Error(host.reason ?? "Native browsing is unavailable in this client.");
     await this.bridge.ensureBrowserSession({
       ...this.input,
+      ...(options.profileId ? { profileId: options.profileId } : {}),
       initialUrl: normalizeCompanionUrl(initialUrl),
       // Show the page while it loads instead of a blank panel until it is done.
       waitForLoad: false,

@@ -21,7 +21,7 @@ import {
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useSettings } from "~/hooks/useSettings";
-import { browserDefaultsToApply } from "./browserDefaults";
+import { browserDefaultsToApply, newTabProfileId } from "./browserDefaults";
 import { useProjectWorkspaceSettings, useWorkspaceActiveProjectId } from "~/state/workspaceShell";
 import { useAtomValue } from "@effect/atom-react";
 import { projectsAtom } from "~/state/threads";
@@ -94,8 +94,20 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const startedAsNewTab = useRef(!surface.url);
   const defaultZoom = useSettings((s) => s.browserDefaultZoomFactor);
   const defaultAppearance = useSettings((s) => s.browserDefaultAppearance);
-  const browserDefaults = useRef({ zoom: defaultZoom, appearance: defaultAppearance });
-  browserDefaults.current = { zoom: defaultZoom, appearance: defaultAppearance };
+  const defaultProfileId = useSettings((s) => s.browserDefaultProfileId);
+  const savedProfiles = useSettings((s) => s.browserProfiles);
+  const browserDefaults = useRef({
+    zoom: defaultZoom,
+    appearance: defaultAppearance,
+    profileId: defaultProfileId,
+    profileIds: savedProfiles.map((profile) => profile.id),
+  });
+  browserDefaults.current = {
+    zoom: defaultZoom,
+    appearance: defaultAppearance,
+    profileId: defaultProfileId,
+    profileIds: savedProfiles.map((profile) => profile.id),
+  };
   const [state, setState] = useState<DesktopBrowserSessionState>(() =>
     emptyBrowserState(target?.projectId ?? "", sessionId),
   );
@@ -139,7 +151,13 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     });
     controller.current = session;
     void session
-      .start(initialUrl.current || "https://www.google.com")
+      .start(initialUrl.current || "https://www.google.com", {
+        profileId: newTabProfileId({
+          isNewTab: startedAsNewTab.current,
+          defaultProfileId: browserDefaults.current.profileId,
+          profileIds: browserDefaults.current.profileIds,
+        }),
+      })
       .then(() => {
         if (disposed) return;
         const defaults = browserDefaultsToApply({

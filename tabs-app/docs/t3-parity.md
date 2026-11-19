@@ -349,3 +349,7 @@ Shortcuts from the brief's list that still have no handler: `composer.cycleHost`
 ## Check run after thread undo, the panel toggles and the picker shortcuts
 
 `vp check` 0 errors; `vp run typecheck` 16/16; contracts 654 and shared 1344 tests pass; web unit tests 2259 pass; browser suite 527 of 527 pass; `bun run build:desktop` succeeds; the server suite last passed 8212 with 0 failures and the server was not changed afterwards.
+
+## 5.9 Default browser profile for new tabs
+
+Done (unit tests for the decision and for the session passing the profile, a browser test for the settings row, typecheck; the desktop bridge was not exercised because the desktop app is not launched). Settings → Browser Profiles → Browsing has "New tabs use profile" (Default or any saved profile). A brand-new browser tab opens under it through the existing `profileId` on `ensureBrowserSession`; the built-in Default, a profile that has since been deleted and restored tabs are left to the browser as before. Files: `agents/companion/browserDefaults.ts` (`newTabProfileId`), `browserSession.ts`, `CompanionBrowserPanel.tsx`, `settings/BrowserProfilesSettings.tsx`. Viewport and the recording options (`browserDefaultViewport`, `browserRecordingFrameRate`, `browserRecordingShowKeyPresses`, `browserRecordingShowMousePresses`) are still unwired. By hand: save a second profile, choose it, open a new browser tab and check it is signed in as that profile.

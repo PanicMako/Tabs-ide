@@ -53,6 +53,18 @@ describe("companion browser", () => {
     ])
       expect(() => normalizeCompanionUrl(url)).toThrow();
   });
+  it("opens the session under a chosen profile, and under none when no profile is given", async () => {
+    const withProfile = fixture();
+    await withProfile.session.start("https://example.test", { profileId: "work" });
+    expect(withProfile.bridge.ensureBrowserSession).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: "work" }),
+    );
+    const without = fixture();
+    await without.session.start("https://example.test");
+    const input = (without.bridge.ensureBrowserSession.mock.calls[0] as unknown[])[0] as object;
+    expect("profileId" in input).toBe(false);
+  });
+
   it("uses native history events without issuing a replacement navigation", async () => {
     const f = fixture();
     await f.session.start("google.com");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserDefaultsToApply, zoomLabel } from "./browserDefaults";
+import { browserDefaultsToApply, newTabProfileId, zoomLabel } from "./browserDefaults";
 
 describe("browserDefaultsToApply", () => {
   it("applies a non-default zoom and appearance to a new tab", () => {
@@ -26,5 +26,25 @@ describe("browserDefaultsToApply", () => {
   it("labels zoom as a percentage", () => {
     expect(zoomLabel(0.33)).toBe("33%");
     expect(zoomLabel(1.25)).toBe("125%");
+  });
+});
+
+describe("newTabProfileId", () => {
+  const profileIds = ["personal", "work"];
+
+  it("opens a new tab under the chosen default profile", () => {
+    expect(newTabProfileId({ isNewTab: true, defaultProfileId: "work", profileIds })).toBe("work");
+  });
+
+  it("leaves the choice to the browser for the built-in default, a missing profile or a restored tab", () => {
+    expect(
+      newTabProfileId({ isNewTab: true, defaultProfileId: "default", profileIds }),
+    ).toBeUndefined();
+    expect(
+      newTabProfileId({ isNewTab: true, defaultProfileId: "deleted", profileIds }),
+    ).toBeUndefined();
+    expect(
+      newTabProfileId({ isNewTab: false, defaultProfileId: "work", profileIds }),
+    ).toBeUndefined();
   });
 });

@@ -723,6 +723,42 @@ export function BrowserProfilesSettings() {
           }
         />
         <SettingsRow
+          title="New tabs use profile"
+          description="The profile (its cookies and logins) a new browser tab opens under. A profile you delete falls back to Default."
+          control={
+            <Select
+              value={
+                settings.browserProfiles.some((p) => p.id === settings.browserDefaultProfileId)
+                  ? settings.browserDefaultProfileId
+                  : "default"
+              }
+              onValueChange={(value) => {
+                if (value) updateSettings({ browserDefaultProfileId: value });
+              }}
+            >
+              <SelectTrigger
+                className="h-9 w-full sm:w-52"
+                aria-label="Profile for new browser tabs"
+              >
+                <SelectValue>
+                  {settings.browserProfiles.find((p) => p.id === settings.browserDefaultProfileId)
+                    ?.label ?? "Default"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem hideIndicator value="default">
+                  Default
+                </SelectItem>
+                {settings.browserProfiles.map((profile) => (
+                  <SelectItem hideIndicator key={profile.id} value={profile.id}>
+                    {profile.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
           title="Page appearance"
           description="Whether pages in a new browser tab are shown light, dark, or follow your system."
           control={
