@@ -9,6 +9,8 @@ it("identifies supported media and source types case-insensitively", () => {
   expect(filePreviewKind("data.tsv")).toBe("csv");
   expect(filePreviewKind("Inter.WOFF2")).toBe("font");
   expect(filePreviewKind("analysis.ipynb")).toBe("notebook");
+  expect(filePreviewKind("flow.MMD")).toBe("mermaid");
+  expect(filePreviewKind("flow.mermaid")).toBe("mermaid");
   expect(filePreviewKind("code.ts")).toBe("text");
 });
 it("preserves quoted commas, multiline values and escaped quotes", () => {

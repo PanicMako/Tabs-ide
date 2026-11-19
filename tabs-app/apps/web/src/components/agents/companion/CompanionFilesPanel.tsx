@@ -43,6 +43,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { StartTruncatedPath } from "~/components/StartTruncatedPath";
 import { CompanionEmpty } from "./CompanionChrome";
 import { FontPreview } from "./FontPreview";
+import { MermaidPreview } from "./MermaidPreview";
 import { NotebookPreview } from "./NotebookPreview";
 import { toastManager } from "~/components/ui/toast";
 import {
@@ -581,6 +582,8 @@ function FilePreview({
                   <div className="companion-content">
                     <ChatMarkdown text={file.data.contents} cwd={target.cwd} />
                   </div>
+                ) : kind === "mermaid" && !sourceMode ? (
+                  <MermaidPreview text={file.data.contents} dark={resolvedTheme === "dark"} />
                 ) : kind === "notebook" && !sourceMode ? (
                   <NotebookPreview text={file.data.contents} cwd={target.cwd} />
                 ) : table && !sourceMode ? (

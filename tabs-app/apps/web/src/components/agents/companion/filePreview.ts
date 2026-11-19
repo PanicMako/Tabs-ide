@@ -7,6 +7,7 @@ export type FilePreviewKind =
   | "csv"
   | "font"
   | "notebook"
+  | "mermaid"
   | "text";
 export function filePreviewKind(path: string): FilePreviewKind {
   const extension = path.split(".").pop()?.toLowerCase();
@@ -19,6 +20,7 @@ export function filePreviewKind(path: string): FilePreviewKind {
   if (extension === "csv" || extension === "tsv") return "csv";
   if (["ttf", "otf", "woff", "woff2"].includes(extension ?? "")) return "font";
   if (extension === "ipynb") return "notebook";
+  if (extension === "mmd" || extension === "mermaid") return "mermaid";
   return "text";
 }
 /** Quoted separators, escaped quotes and quoted newlines, bounded for preview rendering. */
