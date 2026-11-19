@@ -45,6 +45,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "u", command: "git.unstageFile" },
   // Cmd+Shift+Space is reserved by Siri on newer macOS versions.
   { key: "mod+alt+k", command: "quickActions.toggle" },
+  { key: "mod+alt+u", command: "usage.open" },
   { key: "mod+[", command: "navigation.back", when: "!terminalFocus" },
   { key: "mod+]", command: "navigation.forward", when: "!terminalFocus" },
   { key: "mod+alt+t", command: "appearance.cycle" },

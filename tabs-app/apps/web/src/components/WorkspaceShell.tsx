@@ -12578,6 +12578,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         return;
       }
 
+      if (command === "usage.open") {
+        event.preventDefault();
+        event.stopPropagation();
+        goToSettings(navigate, "usage");
+        return;
+      }
       if (command === "navigation.back" || command === "navigation.forward") {
         event.preventDefault();
         event.stopPropagation();

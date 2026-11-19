@@ -76,6 +76,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "workspace.advancedMode",
   "rightPanel.toggle",
   "rightPanel.close",
+  "usage.open",
   "navigation.back",
   "navigation.forward",
   "appearance.cycle",

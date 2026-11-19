@@ -66,6 +66,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedMode.command, "composer.mode");
 
+    const parsedUsage = yield* decode(KeybindingRule, {
+      key: "mod+alt+u",
+      command: "usage.open",
+    });
+    assert.strictEqual(parsedUsage.command, "usage.open");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",
