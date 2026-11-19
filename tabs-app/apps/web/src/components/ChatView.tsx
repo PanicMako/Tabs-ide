@@ -65,6 +65,7 @@ import {
   normalizeModelSlug,
 } from "@tabs/shared/model";
 import { resolveThreadCurrentPullRequest } from "@tabs/shared/threadPullRequests";
+import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -3531,6 +3532,37 @@ export default function ChatView({
         context: shortcutContext,
       });
       if (!command) return;
+
+      if (command === "pullRequest.copyNumber") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isServerThread || !activeThread || event.repeat) return;
+        const number = currentPullRequestNumber(activeThread);
+        if (number === null) {
+          toastManager.add({
+            type: "info",
+            title: "No pull request yet",
+            description: "Link or open a pull request for this thread to copy its number.",
+          });
+          return;
+        }
+        const reference = `#${number}`;
+        void navigator.clipboard.writeText(reference).then(
+          () =>
+            toastManager.add({
+              type: "success",
+              title: "PR number copied",
+              description: reference,
+            }),
+          (error: unknown) =>
+            toastManager.add({
+              type: "error",
+              title: "Failed to copy the PR number",
+              description: error instanceof Error ? error.message : "Clipboard access failed.",
+            }),
+        );
+        return;
+      }
 
       if (command === "thread.copyReference") {
         event.preventDefault();

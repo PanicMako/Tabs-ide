@@ -72,6 +72,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedUsage.command, "usage.open");
 
+    const parsedCopyNumber = yield* decode(KeybindingRule, {
+      key: "mod+alt+c",
+      command: "pullRequest.copyNumber",
+    });
+    assert.strictEqual(parsedCopyNumber.command, "pullRequest.copyNumber");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

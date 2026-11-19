@@ -68,6 +68,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+l", command: "chat.newLocal", when: "!terminalFocus" },
   { key: "mod+shift+f", command: "editor.openFavorite" },
   { key: "mod+shift+c", command: "thread.copyReference", when: "!terminalFocus" },
+  { key: "mod+alt+c", command: "pullRequest.copyNumber", when: "!terminalFocus" },
   { key: "mod+.", command: "thread.stop", when: "!terminalFocus" },
   { key: "mod+alt+r", command: "thread.regenerateTitle", when: "!terminalFocus" },
   { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
