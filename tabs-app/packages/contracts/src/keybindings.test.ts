@@ -138,6 +138,8 @@ it.effect("parses keybinding rules", () =>
       "composer.branch",
       "composer.workspace",
       "composer.previousWorktree",
+      "thread.editQueuedMessage",
+      "thread.steerQueuedMessage",
     ] as const) {
       const parsedPicker = yield* decode(KeybindingRule, { key: "mod+alt+g", command });
       assert.strictEqual(parsedPicker.command, command);

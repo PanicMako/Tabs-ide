@@ -6,6 +6,7 @@ import { render } from "vitest-browser-react";
 import { ThreadId } from "@tabs/contracts";
 import { MessageQueuePanel } from "./MessageQueuePanel";
 import { useMessageQueueStore } from "~/stores/messageQueueStore";
+import { requestQueueShortcut, resetQueueShortcuts } from "~/lib/queueShortcuts";
 const fixture = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
   send: vi.fn(),
@@ -150,5 +151,20 @@ it("reports a failed Send next without invoking the success callback", async () 
     expect(fixture.toast).not.toHaveBeenCalledWith(expect.objectContaining({ type: "success" }));
   } finally {
     await view.unmount();
+  }
+});
+it("answers the queue shortcuts for its own thread only", async () => {
+  const view = await render(<MessageQueuePanel activeThreadId={thread} onSendNow={fixture.send} />);
+  try {
+    const preview = page.getByRole("button", { name: "Preview queued message: First follow-up" });
+    requestQueueShortcut(other, "edit");
+    await expect.element(preview).toHaveAttribute("aria-expanded", "false");
+    requestQueueShortcut(thread, "edit");
+    await expect.element(preview).toHaveAttribute("aria-expanded", "true");
+    requestQueueShortcut(thread, "sendNow");
+    await vi.waitFor(() => expect(fixture.sendNext).toHaveBeenCalled());
+  } finally {
+    await view.unmount();
+    resetQueueShortcuts();
   }
 });

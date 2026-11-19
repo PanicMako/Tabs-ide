@@ -96,6 +96,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+alt+c", command: "pullRequest.copyNumber", when: "!terminalFocus" },
   { key: "mod+.", command: "thread.stop", when: "!terminalFocus" },
   { key: "mod+z", command: "thread.undo", when: "!terminalFocus" },
+  { key: "mod+alt+q", command: "thread.editQueuedMessage", when: "!terminalFocus" },
+  { key: "mod+alt+shift+q", command: "thread.steerQueuedMessage", when: "!terminalFocus" },
   { key: "mod+alt+r", command: "thread.regenerateTitle", when: "!terminalFocus" },
   { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
   { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },

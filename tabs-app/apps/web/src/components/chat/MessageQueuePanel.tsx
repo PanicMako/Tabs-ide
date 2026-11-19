@@ -9,7 +9,8 @@ import {
   CalendarClockIcon,
   ZapIcon,
 } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
+import { onQueueShortcut } from "~/lib/queueShortcuts";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import type { RunId } from "@tabs/contracts";
 import {
@@ -80,6 +81,26 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
     reorder: handleReorder,
     sendOrRetry,
   } = queue;
+  const latest = useRef({ queuedItems, sendOrRetry });
+  latest.current = { queuedItems, sendOrRetry };
+  useEffect(
+    () =>
+      onQueueShortcut((request) => {
+        if (request.threadId !== activeThreadId) return false;
+        const first = latest.current.queuedItems[0];
+        if (!first) return true;
+        if (request.action === "edit") {
+          queue.setEditingId(first.id);
+          setExpandedId(first.id);
+        } else {
+          void latest.current.sendOrRetry(first);
+        }
+        return true;
+      }),
+    // setEditingId and setExpandedId are stable; `latest` carries the rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeThreadId],
+  );
   if (variant === "ledger") return <QueueLedgerView queue={queue} className={className} />;
 
   return (

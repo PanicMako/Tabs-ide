@@ -71,6 +71,7 @@ import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { openComposerControl, openComposerModelPicker } from "~/lib/composerControls";
+import { requestQueueShortcut } from "~/lib/queueShortcuts";
 import { previousWorktreeChoice } from "~/lib/previousWorktree";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { stepEffort } from "~/lib/effortStep";
@@ -3710,6 +3711,15 @@ export default function ChatView({
         event.stopPropagation();
         if (event.repeat) return;
         openComposerControl(command === "composer.branch" ? "branch" : "workspace");
+        return;
+      }
+
+      if (command === "thread.editQueuedMessage" || command === "thread.steerQueuedMessage") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        openRightPanelSurface("queue");
+        requestQueueShortcut(threadId, command === "thread.editQueuedMessage" ? "edit" : "sendNow");
         return;
       }
 

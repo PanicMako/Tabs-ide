@@ -42,6 +42,8 @@ export const THREAD_KEYBINDING_COMMANDS = [
   "thread.settle",
   "thread.stop",
   "thread.undo",
+  "thread.editQueuedMessage",
+  "thread.steerQueuedMessage",
   "thread.regenerateTitle",
   "thread.pin",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
