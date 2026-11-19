@@ -260,6 +260,10 @@
       "types": "./src/changeRequestUrl.ts",
       "import": "./src/changeRequestUrl.ts"
     },
+    "./testFiles": {
+      "types": "./src/testFiles.ts",
+      "import": "./src/testFiles.ts"
+    },
     "./threadPullRequests": {
       "types": "./src/threadPullRequests.ts",
       "import": "./src/threadPullRequests.ts"

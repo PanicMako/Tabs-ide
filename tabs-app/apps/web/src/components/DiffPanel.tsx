@@ -3,10 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { EnvironmentId, ThreadId, type TurnId } from "@tabs/contracts";
+import { isTestFilePath } from "@tabs/shared/testFiles";
+import { useHideTestFilesStore } from "~/stores/hideTestFilesStore";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   Columns2Icon,
+  FlaskConicalIcon,
   Rows3Icon,
   TextWrapIcon,
   XIcon,
@@ -207,7 +210,9 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     () => getRenderablePatch(selectedPatch, `diff-panel:${resolvedTheme}`),
     [resolvedTheme, selectedPatch],
   );
-  const renderableFiles = useMemo(() => {
+  const hideTestFiles = useHideTestFilesStore((state) => state.hidden);
+  const setHideTestFiles = useHideTestFilesStore((state) => state.setHidden);
+  const allRenderableFiles = useMemo(() => {
     if (!renderablePatch || renderablePatch.kind !== "files") {
       return [];
     }
@@ -218,6 +223,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       }),
     );
   }, [renderablePatch]);
+  const testFileCount = useMemo(
+    () => allRenderableFiles.filter((file) => isTestFilePath(resolveFileDiffPath(file))).length,
+    [allRenderableFiles],
+  );
+  const renderableFiles = useMemo(
+    () =>
+      hideTestFiles
+        ? allRenderableFiles.filter((file) => !isTestFilePath(resolveFileDiffPath(file)))
+        : allRenderableFiles,
+    [allRenderableFiles, hideTestFiles],
+  );
 
   useEffect(() => {
     if (diffOpen && !previousDiffOpenRef.current) {
@@ -443,6 +459,22 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             <Columns2Icon className="size-3" />
           </Toggle>
         </ToggleGroup>
+        <Toggle
+          aria-label={hideTestFiles ? "Show test files" : "Hide test files"}
+          title={
+            hideTestFiles
+              ? `Show test files (${testFileCount} hidden)`
+              : testFileCount > 0
+                ? `Hide ${testFileCount} test ${testFileCount === 1 ? "file" : "files"}`
+                : "Hide test files"
+          }
+          variant="outline"
+          size="xs"
+          pressed={hideTestFiles}
+          onPressedChange={(pressed) => setHideTestFiles(Boolean(pressed))}
+        >
+          <FlaskConicalIcon className="size-3" />
+        </Toggle>
         <Toggle
           aria-label={diffWordWrap ? "Disable diff line wrapping" : "Enable diff line wrapping"}
           title={diffWordWrap ? "Disable line wrapping" : "Enable line wrapping"}
