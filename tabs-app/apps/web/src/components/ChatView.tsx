@@ -63,6 +63,7 @@ import {
   applyClaudePromptEffortPrefix,
   isClaudeUltrathinkPrompt,
   normalizeModelSlug,
+  getProviderOptionDescriptors,
 } from "@tabs/shared/model";
 import { resolveThreadCurrentPullRequest } from "@tabs/shared/threadPullRequests";
 import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
@@ -70,6 +71,7 @@ import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { openComposerControl } from "~/lib/composerControls";
+import { stepEffort } from "~/lib/effortStep";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -830,6 +832,7 @@ export default function ChatView({
   const interruptAttemptedAtRef = useRef<number | null>(null);
   const interruptRef = useRef<(() => Promise<void>) | null>(null);
   const sendRef = useRef<(() => Promise<boolean | undefined>) | null>(null);
+  const stepEffortRef = useRef<((direction: 1 | -1) => void) | null>(null);
   const isWorkingRef = useRef(false);
   const stuckTimerRef = useRef<number | null>(null);
 
@@ -3654,6 +3657,13 @@ export default function ChatView({
         return;
       }
 
+      if (command === "composer.increaseEffort" || command === "composer.decreaseEffort") {
+        event.preventDefault();
+        event.stopPropagation();
+        stepEffortRef.current?.(command === "composer.increaseEffort" ? 1 : -1);
+        return;
+      }
+
       if (command === "composer.branch" || command === "composer.workspace") {
         event.preventDefault();
         event.stopPropagation();
@@ -5292,6 +5302,19 @@ export default function ChatView({
       setComposerProviderModelOptions,
     ],
   );
+  stepEffortRef.current = (direction) => {
+    const caps = getProviderModelCapabilities(
+      selectedProviderModels,
+      selectedModel,
+      selectedProvider,
+    );
+    const descriptors = getProviderOptionDescriptors({
+      caps,
+      selections: composerModelOptions?.[selectedProvider],
+    });
+    const next = stepEffort(descriptors, direction);
+    if (next) onFusedModelOptionsChange(next);
+  };
   const providerTraitsMenuContent = renderProviderTraitsMenuContent({
     provider: selectedProvider,
     threadId,

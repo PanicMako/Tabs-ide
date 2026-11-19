@@ -75,6 +75,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+alt+s", command: "composer.stash", when: "!terminalFocus" },
   { key: "mod+alt+enter", command: "composer.sendAndNewThread", when: "!terminalFocus" },
+  { key: "mod+alt+arrowup", command: "composer.increaseEffort", when: "!terminalFocus" },
+  { key: "mod+alt+arrowdown", command: "composer.decreaseEffort", when: "!terminalFocus" },
   { key: "mod+alt+g", command: "composer.branch", when: "!terminalFocus" },
   { key: "mod+alt+o", command: "composer.workspace", when: "!terminalFocus" },
   { key: "mod+alt+p", command: "composer.mode", when: "!terminalFocus" },
