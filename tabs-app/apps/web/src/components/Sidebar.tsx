@@ -118,6 +118,7 @@ import { Button } from "./ui/button";
 import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Menu, MenuGroup, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { ThreadHoverCard } from "./ThreadHoverCard";
 import {
   SidebarContent,
   SidebarFooter,
@@ -1699,9 +1700,26 @@ export default function Sidebar() {
                   </div>
                 </div>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-xs">
-                  {overmindDisplayTitle(thread.title)}
-                </span>
+                <Tooltip>
+                  <TooltipTrigger
+                    delay={600}
+                    render={
+                      <span className="min-w-0 flex-1 truncate text-xs">
+                        {overmindDisplayTitle(thread.title)}
+                      </span>
+                    }
+                  />
+                  <TooltipPopup side="right">
+                    <ThreadHoverCard
+                      title={overmindDisplayTitle(thread.title)}
+                      statusLabel={threadStatus?.label}
+                      branch={thread.branch}
+                      updatedAt={thread.updatedAt ?? thread.createdAt}
+                      pinned={Boolean(lifecycleEntry.pinnedAt)}
+                      snoozed={isSnoozed(lifecycleEntry)}
+                    />
+                  </TooltipPopup>
+                </Tooltip>
               )}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">

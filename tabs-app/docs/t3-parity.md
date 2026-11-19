@@ -166,3 +166,7 @@ Done (unit and browser tests; not run in the app). `Update everything` lists out
 - Provider health interval: **Have**. Background-activity profiles in Settings → Diagnostics already set `providerHealthRefreshInterval`.
 - Load balancing, custom models and the ACP registry: settings exist in `packages/contracts/src/settings.ts`; their UIs still need a side-by-side compare with T3.
 - Compact idle threads: **skipped (needs more than a port)**. T3's `IdleCompaction.ts` waits for the Claude prompt cache to expire, which needs `promptCacheExpiresAt` on provider token usage. Tabs' contracts do not carry it and the Claude adapter does not capture it, so the feature needs adapter, contract and settings work first.
+
+## 5.3 Thread hover cards
+
+Done (unit and browser tests; not run in the app). Hovering a thread title in the sidebar for about 0.6s shows its full title (titles are truncated in the row), status, branch and last activity. Files: `components/ThreadHoverCard.tsx`, `threadHoverCard.logic.ts` (+ tests), `Sidebar.tsx`. By hand: hover a long thread title in the sidebar.
