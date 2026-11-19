@@ -121,6 +121,11 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedSendNew.command, "composer.sendAndNewThread");
 
+    for (const command of ["composer.effort", "modelPicker.toggle"] as const) {
+      const parsedPicker = yield* decode(KeybindingRule, { key: "mod+shift+m", command });
+      assert.strictEqual(parsedPicker.command, command);
+    }
+
     for (const command of ["composer.increaseEffort", "composer.decreaseEffort"] as const) {
       const parsedEffort = yield* decode(KeybindingRule, { key: "mod+alt+arrowup", command });
       assert.strictEqual(parsedEffort.command, command);

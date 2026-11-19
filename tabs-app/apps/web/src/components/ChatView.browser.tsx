@@ -909,6 +909,28 @@ describe("ChatView browser behavior (full app)", () => {
     document.body.innerHTML = "";
   });
 
+  it("gives the composer's model picker a hook the shortcuts can open", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createAssistantHeavySnapshot({ includeProposedPlan: false }),
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(
+            mounted.host.querySelector(
+              '[data-chat-composer-form="true"] [data-model-picker-trigger="true"]',
+            ),
+          ).not.toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("renders assistant-heavy timelines without virtual spacer gaps", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,

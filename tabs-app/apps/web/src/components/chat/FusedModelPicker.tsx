@@ -762,6 +762,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
           <Button
             size="sm"
             aria-label={props.ariaLabel}
+            data-model-picker-trigger="true"
             disabled={props.disabled}
             variant="ghost"
             className={cn(

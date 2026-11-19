@@ -70,7 +70,7 @@ import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
-import { openComposerControl } from "~/lib/composerControls";
+import { openComposerControl, openComposerModelPicker } from "~/lib/composerControls";
 import { stepEffort } from "~/lib/effortStep";
 import { ChatFindBar } from "./ChatFindBar";
 import { useAtomValue } from "@effect/atom-react";
@@ -3674,6 +3674,14 @@ export default function ChatView({
         event.preventDefault();
         event.stopPropagation();
         stepEffortRef.current?.(command === "composer.increaseEffort" ? 1 : -1);
+        return;
+      }
+
+      if (command === "composer.effort" || command === "modelPicker.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        openComposerModelPicker();
         return;
       }
 
