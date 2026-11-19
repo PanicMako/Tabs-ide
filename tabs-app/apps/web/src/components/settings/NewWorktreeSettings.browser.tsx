@@ -9,6 +9,8 @@ it("shows how new worktrees start and what their branches are called", async () 
   try {
     await expect.element(page.getByText("New worktrees", { exact: true })).toBeVisible();
     await expect.element(page.getByText("Start from the latest remote")).toBeVisible();
+    await expect.element(page.getByText("Where worktrees live")).toBeVisible();
+    await expect.element(page.getByLabelText("Worktrees folder")).toBeVisible();
     await expect.element(page.getByText("Submodules", { exact: true })).toBeVisible();
     await expect.element(page.getByText("Branch names", { exact: true })).toBeVisible();
     // The default naming mode is a fixed prefix, so the prefix field is shown.

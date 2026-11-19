@@ -23,6 +23,8 @@ export function NewWorktreeSettings() {
   const fields = branchNamingFields(settings.branchNamingMode);
   const [prefix, setPrefix] = useState(settings.branchNamePrefix);
   const [instructions, setInstructions] = useState(settings.branchNameInstructions);
+  const [directory, setDirectory] = useState(settings.worktreesDirectory);
+  useEffect(() => setDirectory(settings.worktreesDirectory), [settings.worktreesDirectory]);
   useEffect(() => setPrefix(settings.branchNamePrefix), [settings.branchNamePrefix]);
   useEffect(
     () => setInstructions(settings.branchNameInstructions),
@@ -57,6 +59,24 @@ export function NewWorktreeSettings() {
               updateSettings({ newWorktreesStartFromOrigin: Boolean(checked) })
             }
             aria-label="Start new worktrees from the latest remote"
+          />
+        }
+      />
+      <SettingsRow
+        title="Where worktrees live"
+        description="The folder new worktrees are created in. Each one is a full checkout, so pick a folder with room. Leave it empty to use Tabs' own folder."
+        control={
+          <Input
+            className="w-80"
+            aria-label="Worktrees folder"
+            placeholder="Default location"
+            value={directory}
+            onChange={(event) => setDirectory(event.target.value)}
+            onBlur={() => {
+              if (directory.trim() !== settings.worktreesDirectory) {
+                updateSettings({ worktreesDirectory: directory.trim() });
+              }
+            }}
           />
         }
       />

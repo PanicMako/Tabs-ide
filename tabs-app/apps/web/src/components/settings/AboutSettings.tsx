@@ -11,6 +11,8 @@ import {
 import { isElectron } from "../../env";
 import { APP_VERSION } from "../../branding";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
+import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import { useUpdateEverythingStore } from "../updateEverythingStore";
 import { Input } from "../ui/input";
 import {
@@ -136,6 +138,8 @@ function DesktopUpdateControl({
 }
 
 export function AboutSettings() {
+  const settings = useSettings();
+  const { updateSettings } = useUpdateSettings();
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const [buildInfo, setBuildInfo] = useState<DesktopBuildInfo | null>(null);
   useEffect(() => {
@@ -351,6 +355,20 @@ export function AboutSettings() {
             }
           />
         ) : null}
+
+        <SettingsRow
+          title="Check for provider updates"
+          description="Look for newer versions of your agent providers in the background and tell you when one is out."
+          control={
+            <Switch
+              checked={settings.enableProviderUpdateChecks}
+              onCheckedChange={(checked) =>
+                updateSettings({ enableProviderUpdateChecks: Boolean(checked) })
+              }
+              aria-label="Check for provider updates"
+            />
+          }
+        />
 
         <SettingsRow
           title="Update everything"

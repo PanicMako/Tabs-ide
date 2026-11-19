@@ -31,6 +31,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { projectsAtom } from "../../state/threads";
 import { workspaceShellActions, workspaceShellAtom } from "../../state/workspaceShell";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 import { SettingsSection, SettingsSectionHeader, SettingsRow } from "./SettingsLayout";
@@ -680,6 +681,19 @@ export function BrowserProfilesSettings() {
       </div>
 
       <SettingsSection title="Browsing">
+        <SettingsRow
+          title="Let agents use the browser"
+          description="Allow agents to open pages, click and read results in a Tabs browser tab. Turn this off to keep agents out of your browser entirely."
+          control={
+            <Switch
+              checked={settings.enableAgentBrowserAccess}
+              onCheckedChange={(checked) =>
+                updateSettings({ enableAgentBrowserAccess: Boolean(checked) })
+              }
+              aria-label="Let agents use the browser"
+            />
+          }
+        />
         <SettingsRow
           title="Open links in"
           description="Links from agents, chat, terminals and pull requests open in a Scratch Browser tab, or in your default browser. Cmd/Ctrl-click always uses your default browser."

@@ -224,3 +224,13 @@ A scan of the 67 server settings found 37 that nothing in the web app read. Elev
 - Earlier: start from remote, submodules and branch naming under Worktrees & Storage.
 
 Still unread by the web app (26): `worktreesDirectory`, `previousWorktreesDirectories`, `enableProviderUpdateChecks`, `providerHealthRefreshInterval`, `enableAgentBrowserAccess` and its per-project override, `sourceControlWriterModelSelection`, `sourceControlWritingStyle`, `speechModelId`, `speechAcceleration`, `speechModelUnloadTimeout`, `usageModelAliases`, `defaultProjectScripts`, `projectScriptOverrides`, `projectSettingsOverrides`, `projectAutoPullOverrides` and the device settings, among others. Per-project overrides and inheritance are the larger piece of 5.3. By hand: open Settings → General and Settings → Source Control, change a value, and reload to see it kept.
+
+## 5.1, 5.7 and 5.9 three more settings now editable
+
+Done (browser tests for the worktree folder; the other two rows are covered by the existing settings browser suite and typecheck; not run in the app):
+
+- **Where worktrees live** (`worktreesDirectory`): Settings → Worktrees & Storage → New worktrees.
+- **Check for provider updates** (`enableProviderUpdateChecks`): Settings → About, above Update everything. This is the brief's provider update checks item; the health interval was already covered by the background-activity profiles.
+- **Let agents use the browser** (`enableAgentBrowserAccess`): Settings → Browser Profiles → Browsing. This is the brief's agent browser access item; the per-project override (`projectAgentBrowserAccessOverrides`) is not built.
+
+Voice model, acceleration and unload settings were checked and already have their own controls through the speech model APIs in `VoiceSettings.tsx`, so they are **Have**, not gaps. By hand: change each setting, reload Settings, and check it was kept.
