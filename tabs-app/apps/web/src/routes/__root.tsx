@@ -44,6 +44,7 @@ import { NativePreviewAutomationHost } from "../components/NativePreviewAutomati
 import { BackgroundActivityReporter } from "../components/BackgroundActivityReporter";
 import { ProviderUpdateNotification } from "../components/ProviderUpdateNotification";
 import { UpdateEverythingDialog } from "../components/UpdateEverythingDialog";
+import { LinkPullRequestDialog } from "../components/LinkPullRequestDialog";
 import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToastCoordinator";
 import { startRendererPerformanceCapture } from "../lib/rendererPerformance";
 import { createKeybindingsUpdateToastController } from "../components/KeybindingsUpdateToast.logic";
@@ -243,6 +244,7 @@ function FullAppRootView() {
           <BackgroundActivityReporter />
           <ProviderUpdateNotification />
           <UpdateEverythingDialog />
+          <LinkPullRequestDialog />
           <SlowRpcRequestToastCoordinator />
           <DesktopProjectBootstrap />
           <FirstRunGate enabled={!isPopoutMode()}>

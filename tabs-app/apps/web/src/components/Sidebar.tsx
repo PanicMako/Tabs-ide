@@ -119,6 +119,7 @@ import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Menu, MenuGroup, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ThreadHoverCard } from "./ThreadHoverCard";
+import { useLinkPullRequestStore } from "./linkPullRequestStore";
 import { announceThreadArchived } from "~/lib/threadArchiveUndo";
 import {
   SidebarContent,
@@ -1025,6 +1026,7 @@ export default function Sidebar() {
             disabled: thread.titleRegeneration !== null && thread.titleRegeneration !== undefined,
           },
           { id: "mark-unread", label: "Mark unread" },
+          { id: "link-pr", label: "Link pull request…" },
           {
             id: "pin",
             label: thread.pinnedAt ? "Unpin thread" : "Pin thread",
@@ -1083,6 +1085,10 @@ export default function Sidebar() {
 
       if (clicked === "mark-unread") {
         markThreadUnread(threadId);
+        return;
+      }
+      if (clicked === "link-pr") {
+        useLinkPullRequestStore.getState().openFor({ threadId, title: thread.title });
         return;
       }
       if (clicked === "pin") {
