@@ -160,3 +160,9 @@ The native Antigravity CLI release channel (`antigravityCliRelease.ts`, used by 
 ## 5.1 Update everything
 
 Done (unit and browser tests; not run in the app). `Update everything` lists out-of-date providers first and the app last, with `from → to` versions, and runs them in order. A failed provider update does not stop the other providers but holds back the app restart, so the failure is not hidden. Files: `components/updateEverything.logic.ts` (+ test), `updateEverythingStore.ts`, `UpdateEverythingDialog.tsx` (+ browser test), `ProviderUpdateNotification.tsx` (toast action is now "Review updates"), `settings/AboutSettings.tsx` ("Update everything" row), `routes/__root.tsx`. By hand: with a provider behind its latest version, click "Review updates" on the toast or open Settings → About → Update everything, and press Update.
+
+## 5.1 checks after the merge
+
+- Provider health interval: **Have**. Background-activity profiles in Settings → Diagnostics already set `providerHealthRefreshInterval`.
+- Load balancing, custom models and the ACP registry: settings exist in `packages/contracts/src/settings.ts`; their UIs still need a side-by-side compare with T3.
+- Compact idle threads: **skipped (needs more than a port)**. T3's `IdleCompaction.ts` waits for the Claude prompt cache to expire, which needs `promptCacheExpiresAt` on provider token usage. Tabs' contracts do not carry it and the Claude adapter does not capture it, so the feature needs adapter, contract and settings work first.
