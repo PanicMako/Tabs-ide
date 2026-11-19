@@ -281,3 +281,9 @@ Partial (unit and browser tests, typecheck; not run in the app). Project setting
 ## Section 2 checks: latest full run (branch `t3-parity-2`)
 
 `vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2244 pass; browser suite 503 of 503 pass; server suite 8210 pass, 35 skipped, 0 failures; `bun run build:desktop` succeeds. All checks pass. The checklist itself is not finished: see the status table, the per-section notes above, and "Findings that block remaining items" for what is partial, skipped or still open.
+
+## 5.5 Mermaid and Office previews: what each needs
+
+- **Mermaid:** `mermaid` is not a dependency of this repository (nothing under `node_modules` or in any `package.json`). A Mermaid preview needs that package added, which was not done without your say-so. Skipped until then.
+- **Office (docx, pptx, xlsx):** the server already extracts text from these (`provider/DocumentText.ts`, `documentTextWorker.ts`), but only for agent attachments; no RPC exposes it to the Files panel. A preview needs a new contract, a server handler and a read-only viewer. Skipped as a larger change.
+- **Large text:** the Files panel already shows the first 1 MB with a note and an "Open in Code" route (partial against T3's virtualized viewer).
