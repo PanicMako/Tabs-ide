@@ -6,7 +6,7 @@ import {
   type RepositoryIdentity,
 } from "@tabs/contracts";
 import type { Project } from "../types";
-import { resolveComposerMachines } from "./BranchToolbarEnvironmentSelector";
+import { nextComposerMachine, resolveComposerMachines } from "./BranchToolbarEnvironmentSelector";
 
 const identity = (canonicalKey: string, origin?: string): RepositoryIdentity => ({
   canonicalKey,
@@ -57,5 +57,21 @@ describe("composer machine targets", () => {
     expect(
       resolveComposerMachines(local, [local, project("remote")], machines.slice(0, 1)),
     ).toMatchObject([{ environmentId: "local", project: local }]);
+  });
+});
+
+describe("nextComposerMachine", () => {
+  const option = (environmentId: string, hasProject = true) => ({
+    environmentId,
+    project: hasProject ? {} : null,
+  });
+  it("moves to the next machine that has the project and wraps around", () => {
+    const options = [option("a"), option("b", false), option("c")];
+    expect(nextComposerMachine(options, "a")?.environmentId).toBe("c");
+    expect(nextComposerMachine(options, "c")?.environmentId).toBe("a");
+  });
+  it("does nothing when there is only one place to be", () => {
+    expect(nextComposerMachine([option("a"), option("b", false)], "a")).toBeNull();
+    expect(nextComposerMachine([], undefined)).toBeNull();
   });
 });

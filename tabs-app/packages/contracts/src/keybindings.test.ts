@@ -138,6 +138,8 @@ it.effect("parses keybinding rules", () =>
       "composer.branch",
       "composer.workspace",
       "composer.previousWorktree",
+      "composer.host",
+      "composer.cycleHost",
       "thread.editQueuedMessage",
       "thread.steerQueuedMessage",
     ] as const) {

@@ -1,6 +1,6 @@
 import { repositoryGroupingKeyOf, type ExecutionEnvironmentDescriptor } from "@tabs/contracts";
 import { MonitorIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "../types";
 import {
   connectedEnvironmentIds,
@@ -34,6 +34,19 @@ export function resolveComposerMachines(
   }));
 }
 
+/** The next machine after the current one that has this project, wrapping around. */
+export function nextComposerMachine<T extends { environmentId: string; project: unknown }>(
+  options: readonly T[],
+  currentEnvironmentId: string | undefined,
+): T | null {
+  const usable = options.filter((option) => option.project);
+  if (usable.length < 2) return null;
+  const index = usable.findIndex((option) => option.environmentId === currentEnvironmentId);
+  return usable[(index + 1) % usable.length] ?? null;
+}
+
+export const COMPOSER_CYCLE_HOST_EVENT = "tabs:composer-cycle-host";
+
 export function BranchToolbarEnvironmentSelector({
   project,
   projects,
@@ -59,6 +72,26 @@ export function BranchToolbarEnvironmentSelector({
   const items = options.map((option) => ({ value: option.environmentId, label: option.label }));
   const disabled =
     locked || pending || !onChange || options.filter((option) => option.project).length < 2;
+  const cycleRef = useRef<() => void>(() => {});
+  cycleRef.current = () => {
+    const target = nextComposerMachine(options, project.environmentId)?.project;
+    if (!target || disabled || !onChange) return;
+    setPending(true);
+    void onChange(target as Project)
+      .catch((error) => {
+        toastManager.add({
+          type: "error",
+          title: "Could not change machines",
+          description: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => setPending(false));
+  };
+  useEffect(() => {
+    const listener = () => cycleRef.current();
+    window.addEventListener(COMPOSER_CYCLE_HOST_EVENT, listener);
+    return () => window.removeEventListener(COMPOSER_CYCLE_HOST_EVENT, listener);
+  }, []);
   // The primary machine exists without any remote connection being configured.
   // A selector only adds information when there is a second connected machine.
   if (options.length < 2) return null;

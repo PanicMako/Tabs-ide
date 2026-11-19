@@ -126,6 +126,8 @@ const STATIC_KEYBINDING_COMMANDS = [
   "composer.branch",
   "composer.workspace",
   "composer.previousWorktree",
+  "composer.host",
+  "composer.cycleHost",
   "composer.mode",
   "editor.openFavorite",
   "tab.new",

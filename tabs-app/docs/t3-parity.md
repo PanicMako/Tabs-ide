@@ -344,7 +344,7 @@ Done (browser tests with real rendering, typecheck; not run in the app). A finis
 
 `vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2254 pass; browser suite 527 of 527 pass; `bun run build:desktop` succeeds; the server suite last passed 8212 with 0 failures and the server was not changed afterwards.
 
-Shortcuts from the brief's list that still have no handler: `composer.cycleHost`, `composer.host` (need environment host switching in the composer), `composer.sendAlternate` and `composer.sendBackground` (Tabs only queues follow-ups; there is no steer action to alternate with), and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app).
+Shortcuts from the brief's list that still have no handler: `composer.sendAlternate` and `composer.sendBackground` (Tabs only queues follow-ups; there is no steer action to alternate with), and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app).
 
 ## Check run after thread undo, the panel toggles and the picker shortcuts
 
@@ -404,3 +404,7 @@ Done (unit tests for the choice, contract test, typecheck, `vp check`; not run i
 ## 5.16 `thread.editQueuedMessage` (Cmd/Ctrl+Alt+Q) and `thread.steerQueuedMessage` (Cmd/Ctrl+Alt+Shift+Q)
 
 Done (unit tests for the hand-off in `lib/queueShortcuts.ts`, a browser test in `MessageQueuePanel.browser.tsx`, contract test, typecheck; not run in the app). The shortcuts open the Queue surface and ask it to act on the first queued message of the current thread: edit opens it for editing, steer sends it now ahead of the rest, using the panel's own "Send next" path. A request waits two seconds so a panel that is still opening picks it up, and a request for another thread is ignored. By hand: queue two follow-ups while an agent runs, press each shortcut.
+
+## 5.16 `composer.host` (Cmd/Ctrl+Alt+H) and `composer.cycleHost` (Cmd/Ctrl+Alt+Shift+H)
+
+Done (unit tests for the cycling choice, contract test, typecheck; not run in the app). The composer already had a "Run on machine" picker, so I had assumed host switching did not exist. The first shortcut opens that picker; the second moves to the next connected machine that has the same project, wrapping around, through the same handler, so the same guards apply (nothing switches once the thread has started, or while attachments are on the draft). Both do nothing when only one machine is connected. By hand: connect a second environment, open a new thread, press each shortcut.

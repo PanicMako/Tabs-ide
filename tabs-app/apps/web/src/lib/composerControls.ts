@@ -36,3 +36,14 @@ export function openComposerControl(
   button.click();
   return true;
 }
+
+/** Opens the "Run on machine" picker. It sits outside the git toolbar when there is no repository. */
+export function openComposerHostPicker(root: ParentNode = document): boolean {
+  const button = root.querySelector<HTMLElement>(
+    'button[aria-label="Run on machine"]:not([disabled])',
+  );
+  if (!button) return false;
+  button.focus();
+  button.click();
+  return true;
+}

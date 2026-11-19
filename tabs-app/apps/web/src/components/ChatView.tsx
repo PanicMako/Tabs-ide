@@ -70,7 +70,12 @@ import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
-import { openComposerControl, openComposerModelPicker } from "~/lib/composerControls";
+import {
+  openComposerControl,
+  openComposerHostPicker,
+  openComposerModelPicker,
+} from "~/lib/composerControls";
+import { COMPOSER_CYCLE_HOST_EVENT } from "./BranchToolbarEnvironmentSelector";
 import { requestQueueShortcut } from "~/lib/queueShortcuts";
 import { previousWorktreeChoice } from "~/lib/previousWorktree";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
@@ -3720,6 +3725,15 @@ export default function ChatView({
         if (event.repeat) return;
         openRightPanelSurface("queue");
         requestQueueShortcut(threadId, command === "thread.editQueuedMessage" ? "edit" : "sendNow");
+        return;
+      }
+
+      if (command === "composer.host" || command === "composer.cycleHost") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        if (command === "composer.host") openComposerHostPicker();
+        else window.dispatchEvent(new Event(COMPOSER_CYCLE_HOST_EVENT));
         return;
       }
 
