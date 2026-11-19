@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { SettingsRow, SettingsSection } from "./SettingsLayout";
+import { SshHostsEditor } from "./SshHostsEditor";
 import { configureDevices, inspectDevices, useDeviceStore } from "~/device/deviceStore";
 import { deviceToolUpdatePolicy, deviceToolVersionLabels } from "~/device/deviceToolVersions";
 import { useDeviceApi } from "~/device/useDeviceApi";
-import type { DeviceHostSummary } from "@tabs/contracts";
+import type { SshDeviceHostConfig } from "@tabs/contracts";
 
 export default function DeviceSettings() {
   const api = useDeviceApi(null);
@@ -14,11 +15,12 @@ export default function DeviceSettings() {
   const enabled = !!state && state.hostStatus !== "disabled";
   const [checked, setChecked] = useState<Record<string, string | null>>({});
 
-  const testHost = async (host: DeviceHostSummary) => {
-    if (!api || host.kind !== "ssh") return;
+  const testConfigured = async (host: SshDeviceHostConfig) => {
+    if (!api) return;
     setChecked((value) => ({ ...value, [host.id]: "Checking…" }));
     try {
-      const result = await api.testHost({ id: host.id, label: host.label, target: host.label });
+      const config = host;
+      const result = await api.testHost(config);
       const ready = result.platforms.filter((p) => p.available).length;
       setChecked((value) => ({
         ...value,
@@ -69,29 +71,25 @@ export default function DeviceSettings() {
         title="Device sources"
         description="This machine, plus any machine over SSH. SSH hosts need macOS or Linux and Node 22.12 or newer."
       >
-        {(state?.hosts ?? []).map((host) => (
-          <SettingsRow
-            key={host.id}
-            title={host.label}
-            description={
-              host.kind === "local"
-                ? `Devices on the machine running the environment server. ${host.platforms
-                    .map(
-                      (p) =>
-                        `${p.platform === "ios" ? "iOS" : "Android"}: ${p.available ? "ready" : "not available"}`,
-                    )
-                    .join(" · ")}.`
-                : `Machine over SSH. ${checked[host.id] ?? "Not tested yet."}`
-            }
-            control={
-              host.kind === "ssh" ? (
-                <Button size="sm" variant="outline" onClick={() => void testHost(host)}>
-                  Test connection
-                </Button>
-              ) : undefined
-            }
-          />
-        ))}
+        {(state?.hosts ?? [])
+          .filter((host) => host.kind === "local")
+          .map((host) => (
+            <SettingsRow
+              key={host.id}
+              title={host.label}
+              description={
+                host.kind === "local"
+                  ? `Devices on the machine running the environment server. ${host.platforms
+                      .map(
+                        (p) =>
+                          `${p.platform === "ios" ? "iOS" : "Android"}: ${p.available ? "ready" : "not available"}`,
+                      )
+                      .join(" · ")}.`
+                  : `Machine over SSH. ${checked[host.id] ?? "Not tested yet."}`
+              }
+            />
+          ))}
+        <SshHostsEditor onTest={(config) => void testConfigured(config)} status={checked} />
       </SettingsSection>
       <SettingsSection
         title="Tool versions"
