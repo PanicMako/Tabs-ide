@@ -310,3 +310,7 @@ While building this I found that the server refused to issue a URL for a relativ
 ## 5.3 Pin projects
 
 Done for the automatic sort orders (unit tests for the ordering and toggling, contract test, typecheck, web tests; not run in the app). Right-click a project in the sidebar → "Pin project" / "Unpin project". Pinned projects stay at the top, each group keeping its own order, and show a small pin beside their name. This is a client setting (`pinnedProjectIds`), so no server change was needed. In "manual" sort order pins are ignored, because you are already placing every project by hand, and the pin icon is hidden. Files: `packages/contracts/src/settings.ts`, `Sidebar.logic.ts` (`pinProjectsFirst`, `togglePinnedProject`; + tests), `Sidebar.tsx`. By hand: set the project sort to a non-manual order, pin a project and check it stays first.
+
+## 5.13 OpenTelemetry export: more precisely
+
+The server's config sets `otlpTracesUrl: undefined` as a constant (`apps/server/src/config.ts`), so there is no OTLP exporter to configure: the only OTLP code is a proxy that forwards browser traces (`http.ts`). The `observability.otlp*Url` settings in the contract therefore need an exporter built first (Effect's OTLP tracer, metrics and logs layers wired to those URLs at startup), then settings rows. Skipped as a separate feature.
