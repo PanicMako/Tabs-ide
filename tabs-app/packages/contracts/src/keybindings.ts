@@ -110,6 +110,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "chat.newLocal",
   "composer.dictation",
   "composer.stash",
+  "composer.sendAndNewThread",
   "composer.mode",
   "editor.openFavorite",
   "tab.new",

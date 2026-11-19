@@ -115,6 +115,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedThemeSelect.command, "theme.select");
 
+    const parsedSendNew = yield* decode(KeybindingRule, {
+      key: "mod+alt+enter",
+      command: "composer.sendAndNewThread",
+    });
+    assert.strictEqual(parsedSendNew.command, "composer.sendAndNewThread");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

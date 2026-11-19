@@ -68,6 +68,7 @@ import { resolveThreadCurrentPullRequest } from "@tabs/shared/threadPullRequests
 import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
+import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -530,6 +531,7 @@ export default function ChatView({
   const setStoreThreadError = setThreadErrorInAtoms;
   const setStoreThreadBranch = setThreadBranchInAtoms;
   const settings = useSettings();
+  const { handleNewThread } = useHandleNewThread();
   const { updateSettings } = useUpdateSettings();
   const setStickyComposerModelSelection = composerDraftActions.setStickyModelSelection;
   const timestampFormat = settings.timestampFormat;
@@ -826,6 +828,7 @@ export default function ChatView({
   const [isStuck, setIsStuck] = useState(false);
   const interruptAttemptedAtRef = useRef<number | null>(null);
   const interruptRef = useRef<(() => Promise<void>) | null>(null);
+  const sendRef = useRef<(() => Promise<boolean | undefined>) | null>(null);
   const isWorkingRef = useRef(false);
   const stuckTimerRef = useRef<number | null>(null);
 
@@ -3650,6 +3653,23 @@ export default function ChatView({
         return;
       }
 
+      if (command === "composer.sendAndNewThread") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isServerThread || !activeProject || event.repeat) return;
+        const projectId = activeProject.id;
+        const environmentId = activeProject.environmentId;
+        void (async () => {
+          // Nothing to send, or the send failed: stay where you are.
+          if ((await sendRef.current?.()) !== true) return;
+          await handleNewThread(projectId, {
+            environmentId,
+            envMode: settings.defaultThreadEnvMode ?? "local",
+          });
+        })();
+        return;
+      }
+
       if (command === "composer.stash") {
         event.preventDefault();
         event.stopPropagation();
@@ -3790,6 +3810,8 @@ export default function ChatView({
     keybindings,
     onToggleDiff,
     stashCurrentPrompt,
+    handleNewThread,
+    settings.defaultThreadEnvMode,
     settings.confirmThreadUnpin,
     toggleInteractionMode,
     toggleTerminalVisibility,
@@ -4775,6 +4797,7 @@ export default function ChatView({
     }
   };
   interruptRef.current = onInterrupt;
+  sendRef.current = () => onSend();
 
   // Reset stuck state when phase leaves "running"
   useEffect(() => {
