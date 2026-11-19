@@ -78,6 +78,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedCopyNumber.command, "pullRequest.copyNumber");
 
+    const parsedFocus = yield* decode(KeybindingRule, {
+      key: "f6",
+      command: "workspace.focusNext",
+    });
+    assert.strictEqual(parsedFocus.command, "workspace.focusNext");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

@@ -6786,6 +6786,7 @@ export default function ChatView({
                     "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain py-3",
                     isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5 sm:py-4",
                   )}
+                  data-chat-messages="true"
                   onScroll={onMessagesScroll}
                   onClickCapture={onMessagesClickCapture}
                   onWheel={onMessagesWheel}

@@ -401,6 +401,7 @@ import {
   WorkspaceTerminalIcon,
 } from "./WorkspaceToolMarks";
 import { nextAppearancePreference } from "~/lib/appearanceCycle";
+import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
 import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
@@ -12583,6 +12584,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         return;
       }
 
+      if (command === "workspace.focusNext" || command === "workspace.focusPrevious") {
+        event.preventDefault();
+        event.stopPropagation();
+        focusWorkspaceArea(command === "workspace.focusNext" ? 1 : -1);
+        return;
+      }
       if (command === "usage.open") {
         event.preventDefault();
         event.stopPropagation();
@@ -12672,6 +12679,9 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   useEffect(() => {
     initializeZoom();
   }, []);
+
+  // Remembers the last control focused in each workspace area, for F6 to return to.
+  useEffect(() => installWorkspaceFocusTracking(), []);
 
   // Tool-switching shortcuts (cmd/ctrl+alt+1..9 → the Nth visible tool of the
   // active project), via menu accelerators so they work everywhere — including
