@@ -14,6 +14,7 @@ import { makeAppModelSelection } from "~/modelSelection";
 import { Button } from "../ui/button";
 import { RefreshCwIcon } from "lucide-react";
 import { SettingsSectionHeader } from "./SettingsLayout";
+import { NewWorktreeSettings } from "./NewWorktreeSettings";
 import { WorkspaceMaintenanceView, maintenanceBytes } from "./WorkspaceMaintenanceView";
 
 export default function WorkspaceMaintenanceSettings() {
@@ -123,6 +124,7 @@ export default function WorkspaceMaintenanceSettings() {
           </span>
         </div>
       )}
+      <NewWorktreeSettings />
       <WorkspaceMaintenanceView
         projects={projects}
         projectId={projectId}
