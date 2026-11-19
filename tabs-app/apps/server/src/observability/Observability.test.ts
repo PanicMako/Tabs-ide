@@ -112,6 +112,18 @@ describe("server observability", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
+  it.effect("sends metrics to the metrics endpoint when one is configured", () =>
+    Effect.gen(function* () {
+      const requests = yield* spanThrough({
+        otlpMetricsUrl: "http://collector.test/v1/metrics",
+      });
+      assert.isAbove(
+        requests.filter((request) => request.url === "http://collector.test/v1/metrics").length,
+        0,
+      );
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("exports nothing when no traces endpoint is configured", () =>
     Effect.gen(function* () {
       const requests = yield* spanThrough({ otlpTracesUrl: undefined });

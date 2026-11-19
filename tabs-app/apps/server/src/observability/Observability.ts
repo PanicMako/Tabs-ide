@@ -2,7 +2,7 @@ import { layerOtlpSerialization, makeLocalFileTracer } from "@tabs/shared/observ
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Tracer from "effect/Tracer";
-import { OtlpExporter, OtlpTracer } from "effect/unstable/observability";
+import { OtlpExporter, OtlpMetrics, OtlpTracer } from "effect/unstable/observability";
 
 import { ServerConfig, otlpResource } from "../config";
 import { ServerLoggerLive } from "../serverLogger";
@@ -39,7 +39,17 @@ export const ObservabilityLive = Layer.unwrap(
       maxFiles: TRACE_MAX_FILES,
       batchWindowMs: TRACE_BATCH_WINDOW_MS,
     });
-    return Layer.mergeAll(ServerLoggerLive, Layer.succeed(Tracer.Tracer, tracer));
+    const metrics = config.otlpMetricsExport;
+    const metricsExporter =
+      config.otlpMetricsUrl === undefined
+        ? Layer.empty
+        : OtlpMetrics.layer({
+            url: config.otlpMetricsUrl,
+            exportInterval: `${metrics.exportIntervalMs} millis`,
+            headers: metrics.headers,
+            resource: otlpResource(config),
+          }).pipe(Layer.provide(layerOtlpSerialization(metrics.protocol)));
+    return Layer.mergeAll(ServerLoggerLive, Layer.succeed(Tracer.Tracer, tracer), metricsExporter);
   }),
 );
 export const layer = ObservabilityLive;
