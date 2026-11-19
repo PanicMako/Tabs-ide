@@ -111,6 +111,8 @@ const STATIC_KEYBINDING_COMMANDS = [
   "composer.dictation",
   "composer.stash",
   "composer.sendAndNewThread",
+  "composer.branch",
+  "composer.workspace",
   "composer.mode",
   "editor.openFavorite",
   "tab.new",

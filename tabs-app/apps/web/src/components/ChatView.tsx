@@ -69,6 +69,7 @@ import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
+import { openComposerControl } from "~/lib/composerControls";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -3650,6 +3651,14 @@ export default function ChatView({
         event.stopPropagation();
         if (event.repeat) return;
         toggleInteractionMode();
+        return;
+      }
+
+      if (command === "composer.branch" || command === "composer.workspace") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        openComposerControl(command === "composer.branch" ? "branch" : "workspace");
         return;
       }
 
