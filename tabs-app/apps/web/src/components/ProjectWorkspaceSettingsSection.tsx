@@ -62,6 +62,7 @@ import {
   SettingsSubheading,
 } from "./settings/SettingsLayout";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
+import { ProjectOverrideSettings } from "./settings/ProjectOverrideSettings";
 import type { BrowserProfileDefinition } from "@tabs/contracts/settings";
 import type { ProjectIconOverride } from "@tabs/contracts";
 import { ProjectFavicon } from "./ProjectFavicon";
@@ -1230,6 +1231,8 @@ export function ProjectWorkspaceSettingsSection({
             </div>
           </SettingsSection>
         )}
+
+        <ProjectOverrideSettings projectId={activeProject.id} />
 
         <div className="space-y-3">
           <SettingsSubheading
