@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { NewWorkSettings } from "./NewWorkSettings";
+import { SnapShotSettings } from "./SnapShotSettings";
 import { SourceControlFlowSettings } from "./SourceControlFlowSettings";
 import { SourceControlWritingSettings } from "./SourceControlWritingSettings";
 import { ThreadFlowSettings } from "./ThreadFlowSettings";
@@ -59,6 +60,18 @@ it("lets you choose what new threads can do and where projects are added from", 
     await expect.element(page.getByText("New threads can", { exact: true })).toBeVisible();
     await expect.element(page.getByText("Add projects from", { exact: true })).toBeVisible();
     await expect.element(page.getByLabelText("Folder the project picker opens in")).toBeVisible();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("offers a flash and a sound for screenshots", async () => {
+  const view = await render(<SnapShotSettings />);
+  try {
+    await expect.element(page.getByText("Flash on capture", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Play a sound", { exact: true })).toBeVisible();
+    // The sound is on by default, so the choice of sound shows.
+    await expect.element(page.getByText("Soft pop", { exact: true })).toBeVisible();
   } finally {
     await view.unmount();
   }

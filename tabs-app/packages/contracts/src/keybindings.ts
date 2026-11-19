@@ -81,6 +81,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "rightPanel.toggle",
   "rightPanel.close",
   "threadPanel.toggle",
+  "snapshot.capture",
   "usage.open",
   "usage.cost",
   "usage.tokens",

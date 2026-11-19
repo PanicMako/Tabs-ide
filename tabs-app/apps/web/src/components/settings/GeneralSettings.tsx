@@ -29,6 +29,7 @@ import { SegmentedControl } from "../ui/segmented-control";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { ThreadFlowSettings } from "./ThreadFlowSettings";
 import { NewWorkSettings } from "./NewWorkSettings";
+import { SnapShotSettings } from "./SnapShotSettings";
 import { toastManager } from "../ui/toast";
 import { SettingsProviderModelPicker } from "../chat/SettingsProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
@@ -918,6 +919,8 @@ export function GeneralSettings() {
       </SettingsSection>
 
       <NewWorkSettings />
+
+      <SnapShotSettings />
 
       <ThreadFlowSettings />
 

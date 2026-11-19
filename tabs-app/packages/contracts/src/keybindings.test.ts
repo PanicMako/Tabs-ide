@@ -167,6 +167,12 @@ it.effect("parses keybinding rules", () =>
       assert.strictEqual(parsedPickerKey.command, command);
     }
 
+    const parsedSnapshot = yield* decode(KeybindingRule, {
+      key: "mod+alt+shift+s",
+      command: "snapshot.capture",
+    });
+    assert.strictEqual(parsedSnapshot.command, "snapshot.capture");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

@@ -1,6 +1,21 @@
 import type { DesktopCaptureOptions, DesktopCaptureResult } from "@tabs/contracts";
 import { useComposerDraftStore, type ComposerImageAttachment } from "../composerDraftStore";
 import { toastManager } from "../components/ui/toast";
+import { appAtomRegistry } from "../state/atomRegistry";
+import { clientSettingsAtom } from "../state/settings";
+import { playSnapShotFeedback } from "./snapShotFeedback";
+
+function defaultSnapShotFeedback(): void {
+  const settings = appAtomRegistry.get(clientSettingsAtom);
+  playSnapShotFeedback({
+    flash: settings.snapShotFlash,
+    sound: settings.snapShotPlaySound ? settings.snapShotSound : null,
+    reducedMotion:
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  });
+}
 
 /** Converts a base64 data URL into a standard browser File object. */
 export function dataUrlToFile(dataUrl: string, name: string, mimeType: string): File {
@@ -22,6 +37,8 @@ export interface DesktopCaptureDependencies {
     | ((toast: { type: "success" | "error" | "info"; title: string; description?: string }) => void)
     | undefined;
   focusComposer?: (() => void) | undefined;
+  /** The flash and click that say a capture was taken. Defaults to the saved settings. */
+  feedback?: (() => void) | undefined;
 }
 
 /**
@@ -55,6 +72,8 @@ export async function captureDesktopToComposer(
       previewUrl: result.dataUrl,
       file,
     });
+
+    (deps.feedback ?? defaultSnapShotFeedback)();
 
     const showToast = deps.showToast ?? ((t) => toastManager.add(t));
     showToast({

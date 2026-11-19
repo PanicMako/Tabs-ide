@@ -63,6 +63,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+alt+e", command: "themeEditor.toggle" },
   { key: "mod+alt+b", command: "rightPanel.toggle", when: "!terminalFocus" },
   { key: "mod+alt+d", command: "threadPanel.toggle", when: "!terminalFocus" },
+  { key: "mod+alt+shift+s", command: "snapshot.capture", when: "!terminalFocus" },
   { key: "mod+alt+w", command: "rightPanel.close", when: "!terminalFocus" },
   { key: "mod+alt+n", command: "rightPanel.new", when: "!terminalFocus" },
   { key: "mod+alt+m", command: "rightPanel.toggleMaximized", when: "!terminalFocus" },

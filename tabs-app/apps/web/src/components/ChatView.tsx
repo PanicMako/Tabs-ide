@@ -71,6 +71,7 @@ import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { openComposerControl, openComposerModelPicker } from "~/lib/composerControls";
+import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { stepEffort } from "~/lib/effortStep";
 import { ChatFindBar } from "./ChatFindBar";
 import { useAtomValue } from "@effect/atom-react";
@@ -3674,6 +3675,15 @@ export default function ChatView({
         event.preventDefault();
         event.stopPropagation();
         stepEffortRef.current?.(command === "composer.increaseEffort" ? 1 : -1);
+        return;
+      }
+
+      if (command === "snapshot.capture") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat || !window.desktopBridge?.captureDesktopScreen) return;
+        // The capture reports its own failure to the user, so there is nothing more to say here.
+        void captureDesktopToComposer(threadId).catch(() => undefined);
         return;
       }
 

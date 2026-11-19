@@ -72,4 +72,28 @@ describe("captureDesktopToComposer", () => {
       }),
     );
   });
+
+  it("plays the capture cue after a successful capture, and not after a failed one", async () => {
+    const feedback = vi.fn();
+    await captureDesktopToComposer("thread-1", {
+      captureScreen: vi.fn(async () => mockCaptureResult),
+      addImage: vi.fn(),
+      showToast: vi.fn(),
+      focusComposer: vi.fn(),
+      feedback,
+    });
+    expect(feedback).toHaveBeenCalledOnce();
+
+    const failedFeedback = vi.fn();
+    await expect(
+      captureDesktopToComposer("thread-1", {
+        captureScreen: vi.fn(async () => {
+          throw new Error("no permission");
+        }),
+        showToast: vi.fn(),
+        feedback: failedFeedback,
+      }),
+    ).rejects.toThrow("no permission");
+    expect(failedFeedback).not.toHaveBeenCalled();
+  });
 });
