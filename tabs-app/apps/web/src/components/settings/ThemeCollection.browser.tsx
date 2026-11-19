@@ -6,6 +6,7 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { ThemePickerGrid, ThemesSettings } from "./ThemesSettings";
 import { ThemeImportExportModal } from "../ThemeImportExportModal";
+import { useThemeStudioStore } from "../../stores/themeStudioStore";
 import { DEFAULT_CUSTOM_THEME, type ThemePreference } from "../../lib/themes";
 import { previewTheme, restoreThemeSnapshot, snapshotThemeState } from "../../hooks/useTheme";
 
@@ -218,5 +219,17 @@ it("confirms and persists the deletion of a saved palette", async () => {
     await view.unmount();
     if (previous === null) localStorage.removeItem(key);
     else localStorage.setItem(key, previous);
+  }
+});
+
+it("opens the theme studio when a shortcut asked for it before the page mounted", async () => {
+  useThemeStudioStore.getState().request();
+  const view = await render(<ThemesSettings />);
+  try {
+    await expect.element(page.getByText("Custom Theme Studio")).toBeVisible();
+    expect(useThemeStudioStore.getState().requested).toBe(false);
+  } finally {
+    await view.unmount();
+    useThemeStudioStore.setState({ requested: false });
   }
 });

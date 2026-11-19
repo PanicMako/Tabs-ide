@@ -65,6 +65,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
 import { CustomThemeStudioModal } from "../CustomThemeStudioModal";
+import { useThemeStudioStore } from "~/stores/themeStudioStore";
 import { ThemeImportExportModal } from "../ThemeImportExportModal";
 import {
   DEFAULT_FONT_PREFERENCES,
@@ -766,6 +767,10 @@ export function ThemesSettings() {
   );
 
   const [isStudioOpen, setIsStudioOpen] = useState(false);
+  // A shortcut can ask for the studio before this page has mounted; take the request now.
+  useEffect(() => {
+    if (useThemeStudioStore.getState().consume()) setIsStudioOpen(true);
+  }, []);
   const [studioInitialConfig, setStudioInitialConfig] = useState<CustomThemeConfig | null>(null);
   const [transfer, setTransfer] = useState<{
     tab: "import" | "export";

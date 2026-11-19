@@ -103,6 +103,12 @@ it.effect("parses keybinding rules", () =>
       assert.strictEqual(parsedUsageCommand.command, command);
     }
 
+    const parsedThemeEditor = yield* decode(KeybindingRule, {
+      key: "mod+alt+e",
+      command: "themeEditor.toggle",
+    });
+    assert.strictEqual(parsedThemeEditor.command, "themeEditor.toggle");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

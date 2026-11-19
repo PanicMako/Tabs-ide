@@ -404,6 +404,7 @@ import { nextAppearancePreference } from "~/lib/appearanceCycle";
 import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
 import { takeClosedProject } from "~/lib/closedProjects";
 import { applyUsageCommand } from "~/state/usage";
+import { useThemeStudioStore } from "~/stores/themeStudioStore";
 import { isUsageCommand } from "~/state/usageCommands";
 import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
@@ -12603,6 +12604,13 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         event.preventDefault();
         event.stopPropagation();
         focusWorkspaceArea(command === "workspace.focusNext" ? 1 : -1);
+        return;
+      }
+      if (command === "themeEditor.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        useThemeStudioStore.getState().request();
+        goToSettings(navigate, "themes");
         return;
       }
       if (isUsageCommand(command)) {

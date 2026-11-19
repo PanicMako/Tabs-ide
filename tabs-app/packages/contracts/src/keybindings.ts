@@ -91,6 +91,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "navigation.back",
   "navigation.forward",
   "appearance.cycle",
+  "themeEditor.toggle",
   "rightPanel.new",
   "rightPanel.toggleMaximized",
   "diff.toggle",
