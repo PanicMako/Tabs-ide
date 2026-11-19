@@ -408,3 +408,7 @@ Done (unit tests for the hand-off in `lib/queueShortcuts.ts`, a browser test in 
 ## 5.16 `composer.host` (Cmd/Ctrl+Alt+H) and `composer.cycleHost` (Cmd/Ctrl+Alt+Shift+H)
 
 Done (unit tests for the cycling choice, contract test, typecheck; not run in the app). The composer already had a "Run on machine" picker, so I had assumed host switching did not exist. The first shortcut opens that picker; the second moves to the next connected machine that has the same project, wrapping around, through the same handler, so the same guards apply (nothing switches once the thread has started, or while attachments are on the draft). Both do nothing when only one machine is connected. By hand: connect a second environment, open a new thread, press each shortcut.
+
+## Section 2 checks: final full run (branch `t3-parity-2`, after the host shortcuts)
+
+`vp check` 0 errors (578 warnings); `vp run typecheck` 16/16; web unit tests 2281 pass (329 files); web browser suite 529 of 529 pass (128 files); contracts 654 pass; shared 1344 pass; server 8212 pass, 35 skipped, 0 failed; `bun run build:desktop` succeeds. The desktop app was not launched.
