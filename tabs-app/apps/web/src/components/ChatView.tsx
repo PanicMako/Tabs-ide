@@ -142,7 +142,6 @@ import {
 import { truncateTitle } from "../truncateTitle";
 import {
   DEFAULT_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
   DEFAULT_THREAD_TERMINAL_ID,
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
@@ -1330,7 +1329,7 @@ export default function ChatView({
     isSettled(activeLifecycle, activeThread.updatedAt ?? activeThread.createdAt),
   );
   const runtimeMode =
-    composerDraft.runtimeMode ?? activeThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE;
+    composerDraft.runtimeMode ?? activeThread?.runtimeMode ?? settings.defaultRuntimeMode;
   const interactionMode =
     composerDraft.interactionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
   const isServerThread = serverThread !== undefined;
@@ -1510,7 +1509,7 @@ export default function ChatView({
       const nextThreadId = newThreadId();
       setProjectDraftThreadId(activeProject.id, nextThreadId, {
         createdAt: new Date().toISOString(),
-        runtimeMode: DEFAULT_RUNTIME_MODE,
+        runtimeMode: settings.defaultRuntimeMode,
         interactionMode: DEFAULT_INTERACTION_MODE,
         ...input,
       });
@@ -1526,6 +1525,7 @@ export default function ChatView({
       navigate,
       setDraftThreadContext,
       setProjectDraftThreadId,
+      settings.defaultRuntimeMode,
       threadId,
     ],
   );

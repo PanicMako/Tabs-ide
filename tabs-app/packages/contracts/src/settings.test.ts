@@ -64,6 +64,14 @@ describe("thread confirmation settings", () => {
   });
 });
 
+describe("new work defaults", () => {
+  it("keeps new threads at full access and the project picker at the system default", () => {
+    const settings = decodeServerSettings({});
+    expect(settings.defaultRuntimeMode).toBe("full-access");
+    expect(settings.addProjectBaseDirectory).toBe("");
+  });
+});
+
 describe("storage cleanup settings", () => {
   it("keeps cleanup disabled for existing installations", () => {
     expect(decodeServerSettings({}).worktreeCleanup).toBeNull();

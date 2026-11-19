@@ -1,11 +1,7 @@
-import {
-  DEFAULT_RUNTIME_MODE,
-  type EnvironmentId,
-  type ProjectId,
-  ThreadId,
-} from "@tabs/contracts";
+import { type EnvironmentId, type ProjectId, ThreadId } from "@tabs/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback } from "react";
+import { useSettings } from "./useSettings";
 import { type DraftThreadEnvMode, type DraftThreadState } from "../composerDraftStore";
 import { createScopedComposerDraftActions, useDraftThread } from "../state/composerDrafts";
 import { projectsAtom, threadsAtom } from "../state/threads";
@@ -14,6 +10,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { newThreadId } from "../lib/utils";
 
 export function useHandleNewThread() {
+  const defaultRuntimeMode = useSettings((settings) => settings.defaultRuntimeMode);
   const projects = useAtomValue(projectsAtom);
   const threads = useAtomValue(threadsAtom);
   const navigate = useNavigate();
@@ -122,7 +119,7 @@ export function useHandleNewThread() {
           branch: options?.branch ?? null,
           worktreePath: options?.worktreePath ?? null,
           envMode: options?.envMode ?? "local",
-          runtimeMode: DEFAULT_RUNTIME_MODE,
+          runtimeMode: defaultRuntimeMode,
         });
         applyStickyState(threadId);
 
@@ -138,7 +135,7 @@ export function useHandleNewThread() {
         return threadId;
       })();
     },
-    [navigate, projects, routeThreadId],
+    [defaultRuntimeMode, navigate, projects, routeThreadId],
   );
 
   return {

@@ -12080,7 +12080,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     async (initializeGit = false) => {
       const api = readNativeApi();
       if (!api) return;
-      const cwd = await api.dialogs.pickFolder();
+      const cwd = await api.dialogs.pickFolder(
+        settings.addProjectBaseDirectory
+          ? { initialPath: settings.addProjectBaseDirectory }
+          : undefined,
+      );
       if (!cwd) return;
       if (initializeGit) await api.git.init({ cwd });
       const existing = projects.find((project) => project.cwd === cwd);
@@ -12126,6 +12130,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       openProject,
       projects,
       resolvePendingTab,
+      settings.addProjectBaseDirectory,
       setActiveProject,
       setActiveTool,
     ],
