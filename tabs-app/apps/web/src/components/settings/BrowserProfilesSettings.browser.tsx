@@ -6,7 +6,13 @@ import { BrowserProfilesSettings } from "./BrowserProfilesSettings";
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), toast: vi.fn() }));
 vi.mock("../../hooks/useSettings", () => ({
-  useSettings: () => ({ browserProfiles: [], browserDefaultLinkTarget: "tabs" }),
+  useSettings: () => ({
+    browserProfiles: [],
+    browserDefaultLinkTarget: "tabs",
+    browserDefaultZoomFactor: 1,
+    browserDefaultAppearance: "system",
+    enableAgentBrowserAccess: true,
+  }),
   useUpdateSettings: () => ({ updateSettings: mocks.save }),
 }));
 vi.mock("@effect/atom-react", async (importOriginal) => ({
@@ -64,6 +70,18 @@ it("keeps profile creation compact, saves generated identifiers and preserves op
       .element(page.getByRole("button", { name: "Create Profile", exact: true }))
       .toHaveFocus();
     expect(mocks.save).toHaveBeenCalledTimes(1);
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("shows the default zoom and page appearance for new browser tabs", async () => {
+  const view = await render(<BrowserProfilesSettings />);
+  try {
+    await expect.element(page.getByText("New tabs open at")).toBeVisible();
+    await expect.element(page.getByText("100%", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Page appearance", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Follow the system", { exact: true })).toBeVisible();
   } finally {
     await view.unmount();
   }

@@ -24,7 +24,8 @@ import {
   LoaderCircleIcon,
 } from "lucide-react";
 import type { BrowserImportSourceId, BrowserImportSource } from "@tabs/contracts";
-import { BROWSER_IMPORT_FAILURE_COPY } from "@tabs/contracts";
+import { BROWSER_IMPORT_FAILURE_COPY, PREVIEW_ZOOM_LEVELS } from "@tabs/contracts";
+import { zoomLabel } from "../agents/companion/browserDefaults";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useAtomValue } from "@effect/atom-react";
@@ -692,6 +693,68 @@ export function BrowserProfilesSettings() {
               }
               aria-label="Let agents use the browser"
             />
+          }
+        />
+        <SettingsRow
+          title="New tabs open at"
+          description="The zoom a new browser tab starts with. Tabs you already have keep their own."
+          control={
+            <Select
+              value={String(settings.browserDefaultZoomFactor)}
+              onValueChange={(value) =>
+                updateSettings({
+                  browserDefaultZoomFactor: Number(
+                    value,
+                  ) as typeof settings.browserDefaultZoomFactor,
+                })
+              }
+            >
+              <SelectTrigger className="h-9 w-full sm:w-52" aria-label="Default browser zoom">
+                <SelectValue>{zoomLabel(settings.browserDefaultZoomFactor)}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                {PREVIEW_ZOOM_LEVELS.map((level) => (
+                  <SelectItem hideIndicator key={level} value={String(level)}>
+                    {zoomLabel(level)}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          title="Page appearance"
+          description="Whether pages in a new browser tab are shown light, dark, or follow your system."
+          control={
+            <Select
+              value={settings.browserDefaultAppearance}
+              onValueChange={(value) =>
+                updateSettings({
+                  browserDefaultAppearance: value as typeof settings.browserDefaultAppearance,
+                })
+              }
+            >
+              <SelectTrigger className="h-9 w-full sm:w-52" aria-label="Default page appearance">
+                <SelectValue>
+                  {settings.browserDefaultAppearance === "system"
+                    ? "Follow the system"
+                    : settings.browserDefaultAppearance === "light"
+                      ? "Light"
+                      : "Dark"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem hideIndicator value="system">
+                  Follow the system
+                </SelectItem>
+                <SelectItem hideIndicator value="light">
+                  Light
+                </SelectItem>
+                <SelectItem hideIndicator value="dark">
+                  Dark
+                </SelectItem>
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

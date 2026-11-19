@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
+import { useSettings } from "~/hooks/useSettings";
+import { browserDefaultsToApply } from "./browserDefaults";
 import { useProjectWorkspaceSettings, useWorkspaceActiveProjectId } from "~/state/workspaceShell";
 import { useAtomValue } from "@effect/atom-react";
 import { projectsAtom } from "~/state/threads";
@@ -87,6 +89,13 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const initialUrl = useRef(
     surface.url ?? settings?.browser.defaultUrl ?? "https://www.google.com",
   );
+  // Only a tab that had no page when it appeared starts with the default zoom and appearance;
+  // a restored tab keeps whatever it already had.
+  const startedAsNewTab = useRef(!surface.url);
+  const defaultZoom = useSettings((s) => s.browserDefaultZoomFactor);
+  const defaultAppearance = useSettings((s) => s.browserDefaultAppearance);
+  const browserDefaults = useRef({ zoom: defaultZoom, appearance: defaultAppearance });
+  browserDefaults.current = { zoom: defaultZoom, appearance: defaultAppearance };
   const [state, setState] = useState<DesktopBrowserSessionState>(() =>
     emptyBrowserState(target?.projectId ?? "", sessionId),
   );
@@ -132,7 +141,25 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     void session
       .start(initialUrl.current || "https://www.google.com")
       .then(() => {
-        if (!disposed) setReady(true);
+        if (disposed) return;
+        const defaults = browserDefaultsToApply({
+          isNewTab: startedAsNewTab.current,
+          zoomFactor: browserDefaults.current.zoom,
+          appearance: browserDefaults.current.appearance,
+        });
+        startedAsNewTab.current = false;
+        const control = { projectId: target.projectId, sessionId };
+        if (defaults.zoomFactor !== undefined) {
+          void bridge
+            .setBrowserZoomFactor({ ...control, zoomFactor: defaults.zoomFactor })
+            .catch(() => undefined);
+        }
+        if (defaults.colorScheme !== undefined) {
+          void bridge
+            .setBrowserColorScheme({ ...control, colorScheme: defaults.colorScheme })
+            .catch(() => undefined);
+        }
+        setReady(true);
       })
       .catch((failure: unknown) => {
         if (!disposed) setError(failure instanceof Error ? failure.message : String(failure));
