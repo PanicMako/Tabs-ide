@@ -90,6 +90,19 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedReopen.command, "view.reopenClosed");
 
+    for (const command of [
+      "usage.cost",
+      "usage.tokens",
+      "usage.limits",
+      "usage.period.day",
+      "usage.period.week",
+      "usage.period.month",
+      "usage.period.quarter",
+    ] as const) {
+      const parsedUsageCommand = yield* decode(KeybindingRule, { key: "mod+alt+shift+c", command });
+      assert.strictEqual(parsedUsageCommand.command, command);
+    }
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

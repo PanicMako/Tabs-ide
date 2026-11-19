@@ -6,6 +6,7 @@ import { formatCount, formatPercent, formatTokens, formatUsd } from "@tabs/share
 import { isModelCostUnknown, mergeUsage } from "@tabs/shared/usageMerge";
 import { PROVIDER_DISPLAY_NAMES } from "@tabs/contracts";
 import {
+  usageMetricAtom,
   usageTimeWindowAtom,
   usageSummaryStateAtom,
   fetchUsageSummary,
@@ -126,7 +127,8 @@ const WINDOW_PRESETS = [
 export function UsageTab({ subTabControl }: { subTabControl?: ReactNode } = {}) {
   const timeWindow = useAtomValue(usageTimeWindowAtom);
   const summaryState = useAtomValue(usageSummaryStateAtom);
-  const [metric, setMetric] = useState<"cost" | "tokens">("tokens");
+  const metric = useAtomValue(usageMetricAtom);
+  const setMetric = (next: "cost" | "tokens") => appAtomRegistry.set(usageMetricAtom, next);
   const [breakdownView, setBreakdownView] = useState<"model" | "provider">("model");
   const [showPriceOverrides, setShowPriceOverrides] = useState(false);
   const [priceModelId, setPriceModelId] = useState<string | undefined>();

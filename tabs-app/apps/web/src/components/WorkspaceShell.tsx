@@ -403,6 +403,8 @@ import {
 import { nextAppearancePreference } from "~/lib/appearanceCycle";
 import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
 import { takeClosedProject } from "~/lib/closedProjects";
+import { applyUsageCommand } from "~/state/usage";
+import { isUsageCommand } from "~/state/usageCommands";
 import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
@@ -12603,9 +12605,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         focusWorkspaceArea(command === "workspace.focusNext" ? 1 : -1);
         return;
       }
-      if (command === "usage.open") {
+      if (isUsageCommand(command)) {
         event.preventDefault();
         event.stopPropagation();
+        applyUsageCommand(command);
         goToSettings(navigate, "usage");
         return;
       }

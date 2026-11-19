@@ -46,6 +46,13 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   // Cmd+Shift+Space is reserved by Siri on newer macOS versions.
   { key: "mod+alt+k", command: "quickActions.toggle" },
   { key: "mod+alt+u", command: "usage.open" },
+  { key: "mod+alt+l", command: "usage.limits" },
+  { key: "mod+alt+shift+c", command: "usage.cost" },
+  { key: "mod+alt+shift+t", command: "usage.tokens" },
+  { key: "mod+alt+shift+d", command: "usage.period.day" },
+  { key: "mod+alt+shift+w", command: "usage.period.week" },
+  { key: "mod+alt+shift+m", command: "usage.period.month" },
+  { key: "mod+alt+shift+q", command: "usage.period.quarter" },
   { key: "mod+shift+t", command: "view.reopenClosed", when: "shellChromeFocus" },
   { key: "f6", command: "workspace.focusNext" },
   { key: "shift+f6", command: "workspace.focusPrevious" },

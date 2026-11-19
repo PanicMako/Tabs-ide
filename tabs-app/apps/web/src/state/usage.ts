@@ -8,6 +8,7 @@ import { makeWindow } from "@tabs/shared/usageFormat";
 import { ensureNativeApi } from "../nativeApi";
 import { appAtomRegistry } from "./atomRegistry";
 import { onUsageUpdated } from "../wsNativeApi";
+import { usageCommandEffect, type UsageCommand, type UsageMetric } from "./usageCommands";
 
 export type UsageSubTab = "usage" | "limits";
 export type UsageWindowPreset = "24h" | "7d" | "30d" | "90d" | "all";
@@ -28,6 +29,22 @@ export const usageActiveSubTabAtom = Atom.make<UsageSubTab>("usage").pipe(
   Atom.withLabel("tabs-usage-active-subtab"),
   Atom.keepAlive,
 );
+
+export const usageMetricAtom = Atom.make<UsageMetric>("tokens").pipe(
+  Atom.withLabel("tabs-usage-metric"),
+  Atom.keepAlive,
+);
+
+/** Applies a usage shortcut to the page's state; the caller opens Settings on the usage page. */
+export function applyUsageCommand(command: UsageCommand): void {
+  const effect = usageCommandEffect(command);
+  appAtomRegistry.set(usageActiveSubTabAtom, effect.tab);
+  if (effect.metric) appAtomRegistry.set(usageMetricAtom, effect.metric);
+  if (effect.window) {
+    appAtomRegistry.set(usageTimeWindowAtom, effect.window);
+    void fetchUsageSummary(effect.window);
+  }
+}
 
 export const usageSummaryStateAtom = Atom.make<AsyncState<UsageSummary>>({
   data: null,
