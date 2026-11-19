@@ -190,3 +190,7 @@ Done (contract test and typecheck; not run in the app). Settings → General has
 ## 5.10 Unpin confirmation
 
 Done (contract test and typecheck; not run in the app). Settings → General has an "Unpin confirmation" switch (off by default). When on, unpinning from the sidebar menu or with the pin shortcut asks first. `confirmQuit` and the hold-to-quit overlay are still not built. Files: `settings/GeneralSettings.tsx`, `components/Sidebar.tsx`, `components/ChatView.tsx`. By hand: turn the switch on, then unpin a pinned thread.
+
+## 5.10 Quit shortcut and hold-to-quit
+
+**Partial; the hold-to-quit part is skipped.** Tabs already has a "Confirm before quit" switch (Settings → General, `desktop:get/set-confirm-before-quit`, a dialog on quit). T3's hold and double-press modes (`desktop/window/QuitHold.ts`, `QuitHoldOverlay.tsx`) time Cmd/Ctrl+Q key events in Electron's main process through `before-input-event`. That code cannot be exercised without launching the desktop app, which the repo rules forbid, and a mistake would stop Tabs from quitting at all. The contracts already carry `QuitConfirmationMode` (`direct`, `hold`, `double-click`) and `confirmQuit`, so the setting and the overlay can be added later and checked by hand. By hand when built: set the mode to Hold, tap Cmd+Q (nothing happens), then hold it (an overlay fills, then Tabs quits).
