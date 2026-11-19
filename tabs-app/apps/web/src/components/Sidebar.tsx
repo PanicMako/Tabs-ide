@@ -1086,6 +1086,10 @@ export default function Sidebar() {
         return;
       }
       if (clicked === "pin") {
+        if (thread.pinnedAt && appSettings.confirmThreadUnpin) {
+          const confirmed = await confirm(`Unpin thread "${thread.title}"?`);
+          if (!confirmed) return;
+        }
         await api.orchestration.dispatchCommand({
           type: thread.pinnedAt ? "thread.unpin" : "thread.pin",
           commandId: newCommandId(),
@@ -1189,6 +1193,7 @@ export default function Sidebar() {
       await deleteThread(threadId, { environmentId: thread.environmentId });
     },
     [
+      appSettings.confirmThreadUnpin,
       appSettings.confirmThreadArchive,
       appSettings.confirmThreadDelete,
       copyPathToClipboard,

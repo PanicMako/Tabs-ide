@@ -67,6 +67,7 @@ import {
 import { resolveThreadCurrentPullRequest } from "@tabs/shared/threadPullRequests";
 import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
 import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
+import { showCustomConfirm } from "~/lib/customConfirm";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -3692,19 +3693,25 @@ export default function ChatView({
         if (!isServerThread || !activeThread || event.repeat) return;
         const isPinned = activeThread.pinnedAt != null;
         if (!threadApi) return;
-        void threadApi.orchestration
-          .dispatchCommand({
+        void (async () => {
+          if (
+            isPinned &&
+            settings.confirmThreadUnpin &&
+            !(await showCustomConfirm(`Unpin thread "${activeThread.title}"?`))
+          )
+            return;
+          await threadApi.orchestration.dispatchCommand({
             type: isPinned ? "thread.unpin" : "thread.pin",
             commandId: newCommandId(),
             threadId: activeThread.id,
-          })
-          .catch((error: unknown) => {
-            toastManager.add({
-              type: "error",
-              title: isPinned ? "Could not unpin thread" : "Could not pin thread",
-              description: error instanceof Error ? error.message : "The thread action failed.",
-            });
           });
+        })().catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: isPinned ? "Could not unpin thread" : "Could not pin thread",
+            description: error instanceof Error ? error.message : "The thread action failed.",
+          });
+        });
         return;
       }
 
@@ -3783,6 +3790,7 @@ export default function ChatView({
     keybindings,
     onToggleDiff,
     stashCurrentPrompt,
+    settings.confirmThreadUnpin,
     toggleInteractionMode,
     toggleTerminalVisibility,
     isServerThread,

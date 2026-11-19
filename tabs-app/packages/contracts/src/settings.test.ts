@@ -54,6 +54,7 @@ describe("thread confirmation settings", () => {
     const settings = decodeClientSettings({});
     expect(settings.confirmThreadArchive).toBe(false);
     expect(settings.confirmThreadDelete).toBe(true);
+    expect(settings.confirmThreadUnpin).toBe(false);
   });
 
   it("accepts a patch that turns archive confirmation on", () => {

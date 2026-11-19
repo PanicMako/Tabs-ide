@@ -186,3 +186,7 @@ Done (unit tests and the ChatView browser suite; not run in the app). The window
 ## 5.10 Archive confirmation
 
 Done (contract test and typecheck; not run in the app). Settings → General has an "Archive confirmation" switch, off by default because archiving can be undone from the toast. Deleting still asks by default. The contracts already defined `confirmThreadUnpin` and `confirmQuit`, but nothing reads them yet; those two confirmations and the hold-to-quit overlay are not built. Files: `settings/GeneralSettings.tsx`, `components/Sidebar.tsx`, `packages/contracts/src/settings.test.ts`. By hand: archive a thread with the switch off (no prompt, Undo toast) and on (a prompt first).
+
+## 5.10 Unpin confirmation
+
+Done (contract test and typecheck; not run in the app). Settings → General has an "Unpin confirmation" switch (off by default). When on, unpinning from the sidebar menu or with the pin shortcut asks first. `confirmQuit` and the hold-to-quit overlay are still not built. Files: `settings/GeneralSettings.tsx`, `components/Sidebar.tsx`, `components/ChatView.tsx`. By hand: turn the switch on, then unpin a pinned thread.

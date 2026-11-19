@@ -244,6 +244,7 @@ export function GeneralSettings() {
                     responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                     defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
                     confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
+                    confirmThreadUnpin: DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin,
                     confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
                     confirmTabClose: DEFAULT_UNIFIED_SETTINGS.confirmTabClose,
                   });
@@ -804,6 +805,34 @@ export function GeneralSettings() {
                 })
               }
               aria-label="Confirm thread archiving"
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Unpin confirmation"
+          description="Ask before unpinning a thread."
+          resetAction={
+            settings.confirmThreadUnpin !== DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin ? (
+              <SettingResetButton
+                label="unpin confirmation"
+                onClick={() =>
+                  updateSettings({
+                    confirmThreadUnpin: DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.confirmThreadUnpin}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  confirmThreadUnpin: Boolean(checked),
+                })
+              }
+              aria-label="Confirm thread unpinning"
             />
           }
         />
