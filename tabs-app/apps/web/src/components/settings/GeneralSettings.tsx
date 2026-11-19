@@ -243,6 +243,7 @@ export function GeneralSettings() {
                     enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
                     responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                     defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
+                    confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
                     confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
                     confirmTabClose: DEFAULT_UNIFIED_SETTINGS.confirmTabClose,
                   });
@@ -775,6 +776,34 @@ export function GeneralSettings() {
                 })
               }
               aria-label="Enable agent CLI in threads"
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Archive confirmation"
+          description="Ask before archiving a thread. Archiving can always be undone from the toast that follows."
+          resetAction={
+            settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive ? (
+              <SettingResetButton
+                label="archive confirmation"
+                onClick={() =>
+                  updateSettings({
+                    confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.confirmThreadArchive}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  confirmThreadArchive: Boolean(checked),
+                })
+              }
+              aria-label="Confirm thread archiving"
             />
           }
         />

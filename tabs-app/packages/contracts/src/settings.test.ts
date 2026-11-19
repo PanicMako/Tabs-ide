@@ -49,6 +49,20 @@ describe("ServerSettings response streaming", () => {
   });
 });
 
+describe("thread confirmation settings", () => {
+  it("archives without asking (it can be undone) but still asks before deleting", () => {
+    const settings = decodeClientSettings({});
+    expect(settings.confirmThreadArchive).toBe(false);
+    expect(settings.confirmThreadDelete).toBe(true);
+  });
+
+  it("accepts a patch that turns archive confirmation on", () => {
+    expect(decodeClientSettingsPatch({ confirmThreadArchive: true }).confirmThreadArchive).toBe(
+      true,
+    );
+  });
+});
+
 describe("storage cleanup settings", () => {
   it("keeps cleanup disabled for existing installations", () => {
     expect(decodeServerSettings({}).worktreeCleanup).toBeNull();

@@ -182,3 +182,7 @@ Check run after Update everything, thread hover cards and archive undo: web test
 ## 5.4 Window title
 
 Done (unit tests and the ChatView browser suite; not run in the app). The window title now follows the thread being viewed and leads with what needs attention: "Needs your input · Fix the sidebar — Tabs", "Working · Fix the sidebar — Tabs", or the thread title alone when idle. It returns to the app name when no thread is open. Files: `lib/windowTitle.ts` (+ test), `components/ChatView.tsx`. The screen-reader live region from the same T3 item is still not built (it needs a consumer such as "agent finished"). By hand: open a thread and watch the window title as an agent works or asks a question.
+
+## 5.10 Archive confirmation
+
+Done (contract test and typecheck; not run in the app). Settings → General has an "Archive confirmation" switch, off by default because archiving can be undone from the toast. Deleting still asks by default. The contracts already defined `confirmThreadUnpin` and `confirmQuit`, but nothing reads them yet; those two confirmations and the hold-to-quit overlay are not built. Files: `settings/GeneralSettings.tsx`, `components/Sidebar.tsx`, `packages/contracts/src/settings.test.ts`. By hand: archive a thread with the switch off (no prompt, Undo toast) and on (a prompt first).

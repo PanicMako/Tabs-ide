@@ -1152,8 +1152,11 @@ export default function Sidebar() {
         return;
       }
       if (clicked === "archive") {
-        const confirmed = await confirm(`Archive thread "${thread.title}"?`);
-        if (!confirmed) return;
+        // Archiving can be undone from the toast, so asking first is optional.
+        if (appSettings.confirmThreadArchive) {
+          const confirmed = await confirm(`Archive thread "${thread.title}"?`);
+          if (!confirmed) return;
+        }
         await api.orchestration.dispatchCommand({
           type: "thread.archive",
           commandId: newCommandId(),
@@ -1186,6 +1189,7 @@ export default function Sidebar() {
       await deleteThread(threadId, { environmentId: thread.environmentId });
     },
     [
+      appSettings.confirmThreadArchive,
       appSettings.confirmThreadDelete,
       copyPathToClipboard,
       copyThreadIdToClipboard,
