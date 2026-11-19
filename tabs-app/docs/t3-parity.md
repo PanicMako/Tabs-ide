@@ -344,7 +344,7 @@ Done (browser tests with real rendering, typecheck; not run in the app). A finis
 
 `vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2254 pass; browser suite 527 of 527 pass; `bun run build:desktop` succeeds; the server suite last passed 8212 with 0 failures and the server was not changed afterwards.
 
-Shortcuts from the brief's list that still have no handler: `composer.sendAlternate` and `composer.sendBackground` (Tabs only queues follow-ups; there is no steer action to alternate with), and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app).
+Shortcuts from the brief's list that still have no handler: and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app).
 
 ## Check run after thread undo, the panel toggles and the picker shortcuts
 
@@ -416,3 +416,7 @@ Done (unit tests for the cycling choice, contract test, typecheck; not run in th
 ## Default branch prefix: `t3` is now `tabs`
 
 Done (shared and server unit tests; not run in the app). New temporary worktree branches are named `tabs/<8 hex>` (and `tabs-<8 hex>` when a plain `tabs` branch blocks the namespace). The matcher still recognizes `t3/<8 hex>` and `t3-<8 hex>` as temporary, so threads made before this change can still have their branch renamed from the first message. Files: `packages/shared/src/git.ts` (+ test), `apps/server/src/orchestration-v2/ThreadLaunchService.test.ts`.
+
+## 5.16 `composer.sendAlternate` (Cmd/Ctrl+Shift+Enter) and `composer.sendBackground` (Cmd/Ctrl+Alt+Shift+Enter), and "Enter while the agent is working"
+
+Done (store test for the steer dispatch, contract test, typecheck, `vp check`, `ChatView` and settings browser suites; not run in the app). I had recorded these as blocked because I thought Tabs had no steer action; the server already supports steering a live run (`deliveryIntent: "steer"`), and the contracts already carried a `followUpBehavior` setting (queue or steer) that nothing read. Now: Settings → General → "Enter while the agent is working" picks Queue (default, unchanged) or Steer; Enter while a run is active follows it. `composer.sendAlternate` does the other one while the agent is working, and just sends when it is idle. `composer.sendBackground` on a new thread sends the message and opens a fresh draft in the same project instead of following it (the same hand-off as `composer.sendAndNewThread`). Files: `messageQueueStore.ts` (+ test), `ChatView.tsx`, `settings/ThreadFlowSettings.tsx`, keybinding contracts and defaults. By hand: start a run, type a follow-up, press Enter (queues) then Cmd/Ctrl+Shift+Enter (steers into the run).

@@ -278,6 +278,35 @@ describe("migrateLocalQueueToServer", () => {
     expect(useMessageQueueStore.getState().queueByThread[threadId]).toEqual([]);
   });
 
+  it("asks the server to steer when a message was queued to steer", async () => {
+    const store = useMessageQueueStore.getState();
+    store.enqueueMessage({
+      id: "q-steer",
+      threadId,
+      text: "Steer me",
+      createdAt: "2026-10-13T10:00:00Z",
+      deliveryIntent: "steer",
+    });
+    store.enqueueMessage({
+      id: "q-plain",
+      threadId,
+      text: "Wait for me",
+      createdAt: "2026-10-13T10:01:00Z",
+    });
+    const dispatched: any[] = [];
+    const mockApi = {
+      orchestration: {
+        dispatchCommand: vi.fn(async (cmd: any) => {
+          dispatched.push(cmd);
+          return { sequence: 1 };
+        }),
+      },
+    };
+    await (await import("./messageQueueStore")).migrateLocalQueueToServer(undefined, mockApi);
+    expect(dispatched.find((c) => c.messageId === "q-steer")?.deliveryIntent).toBe("steer");
+    expect(dispatched.find((c) => c.messageId === "q-plain")).not.toHaveProperty("deliveryIntent");
+  });
+
   it("preserves local entry and sets error when server dispatch fails", async () => {
     const store = useMessageQueueStore.getState();
     store.enqueueMessage({

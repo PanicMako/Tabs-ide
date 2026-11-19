@@ -100,6 +100,8 @@ export interface QueuedMessage {
   readonly modelSelection?: unknown | undefined;
   readonly threadCreation?: DraftThreadCreation | undefined;
   readonly dispatchMode?: "start_immediately" | "queue_after_active" | undefined;
+  /** "steer" folds the message into the run that is active now instead of waiting for it to end. */
+  readonly deliveryIntent?: "steer" | undefined;
   readonly intakeStatus?: QueuedMessageIntakeStatus | undefined;
   readonly cancellationError?: string | undefined;
 }
@@ -962,6 +964,7 @@ export async function migrateLocalQueueToServer(
               : {}),
             scheduledFor: msg.scheduledFor ? DateTime.makeUnsafe(msg.scheduledFor) : undefined,
             dispatchMode: { type: msg.dispatchMode ?? "queue_after_active" },
+            ...(msg.deliveryIntent ? { deliveryIntent: msg.deliveryIntent } : {}),
             ...(effectiveModelSelection ? { modelSelection: effectiveModelSelection } : {}),
           });
         } catch (err: unknown) {

@@ -78,6 +78,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+alt+s", command: "composer.stash", when: "!terminalFocus" },
   { key: "mod+alt+enter", command: "composer.sendAndNewThread", when: "!terminalFocus" },
+  { key: "mod+shift+enter", command: "composer.sendAlternate", when: "!terminalFocus" },
+  { key: "mod+alt+shift+enter", command: "composer.sendBackground", when: "!terminalFocus" },
   { key: "mod+shift+m", command: "modelPicker.toggle", when: "!terminalFocus" },
   { key: "mod+alt+shift+e", command: "composer.effort", when: "!terminalFocus" },
   { key: "mod+alt+arrowup", command: "composer.increaseEffort", when: "!terminalFocus" },

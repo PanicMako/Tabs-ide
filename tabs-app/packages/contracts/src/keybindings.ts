@@ -120,6 +120,8 @@ const STATIC_KEYBINDING_COMMANDS = [
   "composer.dictation",
   "composer.stash",
   "composer.sendAndNewThread",
+  "composer.sendAlternate",
+  "composer.sendBackground",
   "composer.effort",
   "composer.increaseEffort",
   "composer.decreaseEffort",

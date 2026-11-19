@@ -138,6 +138,8 @@ it.effect("parses keybinding rules", () =>
       "composer.branch",
       "composer.workspace",
       "composer.previousWorktree",
+      "composer.sendAlternate",
+      "composer.sendBackground",
       "composer.host",
       "composer.cycleHost",
       "thread.editQueuedMessage",

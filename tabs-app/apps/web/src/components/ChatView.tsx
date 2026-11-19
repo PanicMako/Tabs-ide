@@ -843,6 +843,7 @@ export default function ChatView({
   const sendRef = useRef<(() => Promise<boolean | undefined>) | null>(null);
   const stepEffortRef = useRef<((direction: 1 | -1) => void) | null>(null);
   const previousWorktreeRef = useRef<(() => void) | null>(null);
+  const queueMessageRef = useRef<((steer: boolean) => void) | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findFocusTick, setFindFocusTick] = useState(0);
   // A search belongs to the thread it was opened in.
@@ -1096,7 +1097,7 @@ export default function ChatView({
   }, [clearPromptStash, environmentId]);
 
   const onQueueMessage = useCallback(
-    async (scheduledFor?: string | null) => {
+    async (scheduledFor?: string | null, steer?: boolean) => {
       if (!threadId || persistingDraftRef.current) return;
       const scopeForQueue = composerScopeRef.current;
       const modelForQueue = queueModelSelectionRef.current;
@@ -1164,6 +1165,7 @@ export default function ChatView({
         scheduledFor: scheduledFor ?? undefined,
         modelSelection: threadModel,
         threadCreation: creationForQueue ?? undefined,
+        ...(steer ? { deliveryIntent: "steer" as const } : {}),
       };
       try {
         enqueueMessage(queuedItem);
@@ -3745,10 +3747,31 @@ export default function ChatView({
         return;
       }
 
-      if (command === "composer.sendAndNewThread") {
+      if (command === "composer.sendAlternate") {
         event.preventDefault();
         event.stopPropagation();
-        if (!isServerThread || !activeProject || event.repeat) return;
+        if (event.repeat) return;
+        // Enter does what Follow-up behavior says; this does the other one.
+        if (isWorkingRef.current) {
+          queueMessageRef.current?.(settings.followUpBehavior !== "steer");
+        } else {
+          void sendRef.current?.();
+        }
+        return;
+      }
+
+      if (
+        command === "composer.sendAndNewThread" ||
+        (command === "composer.sendBackground" && !isServerThread)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (
+          (command === "composer.sendAndNewThread" && !isServerThread) ||
+          !activeProject ||
+          event.repeat
+        )
+          return;
         const projectId = activeProject.id;
         const environmentId = activeProject.environmentId;
         void (async () => {
@@ -5438,6 +5461,7 @@ export default function ChatView({
     });
     scheduleComposerFocus();
   };
+  queueMessageRef.current = (steer) => void onQueueMessage(undefined, steer);
   const onEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode) => {
       if (isLocalDraftThread) {
@@ -5923,7 +5947,7 @@ export default function ChatView({
 
     if (key === "Enter" && !event.shiftKey) {
       if (phase === "running" || isSendBusy) {
-        onQueueMessage();
+        onQueueMessage(undefined, settings.followUpBehavior === "steer");
         return true;
       }
       void onSend();

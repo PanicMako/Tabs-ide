@@ -29,7 +29,8 @@ export function ThreadFlowSettings() {
       | "snoozeLimitedThreads"
       | "continueThreadsAfterServerUpdate"
       | "sidebarAutoSettleOnMerge"
-      | "sidebarAutoSettleAfterDays",
+      | "sidebarAutoSettleAfterDays"
+      | "followUpBehavior",
     label: string,
   ) =>
     settings[key] !== DEFAULT_UNIFIED_SETTINGS[key] ? (
@@ -90,6 +91,31 @@ export function ThreadFlowSettings() {
                   {autoSettleLabel(days)}
                 </SelectItem>
               ))}
+            </SelectPopup>
+          </Select>
+        }
+      />
+      <SettingsRow
+        title="Enter while the agent is working"
+        description="Queue sends your message when the agent finishes. Steer folds it into the run that is going now. Cmd/Ctrl+Shift+Enter does the other one."
+        resetAction={reset("followUpBehavior", "Enter while the agent is working")}
+        control={
+          <Select
+            value={settings.followUpBehavior}
+            onValueChange={(value) =>
+              updateSettings({ followUpBehavior: value === "steer" ? "steer" : "queue" })
+            }
+          >
+            <SelectTrigger className="w-40" aria-label="Enter while the agent is working">
+              <SelectValue>{settings.followUpBehavior === "steer" ? "Steer" : "Queue"}</SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              <SelectItem hideIndicator value="queue">
+                Queue
+              </SelectItem>
+              <SelectItem hideIndicator value="steer">
+                Steer
+              </SelectItem>
             </SelectPopup>
           </Select>
         }
