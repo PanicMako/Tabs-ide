@@ -332,3 +332,7 @@ Done for `$$ ... $$` formulas, inline and as a block (browser tests with real re
 ## 5.5 Mermaid in chat messages
 
 Done (browser tests with real rendering, typecheck; not run in the app). A finished ` ```mermaid ` code block in a message is drawn as a diagram, with the copy button kept; while the message is still streaming, and whenever a diagram cannot be drawn, it stays as the normal highlighted code. Files: `ChatMarkdown.tsx`, `agents/companion/MermaidPreview.tsx` (a `fallback` option), `ChatMarkdown.math.browser.tsx`.
+
+## Section 2 checks: latest full run (after find, math, Mermaid in chat and the model picker shortcuts)
+
+`vp check` 0 errors; `vp run typecheck` 16/16; contracts tests 654 pass; shared tests 1344 pass; web unit tests 2248 pass; browser suite 527 of 527 pass; server suite 8212 pass, 0 failures (last run, before these web-only changes; the server was not touched since); `bun run build:desktop` succeeds.
