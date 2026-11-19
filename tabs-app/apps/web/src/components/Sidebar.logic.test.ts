@@ -794,7 +794,12 @@ describe("pinned projects", () => {
   });
 
   it("leaves the order alone when nothing is pinned or a pin no longer exists", () => {
-    expect(pinProjectsFirst(projects, []).map((project) => project.id)).toEqual(["a", "b", "c", "d"]);
+    expect(pinProjectsFirst(projects, []).map((project) => project.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
     expect(pinProjectsFirst(projects, ["gone"]).map((project) => project.id)).toEqual([
       "a",
       "b",
