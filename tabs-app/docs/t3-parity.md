@@ -251,3 +251,7 @@ Done (unit, browser and typecheck; not run in the app). Settings → General →
 ## 5.17 Command palette: themes
 
 Partial. The palette now has a "Switch theme..." submenu listing System and every built-in theme with the current one marked (`buildThemeSubmenuItem`, unit tested). Projects, threads and add project were already in the palette. Custom themes, saved presets and environment themes are not listed yet. By hand: open the palette, type "theme" and choose a theme.
+
+## 5.3 Archived threads
+
+Partial (unit tests for the row logic, a browser test for the empty state, typecheck; not run in the app). Settings → Worktrees & Storage has an "Archived threads" section listing archived threads newest first with their project and how long ago, and a Restore button (`thread.unarchive`). With nothing archived it says so and explains where archived threads will appear. Deleting from this list is not built: deleting a thread also stops its session, closes terminals and offers to remove its worktree, and that flow lives in the sidebar. It is a section on an existing page, not its own page, to avoid adding a navigation row. Files: `lib/archivedThreads.ts` (+ test), `settings/ArchivedThreadsSettings.tsx` (+ browser test), `WorkspaceMaintenanceSettings.tsx`. By hand: archive a thread, open Settings → Worktrees & Storage, and press Restore.

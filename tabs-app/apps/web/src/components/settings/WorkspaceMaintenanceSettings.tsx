@@ -15,6 +15,7 @@ import { Button } from "../ui/button";
 import { RefreshCwIcon } from "lucide-react";
 import { SettingsSectionHeader } from "./SettingsLayout";
 import { NewWorktreeSettings } from "./NewWorktreeSettings";
+import { ArchivedThreadsSettings } from "./ArchivedThreadsSettings";
 import { WorkspaceMaintenanceView, maintenanceBytes } from "./WorkspaceMaintenanceView";
 
 export default function WorkspaceMaintenanceSettings() {
@@ -125,6 +126,7 @@ export default function WorkspaceMaintenanceSettings() {
         </div>
       )}
       <NewWorktreeSettings />
+      <ArchivedThreadsSettings />
       <WorkspaceMaintenanceView
         projects={projects}
         projectId={projectId}
