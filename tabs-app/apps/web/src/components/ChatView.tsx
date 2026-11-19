@@ -66,6 +66,7 @@ import {
 } from "@tabs/shared/model";
 import { resolveThreadCurrentPullRequest } from "@tabs/shared/threadPullRequests";
 import { currentPullRequestNumber } from "~/lib/pullRequestNumber";
+import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -1769,6 +1770,19 @@ export default function ChatView({
     [threadActivities],
   );
   const activePendingUserInput = pendingUserInputs[0] ?? null;
+  useWindowTitle(
+    activeThread && isActivePane
+      ? windowTitleFor({
+          threadTitle: activeThread.title,
+          status:
+            pendingUserInputs.length > 0 || pendingApprovals.length > 0
+              ? "needs-input"
+              : isWorking
+                ? "working"
+                : null,
+        })
+      : null,
+  );
   const activePendingDraftAnswers = useMemo(
     () =>
       activePendingUserInput

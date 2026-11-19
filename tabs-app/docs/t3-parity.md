@@ -178,3 +178,7 @@ Done (unit and browser tests; not run in the app). Hovering a thread title in th
 Done for archiving a thread from its sidebar menu (unit tests; not run in the app). Archiving now shows a "Thread archived" toast with an Undo button that dispatches `thread.unarchive`. Delete is partial: deleting is permanent, so Undo is not offered. Files: `lib/threadArchiveUndo.ts` (+ test), `components/Sidebar.tsx`. By hand: archive a thread from the sidebar menu and press Undo within 8 seconds.
 
 Check run after Update everything, thread hover cards and archive undo: web tests 2186 pass; typecheck 16/16; `vp check` 0 errors; browser tests 486 of 488 pass in the full run, and the two failures (`ui/radii.browser.tsx`, "joins the New Tab strip to the Welcome canvas") pass when that file is run alone (10/10), so they look like load flakes rather than regressions.
+
+## 5.4 Window title
+
+Done (unit tests and the ChatView browser suite; not run in the app). The window title now follows the thread being viewed and leads with what needs attention: "Needs your input · Fix the sidebar — Tabs", "Working · Fix the sidebar — Tabs", or the thread title alone when idle. It returns to the app name when no thread is open. Files: `lib/windowTitle.ts` (+ test), `components/ChatView.tsx`. The screen-reader live region from the same T3 item is still not built (it needs a consumer such as "agent finished"). By hand: open a thread and watch the window title as an agent works or asks a question.
