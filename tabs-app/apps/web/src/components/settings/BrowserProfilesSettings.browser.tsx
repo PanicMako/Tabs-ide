@@ -11,6 +11,7 @@ vi.mock("../../hooks/useSettings", () => ({
     browserDefaultLinkTarget: "tabs",
     browserDefaultZoomFactor: 1,
     browserDefaultProfileId: "default",
+    browserRecordingFrameRate: 30,
     browserDefaultAppearance: "system",
     enableAgentBrowserAccess: true,
   }),
@@ -82,6 +83,7 @@ it("shows the default zoom and page appearance for new browser tabs", async () =
     await expect.element(page.getByText("New tabs open at")).toBeVisible();
     await expect.element(page.getByText("100%", { exact: true })).toBeVisible();
     await expect.element(page.getByText("New tabs use profile")).toBeVisible();
+    await expect.element(page.getByText("Recording smoothness")).toBeVisible();
     await expect.element(page.getByText("Page appearance", { exact: true })).toBeVisible();
     await expect.element(page.getByText("Follow the system", { exact: true })).toBeVisible();
   } finally {

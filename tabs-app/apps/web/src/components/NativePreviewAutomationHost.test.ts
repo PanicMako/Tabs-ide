@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThreadId } from "@tabs/contracts";
 
 import {
+  browserRecordingVideoConstraints,
   buildPreviewStatusReport,
   resolveAutomationViewport,
   startNativeBrowserRecording,
@@ -163,5 +164,23 @@ describe("native browser recording", () => {
     );
     expect(artifact).toMatchObject({ id: "recording-1", sizeBytes: 3 });
     expect(stopTrack).toHaveBeenCalledOnce();
+  });
+});
+
+describe("browserRecordingVideoConstraints", () => {
+  const mandatory = (constraints: MediaTrackConstraints) =>
+    (constraints as { mandatory: Record<string, unknown> }).mandatory;
+
+  it("captures the given tab at the chosen frame rate", () => {
+    expect(mandatory(browserRecordingVideoConstraints("source-1", 60))).toEqual({
+      chromeMediaSource: "desktop",
+      chromeMediaSourceId: "source-1",
+      maxFrameRate: 60,
+    });
+  });
+
+  it("falls back to 30 frames per second for anything else", () => {
+    expect(mandatory(browserRecordingVideoConstraints("s", 30)).maxFrameRate).toBe(30);
+    expect(mandatory(browserRecordingVideoConstraints("s", undefined)).maxFrameRate).toBe(30);
   });
 });

@@ -759,6 +759,33 @@ export function BrowserProfilesSettings() {
           }
         />
         <SettingsRow
+          title="Recording smoothness"
+          description="How many frames per second a browser recording captures. 60 is smoother and makes bigger files."
+          control={
+            <Select
+              value={String(settings.browserRecordingFrameRate)}
+              onValueChange={(value) =>
+                updateSettings({ browserRecordingFrameRate: value === "60" ? 60 : 30 })
+              }
+            >
+              <SelectTrigger
+                className="h-9 w-full sm:w-52"
+                aria-label="Browser recording frame rate"
+              >
+                <SelectValue>{settings.browserRecordingFrameRate} frames per second</SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem hideIndicator value="30">
+                  30 frames per second
+                </SelectItem>
+                <SelectItem hideIndicator value="60">
+                  60 frames per second
+                </SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
           title="Page appearance"
           description="Whether pages in a new browser tab are shown light, dark, or follow your system."
           control={

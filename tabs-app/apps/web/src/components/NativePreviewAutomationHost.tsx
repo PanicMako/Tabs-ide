@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import { readNativeApi } from "../nativeApi";
 import { appAtomRegistry } from "../state/atomRegistry";
 import { readModelStateAtom } from "../state/readModel";
+import { clientSettingsAtom } from "../state/settings";
 import { workspaceShellActions } from "../state/workspaceShell";
 
 const SUPPORTED_OPERATIONS = PREVIEW_AUTOMATION_OPERATIONS;
@@ -70,6 +71,20 @@ function preferredRecordingMimeType(): string | undefined {
   );
 }
 
+/** How the screen capture is asked for: from this browser tab's source, at the chosen frame rate. */
+export function browserRecordingVideoConstraints(
+  sourceId: string,
+  frameRate: number | undefined,
+): MediaTrackConstraints {
+  return {
+    mandatory: {
+      chromeMediaSource: "desktop",
+      chromeMediaSourceId: sourceId,
+      maxFrameRate: frameRate === 60 ? 60 : 30,
+    },
+  } as MediaTrackConstraints;
+}
+
 export async function startNativeBrowserRecording(
   bridge: NonNullable<Window["desktopBridge"]>,
   projectId: string,
@@ -86,13 +101,10 @@ export async function startNativeBrowserRecording(
   await checkControl();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
-    video: {
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: sourceId,
-        maxFrameRate: 30,
-      },
-    } as MediaTrackConstraints,
+    video: browserRecordingVideoConstraints(
+      sourceId,
+      appAtomRegistry.get(clientSettingsAtom).browserRecordingFrameRate,
+    ),
   });
   try {
     await checkControl();
