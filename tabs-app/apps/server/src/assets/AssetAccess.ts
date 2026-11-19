@@ -21,6 +21,7 @@ import {
 import {
   audioMimeTypeFromExtension,
   hostPreviewMimeTypeFromExtension,
+  isDraftWorkspaceFilePreviewPath,
   isWorkspaceImagePreviewPath,
   isWorkspacePreviewEntryPath,
   WORKSPACE_BROWSER_PREVIEW_EXTENSIONS,
@@ -403,7 +404,11 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
             }),
         ),
       );
-    if (!isWorkspacePreviewEntryPath(resolved.relativePath)) {
+    const previewable =
+      input.resource._tag === "draft-workspace-file"
+        ? isDraftWorkspaceFilePreviewPath(resolved.relativePath)
+        : isWorkspacePreviewEntryPath(resolved.relativePath);
+    if (!previewable) {
       return yield* new AssetPreviewTypeValidationError({
         resource: input.resource,
       });
@@ -561,7 +566,19 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         resource: input.resource,
         expiresAt,
       });
-      claims = finalized.claims;
+      // A page can pull in its sibling files, so it gets a folder claim. Video, audio and Office
+      // files stand alone: the token opens exactly that one file.
+      claims =
+        isWorkspacePreviewEntryPath(input.resource.path) ||
+        finalized.claims.kind === "workspace-file-exact"
+          ? finalized.claims
+          : {
+              version: 1,
+              kind: "workspace-file-exact",
+              workspaceRoot: finalized.claims.workspaceRoot,
+              relativePath: path.join(finalized.claims.baseRelativePath, finalized.fileName),
+              expiresAt,
+            };
       fileName = finalized.fileName;
       imageDimensions = finalized.imageDimensions;
       break;

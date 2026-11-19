@@ -44,6 +44,7 @@ import { StartTruncatedPath } from "~/components/StartTruncatedPath";
 import { CompanionEmpty } from "./CompanionChrome";
 import { FontPreview } from "./FontPreview";
 import { MermaidPreview } from "./MermaidPreview";
+import { OfficePreview } from "./OfficePreview";
 import { NotebookPreview } from "./NotebookPreview";
 import { toastManager } from "~/components/ui/toast";
 import {
@@ -298,7 +299,7 @@ function FilePreview({
   onToggleTree: () => void;
 }) {
   const kind = filePreviewKind(path);
-  const binary = ["image", "video", "audio", "pdf", "font"].includes(kind);
+  const binary = ["image", "video", "audio", "pdf", "font", "office"].includes(kind);
   const client = useQueryClient();
   const { resolvedTheme } = useTheme();
   const [sourceMode, setSourceMode] = useState(false);
@@ -521,6 +522,11 @@ function FilePreview({
                   className="min-h-0 flex-1 w-full border-0"
                   title={`PDF preview: ${path}`}
                   src={asset.data.relativeUrl}
+                />
+              ) : kind === "office" ? (
+                <OfficePreview
+                  url={asset.data.relativeUrl}
+                  extension={path.split(".").pop() ?? ""}
                 />
               ) : kind === "font" ? (
                 <FontPreview url={asset.data.relativeUrl} name={path} />

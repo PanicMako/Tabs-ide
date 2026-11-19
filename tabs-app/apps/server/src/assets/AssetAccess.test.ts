@@ -763,6 +763,48 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect("serves relative draft video, audio and Office files to the Files panel", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-asset-draft-docs-" });
+      for (const name of ["clip.mp4", "song.mp3", "report.docx", "sheet.xlsx", "deck.pptx"]) {
+        const filePath = path.join(root, name);
+        yield* fileSystem.writeFileString(filePath, "bytes");
+        const canonical = yield* fileSystem.realPath(filePath);
+        const result = yield* issueAssetUrl({
+          resource: { _tag: "draft-workspace-file", cwd: root, path: name },
+        });
+        const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const token = suffix.slice(0, suffix.indexOf("/"));
+        const resolved = yield* resolveAsset(token, name);
+        expect({ name, resolved }).toMatchObject({
+          name,
+          resolved: { kind: "file", path: canonical },
+        });
+      }
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("keeps Office files and plain text out of other asset requests", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-asset-office-" });
+      const docx = path.join(root, "report.docx");
+      yield* fileSystem.writeFileString(docx, "bytes");
+      const error = yield* issueAssetUrl({
+        resource: { _tag: "media-file", threadId: ThreadId.make("thread-1"), path: docx },
+      }).pipe(Effect.flip);
+      expect(error).toBeInstanceOf(AssetPreviewTypeValidationError);
+      yield* fileSystem.writeFileString(path.join(root, "notes.txt"), "text");
+      const draftError = yield* issueAssetUrl({
+        resource: { _tag: "draft-workspace-file", cwd: root, path: "notes.txt" },
+      }).pipe(Effect.flip);
+      expect(draftError).toBeInstanceOf(AssetPreviewTypeValidationError);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect("falls back to the resource cwd for relative draft paths", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;

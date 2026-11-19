@@ -193,6 +193,26 @@ export function isWorkspaceAudioPreviewPath(path: string): boolean {
   return extensionIndex >= 0 && audioMimeTypeFromExtension(path.slice(extensionIndex)) !== null;
 }
 
+export const OFFICE_DOCUMENT_PREVIEW_EXTENSIONS = [".docx", ".xlsx", ".pptx"] as const;
+
+/** Word, Excel and PowerPoint files, which the Files panel reads and shows as text. */
+export function isOfficeDocumentPath(path: string): boolean {
+  return hasPreviewExtension(path, OFFICE_DOCUMENT_PREVIEW_EXTENSIONS);
+}
+
+/**
+ * What the Files panel may ask the server to serve for one workspace file: everything a browser
+ * preview can show, plus video, audio and Office documents that its own viewers read.
+ */
+export function isDraftWorkspaceFilePreviewPath(path: string): boolean {
+  return (
+    isWorkspacePreviewEntryPath(path) ||
+    isWorkspaceVideoPreviewPath(path) ||
+    isWorkspaceAudioPreviewPath(path) ||
+    isOfficeDocumentPath(path)
+  );
+}
+
 export function isWorkspacePreviewEntryPath(path: string): boolean {
   return isWorkspaceBrowserPreviewPath(path) || isWorkspaceImagePreviewPath(path);
 }

@@ -11,6 +11,9 @@ it("identifies supported media and source types case-insensitively", () => {
   expect(filePreviewKind("analysis.ipynb")).toBe("notebook");
   expect(filePreviewKind("flow.MMD")).toBe("mermaid");
   expect(filePreviewKind("flow.mermaid")).toBe("mermaid");
+  expect(filePreviewKind("Plan.DOCX")).toBe("office");
+  expect(filePreviewKind("budget.xlsx")).toBe("office");
+  expect(filePreviewKind("talk.pptx")).toBe("office");
   expect(filePreviewKind("code.ts")).toBe("text");
 });
 it("preserves quoted commas, multiline values and escaped quotes", () => {
