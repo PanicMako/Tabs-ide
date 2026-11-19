@@ -404,6 +404,7 @@ import {
 import { nextAppearancePreference } from "~/lib/appearanceCycle";
 import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
 import { takeClosedProject } from "~/lib/closedProjects";
+import { clearThreadUndo, keyEndsThreadUndo, takeThreadUndo } from "~/lib/threadUndo";
 import { applyUsageCommand } from "~/state/usage";
 import { useThemeStudioStore } from "~/stores/themeStudioStore";
 import { isUsageCommand } from "~/state/usageCommands";
@@ -12546,6 +12547,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           shellChromeFocus: document.hasFocus(),
         },
       });
+      // Any other real key hands undo back to whatever field you are typing in.
+      if (command !== "thread.undo" && keyEndsThreadUndo(event.key)) clearThreadUndo();
       if (!command) {
         if (event.metaKey || event.ctrlKey) {
           if (event.key === "=" || event.key === "+") {
@@ -12599,6 +12602,24 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
             projects.some((project) => project.id === candidate),
         );
         if (projectId) workspaceShellActions.openProject(projectId as never);
+        return;
+      }
+      if (command === "thread.undo") {
+        // Only claims the key while an action is waiting to be undone; otherwise the field keeps its own undo.
+        const entry = takeThreadUndo();
+        if (entry) {
+          event.preventDefault();
+          event.stopPropagation();
+          void entry.undo().then(
+            () => toastManager.add({ type: "success", title: `Undid: ${entry.label}` }),
+            (error: unknown) =>
+              toastManager.add({
+                type: "error",
+                title: "Could not undo",
+                description: error instanceof Error ? error.message : "The action failed.",
+              }),
+          );
+        }
         return;
       }
       if (command === "workspace.focusNext" || command === "workspace.focusPrevious") {

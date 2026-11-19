@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { announceThreadArchived } from "./threadArchiveUndo";
+import { clearThreadUndo, takeThreadUndo } from "./threadUndo";
 
 function fakeToast() {
   const added: Array<Record<string, unknown>> = [];
@@ -42,5 +43,18 @@ describe("announceThreadArchived", () => {
       title: "Could not restore the thread",
       description: "gone",
     });
+  });
+});
+
+describe("archiving and the undo shortcut", () => {
+  it("makes the archive undoable from the keyboard for a few seconds", async () => {
+    clearThreadUndo();
+    const { toast } = fakeToast();
+    const undo = vi.fn(async () => undefined);
+    announceThreadArchived({ title: "Fix the sidebar", undo, toast: toast as never });
+    const entry = takeThreadUndo();
+    expect(entry?.label).toBe('archive "Fix the sidebar"');
+    await entry?.undo();
+    expect(undo).toHaveBeenCalledOnce();
   });
 });

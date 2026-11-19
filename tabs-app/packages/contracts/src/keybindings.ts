@@ -41,6 +41,7 @@ export const THREAD_KEYBINDING_COMMANDS = [
   "pullRequest.copyNumber",
   "thread.settle",
   "thread.stop",
+  "thread.undo",
   "thread.regenerateTitle",
   "thread.pin",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,

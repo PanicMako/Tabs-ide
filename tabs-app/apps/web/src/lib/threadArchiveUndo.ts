@@ -1,4 +1,5 @@
 import { toastManager } from "~/components/ui/toast";
+import { registerThreadUndo } from "./threadUndo";
 
 type ToastApi = Pick<typeof toastManager, "add" | "close">;
 
@@ -12,6 +13,7 @@ export function announceThreadArchived(input: {
   readonly toast?: ToastApi;
 }): void {
   const toast = input.toast ?? toastManager;
+  registerThreadUndo({ label: `archive "${input.title}"`, undo: input.undo });
   const id = toast.add({
     type: "info",
     title: "Thread archived",

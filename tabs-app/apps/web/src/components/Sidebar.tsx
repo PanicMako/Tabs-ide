@@ -121,6 +121,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ThreadHoverCard } from "./ThreadHoverCard";
 import { useLinkPullRequestStore } from "./linkPullRequestStore";
 import { announceThreadArchived } from "~/lib/threadArchiveUndo";
+import { registerThreadUndo } from "~/lib/threadUndo";
 import {
   SidebarContent,
   SidebarFooter,
@@ -1098,28 +1099,46 @@ export default function Sidebar() {
           const confirmed = await confirm(`Unpin thread "${thread.title}"?`);
           if (!confirmed) return;
         }
+        const wasPinned = Boolean(thread.pinnedAt);
         await api.orchestration.dispatchCommand({
-          type: thread.pinnedAt ? "thread.unpin" : "thread.pin",
+          type: wasPinned ? "thread.unpin" : "thread.pin",
           commandId: newCommandId(),
           threadId,
+        });
+        registerThreadUndo({
+          label: wasPinned ? `unpin "${thread.title}"` : `pin "${thread.title}"`,
+          undo: async () => {
+            await api.orchestration.dispatchCommand({
+              type: wasPinned ? "thread.pin" : "thread.unpin",
+              commandId: newCommandId(),
+              threadId,
+            });
+          },
         });
         return;
       }
       if (clicked === "settle") {
-        if (thread.settledAt) {
-          await api.orchestration.dispatchCommand({
+        const wasSettled = Boolean(thread.settledAt);
+        const unsettle = () =>
+          api.orchestration.dispatchCommand({
             type: "thread.unsettle",
             commandId: newCommandId(),
             threadId,
             reason: "user",
           });
-        } else {
-          await api.orchestration.dispatchCommand({
+        const settle = () =>
+          api.orchestration.dispatchCommand({
             type: "thread.settle",
             commandId: newCommandId(),
             threadId,
           });
-        }
+        await (wasSettled ? unsettle() : settle());
+        registerThreadUndo({
+          label: wasSettled ? `reopen "${thread.title}"` : `mark "${thread.title}" done`,
+          undo: async () => {
+            await (wasSettled ? settle() : unsettle());
+          },
+        });
         return;
       }
       if (clicked === "snooze" || clicked?.startsWith("snooze:")) {

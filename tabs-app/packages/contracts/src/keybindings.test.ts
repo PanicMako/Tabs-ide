@@ -42,6 +42,9 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedRightPanelToggle.command, "rightPanel.toggle");
 
+    const parsedUndo = yield* decode(KeybindingRule, { key: "mod+z", command: "thread.undo" });
+    assert.strictEqual(parsedUndo.command, "thread.undo");
+
     const parsedStop = yield* decode(KeybindingRule, {
       key: "mod+.",
       command: "thread.stop",
