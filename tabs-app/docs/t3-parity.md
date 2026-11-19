@@ -170,3 +170,7 @@ Done (unit and browser tests; not run in the app). `Update everything` lists out
 ## 5.3 Thread hover cards
 
 Done (unit and browser tests; not run in the app). Hovering a thread title in the sidebar for about 0.6s shows its full title (titles are truncated in the row), status, branch and last activity. Files: `components/ThreadHoverCard.tsx`, `threadHoverCard.logic.ts` (+ tests), `Sidebar.tsx`. By hand: hover a long thread title in the sidebar.
+
+## 5.3 Undo after archiving
+
+Done for archiving a thread from its sidebar menu (unit tests; not run in the app). Archiving now shows a "Thread archived" toast with an Undo button that dispatches `thread.unarchive`. Delete is partial: deleting is permanent, so Undo is not offered. Files: `lib/threadArchiveUndo.ts` (+ test), `components/Sidebar.tsx`. By hand: archive a thread from the sidebar menu and press Undo within 8 seconds.

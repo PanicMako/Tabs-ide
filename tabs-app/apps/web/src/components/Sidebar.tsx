@@ -119,6 +119,7 @@ import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Menu, MenuGroup, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ThreadHoverCard } from "./ThreadHoverCard";
+import { announceThreadArchived } from "~/lib/threadArchiveUndo";
 import {
   SidebarContent,
   SidebarFooter,
@@ -1157,6 +1158,16 @@ export default function Sidebar() {
           type: "thread.archive",
           commandId: newCommandId(),
           threadId,
+        });
+        announceThreadArchived({
+          title: thread.title,
+          undo: async () => {
+            await api.orchestration.dispatchCommand({
+              type: "thread.unarchive",
+              commandId: newCommandId(),
+              threadId,
+            });
+          },
         });
         return;
       }
