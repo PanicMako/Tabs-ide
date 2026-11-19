@@ -71,6 +71,7 @@ import { useWindowTitle, windowTitleFor } from "~/lib/windowTitle";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { openComposerControl, openComposerModelPicker } from "~/lib/composerControls";
+import { previousWorktreeChoice } from "~/lib/previousWorktree";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { stepEffort } from "~/lib/effortStep";
 import { ChatFindBar } from "./ChatFindBar";
@@ -835,6 +836,7 @@ export default function ChatView({
   const interruptRef = useRef<(() => Promise<void>) | null>(null);
   const sendRef = useRef<(() => Promise<boolean | undefined>) | null>(null);
   const stepEffortRef = useRef<((direction: 1 | -1) => void) | null>(null);
+  const previousWorktreeRef = useRef<(() => void) | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findFocusTick, setFindFocusTick] = useState(0);
   // A search belongs to the thread it was opened in.
@@ -3711,6 +3713,14 @@ export default function ChatView({
         return;
       }
 
+      if (command === "composer.previousWorktree") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        previousWorktreeRef.current?.();
+        return;
+      }
+
       if (command === "composer.sendAndNewThread") {
         event.preventDefault();
         event.stopPropagation();
@@ -5372,6 +5382,38 @@ export default function ChatView({
     prompt,
     onPromptChange: setPromptFromTraits,
   });
+  previousWorktreeRef.current = () => {
+    if (!activeProject) return;
+    if (!isLocalDraftThread) {
+      toastManager.add({
+        type: "info",
+        title: "Pick a worktree before the first message",
+        description: "A started thread keeps the worktree it began in.",
+      });
+      return;
+    }
+    const choice = previousWorktreeChoice(
+      threads,
+      activeProject.id,
+      activeProject.environmentId,
+      draftThread?.worktreePath ?? null,
+    );
+    if (!choice) {
+      toastManager.add({ type: "info", title: "No other worktree to go back to" });
+      return;
+    }
+    setDraftThreadContext(threadId, {
+      envMode: "worktree",
+      branch: choice.branch,
+      worktreePath: choice.worktreePath,
+    });
+    toastManager.add({
+      type: "success",
+      title: "Using the previous worktree",
+      description: choice.branch ?? choice.worktreePath,
+    });
+    scheduleComposerFocus();
+  };
   const onEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode) => {
       if (isLocalDraftThread) {

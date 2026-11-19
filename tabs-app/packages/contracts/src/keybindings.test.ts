@@ -134,7 +134,11 @@ it.effect("parses keybinding rules", () =>
       assert.strictEqual(parsedEffort.command, command);
     }
 
-    for (const command of ["composer.branch", "composer.workspace"] as const) {
+    for (const command of [
+      "composer.branch",
+      "composer.workspace",
+      "composer.previousWorktree",
+    ] as const) {
       const parsedPicker = yield* decode(KeybindingRule, { key: "mod+alt+g", command });
       assert.strictEqual(parsedPicker.command, command);
     }

@@ -84,6 +84,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+alt+arrowdown", command: "composer.decreaseEffort", when: "!terminalFocus" },
   { key: "mod+alt+g", command: "composer.branch", when: "!terminalFocus" },
   { key: "mod+alt+o", command: "composer.workspace", when: "!terminalFocus" },
+  { key: "mod+alt+j", command: "composer.previousWorktree", when: "!terminalFocus" },
   { key: "mod+alt+p", command: "composer.mode", when: "!terminalFocus" },
   { key: "mod+shift+d", command: "composer.dictation", when: "!terminalFocus" },
   { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
