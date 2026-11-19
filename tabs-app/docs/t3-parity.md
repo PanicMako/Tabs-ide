@@ -327,3 +327,7 @@ Done (see the `chat.find` row). It uses the browser's highlight feature, so the 
 ## 5.4 Math in messages
 
 Done for `$$ ... $$` formulas, inline and as a block (browser tests with real rendering, typecheck, desktop build; not run in the app). Messages containing `$$` are drawn with KaTeX (`katex`, `remark-math` and `rehype-katex` added to `apps/web`); a broken formula shows as text and does not fail the message. Only the double-dollar form counts: a single dollar sign is left alone, because agent output is full of prices and shell variables ("costs $5 and $10", `$HOME`) that would turn into broken formulas. The math code and its stylesheet are only loaded when a message contains `$$`. `\( ... \)` and `\[ ... \]` are not recognised. Files: `ChatMarkdown.tsx`, `ChatMarkdown.math.browser.tsx`. By hand: ask an agent for a formula wrapped in `$$`.
+
+## 5.5 Mermaid in chat messages
+
+Done (browser tests with real rendering, typecheck; not run in the app). A finished ` ```mermaid ` code block in a message is drawn as a diagram, with the copy button kept; while the message is still streaming, and whenever a diagram cannot be drawn, it stays as the normal highlighted code. Files: `ChatMarkdown.tsx`, `agents/companion/MermaidPreview.tsx` (a `fallback` option), `ChatMarkdown.math.browser.tsx`.

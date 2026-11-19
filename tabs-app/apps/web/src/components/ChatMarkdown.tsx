@@ -29,6 +29,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { MermaidPreview } from "./agents/companion/MermaidPreview";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogHeader, DialogPopup, DialogTitle } from "~/components/ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
@@ -574,6 +575,31 @@ function ChatMarkdown({ text, cwd, isStreaming = false, decorateLink }: ChatMark
         }
 
         const language = extractFenceLanguage(codeBlock.className);
+
+        // A finished mermaid block is drawn; while it streams, or if it cannot be drawn, it stays code.
+        const highlighted = (
+          <CodeHighlightErrorBoundary fallback={<pre {...props}>{children}</pre>}>
+            <Suspense fallback={<pre {...props}>{children}</pre>}>
+              <SuspenseShikiCodeBlock
+                className={codeBlock.className}
+                code={codeBlock.code}
+                themeName={diffThemeName}
+                isStreaming={isStreaming}
+              />
+            </Suspense>
+          </CodeHighlightErrorBoundary>
+        );
+        if (language === "mermaid" && !isStreaming) {
+          return (
+            <MarkdownCodeBlock code={codeBlock.code} language={language}>
+              <MermaidPreview
+                text={codeBlock.code}
+                dark={resolvedTheme === "dark"}
+                fallback={highlighted}
+              />
+            </MarkdownCodeBlock>
+          );
+        }
 
         return (
           <MarkdownCodeBlock code={codeBlock.code} language={language}>

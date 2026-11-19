@@ -1,9 +1,18 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 type Rendered = { readonly svg: string } | { readonly error: string };
 
 /** Draws a Mermaid diagram. Mermaid is loaded on first use, so it costs nothing until a diagram opens. */
-export function MermaidPreview({ text, dark }: { text: string; dark: boolean }) {
+export function MermaidPreview({
+  text,
+  dark,
+  fallback,
+}: {
+  text: string;
+  dark: boolean;
+  /** Shown instead of the error message when the diagram cannot be drawn (for example, the source). */
+  fallback?: ReactNode;
+}) {
   const id = `mermaid-${useId().replaceAll(":", "")}`;
   const [rendered, setRendered] = useState<Rendered | null>(null);
 
@@ -42,6 +51,7 @@ export function MermaidPreview({ text, dark }: { text: string; dark: boolean }) 
     );
   }
   if ("error" in rendered) {
+    if (fallback !== undefined) return <>{fallback}</>;
     return (
       <p role="alert" className="companion-note">
         This diagram could not be drawn ({rendered.error}). Switch to Source to fix the text.
