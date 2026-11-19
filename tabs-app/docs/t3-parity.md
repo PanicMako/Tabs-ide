@@ -314,3 +314,7 @@ Done for the automatic sort orders (unit tests for the ordering and toggling, co
 ## 5.13 OpenTelemetry export: more precisely
 
 The server's config sets `otlpTracesUrl: undefined` as a constant (`apps/server/src/config.ts`), so there is no OTLP exporter to configure: the only OTLP code is a proxy that forwards browser traces (`http.ts`). The `observability.otlp*Url` settings in the contract therefore need an exporter built first (Effect's OTLP tracer, metrics and logs layers wired to those URLs at startup), then settings rows. Skipped as a separate feature.
+
+## Section 2 checks: latest full run after Mermaid, Office, scratch threads and pinned projects
+
+`vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2248 pass; browser suite 512 of 513 pass in the full run (the one failure, `SettingsNavIcon.browser.tsx` "animates the robot's internal parts on keyboard focus", passes 5/5 when run alone, a load flake); server suite 8212 pass, 35 skipped, 0 failures; `bun run build:desktop` succeeds.
