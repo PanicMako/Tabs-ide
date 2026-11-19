@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSidebarThreadTree,
+  pinProjectsFirst,
+  togglePinnedProject,
   listSidebarDescendants,
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
@@ -776,5 +778,33 @@ describe("sidebar thread tree", () => {
       "a1",
       "b",
     ]);
+  });
+});
+
+describe("pinned projects", () => {
+  const projects = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+
+  it("puts pinned projects first and keeps each group's order", () => {
+    expect(pinProjectsFirst(projects, ["c", "a"]).map((project) => project.id)).toEqual([
+      "a",
+      "c",
+      "b",
+      "d",
+    ]);
+  });
+
+  it("leaves the order alone when nothing is pinned or a pin no longer exists", () => {
+    expect(pinProjectsFirst(projects, []).map((project) => project.id)).toEqual(["a", "b", "c", "d"]);
+    expect(pinProjectsFirst(projects, ["gone"]).map((project) => project.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("pins and unpins one project at a time", () => {
+    expect(togglePinnedProject(["a"], "b")).toEqual(["a", "b"]);
+    expect(togglePinnedProject(["a", "b"], "a")).toEqual(["b"]);
   });
 });

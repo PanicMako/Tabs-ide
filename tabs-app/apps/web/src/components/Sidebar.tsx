@@ -150,7 +150,9 @@ import {
   resolveThreadRowClassName,
   resolveThreadStatusPill,
   shouldClearThreadSelectionOnMouseDown,
+  pinProjectsFirst,
   sortProjectsForSidebar,
+  togglePinnedProject,
   sortThreadsForSidebar,
 } from "./Sidebar.logic";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
@@ -1330,9 +1332,23 @@ export default function Sidebar() {
       const projectId = project.id;
       const api = await environmentApi(project.environmentId);
       const clicked = await api.contextMenu.show(
-        [{ id: "delete", label: "Remove project", destructive: true }],
+        [
+          {
+            id: "pin",
+            label: appSettings.pinnedProjectIds.includes(projectId)
+              ? "Unpin project"
+              : "Pin project",
+          },
+          { id: "delete", label: "Remove project", destructive: true },
+        ],
         position,
       );
+      if (clicked === "pin") {
+        updateSettings({
+          pinnedProjectIds: togglePinnedProject(appSettings.pinnedProjectIds, projectId),
+        });
+        return;
+      }
       if (clicked !== "delete") return;
 
       const projectThreads = threads.filter(
@@ -1371,12 +1387,14 @@ export default function Sidebar() {
       }
     },
     [
+      appSettings.pinnedProjectIds,
       clearComposerDraftForThread,
       clearProjectDraftThreadId,
       confirm,
       getDraftThreadByProjectId,
       navigate,
       threads,
+      updateSettings,
     ],
   );
 
@@ -1444,10 +1462,12 @@ export default function Sidebar() {
     suppressProjectClickAfterDragRef.current = false;
   }, []);
 
-  const sortedProjects = useMemo(
-    () => sortProjectsForSidebar(projects, threads, appSettings.sidebarProjectSortOrder),
-    [appSettings.sidebarProjectSortOrder, projects, threads],
-  );
+  const sortedProjects = useMemo(() => {
+    const sorted = sortProjectsForSidebar(projects, threads, appSettings.sidebarProjectSortOrder);
+    return appSettings.sidebarProjectSortOrder === "manual"
+      ? sorted
+      : pinProjectsFirst(sorted, appSettings.pinnedProjectIds);
+  }, [appSettings.pinnedProjectIds, appSettings.sidebarProjectSortOrder, projects, threads]);
   const isManualProjectSorting = appSettings.sidebarProjectSortOrder === "manual";
 
   function renderProjectItem(
@@ -1865,6 +1885,13 @@ export default function Sidebar() {
             <span className="flex-1 truncate text-xs font-medium text-foreground/90">
               {project.name}
             </span>
+            {appSettings.pinnedProjectIds.includes(project.id) &&
+            appSettings.sidebarProjectSortOrder !== "manual" ? (
+              <PinIcon
+                aria-label="Pinned project"
+                className="size-3 shrink-0 text-muted-foreground"
+              />
+            ) : null}
           </SidebarMenuButton>
           <Tooltip>
             <TooltipTrigger

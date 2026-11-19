@@ -376,6 +376,29 @@ export function sortProjectsForSidebar<TProject extends SidebarProject, TThread 
   });
 }
 
+/**
+ * Pinned projects first, each group keeping its own order. Pins are ignored in manual order,
+ * where the user is already deciding exactly where every project goes.
+ */
+export function pinProjectsFirst<TProject extends { readonly id: string }>(
+  projects: readonly TProject[],
+  pinnedIds: readonly string[],
+): TProject[] {
+  if (pinnedIds.length === 0) return [...projects];
+  const pinned = new Set(pinnedIds);
+  return [
+    ...projects.filter((project) => pinned.has(project.id)),
+    ...projects.filter((project) => !pinned.has(project.id)),
+  ];
+}
+
+/** Adds or removes a project from the pinned list without reordering the others. */
+export function togglePinnedProject(pinnedIds: readonly string[], projectId: string): string[] {
+  return pinnedIds.includes(projectId)
+    ? pinnedIds.filter((id) => id !== projectId)
+    : [...pinnedIds, projectId];
+}
+
 export function normalizeThreadRenameTitle(
   newTitle: string,
   originalTitle: string,
