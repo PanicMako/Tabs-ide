@@ -338,3 +338,9 @@ Done (browser tests with real rendering, typecheck; not run in the app). A finis
 ## Section 2 checks: latest full run (after find, math, Mermaid in chat and the model picker shortcuts)
 
 `vp check` 0 errors; `vp run typecheck` 16/16; contracts tests 654 pass; shared tests 1344 pass; web unit tests 2248 pass; browser suite 527 of 527 pass; server suite 8212 pass, 0 failures (last run, before these web-only changes; the server was not touched since); `bun run build:desktop` succeeds.
+
+## Final check run and what is left on the shortcut list
+
+`vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2254 pass; browser suite 527 of 527 pass; `bun run build:desktop` succeeds; the server suite last passed 8212 with 0 failures and the server was not changed afterwards.
+
+Shortcuts from the brief's list that still have no handler: `composer.cycleHost`, `composer.host` (need environment host switching in the composer), `composer.previousWorktree` (needs a history of used worktrees), `composer.sendAlternate` and `composer.sendBackground` (Tabs only queues follow-ups; there is no steer action to alternate with), `thread.editQueuedMessage` and `thread.steerQueuedMessage` (the queue controller exists only while the Queue panel is mounted), `modelPicker.nextProvider` and `modelPicker.previousProvider` (need control of the provider tabs inside the open picker), and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app). `modelPicker.jump.1` to `9` also have no handler.
