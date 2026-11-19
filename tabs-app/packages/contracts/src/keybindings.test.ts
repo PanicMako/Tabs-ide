@@ -137,6 +137,9 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedNoProject.command, "chat.newWithoutProject");
 
+    const parsedFind = yield* decode(KeybindingRule, { key: "mod+f", command: "chat.find" });
+    assert.strictEqual(parsedFind.command, "chat.find");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

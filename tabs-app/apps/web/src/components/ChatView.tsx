@@ -72,6 +72,7 @@ import { showCustomConfirm } from "~/lib/customConfirm";
 import { useHandleNewThread } from "~/hooks/useHandleNewThread";
 import { openComposerControl } from "~/lib/composerControls";
 import { stepEffort } from "~/lib/effortStep";
+import { ChatFindBar } from "./ChatFindBar";
 import { useAtomValue } from "@effect/atom-react";
 import {
   useCallback,
@@ -833,6 +834,10 @@ export default function ChatView({
   const interruptRef = useRef<(() => Promise<void>) | null>(null);
   const sendRef = useRef<(() => Promise<boolean | undefined>) | null>(null);
   const stepEffortRef = useRef<((direction: 1 | -1) => void) | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findFocusTick, setFindFocusTick] = useState(0);
+  // A search belongs to the thread it was opened in.
+  useEffect(() => setFindOpen(false), [threadId]);
   const isWorkingRef = useRef(false);
   const stuckTimerRef = useRef<number | null>(null);
 
@@ -3654,6 +3659,14 @@ export default function ChatView({
         event.stopPropagation();
         if (event.repeat) return;
         toggleInteractionMode();
+        return;
+      }
+
+      if (command === "chat.find") {
+        event.preventDefault();
+        event.stopPropagation();
+        setFindOpen(true);
+        setFindFocusTick((tick) => tick + 1);
         return;
       }
 
@@ -6835,6 +6848,16 @@ export default function ChatView({
           ) : (
             <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
               <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                {findOpen ? (
+                  <ChatFindBar
+                    root={messagesScrollRef}
+                    focusTick={findFocusTick}
+                    onClose={() => {
+                      setFindOpen(false);
+                      scheduleComposerFocus();
+                    }}
+                  />
+                ) : null}
                 <div
                   ref={setMessagesScrollContainerRef}
                   className={cn(

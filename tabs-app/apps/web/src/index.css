@@ -3420,3 +3420,11 @@ html :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) textarea:
     transition: none !important;
   }
 }
+
+/* Find in conversation: every match softly, the current one stronger. Text colour stays as it was. */
+::highlight(chat-find) {
+  background-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+::highlight(chat-find-current) {
+  background-color: color-mix(in srgb, var(--foreground) 42%, transparent);
+}

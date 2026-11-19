@@ -108,6 +108,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "projectSearch.toggle",
   "chat.new",
   "chat.newLocal",
+  "chat.find",
   "chat.newWithoutProject",
   "composer.dictation",
   "composer.stash",
