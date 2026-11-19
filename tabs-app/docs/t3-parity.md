@@ -174,3 +174,5 @@ Done (unit and browser tests; not run in the app). Hovering a thread title in th
 ## 5.3 Undo after archiving
 
 Done for archiving a thread from its sidebar menu (unit tests; not run in the app). Archiving now shows a "Thread archived" toast with an Undo button that dispatches `thread.unarchive`. Delete is partial: deleting is permanent, so Undo is not offered. Files: `lib/threadArchiveUndo.ts` (+ test), `components/Sidebar.tsx`. By hand: archive a thread from the sidebar menu and press Undo within 8 seconds.
+
+Check run after Update everything, thread hover cards and archive undo: web tests 2186 pass; typecheck 16/16; `vp check` 0 errors; browser tests 486 of 488 pass in the full run, and the two failures (`ui/radii.browser.tsx`, "joins the New Tab strip to the Welcome canvas") pass when that file is run alone (10/10), so they look like load flakes rather than regressions.
