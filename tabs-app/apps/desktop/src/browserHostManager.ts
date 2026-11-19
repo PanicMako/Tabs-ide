@@ -1,4 +1,5 @@
 import { BrowserInputGuard } from "./browserInputGuard";
+import { findInPage, stopFindInPage, type BrowserFindResult } from "./browserFind";
 import { BrowserComparisonController } from "./browserComparisonController";
 import { runBrowserReproduction } from "./browserReproductionRunner";
 import type { BrowserReproductionStep } from "@tabs/contracts";
@@ -1230,6 +1231,26 @@ export class BrowserHostManager {
     const windowZoom = this.getWindow()?.webContents?.getZoomFactor() ?? 1;
     session.view.webContents.setZoomFactor(windowZoom * session.zoomFactor);
     this.emitState(session);
+  }
+
+  /** Find text in the page of one browser tab. Highlights stay until `stopFind`. */
+  find(
+    input: DesktopBrowserHostControlInput & { text: string; forward?: boolean; findNext?: boolean },
+  ): Promise<BrowserFindResult> {
+    const session = this.sessions.get(this.sessionKey(input.projectId, input.sessionId));
+    if (!session || session.view.webContents.isDestroyed()) {
+      return Promise.resolve({ matches: 0, activeMatch: 0 });
+    }
+    return findInPage(session.view.webContents, input.text, {
+      ...(input.forward === undefined ? {} : { forward: input.forward }),
+      ...(input.findNext === undefined ? {} : { findNext: input.findNext }),
+    });
+  }
+
+  stopFind(input: DesktopBrowserHostControlInput): void {
+    const session = this.sessions.get(this.sessionKey(input.projectId, input.sessionId));
+    if (!session || session.view.webContents.isDestroyed()) return;
+    stopFindInPage(session.view.webContents);
   }
 
   setAudioMuted(input: DesktopBrowserHostControlInput & { audioMuted: boolean }): void {

@@ -344,7 +344,7 @@ Done (browser tests with real rendering, typecheck; not run in the app). A finis
 
 `vp check` 0 errors; `vp run typecheck` 16/16; web unit tests 2254 pass; browser suite 527 of 527 pass; `bun run build:desktop` succeeds; the server suite last passed 8212 with 0 failures and the server was not changed afterwards.
 
-Shortcuts from the brief's list that still have no handler: and `preview.find` (needs Electron main-process work that cannot be tested without launching the desktop app).
+Shortcuts from the brief's list that still have no handler: and (now built, see below) `preview.find`.
 
 ## Check run after thread undo, the panel toggles and the picker shortcuts
 
@@ -452,3 +452,7 @@ Done for traces (two server tests with a fake collector, typecheck, full server 
 ## 5.13 OpenTelemetry metrics: exported too
 
 Done for metrics (a server test with a fake collector, typecheck, full server suite, `vp check`; not tried against a real collector). When `T3CODE_OTLP_METRICS_URL` is set, `observability/Observability.ts` starts Effect's OTLP metrics exporter with that endpoint's headers, protocol and interval, so the server's existing counters and timers (RPC requests, orchestration commands and so on) are sent on the same schedule as traces and logs. All three signals now export when configured through the environment. Only the Settings page is left: saved settings live in the server's database, which is opened after the config is built from the environment, so rows for `observability.otlp*` would need the config to be re-resolved after the database opens (or a restart-time read of the saved values). That is a restructuring I did not attempt.
+
+## 5.9 and 5.16 Find in a browser tab: `preview.find` (Cmd/Ctrl+Alt+F)
+
+Done in code, unverified in the running app (unit tests for the find logic against a fake page, a browser test for the find bar, contract test, typecheck, full web, browser, desktop, contracts and shared suites, `vp check`, `build:desktop`; the desktop app was not launched). The shortcut opens a find bar in the browser tab that is on screen: type to search, Enter and Shift+Enter or the arrows to step, Escape to close, with a "2 of 5" count. It uses Electron's own find-in-page on the tab's page through new `findInBrowser` and `stopFindInBrowser` bridge calls (`browserFind.ts`, `browserHostManager.ts`, `main.ts`, `preload.ts`, `BrowserFindBar.tsx`). The bar sits in its own row above the page rather than floating on it, because the page is a native view that would cover anything drawn over it. By hand: open a browser tab on any page, press Cmd/Ctrl+Alt+F, type a word that appears on it, and check that matches are highlighted and the count moves as you press Enter.

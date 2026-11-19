@@ -3,6 +3,8 @@ import type {
   DesktopBrowserSessionState,
   PreviewAnnotationPayload,
 } from "@tabs/contracts";
+import { BrowserFindBar } from "./BrowserFindBar";
+import { PREVIEW_FIND_EVENT } from "~/lib/previewFind";
 import {
   ArrowLeft,
   ArrowRight,
@@ -119,6 +121,8 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const [address, setAddress] = useState(initialUrl.current || "https://www.google.com");
   const [annotation, setAnnotation] = useState<PreviewAnnotationPayload | null>(null);
   const [picking, setPicking] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findTick, setFindTick] = useState(0);
   const [comparing, setComparing] = useState(false);
   const [recording, setRecording] = useState(
     () => !!target && isNativeBrowserRecordingActive(target.projectId, sessionId),
@@ -262,6 +266,20 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     },
   });
   const args = { projectId: target?.projectId ?? "", sessionId };
+  const closeFind = () => {
+    setFindOpen(false);
+    void bridge?.stopFindInBrowser?.(args);
+  };
+  // Cmd/Ctrl+Alt+F asks the browser tab that is on screen to open its find bar.
+  useEffect(() => {
+    const open = () => {
+      if (!host.current || host.current.offsetParent === null) return;
+      setFindOpen(true);
+      setFindTick((tick) => tick + 1);
+    };
+    window.addEventListener(PREVIEW_FIND_EVENT, open);
+    return () => window.removeEventListener(PREVIEW_FIND_EVENT, open);
+  }, []);
   const external = async () => {
     const api = await environmentApi(target?.environmentId ?? null);
     await api.shell.openExternal(state.currentUrl ?? address);
@@ -557,6 +575,20 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
           </MenuPopup>
         </Menu>
       </div>
+      {findOpen && bridge?.findInBrowser ? (
+        <BrowserFindBar
+          focusTick={findTick}
+          onClose={closeFind}
+          find={(text, direction) =>
+            bridge.findInBrowser!({
+              ...args,
+              text,
+              forward: direction.forward,
+              findNext: direction.next,
+            })
+          }
+        />
+      ) : null}
       <div className="companion-browser-host">
         <div
           ref={host}

@@ -114,6 +114,8 @@ const BROWSER_HOST_NAVIGATE_SESSION_CHANNEL = "desktop:browser-host:navigate-ses
 const BROWSER_HOST_RELOAD_SESSION_CHANNEL = "desktop:browser-host:reload-session";
 const BROWSER_HOST_STOP_SESSION_CHANNEL = "desktop:browser-host:stop-session";
 const BROWSER_HOST_SET_ZOOM_CHANNEL = "desktop:browser-host:set-zoom";
+const BROWSER_HOST_FIND_CHANNEL = "desktop:browser-host:find";
+const BROWSER_HOST_STOP_FIND_CHANNEL = "desktop:browser-host:stop-find";
 const BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL = "desktop:browser-host:set-audio-muted";
 const BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL = "desktop:browser-host:open-picture-in-picture";
 const BROWSER_HOST_CLOSE_PICTURE_IN_PICTURE_CHANNEL =
@@ -396,6 +398,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   reloadBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_RELOAD_SESSION_CHANNEL, input),
   stopBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_STOP_SESSION_CHANNEL, input),
   setBrowserZoomFactor: (input) => ipcRenderer.invoke(BROWSER_HOST_SET_ZOOM_CHANNEL, input),
+  findInBrowser: (input) => ipcRenderer.invoke(BROWSER_HOST_FIND_CHANNEL, input),
+  stopFindInBrowser: (input) => ipcRenderer.invoke(BROWSER_HOST_STOP_FIND_CHANNEL, input),
   setBrowserAudioMuted: (input) => ipcRenderer.invoke(BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL, input),
   openBrowserPictureInPicture: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL, input),

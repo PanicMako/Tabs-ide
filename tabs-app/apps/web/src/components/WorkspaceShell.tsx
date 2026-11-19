@@ -404,6 +404,7 @@ import {
 import { nextAppearancePreference } from "~/lib/appearanceCycle";
 import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
 import { takeClosedProject } from "~/lib/closedProjects";
+import { requestPreviewFind } from "~/lib/previewFind";
 import { clearThreadUndo, keyEndsThreadUndo, takeThreadUndo } from "~/lib/threadUndo";
 import { applyUsageCommand } from "~/state/usage";
 import { useThemeStudioStore } from "~/stores/themeStudioStore";
@@ -12602,6 +12603,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
             projects.some((project) => project.id === candidate),
         );
         if (projectId) workspaceShellActions.openProject(projectId as never);
+        return;
+      }
+      if (command === "preview.find") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) requestPreviewFind();
         return;
       }
       if (command === "thread.undo") {

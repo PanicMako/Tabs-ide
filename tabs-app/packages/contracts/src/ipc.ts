@@ -1512,6 +1512,15 @@ export interface DesktopBridge {
   setBrowserZoomFactor: (
     input: DesktopBrowserHostControlInput & { zoomFactor: number },
   ) => Promise<void>;
+  /** Finds text in a browser tab's page. Highlights stay until `stopFindInBrowser`. */
+  findInBrowser?: (
+    input: DesktopBrowserHostControlInput & {
+      text: string;
+      forward?: boolean;
+      findNext?: boolean;
+    },
+  ) => Promise<{ matches: number; activeMatch: number }>;
+  stopFindInBrowser?: (input: DesktopBrowserHostControlInput) => Promise<void>;
   setBrowserAudioMuted: (
     input: DesktopBrowserHostControlInput & { audioMuted: boolean },
   ) => Promise<void>;

@@ -141,6 +141,7 @@ it.effect("parses keybinding rules", () =>
       "composer.sendAlternate",
       "composer.sendBackground",
       "composer.host",
+      "preview.find",
       "composer.cycleHost",
       "thread.editQueuedMessage",
       "thread.steerQueuedMessage",

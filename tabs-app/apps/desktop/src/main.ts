@@ -282,6 +282,8 @@ const BROWSER_HOST_NAVIGATE_SESSION_CHANNEL = "desktop:browser-host:navigate-ses
 const BROWSER_HOST_RELOAD_SESSION_CHANNEL = "desktop:browser-host:reload-session";
 const BROWSER_HOST_STOP_SESSION_CHANNEL = "desktop:browser-host:stop-session";
 const BROWSER_HOST_SET_ZOOM_CHANNEL = "desktop:browser-host:set-zoom";
+const BROWSER_HOST_FIND_CHANNEL = "desktop:browser-host:find";
+const BROWSER_HOST_STOP_FIND_CHANNEL = "desktop:browser-host:stop-find";
 const BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL = "desktop:browser-host:set-audio-muted";
 const BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL = "desktop:browser-host:open-picture-in-picture";
 const BROWSER_HOST_CLOSE_PICTURE_IN_PICTURE_CHANNEL =
@@ -4263,6 +4265,46 @@ function registerIpcHandlers(): void {
       return;
     }
     browserHostManager.stop({
+      projectId: (input as { projectId: string }).projectId,
+      sessionId: readBrowserSessionId(input),
+    });
+  });
+
+  ipcMain.removeHandler(BROWSER_HOST_FIND_CHANNEL);
+  handleTabsIpc(BROWSER_HOST_FIND_CHANNEL, async (_event, input: unknown) => {
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      typeof (input as { projectId?: unknown }).projectId !== "string" ||
+      typeof (input as { text?: unknown }).text !== "string"
+    ) {
+      return { matches: 0, activeMatch: 0 };
+    }
+    const value = input as {
+      projectId: string;
+      text: string;
+      forward?: unknown;
+      findNext?: unknown;
+    };
+    return browserHostManager.find({
+      projectId: value.projectId,
+      sessionId: readBrowserSessionId(input),
+      text: value.text.slice(0, 500),
+      ...(typeof value.forward === "boolean" ? { forward: value.forward } : {}),
+      ...(typeof value.findNext === "boolean" ? { findNext: value.findNext } : {}),
+    });
+  });
+
+  ipcMain.removeHandler(BROWSER_HOST_STOP_FIND_CHANNEL);
+  handleTabsIpc(BROWSER_HOST_STOP_FIND_CHANNEL, async (_event, input: unknown) => {
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      typeof (input as { projectId?: unknown }).projectId !== "string"
+    ) {
+      return;
+    }
+    browserHostManager.stopFind({
       projectId: (input as { projectId: string }).projectId,
       sessionId: readBrowserSessionId(input),
     });
