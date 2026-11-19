@@ -24,9 +24,11 @@ import React, {
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { Components } from "react-markdown";
+import type { Components, Options } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogHeader, DialogPopup, DialogTitle } from "~/components/ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
@@ -594,18 +596,34 @@ function ChatMarkdown({ text, cwd, isStreaming = false, decorateLink }: ChatMark
 
   const incrementalParsing = isStreaming === true && /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
 
+  // Only the $$ form counts as math. A single dollar sign is far more often a price or a shell
+  // variable in agent output ("costs $5 and $10", "$HOME"), so it is left alone.
+  const hasMath = text.includes("$$");
+  useEffect(() => {
+    if (hasMath) void import("katex/dist/katex.min.css");
+  }, [hasMath]);
+
   const remarkPlugins = useMemo(
     () => [
       remarkGfm,
       remarkGithubAlerts,
+      ...(hasMath ? [[remarkMath, { singleDollarTextMath: false }] as const] : []),
       ...(incrementalParsing ? [createIncrementalMarkdownPlugin()] : []),
     ],
-    [incrementalParsing],
+    [hasMath, incrementalParsing],
+  );
+  const rehypePlugins = useMemo<NonNullable<Options["rehypePlugins"]>>(
+    () => (hasMath ? [[rehypeKatex, { strict: "ignore", throwOnError: false }]] : []),
+    [hasMath],
   );
 
   return (
     <div className="chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80">
-      <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+      <ReactMarkdown
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
+        components={markdownComponents}
+      >
         {text}
       </ReactMarkdown>
     </div>

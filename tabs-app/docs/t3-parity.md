@@ -323,3 +323,7 @@ The server's config sets `otlpTracesUrl: undefined` as a constant (`apps/server/
 ## 5.4 Find in the chat
 
 Done (see the `chat.find` row). It uses the browser's highlight feature, so the page text is never modified, and the highlight colours are neutral (a soft fill for matches, a stronger one for the current match, text colour unchanged). The bar closes when you switch threads, and it only searches rendered messages; very long threads that virtualize their rows may not search the rows scrolled far out of view. The same T3 section's math, incremental markdown, chat width and thread details items were checked separately (chat width exists; math rendering is not built).
+
+## 5.4 Math in messages
+
+Done for `$$ ... $$` formulas, inline and as a block (browser tests with real rendering, typecheck, desktop build; not run in the app). Messages containing `$$` are drawn with KaTeX (`katex`, `remark-math` and `rehype-katex` added to `apps/web`); a broken formula shows as text and does not fail the message. Only the double-dollar form counts: a single dollar sign is left alone, because agent output is full of prices and shell variables ("costs $5 and $10", `$HOME`) that would turn into broken formulas. The math code and its stylesheet are only loaded when a message contains `$$`. `\( ... \)` and `\[ ... \]` are not recognised. Files: `ChatMarkdown.tsx`, `ChatMarkdown.math.browser.tsx`. By hand: ask an agent for a formula wrapped in `$$`.
