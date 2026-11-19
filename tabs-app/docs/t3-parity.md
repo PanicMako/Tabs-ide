@@ -424,3 +424,7 @@ Done (store test for the steer dispatch, contract test, typecheck, `vp check`, `
 ## Section 2 checks: full run on the last commit (`ea5b1b426`, branch `t3-parity-2`)
 
 `vp check` 0 errors (578 warnings); `vp run typecheck` 16/16; web unit tests 2282 pass; web browser suite 529 of 529 pass; contracts 654 pass; shared 1345 pass; server 8212 pass, 35 skipped, 0 failed; `bun run build:desktop` succeeds. The desktop app was not launched. This supersedes the earlier run notes.
+
+## 5.10 Hold-to-quit: the timing logic exists, the wiring does not
+
+Partial. `apps/desktop/src/quitConfirmation.ts` (+ test, 7 cases) is a pure state machine for the three modes: direct quits on the first press, hold needs the key down for 900 ms (a tap does nothing; key repeat advances the fill and gives a 0 to 1 progress for an overlay), double-click quits on a second press within 1.5 s and ignores repeat from one long press. It is not connected: `main.ts` still reads the on/off `confirmBeforeQuit` preference, and the `before-input-event` hook, the overlay window and the Settings control for the three modes need the desktop app running to check, and a wrong hook could stop Tabs from quitting. By hand when wired: set the mode to Hold, tap Cmd+Q (nothing), hold it (fills, then quits).
