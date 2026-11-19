@@ -412,3 +412,7 @@ Done (unit tests for the cycling choice, contract test, typecheck; not run in th
 ## Section 2 checks: final full run (branch `t3-parity-2`, after the host shortcuts)
 
 `vp check` 0 errors (578 warnings); `vp run typecheck` 16/16; web unit tests 2281 pass (329 files); web browser suite 529 of 529 pass (128 files); contracts 654 pass; shared 1344 pass; server 8212 pass, 35 skipped, 0 failed; `bun run build:desktop` succeeds. The desktop app was not launched.
+
+## Default branch prefix: `t3` is now `tabs`
+
+Done (shared and server unit tests; not run in the app). New temporary worktree branches are named `tabs/<8 hex>` (and `tabs-<8 hex>` when a plain `tabs` branch blocks the namespace). The matcher still recognizes `t3/<8 hex>` and `t3-<8 hex>` as temporary, so threads made before this change can still have their branch renamed from the first message. Files: `packages/shared/src/git.ts` (+ test), `apps/server/src/orchestration-v2/ThreadLaunchService.test.ts`.

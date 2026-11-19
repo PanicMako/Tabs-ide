@@ -199,6 +199,16 @@ describe("isTemporaryWorktreeBranch", () => {
     ).toBe(false);
   });
 
+  it("still recognizes temporary refs made under the old t3 prefix", () => {
+    expect(isTemporaryWorktreeBranch("t3/deadbeef")).toBe(true);
+    expect(isTemporaryWorktreeBranch("t3-deadbeef")).toBe(true);
+    expect(isTemporaryWorktreeBranch("t3/deadbeef-extra")).toBe(false);
+    expect(flattenTemporaryWorktreeBranchName("t3/deadbeef")).toBe(
+      `${WORKTREE_BRANCH_PREFIX}-deadbeef`,
+    );
+    expect(WORKTREE_BRANCH_PREFIX).toBe("tabs");
+  });
+
   it("rejects UUID-shaped refs that are not RFC 4122 v4", () => {
     // version nibble is not 4
     expect(isTemporaryWorktreeBranch("t3code/f4ae4e0e-f971-1d48-b4f2-9cf0aa54ab12")).toBe(false);
