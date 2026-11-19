@@ -3677,6 +3677,14 @@ export default function ChatView({
         return;
       }
 
+      if (command === "threadPanel.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        togglePlanSidebar();
+        return;
+      }
+
       if (command === "composer.effort" || command === "modelPicker.toggle") {
         event.preventDefault();
         event.stopPropagation();

@@ -12657,6 +12657,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       }
 
       if (
+        command === "rightPanel.toggle" ||
         command === "rightPanel.close" ||
         command === "rightPanel.new" ||
         command === "rightPanel.toggleMaximized"

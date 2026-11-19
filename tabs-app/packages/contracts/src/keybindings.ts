@@ -78,6 +78,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "workspace.advancedMode",
   "rightPanel.toggle",
   "rightPanel.close",
+  "threadPanel.toggle",
   "usage.open",
   "usage.cost",
   "usage.tokens",

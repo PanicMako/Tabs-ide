@@ -148,6 +148,12 @@ it.effect("parses keybinding rules", () =>
     const parsedFind = yield* decode(KeybindingRule, { key: "mod+f", command: "chat.find" });
     assert.strictEqual(parsedFind.command, "chat.find");
 
+    const parsedThreadPanel = yield* decode(KeybindingRule, {
+      key: "mod+alt+d",
+      command: "threadPanel.toggle",
+    });
+    assert.strictEqual(parsedThreadPanel.command, "threadPanel.toggle");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

@@ -69,6 +69,7 @@ export const useRightPanelStore = create<RightPanelState>()(
 );
 
 export type RightPanelKeybindingCommand =
+  | "rightPanel.toggle"
   | "rightPanel.close"
   | "rightPanel.new"
   | "rightPanel.toggleMaximized";
@@ -79,6 +80,10 @@ export type RightPanelKeybindingCommand =
  */
 export function runRightPanelCommand(command: RightPanelKeybindingCommand): void {
   const state = useRightPanelStore.getState();
+  if (command === "rightPanel.toggle") {
+    state.toggleOpen();
+    return;
+  }
   if (command === "rightPanel.close") {
     state.closePanel();
     return;

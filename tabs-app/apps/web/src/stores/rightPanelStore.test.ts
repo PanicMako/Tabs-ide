@@ -58,6 +58,14 @@ describe("rightPanelStore", () => {
     }
   });
 
+  it("toggles the right panel open and closed", () => {
+    useRightPanelStore.setState({ isOpen: false, maximized: false });
+    runRightPanelCommand("rightPanel.toggle");
+    expect(useRightPanelStore.getState().isOpen).toBe(true);
+    runRightPanelCommand("rightPanel.toggle");
+    expect(useRightPanelStore.getState().isOpen).toBe(false);
+  });
+
   it("runs the right panel keyboard commands", () => {
     runRightPanelCommand("rightPanel.toggleMaximized");
     expect(useRightPanelStore.getState().maximized).toBe(true);
