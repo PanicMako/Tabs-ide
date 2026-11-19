@@ -214,6 +214,7 @@ import type { AssetCreateUrlInput, AssetCreateUrlResult } from "./assets.ts";
 import type {
   ProjectListEntriesInput,
   ProjectListEntriesResult,
+  ProjectEnsureScratchResult,
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
@@ -1844,6 +1845,8 @@ export interface EnvironmentApi {
   projects: {
     listEntries: (input: ProjectListEntriesInput) => Promise<ProjectListEntriesResult>;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
+    /** The shared scratch project, created on first use, for threads that belong to no folder. */
+    ensureScratch: () => Promise<ProjectEnsureScratchResult>;
     searchContents: (input: ProjectSearchContentsInput) => Promise<ProjectSearchContentsResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;

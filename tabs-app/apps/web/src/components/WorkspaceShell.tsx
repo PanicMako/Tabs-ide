@@ -345,6 +345,7 @@ import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 import { toastManager } from "./ui/toast";
+import { getPrimaryEnvironmentId } from "~/connection/environmentApiRegistry";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { getGitWorkspaceLayoutSection } from "./GitToolLayout.logic";
 import type { GitWorkspaceMode, GitWorkspaceSwitchReason } from "./GitToolLayout.logic";
@@ -12651,6 +12652,30 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         const pendingId = randomUUID();
         openPendingTab(pendingId);
         void navigate({ to: "/" });
+        return;
+      }
+
+      if (command === "chat.newWithoutProject") {
+        event.preventDefault();
+        event.stopPropagation();
+        void (async () => {
+          try {
+            const api = readNativeApi();
+            if (!api) return;
+            // A thread with no folder of its own lives in the shared scratch project.
+            const { projectId } = await api.projects.ensureScratch();
+            await handleNewThread(projectId, {
+              environmentId: (getPrimaryEnvironmentId() ?? undefined) as EnvironmentId | undefined,
+              envMode: "local",
+            });
+          } catch (error) {
+            toastManager.add({
+              type: "error",
+              title: "Could not start a thread without a project",
+              description: error instanceof Error ? error.message : "The request failed.",
+            });
+          }
+        })();
         return;
       }
 

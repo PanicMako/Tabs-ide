@@ -562,6 +562,7 @@ export function createWsNativeApi(options?: {
       searchEntries: (input) => transport.request(WS_METHODS.projectsSearchEntries, input),
       searchContents: (input) => transport.request(WS_METHODS.projectsSearchContents, input),
       readFile: (input) => transport.request(WS_METHODS.projectsReadFile, input),
+      ensureScratch: () => transport.request(WS_METHODS.projectsEnsureScratch, {}),
       writeFile: (input) => transport.request(WS_METHODS.projectsWriteFile, input),
       filesystemBrowse: (input) => transport.request(WS_METHODS.filesystemBrowse, input),
       listEntries: (input) => transport.request(WS_METHODS.projectsListEntries, input),

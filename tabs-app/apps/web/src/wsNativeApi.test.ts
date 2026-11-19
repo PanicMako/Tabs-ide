@@ -157,6 +157,14 @@ describe("wsNativeApi", () => {
     expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.serverGetHostResources);
   });
 
+  it("asks the server for the scratch project used by threads without a folder", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    requestMock.mockResolvedValueOnce({ projectId: "scratch-project" });
+    expect(await api.projects.ensureScratch()).toEqual({ projectId: "scratch-project" });
+    expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.projectsEnsureScratch, {});
+  });
+
   it("subscribes to resource telemetry as an RPC stream instead of a unary request", async () => {
     const { createWsNativeApi } = await import("./wsNativeApi");
     const api = createWsNativeApi();
