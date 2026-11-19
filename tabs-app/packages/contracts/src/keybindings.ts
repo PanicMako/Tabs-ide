@@ -50,6 +50,8 @@ export type ThreadKeybindingCommand = (typeof THREAD_KEYBINDING_COMMANDS)[number
 
 export const MODEL_PICKER_KEYBINDING_COMMANDS = [
   "modelPicker.toggle",
+  "modelPicker.nextProvider",
+  "modelPicker.previousProvider",
   ...MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
 ] as const;
 export type ModelPickerKeybindingCommand = (typeof MODEL_PICKER_KEYBINDING_COMMANDS)[number];

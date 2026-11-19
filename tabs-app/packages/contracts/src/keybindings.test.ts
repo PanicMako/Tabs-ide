@@ -154,6 +154,19 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedThreadPanel.command, "threadPanel.toggle");
 
+    for (const command of [
+      "modelPicker.nextProvider",
+      "modelPicker.previousProvider",
+      "modelPicker.jump.3",
+    ] as const) {
+      const parsedPickerKey = yield* decode(KeybindingRule, {
+        key: "mod+]",
+        command,
+        when: "modelPickerOpen",
+      });
+      assert.strictEqual(parsedPickerKey.command, command);
+    }
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

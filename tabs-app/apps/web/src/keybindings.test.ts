@@ -576,3 +576,37 @@ it("opens Quick Actions with the default Option-K shortcut without using Siri's 
     "quickActions.toggle",
   );
 });
+
+describe("model picker keys only apply while the picker is open", () => {
+  const key = (name: string) => event({ key: name, metaKey: true });
+  const inPicker = {
+    context: { modelPickerOpen: true, terminalFocus: false, shellChromeFocus: false },
+  };
+  const outside = { context: { terminalFocus: false, shellChromeFocus: true } };
+
+  it("jumps to a model by number inside the picker, and switches tools outside it", () => {
+    assert.strictEqual(
+      resolveShortcutCommand(key("3"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      "modelPicker.jump.3",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(key("3"), DEFAULT_RESOLVED_KEYBINDINGS, outside),
+      "tool.jumpTo3",
+    );
+  });
+
+  it("steps providers inside the picker, and navigates history outside it", () => {
+    assert.strictEqual(
+      resolveShortcutCommand(key("]"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      "modelPicker.nextProvider",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(key("["), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      "modelPicker.previousProvider",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(key("]"), DEFAULT_RESOLVED_KEYBINDINGS, outside),
+      "navigation.forward",
+    );
+  });
+});

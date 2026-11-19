@@ -17,6 +17,9 @@ import {
   isClaudeUltrathinkPrompt,
 } from "@tabs/shared/model";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { modelPickerJumpIndexFromCommand, resolveShortcutCommand } from "~/keybindings";
+import { MODEL_PICKER_SHORTCUT_CONTEXT, stepProviderTab } from "~/lib/modelPickerNav";
+import { useKeybindings } from "~/state/settings";
 import gsap from "gsap";
 import { ChevronDownIcon, LayersIcon, PinIcon, SearchIcon, XIcon, ZapIcon } from "lucide-react";
 import { Button } from "../ui/button";
@@ -637,6 +640,41 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       );
     });
   }, [models, curation, searchQuery, activeTab]);
+
+  // While the picker is open: step through providers, or jump straight to a model by number.
+  const keybindings = useKeybindings();
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: MODEL_PICKER_SHORTCUT_CONTEXT,
+      });
+      if (command === "modelPicker.nextProvider" || command === "modelPicker.previousProvider") {
+        const next = stepProviderTab(
+          providerOptions.map((option) => option.value),
+          activeTab,
+          command === "modelPicker.nextProvider" ? 1 : -1,
+        );
+        if (next === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedTab(next);
+        return;
+      }
+      const index = command === null ? null : modelPickerJumpIndexFromCommand(command);
+      if (index === null) return;
+      const model = filteredModels[index];
+      if (!model) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const providerId = (model as { providerId?: string }).providerId ?? activeTab;
+      setModelAndOptions(providerId as ProviderPickerKind, model.slug);
+      setIsOpen(false);
+    };
+    // Capture phase, so these keys never reach the app-wide tab and tool shortcuts underneath.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [activeTab, filteredModels, isOpen, keybindings, providerOptions, setModelAndOptions]);
 
   // Group filtered models hierarchically by subProvider or provider name
   const groupedModels = useMemo(() => {

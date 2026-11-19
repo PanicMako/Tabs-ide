@@ -117,6 +117,18 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+7", command: "tool.jumpTo7", when: "shellChromeFocus" },
   { key: "mod+8", command: "tool.jumpTo8", when: "shellChromeFocus" },
   { key: "mod+9", command: "tool.jumpTo9", when: "shellChromeFocus" },
+  // Only while the model picker is open: the picker passes `modelPickerOpen`, nothing else does.
+  { key: "mod+]", command: "modelPicker.nextProvider", when: "modelPickerOpen" },
+  { key: "mod+[", command: "modelPicker.previousProvider", when: "modelPickerOpen" },
+  { key: "mod+1", command: "modelPicker.jump.1", when: "modelPickerOpen" },
+  { key: "mod+2", command: "modelPicker.jump.2", when: "modelPickerOpen" },
+  { key: "mod+3", command: "modelPicker.jump.3", when: "modelPickerOpen" },
+  { key: "mod+4", command: "modelPicker.jump.4", when: "modelPickerOpen" },
+  { key: "mod+5", command: "modelPicker.jump.5", when: "modelPickerOpen" },
+  { key: "mod+6", command: "modelPicker.jump.6", when: "modelPickerOpen" },
+  { key: "mod+7", command: "modelPicker.jump.7", when: "modelPickerOpen" },
+  { key: "mod+8", command: "modelPicker.jump.8", when: "modelPickerOpen" },
+  { key: "mod+9", command: "modelPicker.jump.9", when: "modelPickerOpen" },
 ];
 
 function normalizeKeyToken(token: string): string {
