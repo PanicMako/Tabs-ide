@@ -73,6 +73,22 @@ describe("workspaceShellStore", () => {
     useWorkspaceShellStore.setState(createDefaultWorkspaceShellPersistedState());
   });
 
+  it("remembers a closed project tab so it can be reopened", async () => {
+    const { takeClosedProject, resetClosedProjectsForTest } = await import("./lib/closedProjects");
+    resetClosedProjectsForTest();
+    const alpha = makeProject("closed-alpha");
+    const beta = makeProject("closed-beta");
+    const store = useWorkspaceShellStore.getState();
+    store.syncProjects([alpha, beta], []);
+    store.openProject(alpha.id);
+    store.openProject(beta.id);
+    store.closeProject(beta.id);
+    // Closing something that is not open is not remembered.
+    store.closeProject(ProjectId.makeUnsafe("never-open"));
+    expect(takeClosedProject(() => true)).toBe(beta.id);
+    expect(takeClosedProject(() => true)).toBeNull();
+  });
+
   it("remembers a runtime extension when reopening projects and synchronizing the workspace", () => {
     const alpha = makeProject("extension-project");
     const beta = makeProject("other-project");

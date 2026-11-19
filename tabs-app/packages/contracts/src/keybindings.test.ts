@@ -84,6 +84,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedFocus.command, "workspace.focusNext");
 
+    const parsedReopen = yield* decode(KeybindingRule, {
+      key: "mod+shift+t",
+      command: "view.reopenClosed",
+    });
+    assert.strictEqual(parsedReopen.command, "view.reopenClosed");
+
     const parsedClose = yield* decode(KeybindingRule, {
       key: "mod+w",
       command: "terminal.close",

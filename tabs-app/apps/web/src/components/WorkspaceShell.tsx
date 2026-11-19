@@ -402,6 +402,7 @@ import {
 } from "./WorkspaceToolMarks";
 import { nextAppearancePreference } from "~/lib/appearanceCycle";
 import { focusWorkspaceArea, installWorkspaceFocusTracking } from "~/lib/workspaceFocus";
+import { takeClosedProject } from "~/lib/closedProjects";
 import { runRightPanelCommand } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
@@ -12584,6 +12585,18 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         return;
       }
 
+      if (command === "view.reopenClosed") {
+        event.preventDefault();
+        event.stopPropagation();
+        const openIds = useWorkspaceShellStore.getState().session.openProjectIds;
+        const projectId = takeClosedProject(
+          (candidate) =>
+            !openIds.includes(candidate as never) &&
+            projects.some((project) => project.id === candidate),
+        );
+        if (projectId) workspaceShellActions.openProject(projectId as never);
+        return;
+      }
       if (command === "workspace.focusNext" || command === "workspace.focusPrevious") {
         event.preventDefault();
         event.stopPropagation();
@@ -12674,6 +12687,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     handleSelectTool,
     themePreference,
     setThemePreference,
+    projects,
   ]);
 
   useEffect(() => {

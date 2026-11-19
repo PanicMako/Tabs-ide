@@ -78,6 +78,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "rightPanel.toggle",
   "rightPanel.close",
   "usage.open",
+  "view.reopenClosed",
   "workspace.focusNext",
   "workspace.focusPrevious",
   "navigation.back",

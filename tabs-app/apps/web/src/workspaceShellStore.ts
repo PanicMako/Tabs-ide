@@ -1,4 +1,5 @@
 import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { rememberClosedProject } from "./lib/closedProjects";
 import { randomUUID } from "./lib/utils";
 import { type Project, type Thread } from "./types";
 import { create } from "zustand";
@@ -1091,6 +1092,7 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
         }),
       closeProject: (projectId) =>
         set((state) => {
+          if (state.session.openProjectIds.includes(projectId)) rememberClosedProject(projectId);
           const openProjectIds = state.session.openProjectIds.filter((id) => id !== projectId);
           const wasActive = state.session.activeProjectId === projectId;
           // When closing the active project, fall back to: another real project
