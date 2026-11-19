@@ -156,3 +156,7 @@ Server suite, latest full run on the working tree: 8167 pass, 39 fail. All 39 ar
 ## Antigravity update (after the CLI port landed on main)
 
 The native Antigravity CLI release channel (`antigravityCliRelease.ts`, used by `AntigravityInstallation.ts`) is now on `main`. `AntigravityInstallation.test.ts` gained "keeps the signed-in profile when the managed runtime is updated": it seeds `acp_token.json` and `settings.json` in an instance profile, runs a managed update, and asserts both files are untouched. Status: **partial**. The update path is proven not to touch the profile. Whether a real Google token survives a real Google release cannot be shown without running a real update, which the repo rules forbid. By hand: sign in to Antigravity, choose Update Antigravity, and check that you are still signed in.
+
+## 5.1 Update everything
+
+Done (unit and browser tests; not run in the app). `Update everything` lists out-of-date providers first and the app last, with `from → to` versions, and runs them in order. A failed provider update does not stop the other providers but holds back the app restart, so the failure is not hidden. Files: `components/updateEverything.logic.ts` (+ test), `updateEverythingStore.ts`, `UpdateEverythingDialog.tsx` (+ browser test), `ProviderUpdateNotification.tsx` (toast action is now "Review updates"), `settings/AboutSettings.tsx` ("Update everything" row), `routes/__root.tsx`. By hand: with a provider behind its latest version, click "Review updates" on the toast or open Settings → About → Update everything, and press Update.

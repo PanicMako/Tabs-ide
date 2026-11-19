@@ -43,6 +43,7 @@ import { FirstRunGate } from "../components/onboarding/FirstRunGate";
 import { NativePreviewAutomationHost } from "../components/NativePreviewAutomationHost";
 import { BackgroundActivityReporter } from "../components/BackgroundActivityReporter";
 import { ProviderUpdateNotification } from "../components/ProviderUpdateNotification";
+import { UpdateEverythingDialog } from "../components/UpdateEverythingDialog";
 import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToastCoordinator";
 import { startRendererPerformanceCapture } from "../lib/rendererPerformance";
 import { createKeybindingsUpdateToastController } from "../components/KeybindingsUpdateToast.logic";
@@ -241,6 +242,7 @@ function FullAppRootView() {
           <NativePreviewAutomationHost />
           <BackgroundActivityReporter />
           <ProviderUpdateNotification />
+          <UpdateEverythingDialog />
           <SlowRpcRequestToastCoordinator />
           <DesktopProjectBootstrap />
           <FirstRunGate enabled={!isPopoutMode()}>

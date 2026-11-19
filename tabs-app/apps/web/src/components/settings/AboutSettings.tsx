@@ -11,6 +11,7 @@ import {
 import { isElectron } from "../../env";
 import { APP_VERSION } from "../../branding";
 import { Button } from "../ui/button";
+import { useUpdateEverythingStore } from "../updateEverythingStore";
 import { Input } from "../ui/input";
 import {
   AlertDialog,
@@ -350,6 +351,21 @@ export function AboutSettings() {
             }
           />
         ) : null}
+
+        <SettingsRow
+          title="Update everything"
+          description="Bring Tabs and every provider up to date in one go. Tabs restarts last."
+          control={
+            <Button
+              size="xs"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => useUpdateEverythingStore.getState().setOpen(true)}
+            >
+              Review updates
+            </Button>
+          }
+        />
 
         {isElectron ? (
           <SettingsRow

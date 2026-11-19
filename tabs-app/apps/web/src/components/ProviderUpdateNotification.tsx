@@ -1,6 +1,4 @@
 import { useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
-import { goToSettings } from "~/lib/settingsLayerStore";
 import { useEffect, useMemo, useRef } from "react";
 
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
@@ -10,12 +8,12 @@ import {
 } from "../providerUpdateNotification";
 import { serverConfigAtom } from "../state/settings";
 import { toastManager } from "./ui/toast";
+import { useUpdateEverythingStore } from "./updateEverythingStore";
 
 const seenNotificationKeys = new Set<string>();
 type ToastId = ReturnType<typeof toastManager.add>;
 
 export function ProviderUpdateNotification() {
-  const navigate = useNavigate();
   const providers = useAtomValue(serverConfigAtom)?.providers ?? [];
   const dismissedKeys = useSettings((settings) => settings.dismissedProviderUpdateNotificationKeys);
   const { updateSettings } = useUpdateSettings();
@@ -64,11 +62,11 @@ export function ProviderUpdateNotification() {
       description,
       timeout: 0,
       actionProps: {
-        children: "Settings",
+        children: "Review updates",
         onClick: () => {
           toastManager.close(id);
           activeToast.current = null;
-          goToSettings(navigate);
+          useUpdateEverythingStore.getState().setOpen(true);
         },
       },
       data: {
@@ -81,7 +79,7 @@ export function ProviderUpdateNotification() {
       },
     });
     activeToast.current = { key: notificationKey, id };
-  }, [candidates, dismissedKeys, navigate, notificationKey, updateSettings]);
+  }, [candidates, dismissedKeys, notificationKey, updateSettings]);
 
   return null;
 }
