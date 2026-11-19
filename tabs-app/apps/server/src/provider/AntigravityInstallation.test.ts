@@ -869,6 +869,36 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
       }),
   );
 
+  it.effect("keeps the signed-in profile when the managed runtime is updated", () =>
+    Effect.gen(function* () {
+      const { installation, fs, path, baseDir, stagingReleased } = yield* makeHarness({
+        previous: true,
+      });
+      // The sign-in lives in the instance profile, outside the managed runtime directory.
+      const acpDirectory = path.join(
+        baseDir,
+        "providers",
+        "antigravity",
+        "instance",
+        "antigravity-acp",
+      );
+      const tokenPath = path.join(acpDirectory, "acp_token.json");
+      const settingsPath = path.join(acpDirectory, "settings.json");
+      yield* fs.makeDirectory(acpDirectory, { recursive: true });
+      yield* fs.writeFileString(tokenPath, '{"refresh_token":"signed-in"}');
+      yield* fs.writeFileString(settingsPath, '{"auth":{"type":"oauth-personal"}}');
+      const before = yield* installation.resolve();
+      yield* installation.start;
+      expect((yield* terminalState(installation)).phase).toBe("succeeded");
+      yield* Deferred.await(stagingReleased);
+      const after = yield* installation.resolve();
+      expect(after.version).toBe("fixture-new");
+      expect(after.executablePath).not.toBe(before.executablePath);
+      expect(yield* fs.readFileString(tokenPath)).toBe('{"refresh_token":"signed-in"}');
+      expect(yield* fs.readFileString(settingsPath)).toBe('{"auth":{"type":"oauth-personal"}}');
+    }),
+  );
+
   it.effect(
     "blocks removal of custom managed paths and leaves external executables and profiles intact",
     () =>
