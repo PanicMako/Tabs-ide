@@ -16,6 +16,8 @@ import {
 } from "../quick-actions/actions";
 
 import { QuickActionsArranger } from "./QuickActionsArranger";
+import { BlankBrowserSettings } from "./BlankBrowserSettings";
+import { DEFAULT_BLANK_BROWSER } from "../quick-actions/actions";
 import { useInstalledExtensions } from "../../state/extensions";
 import { extensionLauncherActions } from "../quick-actions/extensionQuickActions";
 import "./quick-actions-studio.css";
@@ -122,6 +124,19 @@ export default function QuickActionsSettings() {
                 </div>
                 <div className="qa-studio-option">
                   <span>
+                    <strong>Curved menus</strong>
+                    <small>Sub-menus follow the ring's edge</small>
+                  </span>
+                  <Switch
+                    aria-label="Curved menus"
+                    checked={(preferences.flyoutShape ?? "curved") === "curved"}
+                    onCheckedChange={(checked) =>
+                      patch({ flyoutShape: checked ? "curved" : "card" })
+                    }
+                  />
+                </div>
+                <div className="qa-studio-option">
+                  <span>
                     <strong>Keyboard shortcut</strong>
                     <small>Change it in Keybindings</small>
                   </span>
@@ -142,6 +157,7 @@ export default function QuickActionsSettings() {
                       extensionLauncherActions(installedExtensions),
                     )}
                     subActions={preferences.subActions}
+                    flyoutShape={preferences.flyoutShape}
                     execute={context?.execute ?? (async () => {})}
                     disabled={(id) =>
                       !context
@@ -192,6 +208,10 @@ export default function QuickActionsSettings() {
           onPatch={patch}
         />
       </SettingsSection>
+      <BlankBrowserSettings
+        value={preferences.blankBrowser ?? DEFAULT_BLANK_BROWSER}
+        onChange={(blankBrowser) => patch({ blankBrowser })}
+      />
     </div>
   );
 }
