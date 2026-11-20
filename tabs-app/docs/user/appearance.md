@@ -2,8 +2,8 @@
 
 Open **Settings → Themes** to pick how Tabs looks.
 
-| Dark | Light |
-| --- | --- |
+| Dark                                                                                                | Light                                         |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | Tabs Dark, True Black, Monotone, Tide, Dusk, Grove, Graphite, Ultraviolet, Acid, Cyberdeck, Redline | Tabs Light, Monotone Light, Linen, Paper, Fog |
 
 Create your own in the custom theme studio. The editor inside Tabs follows the theme you pick.

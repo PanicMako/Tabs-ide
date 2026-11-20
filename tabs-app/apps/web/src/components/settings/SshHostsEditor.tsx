@@ -97,7 +97,9 @@ export function SshHostsEditor({
               <span
                 className="text-xs text-muted-foreground/80"
                 style={{ fontFamily: "var(--font-supporting, var(--font-sans))" }}
-              >{field.label}</span>
+              >
+                {field.label}
+              </span>
               <Input
                 value={editing.form[field.key]}
                 placeholder={field.placeholder}
