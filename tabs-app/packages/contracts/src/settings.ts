@@ -522,6 +522,15 @@ export const QuickActionsPreferences = Schema.Struct({
       }),
     ),
   ),
+  /** How sub-action menus sit beside the ring: hugging its curve, or as a plain card. */
+  flyoutShape: Schema.optionalKey(Schema.Literals(["curved", "card"])),
+  /** What "Blank browser" opens, and whether its controls stay open on a blank page. */
+  blankBrowser: Schema.optionalKey(
+    Schema.Struct({
+      startUrl: Schema.String,
+      keepControlsOpen: Schema.Boolean,
+    }),
+  ),
 });
 export const VoiceShortcutMode = Schema.Literals(["auto", "hold", "toggle"]);
 export type VoiceShortcutMode = typeof VoiceShortcutMode.Type;
