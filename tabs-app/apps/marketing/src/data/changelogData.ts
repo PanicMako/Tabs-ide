@@ -25,11 +25,28 @@ export const TOTAL_TAGS_COUNT = 195;
 
 export const changelogData: ChangelogRelease[] = [
   {
+    tag: "v2.8.1",
+    title: "Tabs opens in seconds again, and you can arrange providers and favorite models",
+    date: "November 20, 2026",
+    shortDate: "Nov 20",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.8.1 fixes the long launch that kept the Dock icon bouncing for a minute or more after updating, and on the first launch of each day. It also lets you drag providers into your own order, brings a cleaner Pinned models list, and adds optional per-provider favorites to the model picker.",
+    highlights: [
+      "Open Tabs without the long wait: the launch backup now copies only what changed.",
+      "Drag providers in Settings → Providers into the order you want.",
+      "Reorder, unpin and add pinned models from one list that matches the model picker.",
+      "Turn on Favorites first for a provider to see your starred models at the top of the picker.",
+      "Get everything from 2.8.0, which was not published on its own.",
+    ],
+    categories: [],
+  },
+  {
     tag: "v2.8.0",
     title: "New themes, curved Quick Actions, composer formatting and a redesigned Usage page",
     date: "November 20, 2026",
     shortDate: "Nov 20",
-    isLatest: true,
     type: "feature",
     summary:
       "Tabs 2.8.0 adds seven new themes, curved Quick Actions menus with a configurable blank browser, Markdown formatting shortcuts in the message box, a redesigned Usage and Limits page with Antigravity quota, and a faster, snappier interface.",
