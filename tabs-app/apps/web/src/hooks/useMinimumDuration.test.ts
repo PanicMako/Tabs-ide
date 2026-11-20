@@ -32,8 +32,8 @@ describe("Startup splash timing constraints", () => {
     expect(startupExitMs("mascot")).toBe(STARTUP_ANIMATION_EXIT_MS);
     // The board holds for a short beat once every card has landed, so nothing
     // rises mid-flip; the mascot holds a little longer to show the 100.
-    expect(startupExitBeatMs("solari")).toBeGreaterThanOrEqual(200);
-    expect(startupExitBeatMs("solari")).toBeLessThanOrEqual(300);
+    expect(startupExitBeatMs("solari")).toBeGreaterThanOrEqual(80);
+    expect(startupExitBeatMs("solari")).toBeLessThanOrEqual(160);
     expect(startupExitBeatMs("mascot")).toBeGreaterThan(startupExitBeatMs("solari"));
   });
 });

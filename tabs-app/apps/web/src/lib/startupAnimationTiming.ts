@@ -1,9 +1,9 @@
 // The airport board settles tile by tile, left to right. The reveal is driven
 // by the last tile actually landing (see SplashScreen's onIntroComplete), not by
 // a fixed hold, so these only pace the flips themselves.
-export const SOLARI_TILE_SETTLE_MS = 200;
-export const SOLARI_TILE_STAGGER_MS = 110;
-export const SOLARI_TILE_HIGHLIGHT_MS = 380;
+export const SOLARI_TILE_SETTLE_MS = 90;
+export const SOLARI_TILE_STAGGER_MS = 48;
+export const SOLARI_TILE_HIGHLIGHT_MS = 160;
 export const SOLARI_TILE_COUNT = 8;
 /** When the last tile lands, for previews and tests. Not a reveal gate. */
 export const SOLARI_BOARD_SETTLED_MS =
@@ -12,11 +12,11 @@ export const SOLARI_BOARD_SETTLED_MS =
  * Safety net only: if the board never reports that it settled (it errored or
  * was never painted), reveal anyway instead of trapping the user on the splash.
  */
-export const SOLARI_INTRO_FALLBACK_MS = 4_000;
+export const SOLARI_INTRO_FALLBACK_MS = 2_000;
 /** The splash lifts away over this long once the workspace has painted. */
-export const STARTUP_ANIMATION_EXIT_MS = 760;
+export const STARTUP_ANIMATION_EXIT_MS = 340;
 /** The workspace rises over the settled board a little quicker than a lift. */
-export const SOLARI_RISE_EXIT_MS = 620;
+export const SOLARI_RISE_EXIT_MS = 280;
 /** The mascot's whole repair job plays before the app may reveal. */
 export const MASCOT_INTRO_HOLD_MS = 6_500;
 
@@ -45,7 +45,7 @@ export function startupExitMs(loader: string): number {
  * The finished board holds this long after its last tile lands, so the
  * workspace never starts rising while a card is still settling.
  */
-export const SOLARI_EXIT_BEAT_MS = 260;
+export const SOLARI_EXIT_BEAT_MS = 100;
 
 /** A short beat after the loader's intro before the workspace rises. */
 export function startupExitBeatMs(loader: string): number {

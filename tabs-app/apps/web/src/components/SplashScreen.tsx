@@ -60,7 +60,7 @@ function RotatingLabel({
       idxRef.current = next;
       setOutgoing(leaving);
       setIdx(next);
-      clearId = setTimeout(() => setOutgoing(null), 520);
+      clearId = setTimeout(() => setOutgoing(null), 240);
     }, intervalMs);
     return () => {
       clearInterval(id);
@@ -166,7 +166,7 @@ function SolariTile({
     const settleAt = SOLARI_TILE_SETTLE_MS + index * SOLARI_TILE_STAGGER_MS;
     const iv = setInterval(() => {
       if (!cancelled) setCh(SOLARI_CHARS[Math.floor(Math.random() * SOLARI_CHARS.length)]!);
-    }, 60);
+    }, 40);
     const to = setTimeout(() => {
       clearInterval(iv);
       if (cancelled) return;
@@ -188,7 +188,7 @@ function SolariTile({
     <div
       data-shape="tile"
       className={cn(
-        "relative flex h-[64px] w-[52px] items-center justify-center rounded-lg border text-[26px] font-light transition-all duration-300 ease-out",
+        "relative flex h-[64px] w-[52px] items-center justify-center rounded-lg border text-[26px] font-light transition-[border-color,background-color,box-shadow] duration-150 ease-out",
         isBlock
           ? justSettled
             ? "border-white/90 bg-white/22 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
