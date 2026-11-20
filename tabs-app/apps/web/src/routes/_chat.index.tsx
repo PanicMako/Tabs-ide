@@ -1,11 +1,11 @@
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { DiagnosticsSettings } from "../components/settings/DiagnosticsSettings";
 import { Button } from "../components/ui/button";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useSettings } from "../hooks/useSettings";
 import { isPopoutMode } from "../lib/utils";
-import { projectsAtom, threadsAtom } from "../state/threads";
+import { projectsAtom, threadsAtom, threadsHydratedAtom } from "../state/threads";
 import { useWorkspaceActiveProjectId, useRememberedThreadId } from "../state/workspaceShell";
 import { composerDraftActions, createScopedComposerDraftActions } from "../state/composerDrafts";
 import { useAtomValue } from "@effect/atom-react";
@@ -23,6 +23,7 @@ function ChatIndexRouteView() {
   const rememberedThreadId = useRememberedThreadId(activeProjectId);
   const projects = useAtomValue(projectsAtom);
   const threads = useAtomValue(threadsAtom);
+  const hydrated = useAtomValue(threadsHydratedAtom);
   const settings = useSettings();
   const { handleNewThread } = useHandleNewThread();
   const navigate = useNavigate();
@@ -68,6 +69,26 @@ function ChatIndexRouteView() {
       });
     }
   }, [location.pathname, activeProject, targetThreadId, navigate]);
+
+  // Agents opens on a new thread: with nothing to resume, start one instead of a dead end.
+  const startedDraftForRef = useRef<string | null>(null);
+  const shouldStartDraft =
+    hydrated && location.pathname === "/" && !!activeProject?.environmentId && !targetThreadId;
+  useEffect(() => {
+    if (!shouldStartDraft || !activeProject) return;
+    if (startedDraftForRef.current === activeProject.id) return;
+    startedDraftForRef.current = activeProject.id;
+    void handleNewThread(activeProject.id, {
+      environmentId: activeProject.environmentId,
+      ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
+    });
+  }, [shouldStartDraft, activeProject, handleNewThread, settings.defaultThreadEnvMode]);
+
+  // Until the workspace has hydrated, or while we are on our way to a thread, show nothing
+  // rather than a "nothing selected" message that is replaced a moment later.
+  if (!hydrated || (activeProject && (targetThreadId || shouldStartDraft))) {
+    return <div className="h-full min-h-0" aria-busy="true" />;
+  }
 
   if (activeProject && projectThreads.length === 0) {
     return (
