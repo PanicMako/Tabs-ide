@@ -140,6 +140,7 @@ export function surfaceFor(kind: RightPanelTab): SurfaceDefinition {
 export function handleSurfaceShortcut(
   event: KeyboardEvent<HTMLElement>,
   onSelect: (tab: RightPanelTab) => void,
+  disabled: DisabledSurfaces = {},
 ): void {
   if (
     event.defaultPrevented ||
@@ -155,9 +156,12 @@ export function handleSurfaceShortcut(
   const surface = surfaces.find((item) => item.key === event.key.toLowerCase());
   if (surface) {
     event.preventDefault();
-    onSelect(surface.id);
+    if (disabled[surface.id] === undefined) onSelect(surface.id);
   }
 }
+
+/** Surfaces that cannot open right now, each with the reason shown to the user. */
+export type DisabledSurfaces = Partial<Record<RightPanelTab, string>>;
 
 export interface SurfaceInstance {
   id: string;
@@ -185,7 +189,13 @@ export function surfaceInstanceLabel(
       : surface.label;
 }
 
-export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) => void }) {
+export function SurfaceChooser({
+  onSelect,
+  disabled = {},
+}: {
+  onSelect: (tab: RightPanelTab) => void;
+  disabled?: DisabledSurfaces;
+}) {
   const chooser = useRef<HTMLDivElement>(null);
   useEffect(() => {
     chooser.current?.focus({ preventScroll: true });
@@ -197,7 +207,7 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
       aria-label="Choose a surface"
       tabIndex={-1}
       className="surface-chooser flex min-h-0 flex-1 overflow-y-auto px-7 py-8"
-      onKeyDown={(event) => handleSurfaceShortcut(event, onSelect)}
+      onKeyDown={(event) => handleSurfaceShortcut(event, onSelect, disabled)}
     >
       <div className="m-auto w-full max-w-[560px] py-6">
         <h2 className="mb-3 text-sm font-normal text-muted-foreground">Open a surface</h2>
@@ -219,10 +229,17 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
               >
                 <button
                   type="button"
-                  onClick={() => onSelect(id)}
-                  aria-label={`${label} ${description}`}
+                  onClick={() => {
+                    if (disabled[id] === undefined) onSelect(id);
+                  }}
+                  aria-label={`${label} ${disabled[id] ?? description}`}
+                  aria-disabled={disabled[id] !== undefined || undefined}
+                  title={disabled[id]}
                   aria-keyshortcuts={key.toUpperCase()}
-                  className="surface-launcher flex w-fit min-w-0 items-center rounded-full px-5 text-left focus-visible:outline-2 focus-visible:outline-ring"
+                  className={cn(
+                    "surface-launcher flex w-fit min-w-0 items-center rounded-full px-5 text-left focus-visible:outline-2 focus-visible:outline-ring",
+                    disabled[id] !== undefined && "cursor-not-allowed opacity-45",
+                  )}
                 >
                   <span className="surface-script">{label}</span>
                 </button>
@@ -232,6 +249,11 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
                 >
                   {key.toUpperCase()}
                 </kbd>
+                {disabled[id] !== undefined && (
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {disabled[id]}
+                  </span>
+                )}
               </div>
             ),
           )}

@@ -90,6 +90,10 @@ export function GroupedDesign(props: CompanionDesignProps) {
           </button>
           {surfaces.map((surface) => {
             const selected = !home && active?.kind === surface.id;
+            // A surface with a tab already open stays reachable; only starting a new one is refused.
+            const unavailable =
+              props.disabledSurfaces?.[surface.id] !== undefined &&
+              !props.instances.some((item) => item.kind === surface.id);
             return (
               <button
                 key={surface.id}
@@ -99,10 +103,17 @@ export function GroupedDesign(props: CompanionDesignProps) {
                 aria-selected={selected}
                 tabIndex={selected ? 0 : -1}
                 id={selected ? `surface-tab-${active!.id}` : undefined}
-                className="cd-segment"
+                className={unavailable ? "cd-segment cursor-not-allowed opacity-45" : "cd-segment"}
                 aria-label={surface.label}
-                title={`${surface.label} · ${surface.key.toUpperCase()}`}
-                onClick={() => props.onFocusKind(surface.id)}
+                title={
+                  unavailable
+                    ? props.disabledSurfaces?.[surface.id]
+                    : `${surface.label} · ${surface.key.toUpperCase()}`
+                }
+                aria-disabled={unavailable || undefined}
+                onClick={() => {
+                  if (!unavailable) props.onFocusKind(surface.id);
+                }}
               >
                 <surface.Icon aria-hidden="true" size={15} />
                 <span className="cd-segment-label">{surface.label}</span>
@@ -167,7 +178,7 @@ export function GroupedDesign(props: CompanionDesignProps) {
         <div ref={body} className="cd-surface-stage">
           {home ? (
             <div ref={homeRef} className="cd-home">
-              <SurfaceChooser onSelect={openFromHome} />
+              <SurfaceChooser onSelect={openFromHome} disabled={props.disabledSurfaces ?? {}} />
             </div>
           ) : (
             props.body

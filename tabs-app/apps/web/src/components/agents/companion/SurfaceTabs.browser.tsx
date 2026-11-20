@@ -304,3 +304,26 @@ it("selects and closes independent browser resources by ID", async () => {
     await view.unmount();
   }
 });
+
+it("shows an unavailable surface with its reason and never opens it", async () => {
+  const onSelect = vi.fn();
+  const reason = "Side chats start after the first message.";
+  const view = await render(
+    <div style={{ width: 440 }}>
+      <SurfaceChooser onSelect={onSelect} disabled={{ sidechat: reason }} />
+    </div>,
+  );
+  try {
+    await expect.element(page.getByText(reason)).toBeVisible();
+    const row = page.getByRole("button", { name: new RegExp(`Side chat ${reason}`) });
+    await expect.element(row).toHaveAttribute("aria-disabled", "true");
+    await row.click({ force: true });
+    await userEvent.keyboard("c");
+    expect(onSelect).not.toHaveBeenCalled();
+    // Other surfaces still open.
+    await userEvent.keyboard("b");
+    expect(onSelect).toHaveBeenLastCalledWith("browser");
+  } finally {
+    await view.unmount();
+  }
+});

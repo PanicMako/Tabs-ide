@@ -3,13 +3,15 @@ import { useRef, useState, type ReactNode } from "react";
 import { useStaggerIn } from "./motion";
 import type { RightPanelTab } from "~/stores/rightPanelStore";
 import { cn } from "~/lib/utils";
-import { surfaces, type SurfaceInstance } from "../SurfaceTabs";
+import { surfaces, type DisabledSurfaces, type SurfaceInstance } from "../SurfaceTabs";
 
 export interface CompanionDesignProps {
   instances: ReadonlyArray<SurfaceInstance>;
   activeId: string | null;
   choosing: boolean;
   counts: Partial<Record<RightPanelTab, number>>;
+  /** Surfaces that cannot open, with why; the launcher and switcher show them unavailable. */
+  disabledSurfaces?: DisabledSurfaces | undefined;
   dragRegion: boolean;
   maximized: boolean;
   projectName?: string | undefined;
