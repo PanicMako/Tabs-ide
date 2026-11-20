@@ -30,6 +30,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { ThreadFlowSettings } from "./ThreadFlowSettings";
 import { NewWorkSettings } from "./NewWorkSettings";
 import { SnapShotSettings } from "./SnapShotSettings";
+import { ComposerFormattingSettings } from "./ComposerFormattingSettings";
 import { toastManager } from "../ui/toast";
 import { SettingsProviderModelPicker } from "../chat/SettingsProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
@@ -405,7 +406,7 @@ export function GeneralSettings() {
         <SettingsRow
           title="Panel animations"
           description="How long panels take to slide open and closed. Off makes them snap."
-          status={<MotionDurationPreview durationMs={panelDurationField.value} />}
+          titleAccessory={<MotionDurationPreview durationMs={panelDurationField.value} />}
           resetAction={
             panelDurationField.value !== DEFAULT_PANEL_ANIMATION_DURATION_MS ? (
               <SettingResetButton
@@ -961,6 +962,8 @@ export function GeneralSettings() {
       </SettingsSection>
 
       <NewWorkSettings />
+
+      <ComposerFormattingSettings />
 
       <SnapShotSettings />
 
