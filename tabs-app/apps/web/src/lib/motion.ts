@@ -18,6 +18,14 @@ import {
 gsap.ticker.lagSmoothing(50, 16);
 
 /**
+ * Every GSAP tween in the app plays this many times faster than it is written. Hand-tuned
+ * durations across the app read as slow; one global clock keeps them in proportion while making
+ * the whole app ~55% quicker. Web Animation holds that mirror a tween divide by this too.
+ */
+export const MOTION_TIME_SCALE = 2.2;
+gsap.globalTimeline.timeScale(MOTION_TIME_SCALE);
+
+/**
  * Generic curves for motion that is not a surface (loaders, small flourishes). Surfaces, screens,
  * rows and the sidebar take their curve from the active motion profile instead.
  */
@@ -150,7 +158,7 @@ export function playSurfaceExit(
   const hold =
     typeof source.animate === "function"
       ? source.animate([{ "--surface-exit": "0" }, { "--surface-exit": "1" }], {
-          duration: duration * 1000,
+          duration: (duration * 1000) / MOTION_TIME_SCALE,
         })
       : null;
   return { tween, hold };
@@ -189,7 +197,7 @@ export function playScreenExit(
       onInterrupt: done,
     });
     // Never hold the swap hostage to a tween that did not get a frame.
-    window.setTimeout(done, duration * 1000 + 120);
+    window.setTimeout(done, (duration * 1000) / MOTION_TIME_SCALE + 120);
   });
 }
 
