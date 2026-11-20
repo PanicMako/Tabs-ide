@@ -986,6 +986,9 @@ export const OrchestrationV2ContextHandoff = Schema.Struct({
 });
 export type OrchestrationV2ContextHandoff = typeof OrchestrationV2ContextHandoff.Type;
 
+/** The text sent to compact an idle thread. */
+export const IDLE_COMPACTION_TEXT = "/compact";
+
 /** Live context usage reported by the provider mid-turn (#8144). */
 export const OrchestrationV2ProviderTurnTokenUsage = Schema.Struct({
   usedTokens: NonNegativeInt,
@@ -994,6 +997,10 @@ export const OrchestrationV2ProviderTurnTokenUsage = Schema.Struct({
   cachedInputTokens: Schema.optional(NonNegativeInt),
   outputTokens: Schema.optional(NonNegativeInt),
   reasoningOutputTokens: Schema.optional(NonNegativeInt),
+  /** How long the provider keeps this request's prompt cache warm, when it says. */
+  promptCacheTtlMs: Schema.optional(PositiveInt),
+  /** ISO time the prompt cache of this request runs out. */
+  promptCacheExpiresAt: Schema.optional(Schema.String),
   /** ISO timestamp of the provider's report; string so wire encoding is stable. */
   updatedAt: Schema.String,
 });

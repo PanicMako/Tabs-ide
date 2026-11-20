@@ -127,6 +127,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         customModels: ["claude-custom"],
         launchArgs: "",
         autoCompactWindow: "",
+        idleCompaction: "off",
       });
       // Option selections are merged by id under the canonical array shape,
       // so reasoningEffort is preserved and fastMode is updated.
@@ -224,6 +225,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         customModels: [],
         launchArgs: "",
         autoCompactWindow: "",
+        idleCompaction: "off",
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );

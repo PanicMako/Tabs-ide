@@ -146,21 +146,50 @@ function claudeContextWindow(modelSelection: ModelSelection): number | null {
     : 200_000;
 }
 
+/** Cache entries Claude says a request created, by lifetime. */
+export interface ClaudeCacheCreation {
+  readonly ephemeral_5m_input_tokens?: number | null;
+  readonly ephemeral_1h_input_tokens?: number | null;
+}
+
+const CLAUDE_CACHE_TTL_1H_MS = 60 * 60_000;
+const CLAUDE_CACHE_TTL_5M_MS = 5 * 60_000;
+
+/**
+ * How long the cache entry a request created stays warm. A request served wholly
+ * from cache creates nothing and reports no lifetime, so the answer is unknown.
+ */
+export function claudePromptCacheTtlMs(
+  cacheCreation: ClaudeCacheCreation | null | undefined,
+): number | undefined {
+  if ((cacheCreation?.ephemeral_1h_input_tokens ?? 0) > 0) return CLAUDE_CACHE_TTL_1H_MS;
+  if ((cacheCreation?.ephemeral_5m_input_tokens ?? 0) > 0) return CLAUDE_CACHE_TTL_5M_MS;
+  return undefined;
+}
+
 export function claudeProviderTurnTokenUsage(
   usage: {
     readonly input_tokens: number;
     readonly cache_creation_input_tokens?: number | null;
     readonly cache_read_input_tokens?: number | null;
+    readonly cache_creation?: ClaudeCacheCreation | null;
     readonly output_tokens: number;
   },
   modelSelection: ModelSelection,
   updatedAt: string,
+  /** When the request was made, so the cache lifetime can be dated. */
+  requestedAt?: DateTime.Utc,
 ) {
   const inputTokens =
     usage.input_tokens +
     (usage.cache_creation_input_tokens ?? 0) +
     (usage.cache_read_input_tokens ?? 0);
   const outputTokens = usage.output_tokens;
+  const promptCacheTtlMs = claudePromptCacheTtlMs(usage.cache_creation);
+  const promptCacheExpiresAt =
+    promptCacheTtlMs === undefined || requestedAt === undefined
+      ? undefined
+      : DateTime.formatIso(DateTime.add(requestedAt, { milliseconds: promptCacheTtlMs }));
   return {
     usedTokens: inputTokens + outputTokens,
     maxTokens: claudeContextWindow(modelSelection),
@@ -168,6 +197,8 @@ export function claudeProviderTurnTokenUsage(
     cachedInputTokens: usage.cache_read_input_tokens ?? 0,
     outputTokens,
     reasoningOutputTokens: 0,
+    ...(promptCacheTtlMs === undefined ? {} : { promptCacheTtlMs }),
+    ...(promptCacheExpiresAt === undefined ? {} : { promptCacheExpiresAt }),
     updatedAt,
   };
 }
@@ -5952,6 +5983,7 @@ export function makeClaudeAdapterV2(
                     message.message.usage,
                     context.input.modelSelection,
                     DateTime.formatIso(now),
+                    now,
                   ),
                 },
               });

@@ -975,6 +975,16 @@ export type CodexSettings = typeof CodexSettings.Type;
 // the update that introduced it.
 const CLAUDE_AUTO_COMPACT_WINDOW_PATTERN = /^(?:|[1-9]\d{5}|1000000)$/;
 
+/** What to do with a Claude thread that has gone quiet. */
+export const CLAUDE_IDLE_COMPACTION_MODES = [
+  { value: "off", label: "Never" },
+  { value: "beforeCacheExpires", label: "Just before its prompt cache expires (beta)" },
+] as const satisfies ReadonlyArray<ProviderSettingsFormOption>;
+export const ClaudeIdleCompaction = Schema.Literals(
+  CLAUDE_IDLE_COMPACTION_MODES.map((mode) => mode.value),
+);
+export type ClaudeIdleCompaction = typeof ClaudeIdleCompaction.Type;
+
 export const ClaudeSettings = makeProviderSettingsSchema(
   {
     enabled: Schema.Boolean.pipe(
@@ -1026,9 +1036,22 @@ export const ClaudeSettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    idleCompaction: ClaudeIdleCompaction.pipe(
+      Schema.withDecodingDefault(Effect.succeed("off" as const)),
+      Schema.annotateKey({
+        title: "Compact idle threads",
+        description:
+          "Compact a thread over 100,000 tokens once it has gone quiet, shortly before Claude's prompt cache expires, so the next message does not pay to re-read it all. Sends a visible /compact turn.",
+        providerSettingsForm: {
+          control: "select",
+          options: CLAUDE_IDLE_COMPACTION_MODES,
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
   },
   {
-    order: ["binaryPath", "homePath", "autoCompactWindow", "launchArgs"],
+    order: ["binaryPath", "homePath", "autoCompactWindow", "idleCompaction", "launchArgs"],
   },
 );
 export type ClaudeSettings = typeof ClaudeSettings.Type;
@@ -2201,6 +2224,30 @@ export const providerInstanceConfigEnabledFlag = (config: unknown): boolean | un
   }
   const enabled = (config as { readonly enabled?: unknown }).enabled;
   return typeof enabled === "boolean" ? enabled : undefined;
+};
+
+/**
+ * Whether a Claude instance compacts its idle threads. A configured instance
+ * reads its own setting; the built-in `claudeAgent` instance reads the
+ * legacy `providers.claudeAgent` block. Anything else, and anything unreadable,
+ * means never.
+ */
+export const resolveClaudeIdleCompaction = (
+  settings: Pick<ServerSettings, "providers" | "providerInstances">,
+  instanceId: string,
+): ClaudeIdleCompaction => {
+  const instances: Readonly<Record<string, ProviderInstanceConfig | undefined>> =
+    settings.providerInstances;
+  const configured = Object.hasOwn(instances, instanceId) ? instances[instanceId] : undefined;
+  const raw =
+    configured !== undefined
+      ? configured.driver === "claudeAgent"
+        ? (configured.config as { readonly idleCompaction?: unknown } | undefined)?.idleCompaction
+        : undefined
+      : instanceId === "claudeAgent"
+        ? settings.providers.claudeAgent.idleCompaction
+        : undefined;
+  return raw === "beforeCacheExpires" ? "beforeCacheExpires" : "off";
 };
 
 /**
