@@ -24,6 +24,7 @@ import {
   generateHarmonizedPalette,
   RANDOM_STYLE_OPTIONS,
   THEME_DEFINITIONS,
+  PICKABLE_THEME_DEFINITIONS,
   type FontPreferences,
   type RandomStyleMode,
   type ThemeId,
@@ -364,13 +365,13 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                       <SelectValue placeholder="Choose a preset" />
                     </SelectTrigger>
                     <SelectPopup align="start">
-                      {Object.values(THEME_DEFINITIONS)
-                        .filter((theme) => theme.id !== "custom")
-                        .map((theme) => (
+                      {PICKABLE_THEME_DEFINITIONS.filter((theme) => theme.id !== "custom").map(
+                        (theme) => (
                           <SelectItem key={theme.id} value={theme.id}>
                             {theme.name}
                           </SelectItem>
-                        ))}
+                        ),
+                      )}
                     </SelectPopup>
                   </Select>
                 </div>

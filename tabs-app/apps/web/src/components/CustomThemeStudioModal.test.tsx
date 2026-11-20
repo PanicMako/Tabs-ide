@@ -108,10 +108,10 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
   });
 
   it("Editing colors previews them without changing localStorage", () => {
-    // Initial state: tabs-dark
-    setStorageItem("tabs:theme", "tabs-dark");
+    // Initial state: true-black
+    setStorageItem("tabs:theme", "true-black");
     const snapshot = snapshotThemeState();
-    expect(snapshot.theme).toBe("tabs-dark");
+    expect(snapshot.theme).toBe("true-black");
 
     const draftConfig: CustomThemeConfig = {
       ...DEFAULT_CUSTOM_THEME,
@@ -124,7 +124,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
 
     // Previewing the draft should not write to localStorage
     previewTheme("custom", draftConfig);
-    expect(getStorageItem("tabs:theme")).toBe("tabs-dark");
+    expect(getStorageItem("tabs:theme")).toBe("true-black");
     expect(getStorageItem("tabs:custom-theme")).toBeNull();
   });
 
@@ -147,7 +147,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
   });
 
   it("Escape restores the previous theme", () => {
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
     const snapshot = snapshotThemeState();
 
     previewTheme("custom", {
@@ -158,7 +158,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
     // Escape routes through restoreThemeSnapshot
     restoreThemeSnapshot(snapshot);
 
-    expect(getStorageItem("tabs:theme")).toBe("tabs-dark");
+    expect(getStorageItem("tabs:theme")).toBe("true-black");
     expect(getStorageItem("tabs:custom-theme")).toBeNull();
   });
 
@@ -179,7 +179,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
   });
 
   it("Apply persists the draft and leaves it active after reload", () => {
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
 
     const draftConfig: CustomThemeConfig = {
       ...DEFAULT_CUSTOM_THEME,
@@ -230,7 +230,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
   });
 
   it("Import followed by Cancel does not persist imported values", () => {
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
     const snapshot = snapshotThemeState();
 
     const importedConfig: CustomThemeConfig = {
@@ -254,13 +254,13 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
     // User cancels without clicking Apply
     restoreThemeSnapshot(snapshot);
 
-    expect(getStorageItem("tabs:theme")).toBe("tabs-dark");
+    expect(getStorageItem("tabs:theme")).toBe("true-black");
     expect(getStorageItem("tabs:custom-theme")).toBeNull();
     expect(getStorageItem("tabs:font-preferences")).toBeNull();
   });
 
   it("Export does not persist anything", () => {
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
     const draftConfig: CustomThemeConfig = {
       ...DEFAULT_CUSTOM_THEME,
       colors: { ...DEFAULT_CUSTOM_THEME.colors, background: "#888888" },
@@ -269,12 +269,12 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
     // Export reads draftConfig and produces JSON; zero writes to localStorage
     const exportJson = JSON.stringify(draftConfig);
     expect(exportJson).toContain("#888888");
-    expect(getStorageItem("tabs:theme")).toBe("tabs-dark");
+    expect(getStorageItem("tabs:theme")).toBe("true-black");
     expect(getStorageItem("tabs:custom-theme")).toBeNull();
   });
 
   it("Saving a preset follows the chosen product contract without accidental activation", () => {
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
 
     const draftConfig: CustomThemeConfig = {
       ...DEFAULT_CUSTOM_THEME,
@@ -292,7 +292,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
     onSavePreset("My Emerald Preset", draftConfig);
 
     expect(onSavePreset).toHaveBeenCalledWith("My Emerald Preset", draftConfig);
-    expect(getStorageItem("tabs:theme")).toBe("tabs-dark"); // NOT activated!
+    expect(getStorageItem("tabs:theme")).toBe("true-black"); // NOT activated!
     expect(getStorageItem("tabs:custom-theme")).toBeNull(); // NOT committed!
 
     const savedPresets = JSON.parse(getStorageItem("tabs:custom-presets:v1")!);
@@ -307,7 +307,7 @@ describe("CustomThemeStudioModal Transactional Contract", () => {
       editorFont: "JetBrains Mono",
     };
     setStorageItem("tabs:font-preferences", JSON.stringify(originalFonts));
-    setStorageItem("tabs:theme", "tabs-dark");
+    setStorageItem("tabs:theme", "true-black");
 
     const snapshot = snapshotThemeState();
     expect(snapshot.fontPreferences.uiFont).toBe("Inter");
