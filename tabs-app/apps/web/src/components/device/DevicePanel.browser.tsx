@@ -2,6 +2,7 @@ import "../../index.css";
 import { beforeEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { DeviceFloatWindow } from "./DevicePanel";
 import { DevicePicker } from "./DevicePicker";
 import { DeviceSetup } from "./DeviceSetup";
 import { DeviceToolsDrawer } from "./DeviceToolsDrawer";
@@ -87,4 +88,38 @@ it("keeps the controls rail inside a narrow panel", async () => {
   expect(rail.getBoundingClientRect().right).toBeLessThanOrEqual(
     host.getBoundingClientRect().right,
   );
+});
+
+it("floats over the chat, moves when dragged, stays on screen, and returns", async () => {
+  const onMove = vi.fn();
+  const onReturn = vi.fn();
+  const view = await render(
+    <DeviceFloatWindow title="iPhone 16" x={100} y={100} onMove={onMove} onReturn={onReturn}>
+      <p>screen</p>
+    </DeviceFloatWindow>,
+  );
+  try {
+    const dialog = page.getByRole("dialog", { name: "iPhone 16 floating over the chat" });
+    await expect.element(dialog).toBeVisible();
+    const element = dialog.element() as HTMLElement;
+    const before = element.getBoundingClientRect();
+    const title = element.querySelector(".dv-float-title") as HTMLElement;
+    const box = title.getBoundingClientRect();
+    const down = (type: string, x: number, y: number) =>
+      title.dispatchEvent(
+        new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true }),
+      );
+    down("pointerdown", box.left + 20, box.top + 10);
+    down("pointermove", box.left - 10, box.top + 10);
+    down("pointerup", box.left - 10, box.top + 10);
+    await expect.poll(() => element.getBoundingClientRect().left).toBeCloseTo(before.left - 30, 0);
+    expect(onMove).toHaveBeenCalled();
+    const rect = element.getBoundingClientRect();
+    expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
+    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+    await page.getByRole("button", { name: "Return to panel" }).click();
+    expect(onReturn).toHaveBeenCalled();
+  } finally {
+    await view.unmount();
+  }
 });

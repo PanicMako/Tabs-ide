@@ -15,6 +15,10 @@ export interface CompanionSurface {
   hostId?: string;
   deviceId?: string;
   platform?: "ios" | "android";
+  /** Device tabs: shown in a window over the chat instead of inside the panel. */
+  floating?: boolean;
+  floatX?: number;
+  floatY?: number;
   /** Side chat tabs: the hidden fork this tab shows. */
   sideChatThreadId?: string;
 }

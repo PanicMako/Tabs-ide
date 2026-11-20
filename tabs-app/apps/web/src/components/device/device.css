@@ -412,3 +412,61 @@
   display: flex;
   gap: 6px;
 }
+
+/* Floating device window */
+.dv-float {
+  position: fixed;
+  z-index: 55;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--popover) 88%, transparent);
+  color: var(--popover-foreground);
+  backdrop-filter: blur(14px);
+  border-radius: var(--radius-surface);
+}
+.dv-float-title {
+  display: flex;
+  cursor: grab;
+  touch-action: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  font-size: 12px;
+  user-select: none;
+}
+.dv-float-title:active {
+  cursor: grabbing;
+}
+.dv-float-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dv-float-body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.dv-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.dv-link:hover {
+  opacity: 1;
+}

@@ -6,6 +6,7 @@ import {
   SquareIcon,
   ArrowLeftIcon,
   WrenchIcon,
+  PictureInPicture2Icon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from "react";
 import { canStreamVideo, deviceRailButtons } from "~/device/deviceLogic";
@@ -30,6 +31,8 @@ export function DeviceStreamView({
   onToggleTools,
   onScreenshot,
   toolsOpen = false,
+  floating = false,
+  onToggleFloat,
 }: {
   deviceId: string;
   platform: DevicePlatform;
@@ -39,6 +42,9 @@ export function DeviceStreamView({
   onToggleTools: () => void;
   onScreenshot?: ((blob: Blob) => void) | undefined;
   toolsOpen?: boolean;
+  /** True while this screen is in the window over the chat. */
+  floating?: boolean;
+  onToggleFloat?: (() => void) | undefined;
 }) {
   const hubBasePath = useDeviceStore((s) => s.state?.hubBasePath);
   const access = useMemo(
@@ -218,6 +224,18 @@ export function DeviceStreamView({
         >
           <CameraIcon size={15} />
         </button>
+        {onToggleFloat && (
+          <button
+            type="button"
+            className="cd-icon rounded-full"
+            aria-label={floating ? "Return to panel" : "Float over chat"}
+            title={floating ? "Return to panel" : "Float over chat"}
+            aria-pressed={floating}
+            onClick={onToggleFloat}
+          >
+            <PictureInPicture2Icon size={15} />
+          </button>
+        )}
         <button
           type="button"
           className="cd-icon rounded-full"
