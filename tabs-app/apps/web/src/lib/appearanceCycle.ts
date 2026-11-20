@@ -1,6 +1,10 @@
-import type { ThemePreference } from "./themes";
+import { DEFAULT_DARK_THEME_ID, type ThemePreference } from "./themes";
 
-const APPEARANCE_ORDER: ReadonlyArray<ThemePreference> = ["system", "tabs-light", "tabs-dark"];
+const APPEARANCE_ORDER: ReadonlyArray<ThemePreference> = [
+  "system",
+  "tabs-light",
+  DEFAULT_DARK_THEME_ID,
+];
 
 /** Next step of the light / dark / system cycle. Any other theme starts the cycle at system. */
 export function nextAppearancePreference(current: ThemePreference): ThemePreference {

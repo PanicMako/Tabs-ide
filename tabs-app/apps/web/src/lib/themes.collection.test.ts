@@ -22,6 +22,13 @@ describe("built-in theme collection", () => {
     "dracula",
     "deep-blue",
     "solarized-light",
+    "graphite",
+    "ultraviolet",
+    "acid",
+    "cyberdeck",
+    "redline",
+    "paper",
+    "fog",
   ] as const)("%s keeps text and filled controls readable", (id) => {
     const { colors } = THEME_DEFINITIONS[id];
     for (const surface of [colors.background, colors.card]) {

@@ -9,6 +9,8 @@ import {
   upgradeFontPreferences,
   resolveFontTypography,
   DEFAULT_THEME_ID,
+  DEFAULT_DARK_THEME_ID,
+  RETIRED_THEME_REPLACEMENTS,
   THEME_DEFINITIONS,
   getOptimalPrimaryForeground,
   type CustomThemeConfig,
@@ -227,7 +229,12 @@ function getStoredPreference(): ThemePreference {
   if (!raw) return "system";
   if (raw === "system") return "system";
   if (raw === "light") return "tabs-light";
-  if (raw === "dark") return "tabs-dark";
+  if (raw === "dark") return DEFAULT_DARK_THEME_ID;
+  const replacement = RETIRED_THEME_REPLACEMENTS[raw];
+  if (replacement) {
+    localStorage.setItem(STORAGE_KEY, replacement);
+    return replacement;
+  }
   if (raw === "custom" || raw in THEME_DEFINITIONS) return raw as ThemeId;
   if (raw.startsWith("environment:") && raw.length > "environment:".length) {
     return raw as ThemePreference;
@@ -344,7 +351,7 @@ function applyTheme(
     const fallback =
       published?.appearance === "light"
         ? THEME_DEFINITIONS["tabs-light"]
-        : THEME_DEFINITIONS["tabs-dark"];
+        : THEME_DEFINITIONS[DEFAULT_DARK_THEME_ID];
     const colors = published?.colors ?? {};
     config = {
       baseVariant: published?.appearance ?? fallback.baseVariant,
@@ -740,7 +747,7 @@ export function useTheme() {
 
   const setTheme = useCallback((next: ThemePreference | "light" | "dark") => {
     const normalized: ThemePreference =
-      next === "light" ? "tabs-light" : next === "dark" ? "tabs-dark" : next;
+      next === "light" ? "tabs-light" : next === "dark" ? DEFAULT_DARK_THEME_ID : next;
     localStorage.setItem(STORAGE_KEY, normalized);
     applyTheme(normalized, true);
     emitChange();

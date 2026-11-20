@@ -73,6 +73,8 @@ import {
   EDITOR_FONT_OPTIONS,
   UI_FONT_OPTIONS,
   THEME_DEFINITIONS,
+  PICKABLE_THEME_DEFINITIONS,
+  DEFAULT_DARK_THEME_ID,
   calculateContrastRatio,
   hexToHsv,
   hexToRgb,
@@ -337,11 +339,17 @@ function StudioColorPickerPopover({
 }
 
 const THEME_COLLECTION_ORDER = [
+  "ultraviolet",
+  "cyberdeck",
+  "acid",
+  "redline",
+  "graphite",
+  "paper",
+  "fog",
   "abyss",
   "dracula",
   "deep-blue",
   "solarized-light",
-  "tabs-dark",
   "tabs-light",
   "true-black",
   "tabs-monotone",
@@ -388,7 +396,9 @@ export function ThemePickerGrid({
     ? environmentThemes?.find((theme) => `environment:${theme.id}` === activeTheme)
     : undefined;
   const fallbackDefinition =
-    THEME_DEFINITIONS[publishedTheme?.appearance === "light" ? "tabs-light" : "tabs-dark"];
+    THEME_DEFINITIONS[
+      publishedTheme?.appearance === "light" ? "tabs-light" : DEFAULT_DARK_THEME_ID
+    ];
   const selectedConfig: CustomThemeConfig =
     activeTheme === "custom"
       ? customConfig
@@ -478,8 +488,7 @@ export function ThemePickerGrid({
       codeKeyword: fallbackDefinition.colors.primary,
       codeString: fallbackDefinition.colors.foreground,
     },
-    ...Object.values(THEME_DEFINITIONS)
-      .filter((t) => t.id !== "custom")
+    ...PICKABLE_THEME_DEFINITIONS.filter((t) => t.id !== "custom")
       .sort((a, b) => THEME_COLLECTION_ORDER.indexOf(a.id) - THEME_COLLECTION_ORDER.indexOf(b.id))
       .map((t) => ({
         id: t.id,
@@ -498,7 +507,7 @@ export function ThemePickerGrid({
       const fallback =
         published.appearance === "light"
           ? THEME_DEFINITIONS["tabs-light"]
-          : THEME_DEFINITIONS["tabs-dark"];
+          : THEME_DEFINITIONS[DEFAULT_DARK_THEME_ID];
       const colors = published.colors ?? {};
       return {
         id: `environment:${published.id}` as ThemePreference,

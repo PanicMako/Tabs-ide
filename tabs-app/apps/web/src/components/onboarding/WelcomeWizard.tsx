@@ -621,7 +621,12 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
         storedTheme === "light"
       )
         return "light";
-      if (storedTheme === "tabs-monotone" || storedTheme === "tabs-dark" || storedTheme === "dark")
+      if (
+        storedTheme === "tabs-monotone" ||
+        storedTheme === "tabs-dark" ||
+        storedTheme === "true-black" ||
+        storedTheme === "dark"
+      )
         return "dark";
       if (storedTheme === "system") return "system";
     } catch {}

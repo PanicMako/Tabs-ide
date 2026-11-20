@@ -81,7 +81,7 @@ import {
   buildThemeSubmenuItem,
 } from "./CommandPalette.logic";
 import { useTheme } from "../hooks/useTheme";
-import { THEME_DEFINITIONS, type ThemePreference } from "../lib/themes";
+import { PICKABLE_THEME_DEFINITIONS, type ThemePreference } from "../lib/themes";
 import { CommandPaletteResults } from "./CommandPaletteResults";
 import { validateCloneSource } from "./cloneRepositoryValidation";
 import "./project-source-picker.css";
@@ -874,7 +874,7 @@ function OpenCommandPaletteDialog(props: {
 
   actionItems.push(
     buildThemeSubmenuItem({
-      themes: Object.values(THEME_DEFINITIONS).map((definition) => ({
+      themes: PICKABLE_THEME_DEFINITIONS.map((definition) => ({
         id: definition.id,
         name: definition.name,
         description: definition.description,
