@@ -18,12 +18,30 @@ interface Entry {
   size?: number;
   hash?: string;
   link?: string;
+  /** Source stat identity (inode, size, mtime and ctime in ns) when the hash
+   * was taken. Lets the next snapshot reuse the hash of an unchanged file.
+   * Not part of the snapshot's content: comparisons ignore it. */
+  stamp?: string;
 }
+/** Hashes from an earlier snapshot, keyed by relative path. */
+type KnownHashes = ReadonlyMap<string, { stamp: string; hash: string }>;
+/**
+ * Format 1 stores a full copy of every root inside the snapshot directory.
+ * Format 2 stores each distinct file content once in the shared object store
+ * (`objects/<aa>/<sha256>`), so a snapshot of mostly unchanged data only stats
+ * files and writes a manifest. Both formats stay readable and restorable.
+ */
 interface Backup extends DataBackupSummary {
-  format: 1;
+  format: 1 | 2;
   createdByVersion: string;
   roots: Array<{ source: string; present: boolean; entries: Entry[] }>;
 }
+/** Small sidecar so listing snapshots never parses every multi-MB manifest. */
+interface BackupListing extends DataBackupSummary {
+  sources: string[];
+}
+const HASH = /^[0-9a-f]{64}$/;
+const OBJECT_TEMP_PREFIX = "tmp-";
 interface RestoreOperation {
   source: string;
   stage: string;
@@ -103,9 +121,13 @@ function excluded(relative: string): boolean {
     new RegExp(`^(?:Partitions/[^/]+|code-oss-desktop/[^/]+|code-oss-main)/${cache}(?:/|$)`).test(
       normalized,
     ) ||
-    ["node-compile-cache", "desktop-dev.log", "code-host-manager.log"].some(
-      (name) => normalized === name || normalized.startsWith(`${name}/`),
-    )
+    [
+      "node-compile-cache",
+      "desktop-dev.log",
+      "code-host-manager.log",
+      // Code's own download cache of extension packages; Code re-fetches it.
+      "code-oss-desktop/shared-process/CachedExtensionVSIXs",
+    ].some((name) => normalized === name || normalized.startsWith(`${name}/`))
   );
 }
 function removeInternalTree(path: string): void {
@@ -142,21 +164,39 @@ function backupStat(path: string): FS.Stats | null {
   return stat;
 }
 
-function inventory(root: string): Entry[] {
+function fileStamp(path: string): string {
+  const stat = FS.lstatSync(path, { bigint: true });
+  return `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+}
+
+/** `known` lets an unchanged file (same inode, size, mtime and ctime) reuse the
+ * hash recorded by the previous snapshot instead of being read again. */
+function inventory(root: string, known?: KnownHashes): Entry[] {
   if (FS.lstatSync(root).isSymbolicLink() || !FS.statSync(root).isDirectory())
     throw new Error("Backup root must be a real directory.");
   const entries: Entry[] = [];
   const walk = (directory: string): void => {
     for (const name of FS.readdirSync(directory).sort()) {
       const path = Path.join(directory, name);
-      if (excluded(Path.relative(root, path))) continue;
+      const relative = Path.relative(root, path);
+      if (excluded(relative)) continue;
       const stat = backupStat(path);
       if (!stat) continue;
       if (entries.length >= 250_000) throw new Error("Backup contains too many files.");
+      let file: Pick<Entry, "size" | "hash" | "stamp"> = {};
+      if (stat.isFile()) {
+        const stamp = fileStamp(path);
+        const previous = known?.get(relative);
+        file = {
+          size: stat.size,
+          hash: previous?.stamp === stamp ? previous.hash : hashFile(path),
+          stamp,
+        };
+      }
       entries.push({
-        path: Path.relative(root, path),
+        path: relative,
         mode: stat.mode & 0o777,
-        ...(stat.isFile() ? { size: stat.size, hash: hashFile(path) } : {}),
+        ...file,
         ...(stat.isSymbolicLink() ? { link: FS.readlinkSync(path) } : {}),
       });
       if (stat.isDirectory()) walk(path);
@@ -165,7 +205,113 @@ function inventory(root: string): Entry[] {
   walk(root);
   return entries;
 }
-function copyTree(source: string, destination: string, prefix = ""): void {
+
+function stampedHashes(entries: readonly Entry[]): KnownHashes {
+  const hashes = new Map<string, { stamp: string; hash: string }>();
+  for (const entry of entries) {
+    if (typeof entry.stamp === "string" && typeof entry.hash === "string")
+      hashes.set(entry.path, { stamp: entry.stamp, hash: entry.hash });
+  }
+  return hashes;
+}
+
+/** Content identity of a tree: stamps describe where a hash came from, not
+ * what was saved, so a verified copy matches its source without them. */
+function sameContent(left: readonly Entry[], right: readonly Entry[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => {
+    const other = right[index]!;
+    return (
+      entry.path === other.path &&
+      entry.mode === other.mode &&
+      entry.size === other.size &&
+      entry.hash === other.hash &&
+      entry.link === other.link
+    );
+  });
+}
+
+function isDirectoryEntry(entry: Entry): boolean {
+  return entry.size === undefined && entry.hash === undefined && entry.link === undefined;
+}
+
+/** A manifest drives where restore writes, so every path must stay inside its
+ * root and every parent must be a directory the manifest itself creates (a
+ * restored symbolic link can never be used to write outside the root). */
+function assertRestorableEntries(entries: readonly Entry[]): void {
+  const directories = new Set<string>([""]);
+  for (const entry of entries) {
+    const path = entry.path;
+    if (
+      typeof path !== "string" ||
+      path === "" ||
+      Path.isAbsolute(path) ||
+      Path.normalize(path) !== path ||
+      path.split(Path.sep).some((part) => part === ".." || part === ".") ||
+      !directories.has(Path.dirname(path) === "." ? "" : Path.dirname(path)) ||
+      !Number.isInteger(entry.mode) ||
+      entry.mode < 0 ||
+      entry.mode > 0o777
+    )
+      throw new Error("Invalid backup entry; saved data was left untouched.");
+    if (entry.hash !== undefined) {
+      if (!HASH.test(entry.hash) || !Number.isSafeInteger(entry.size) || entry.link !== undefined)
+        throw new Error("Invalid backup entry; saved data was left untouched.");
+    } else if (entry.link !== undefined) {
+      if (typeof entry.link !== "string" || entry.size !== undefined)
+        throw new Error("Invalid backup entry; saved data was left untouched.");
+    } else if (isDirectoryEntry(entry)) directories.add(path);
+    else throw new Error("Invalid backup entry; saved data was left untouched.");
+  }
+}
+
+/** Rebuilds a format 2 root from the object store. Entries are in walk order,
+ * so parents always precede their children. */
+function materialize(
+  entries: readonly Entry[],
+  objectPath: (hash: string) => string,
+  destination: string,
+): void {
+  assertRestorableEntries(entries);
+  FS.mkdirSync(destination, { recursive: true, mode: 0o700 });
+  const directories: Entry[] = [];
+  for (const entry of entries) {
+    const target = Path.join(destination, entry.path);
+    if (entry.hash !== undefined) {
+      FS.copyFileSync(objectPath(entry.hash), target, FS.constants.COPYFILE_FICLONE);
+      FS.chmodSync(target, entry.mode | 0o600);
+      const fd = FS.openSync(target, "r+");
+      try {
+        FS.chmodSync(target, entry.mode);
+        FS.fsyncSync(fd);
+      } finally {
+        FS.closeSync(fd);
+      }
+    } else if (entry.link !== undefined) FS.symlinkSync(entry.link, target);
+    else {
+      FS.mkdirSync(target, { mode: 0o700 });
+      directories.push(entry);
+    }
+  }
+  // Children first, so read-only directory modes are applied after their contents.
+  for (const entry of directories.reverse()) {
+    const target = Path.join(destination, entry.path);
+    syncDirectory(target);
+    FS.chmodSync(target, entry.mode);
+  }
+  syncDirectory(destination);
+}
+
+/**
+ * `durable` flushes every copied file and directory to stable storage before
+ * returning. Restores need that because the copy replaces live data. Snapshots
+ * do not: on macOS each flush is an F_FULLFSYNC drive-cache flush (~4 ms), so
+ * flushing a 28k-file snapshot took about two minutes on the main thread before
+ * the first window. A snapshot is instead published atomically after its
+ * manifest is flushed, and its content is re-hashed by `verify()` before any
+ * restore uses it, so an interrupted write can never reach live data.
+ */
+function copyTree(source: string, destination: string, durable: boolean, prefix = ""): void {
   FS.mkdirSync(destination, { recursive: true, mode: 0o700 });
   for (const name of FS.readdirSync(source)) {
     const relative = Path.join(prefix, name);
@@ -175,10 +321,14 @@ function copyTree(source: string, destination: string, prefix = ""): void {
     const stat = backupStat(from);
     if (!stat) continue;
     if (stat.isDirectory()) {
-      copyTree(from, to, relative);
+      copyTree(from, to, durable, relative);
       FS.chmodSync(to, stat.mode & 0o777);
     } else if (stat.isFile()) {
       FS.copyFileSync(from, to, FS.constants.COPYFILE_FICLONE);
+      if (!durable) {
+        FS.chmodSync(to, stat.mode & 0o777);
+        continue;
+      }
       FS.chmodSync(to, (stat.mode & 0o777) | 0o600);
       const fd = FS.openSync(to, "r+");
       try {
@@ -192,7 +342,7 @@ function copyTree(source: string, destination: string, prefix = ""): void {
       FS.symlinkSync(FS.readlinkSync(from), to);
     } else throw new Error(`Cannot back up a special file: ${from}`);
   }
-  syncDirectory(destination);
+  if (durable) syncDirectory(destination);
 }
 
 /** Call startup/restore only while the desktop owns its single-instance lock,
@@ -208,6 +358,12 @@ export class DataRecovery {
       const space = FS.statfsSync(directory);
       return space.bavail * space.bsize;
     },
+    /**
+     * Flush each newly stored object. macOS implements every flush as an
+     * F_FULLFSYNC drive-cache flush (~4 ms each), and APFS clones there carry no
+     * data writes of their own, so it relies on the manifest flush instead.
+     */
+    private readonly flushEachObject: boolean = process.platform !== "darwin",
   ) {
     const candidates = [...new Set(roots.map(canonical))];
     this.roots = candidates
@@ -267,21 +423,107 @@ export class DataRecovery {
       .filter((id) => ID.test(id))
       .flatMap((id) => {
         try {
-          const backup = this.read(id);
-          return [
-            {
-              id,
-              version: backup.version,
-              createdAt: backup.createdAt,
-              reason: backup.reason,
-              bytes: backup.bytes,
-            },
-          ];
+          return [this.listing(id)];
         } catch {
           return [];
         }
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  /** Reads the snapshot's sidecar summary; a snapshot without one (or with a
+   * damaged one) is read in full once and gets a summary for later launches. */
+  private listing(id: string): DataBackupSummary {
+    if (!ID.test(id)) throw new Error("Invalid backup identifier.");
+    const path = Path.join(this.directory, id, "summary.json");
+    try {
+      if (!FS.lstatSync(path).isFile()) throw new Error("Invalid backup summary.");
+      const value = JSON.parse(FS.readFileSync(path, "utf8")) as BackupListing;
+      if (
+        value.id === id &&
+        typeof value.version === "string" &&
+        typeof value.reason === "string" &&
+        typeof value.createdAt === "string" &&
+        Number.isFinite(Date.parse(value.createdAt)) &&
+        Number.isFinite(value.bytes) &&
+        value.bytes >= 0 &&
+        Array.isArray(value.sources) &&
+        JSON.stringify(value.sources) === JSON.stringify(this.roots)
+      ) {
+        const { id: _, version, createdAt, reason, bytes } = value;
+        return { id, version, createdAt, reason, bytes };
+      }
+    } catch {
+      /* Fall back to the manifest. */
+    }
+    const backup = this.read(id);
+    const summary: DataBackupSummary = {
+      id,
+      version: backup.version,
+      createdAt: backup.createdAt,
+      reason: backup.reason,
+      bytes: backup.bytes,
+    };
+    try {
+      this.writeListing(Path.join(this.directory, id), summary);
+    } catch {
+      /* A read-only snapshot is still listed from its manifest. */
+    }
+    return summary;
+  }
+
+  private writeListing(directory: string, summary: DataBackupSummary): void {
+    const listing: BackupListing = { ...summary, sources: [...this.roots] };
+    writeJson(Path.join(directory, "summary.json"), listing);
+  }
+
+  private get objectsDirectory(): string {
+    return Path.join(this.directory, "objects");
+  }
+
+  private objectPath(hash: string): string {
+    if (!HASH.test(hash)) throw new Error("Invalid backup object.");
+    return Path.join(this.objectsDirectory, hash.slice(0, 2), hash);
+  }
+
+  private hasObject(hash: string): boolean {
+    try {
+      const stat = FS.lstatSync(this.objectPath(hash));
+      return stat.isFile();
+    } catch {
+      return false;
+    }
+  }
+
+  /** Clones `source` into the object store under the hash recorded for it.
+   * The clone is hashed, so a file that changed after it was inventoried is
+   * refused instead of stored under the wrong name. */
+  private storeObject(source: string, hash: string): void {
+    const target = this.objectPath(hash);
+    const directory = Path.dirname(target);
+    FS.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const temporary = Path.join(directory, `${OBJECT_TEMP_PREFIX}${randomUUID()}`);
+    try {
+      FS.copyFileSync(source, temporary, FS.constants.COPYFILE_FICLONE);
+      if (hashFile(temporary) !== hash)
+        throw new Error("Backup changed while being copied; no complete snapshot was published.");
+      if (this.flushEachObject) {
+        const fd = FS.openSync(temporary, "r+");
+        try {
+          FS.fsyncSync(fd);
+        } finally {
+          FS.closeSync(fd);
+        }
+      }
+      FS.chmodSync(temporary, 0o400);
+      FS.renameSync(temporary, target);
+      if (this.flushEachObject) syncDirectory(directory);
+    } catch (error) {
+      FS.rmSync(temporary, { force: true });
+      if ((error as NodeJS.ErrnoException).code === "ENOENT")
+        throw new Error("Backup changed while being copied; no complete snapshot was published.");
+      throw error;
+    }
   }
 
   get ownsStores(): boolean {
@@ -316,32 +558,62 @@ export class DataRecovery {
     const id = randomUUID();
     const stage = Path.join(this.directory, `${id}.partial`);
     FS.mkdirSync(stage, { mode: 0o700 });
+    // Objects first stored by this attempt; nothing else can reference them.
+    const stored: string[] = [];
     try {
+      // The newest snapshot's stamps let unchanged files skip hashing entirely.
+      const known = this.knownHashes();
       const roots = this.roots.map((source) => {
         if (FS.existsSync(source) && !FS.statSync(source).isDirectory())
           throw new Error(`Backup root is not a directory: ${source}`);
         return {
           source,
           present: FS.existsSync(source),
-          entries: FS.existsSync(source) ? inventory(source) : [],
+          entries: FS.existsSync(source) ? inventory(source, known.get(source)) : [],
         };
       });
       const bytes = roots
         .flatMap((root) => root.entries)
         .reduce((sum, entry) => sum + (entry.size ?? 0), 0);
-      if (this.freeDiskBytes(this.directory) < bytes + 64 * 1024 * 1024)
+      // Only content the store does not already hold is copied.
+      const missing = new Map<string, string>();
+      let missingBytes = 0;
+      for (const root of roots) {
+        for (const entry of root.entries) {
+          if (entry.hash === undefined || missing.has(entry.hash) || this.hasObject(entry.hash))
+            continue;
+          missing.set(entry.hash, Path.join(root.source, entry.path));
+          missingBytes += entry.size ?? 0;
+        }
+      }
+      if (this.freeDiskBytes(this.directory) < missingBytes + 64 * 1024 * 1024)
         throw new Error(
           "Not enough free space for a verified data backup. Free disk space and restart Tabs.",
         );
-      roots.forEach((root, index) => {
-        if (!root.present) return;
-        const destination = Path.join(stage, String(index));
-        copyTree(root.source, destination);
-        if (JSON.stringify(inventory(destination)) !== JSON.stringify(root.entries))
-          throw new Error("Backup changed while being copied; no complete snapshot was published.");
-      });
+      for (const [hash, source] of missing) {
+        // Recorded first so a failed copy's empty prefix directory is pruned too.
+        stored.push(hash);
+        this.storeObject(source, hash);
+      }
+      // Every file must still be exactly what was inventoried, including files
+      // whose content was already stored, or the snapshot is not one moment.
+      for (const root of roots) {
+        for (const entry of root.entries) {
+          if (entry.stamp === undefined) continue;
+          let current: string | null;
+          try {
+            current = fileStamp(Path.join(root.source, entry.path));
+          } catch {
+            current = null;
+          }
+          if (current !== entry.stamp)
+            throw new Error(
+              "Backup changed while being copied; no complete snapshot was published.",
+            );
+        }
+      }
       const backup: Backup = {
-        format: 1,
+        format: 2,
         createdByVersion: this.version,
         id,
         version,
@@ -350,13 +622,32 @@ export class DataRecovery {
         bytes,
         roots,
       };
+      const summary = { id, version, createdAt: backup.createdAt, reason, bytes };
       writeJson(Path.join(stage, "manifest.json"), backup);
+      this.writeListing(stage, summary);
       move(stage, Path.join(this.directory, id));
-      return { id, version, createdAt: backup.createdAt, reason, bytes };
+      return summary;
     } catch (error) {
       removeInternalTree(stage);
+      this.discardObjects(stored);
       throw error;
     }
+  }
+
+  /** Per-root hashes from the newest readable snapshot. Unreadable or older
+   * stamp-less manifests simply mean every file is hashed again. */
+  private knownHashes(): Map<string, KnownHashes> {
+    const known = new Map<string, KnownHashes>();
+    const latest = this.list()[0];
+    if (!latest) return known;
+    try {
+      for (const root of this.read(latest.id).roots) {
+        if (Array.isArray(root.entries)) known.set(root.source, stampedHashes(root.entries));
+      }
+    } catch {
+      known.clear();
+    }
+    return known;
   }
 
   private read(id: string): Backup {
@@ -369,7 +660,7 @@ export class DataRecovery {
       throw new Error("Invalid backup manifest.");
     const backup = JSON.parse(FS.readFileSync(manifest, "utf8")) as Backup;
     if (
-      backup.format !== 1 ||
+      (backup.format !== 1 && backup.format !== 2) ||
       backup.id !== id ||
       typeof backup.version !== "string" ||
       typeof backup.createdAt !== "string" ||
@@ -386,13 +677,31 @@ export class DataRecovery {
 
   verify(id: string): Backup {
     const backup = this.read(id);
+    const verifiedObjects = new Set<string>();
     backup.roots.forEach((root, index) => {
       if (typeof root.present !== "boolean" || !Array.isArray(root.entries))
         throw new Error("Invalid backup root.");
+      if (backup.format === 2) {
+        if (!root.present && root.entries.length) throw new Error("Invalid absent backup root.");
+        assertRestorableEntries(root.entries);
+        for (const entry of root.entries) {
+          if (entry.hash === undefined || verifiedObjects.has(entry.hash)) continue;
+          const object = this.objectPath(entry.hash);
+          let valid = false;
+          try {
+            const stat = FS.lstatSync(object);
+            valid = stat.isFile() && stat.size === entry.size && hashFile(object) === entry.hash;
+          } catch {
+            valid = false;
+          }
+          if (!valid) throw new Error("Backup verification failed. Current data was not changed.");
+          verifiedObjects.add(entry.hash);
+        }
+        return;
+      }
       if (
         root.present &&
-        JSON.stringify(inventory(Path.join(this.directory, id, String(index)))) !==
-          JSON.stringify(root.entries)
+        !sameContent(inventory(Path.join(this.directory, id, String(index))), root.entries)
       )
         throw new Error("Backup verification failed. Current data was not changed.");
       if (!root.present && root.entries.length) throw new Error("Invalid absent backup root.");
@@ -440,11 +749,15 @@ export class DataRecovery {
     try {
       for (const [index, operation] of operations.entries()) {
         if (!operation.present) continue;
-        copyTree(Path.join(this.directory, id, String(index)), operation.stage);
-        if (
-          JSON.stringify(inventory(operation.stage)) !==
-          JSON.stringify(backup.roots[index]!.entries)
-        )
+        // Restored copies replace live data, so every file is flushed.
+        if (backup.format === 2)
+          materialize(
+            backup.roots[index]!.entries,
+            (hash) => this.objectPath(hash),
+            operation.stage,
+          );
+        else copyTree(Path.join(this.directory, id, String(index)), operation.stage, true);
+        if (!sameContent(inventory(operation.stage), backup.roots[index]!.entries))
           throw new Error("Restore staging verification failed.");
       }
       for (const operation of operations) {
@@ -547,6 +860,57 @@ export class DataRecovery {
     if (FS.existsSync(Path.join(this.directory, "restore.json")))
       throw new Error("Finish recovery before deleting snapshots.");
     removeInternalTree(Path.join(this.directory, id));
+    this.collectUnreferencedObjects();
+  }
+
+  /** Deletes stored contents no remaining snapshot refers to. If any snapshot
+   * cannot be read, nothing is deleted: it might still need those objects. */
+  private collectUnreferencedObjects(): void {
+    if (!FS.existsSync(this.objectsDirectory)) return;
+    const referenced = new Set<string>();
+    for (const name of FS.readdirSync(this.directory)) {
+      if (!ID.test(name)) continue;
+      let backup: Backup;
+      try {
+        backup = this.read(name);
+      } catch {
+        return;
+      }
+      if (backup.format !== 2) continue;
+      for (const root of backup.roots)
+        for (const entry of root.entries) if (entry.hash) referenced.add(entry.hash);
+    }
+    for (const prefix of FS.readdirSync(this.objectsDirectory)) {
+      if (!/^[0-9a-f]{2}$/.test(prefix)) continue;
+      const directory = Path.join(this.objectsDirectory, prefix);
+      for (const name of FS.readdirSync(directory)) {
+        if (HASH.test(name) && !referenced.has(name)) FS.rmSync(Path.join(directory, name));
+      }
+    }
+  }
+
+  private discardObjects(hashes: readonly string[]): void {
+    for (const hash of hashes) FS.rmSync(this.objectPath(hash), { force: true });
+    // Leave no empty store behind for a snapshot that was never published.
+    const prefixes = new Set(hashes.map((hash) => Path.dirname(this.objectPath(hash))));
+    for (const directory of [...prefixes, this.objectsDirectory]) {
+      try {
+        if (FS.readdirSync(directory).length === 0) FS.rmdirSync(directory);
+      } catch {
+        /* Already gone, or still holds other snapshots' objects. */
+      }
+    }
+  }
+
+  /** Objects interrupted before they were named are never referenced. */
+  private removeTemporaryObjects(): void {
+    if (!FS.existsSync(this.objectsDirectory)) return;
+    for (const prefix of FS.readdirSync(this.objectsDirectory)) {
+      const directory = Path.join(this.objectsDirectory, prefix);
+      if (!/^[0-9a-f]{2}$/.test(prefix) || !FS.lstatSync(directory).isDirectory()) continue;
+      for (const name of FS.readdirSync(directory))
+        if (name.startsWith(OBJECT_TEMP_PREFIX)) FS.rmSync(Path.join(directory, name));
+    }
   }
 
   private markVersion(version = this.version): void {
@@ -562,6 +926,7 @@ export class DataRecovery {
       if (/^[0-9a-f-]{36}\.partial$/.test(name))
         removeInternalTree(Path.join(this.directory, name));
     }
+    this.removeTemporaryObjects();
     let previous: string | undefined;
     try {
       previous = JSON.parse(
@@ -588,7 +953,7 @@ export class DataRecovery {
               (root) =>
                 root.present === FS.existsSync(root.source) &&
                 (!root.present ||
-                  JSON.stringify(root.entries) === JSON.stringify(inventory(root.source))),
+                  sameContent(root.entries, inventory(root.source, stampedHashes(root.entries)))),
             );
           } catch {
             /* Publish a new verified copy if the older snapshot is damaged. */

@@ -4,6 +4,7 @@ import * as Path from "node:path";
 import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import { DataRecovery } from "./dataRecovery";
 
@@ -19,6 +20,13 @@ afterEach(() => {
   for (const directory of directories.splice(0))
     FS.rmSync(directory, { recursive: true, force: true });
 });
+/** Stored content of one file in a snapshot, read the way restore reads it. */
+function storedObject(backups: string, id: string, source: string, path: string): string {
+  const manifest = JSON.parse(FS.readFileSync(Path.join(backups, id, "manifest.json"), "utf8"));
+  const root = manifest.roots.find((candidate: { source: string }) => candidate.source === source);
+  const hash = root.entries.find((entry: { path: string }) => entry.path === path).hash as string;
+  return Path.join(backups, "objects", hash.slice(0, 2), hash);
+}
 function fixture(version = "1.0.0") {
   const directory = FS.realpathSync(FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-recovery-")));
   directories.push(directory);
@@ -82,10 +90,9 @@ it("creates daily/version snapshots before migration and restores an exact older
   );
   const preserved = manager.list().find((entry) => entry.reason === "before-restore")!;
   expect(preserved.version).toBe("2.0.0");
-  const rootIndex = manager.roots.indexOf(state);
-  expect(
-    FS.readFileSync(Path.join(backups, preserved.id, String(rootIndex), "settings.json"), "utf8"),
-  ).toBe("new settings");
+  expect(FS.readFileSync(storedObject(backups, preserved.id, state, "settings.json"), "utf8")).toBe(
+    "new settings",
+  );
 });
 it("blocks an unsupported downgrade and preserves current files", () => {
   const { state, profile, backups, manager } = fixture("3.0.0");
@@ -98,8 +105,9 @@ it("blocks an unsupported downgrade and preserves current files", () => {
 it("verifies content before changing live files or publishing a preservation snapshot", () => {
   const { state, manager, backups } = fixture();
   const backup = manager.create("manual");
-  const index = manager.roots.indexOf(state);
-  FS.writeFileSync(Path.join(backups, backup.id, String(index), "settings.json"), "tampered");
+  const object = storedObject(backups, backup.id, state, "settings.json");
+  FS.chmodSync(object, 0o600);
+  FS.writeFileSync(object, "tampered");
   expect(() => manager.restore(backup.id)).toThrow(/verification failed/);
   expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
   expect(manager.list()).toHaveLength(1);
@@ -109,14 +117,15 @@ it("refuses root substitution and path traversal while preserving links without 
   expect(() => manager.verify("../../state")).toThrow(/identifier/);
   FS.symlinkSync(Path.join(profile, "Local Storage"), Path.join(state, "external"));
   const backup = manager.create("manual");
-  const copiedLink = Path.join(
-    backups,
-    backup.id,
-    String(manager.roots.indexOf(state)),
-    "external",
-  );
-  expect(FS.lstatSync(copiedLink).isSymbolicLink()).toBe(true);
-  expect(FS.readlinkSync(copiedLink)).toBe(Path.join(profile, "Local Storage"));
+  const link = manager
+    .verify(backup.id)
+    .roots.find((root) => root.source === state)!
+    .entries.find((entry) => entry.path === "external")!;
+  expect(link).toMatchObject({ link: Path.join(profile, "Local Storage") });
+  expect(link.hash).toBeUndefined();
+  manager.restore(backup.id);
+  expect(FS.lstatSync(Path.join(state, "external")).isSymbolicLink()).toBe(true);
+  expect(FS.readlinkSync(Path.join(state, "external"))).toBe(Path.join(profile, "Local Storage"));
   const foreign = new DataRecovery(backups, [Path.join(directory, "different")], "1.0.0");
   expect(() => foreign.restore(backup.id)).toThrow(/paths/);
 });
@@ -386,12 +395,9 @@ it("can prepare an older release's data using a newer recovery controller withou
   expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
   const preserved = newer.list().find((entry) => entry.reason === "before-restore")!;
   expect(preserved.version).toBe("2.0.0");
-  expect(
-    FS.readFileSync(
-      Path.join(backups, preserved.id, String(newer.roots.indexOf(state)), "settings.json"),
-      "utf8",
-    ),
-  ).toBe("newer history");
+  expect(FS.readFileSync(storedObject(backups, preserved.id, state, "settings.json"), "utf8")).toBe(
+    "newer history",
+  );
   expect(manager.startup()).toEqual({});
 });
 it("does not prepare a version switch from an unversioned initial snapshot", () => {
@@ -501,3 +507,233 @@ it("keeps permission failures on saved data visible instead of publishing an inc
   expect(manager.list()).toEqual([]);
   expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
 });
+
+function stateEntries(manager: DataRecovery, id: string, state: string) {
+  return manager.verify(id).roots.find((root) => root.source === state)!.entries;
+}
+
+it("publishes a snapshot without flushing each copied file, but flushes every restored file", () => {
+  const { state, backups, profile } = fixture();
+  const manager = new DataRecovery(backups, [state, profile], "1.0.0", undefined, false);
+  for (let index = 0; index < 40; index += 1)
+    FS.writeFileSync(Path.join(state, `file-${index}.json`), `value ${index}`);
+  const fsync = vi.spyOn(FS, "fsyncSync");
+  const backup = manager.create("manual");
+  // Only the manifest and the publishing renames are flushed, however many files.
+  expect(fsync.mock.calls.length).toBeLessThan(10);
+  expect(stateEntries(manager, backup.id, state)).toHaveLength(41);
+
+  fsync.mockClear();
+  manager.restore(backup.id);
+  expect(fsync.mock.calls.length).toBeGreaterThan(41);
+  expect(FS.readFileSync(Path.join(state, "file-39.json"), "utf8")).toBe("value 39");
+});
+
+it("reuses hashes of unchanged files from the previous snapshot and rehashes changed ones", () => {
+  const { state, manager } = fixture();
+  FS.writeFileSync(Path.join(state, "unchanged.bin"), "same bytes");
+  manager.create("manual");
+  FS.writeFileSync(Path.join(state, "settings.json"), "new settings");
+
+  const unchanged = Path.join(state, "unchanged.bin");
+  const changed = Path.join(state, "settings.json");
+  const open = vi.spyOn(FS, "openSync");
+  const second = manager.create("manual");
+  const reads = (path: string) =>
+    open.mock.calls.filter(([file, flags]) => file === path && flags === "r").length;
+  expect(reads(unchanged)).toBe(0);
+  expect(reads(changed)).toBe(1);
+
+  open.mockRestore();
+  const entries = stateEntries(manager, second.id, state);
+  const first = stateEntries(manager, manager.list()[1]!.id, state);
+  const hashOf = (list: typeof entries, path: string) =>
+    list.find((entry) => entry.path === path)?.hash;
+  expect(hashOf(entries, "unchanged.bin")).toBe(hashOf(first, "unchanged.bin"));
+  expect(hashOf(entries, "settings.json")).not.toBe(hashOf(first, "settings.json"));
+});
+
+it("does not reuse a hash when a file is rewritten with the same size", () => {
+  const { state, manager } = fixture();
+  manager.create("manual");
+  // Same length as "old settings", so only the stamp can reveal the change.
+  FS.writeFileSync(Path.join(state, "settings.json"), "new settings");
+  const backup = manager.create("manual");
+  manager.restore(manager.list()[1]!.id);
+  expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
+  // The newer snapshot recorded the new bytes, not the reused old hash.
+  expect(() => manager.verify(backup.id)).not.toThrow();
+});
+
+it("still verifies and extends snapshots written before stamps existed", () => {
+  const { manager } = fixture();
+  const backup = manager.create("manual");
+  const manifestPath = Path.join(manager.directory, backup.id, "manifest.json");
+  const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+  for (const root of manifest.roots)
+    for (const entry of root.entries) delete (entry as { stamp?: string }).stamp;
+  FS.chmodSync(manifestPath, 0o600);
+  FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+  expect(() => manager.verify(backup.id)).not.toThrow();
+  expect(() => manager.verify(manager.create("manual").id)).not.toThrow();
+});
+
+it("leaves Code's cached extension downloads out of snapshots", () => {
+  const { state, manager } = fixture();
+  const cache = Path.join(state, "code-oss-desktop", "shared-process", "CachedExtensionVSIXs");
+  FS.mkdirSync(cache, { recursive: true });
+  FS.writeFileSync(Path.join(cache, "publisher.extension-1.0.0"), "vsix bytes");
+  FS.mkdirSync(Path.join(state, "code-oss-desktop", "extensions"), { recursive: true });
+  FS.writeFileSync(Path.join(state, "code-oss-desktop", "extensions", "extensions.json"), "[]");
+  const entries = stateEntries(manager, manager.create("manual").id, state);
+  expect(entries.some((entry) => entry.path.includes("CachedExtensionVSIXs"))).toBe(false);
+  expect(
+    entries.some(
+      (entry) => entry.path === Path.join("code-oss-desktop", "extensions", "extensions.json"),
+    ),
+  ).toBe(true);
+});
+
+it("copies nothing when a later snapshot finds the data unchanged", () => {
+  const { state, manager } = fixture();
+  for (let index = 0; index < 20; index += 1)
+    FS.writeFileSync(Path.join(state, `file-${index}.json`), `value ${index}`);
+  manager.create("manual");
+  const copy = vi.spyOn(FS, "copyFileSync");
+  const open = vi.spyOn(FS, "openSync");
+  const second = manager.create("daily");
+  expect(copy).not.toHaveBeenCalled();
+  // No source file is opened for hashing; only the manifest and summary are written.
+  expect(open.mock.calls.filter(([, flags]) => flags === "r").length).toBeLessThan(5);
+  copy.mockRestore();
+  open.mockRestore();
+  manager.restore(second.id);
+  expect(FS.readFileSync(Path.join(state, "file-7.json"), "utf8")).toBe("value 7");
+});
+
+it("stores identical contents once and keeps them while any snapshot needs them", () => {
+  const { state, backups, manager } = fixture();
+  FS.writeFileSync(Path.join(state, "a.txt"), "shared");
+  FS.writeFileSync(Path.join(state, "b.txt"), "shared");
+  const first = manager.create("manual");
+  expect(storedObject(backups, first.id, state, "a.txt")).toBe(
+    storedObject(backups, first.id, state, "b.txt"),
+  );
+  FS.writeFileSync(Path.join(state, "a.txt"), "only in the second snapshot");
+  const second = manager.create("manual");
+  const onlyFirst = storedObject(backups, first.id, state, "settings.json");
+  const onlySecond = storedObject(backups, second.id, state, "a.txt");
+
+  manager.remove(first.id);
+  // Content still used by the remaining snapshot survives; nothing else is deleted.
+  expect(FS.existsSync(onlyFirst)).toBe(true);
+  expect(FS.existsSync(onlySecond)).toBe(true);
+  expect(FS.existsSync(storedObject(backups, second.id, state, "b.txt"))).toBe(true);
+  FS.writeFileSync(Path.join(state, "b.txt"), "changed");
+  manager.restore(second.id);
+  expect(FS.readFileSync(Path.join(state, "b.txt"), "utf8")).toBe("shared");
+});
+
+it("collects objects that no remaining snapshot references when a snapshot is removed", () => {
+  const { state, backups, manager } = fixture();
+  const first = manager.create("manual");
+  const old = storedObject(backups, first.id, state, "settings.json");
+  FS.writeFileSync(Path.join(state, "settings.json"), "replacement");
+  manager.create("manual");
+  manager.remove(first.id);
+  expect(FS.existsSync(old)).toBe(false);
+});
+
+it("lists snapshots from their summaries without parsing manifests", () => {
+  const { manager } = fixture();
+  manager.create("manual");
+  manager.create("daily");
+  const read = vi.spyOn(FS, "readFileSync");
+  expect(manager.list().map((entry) => entry.reason)).toEqual(
+    expect.arrayContaining(["manual", "daily"]),
+  );
+  expect(read.mock.calls.some(([path]) => String(path).endsWith("manifest.json"))).toBe(false);
+});
+
+it("still lists and restores a snapshot written in the original full-copy format", () => {
+  const { state, profile, backups, manager } = fixture();
+  const id = "0b0bf00d-0000-4000-8000-000000000001";
+  const roots = manager.roots.map((source, index) => {
+    const copy = Path.join(backups, id, String(index));
+    FS.cpSync(source, copy, { recursive: true });
+    const entries =
+      source === state
+        ? [{ path: "settings.json", mode: 0o644, size: 12, hash: sha256("old settings") }]
+        : [
+            {
+              path: "Local Storage",
+              mode: FS.statSync(Path.join(profile, "Local Storage")).mode & 0o777,
+            },
+            {
+              path: Path.join("Local Storage", "profile"),
+              mode: 0o644,
+              size: 11,
+              hash: sha256("old profile"),
+            },
+          ];
+    for (const entry of entries) FS.chmodSync(Path.join(copy, entry.path), entry.mode);
+    return { source, present: true, entries };
+  });
+  FS.writeFileSync(
+    Path.join(backups, id, "manifest.json"),
+    JSON.stringify({
+      format: 1,
+      createdByVersion: "1.0.0",
+      id,
+      version: "1.0.0",
+      createdAt: "2026-11-01T00:00:00.000Z",
+      reason: "daily",
+      bytes: 23,
+      roots,
+    }),
+  );
+  expect(manager.list()).toEqual([expect.objectContaining({ id, reason: "daily" })]);
+  // The summary written while listing makes later launches cheap.
+  expect(FS.existsSync(Path.join(backups, id, "summary.json"))).toBe(true);
+  FS.writeFileSync(Path.join(state, "settings.json"), "new settings");
+  manager.restore(id);
+  expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
+});
+
+it("refuses a manifest that would write outside its root, even through a restored link", () => {
+  const { state, backups, directory, manager } = fixture();
+  const backup = manager.create("manual");
+  const manifestPath = Path.join(backups, backup.id, "manifest.json");
+  const original = FS.readFileSync(manifestPath, "utf8");
+  const hash = JSON.parse(original).roots.find((root: { source: string }) => root.source === state)
+    .entries[0].hash;
+  for (const forged of [
+    [{ path: Path.join("..", "escaped"), mode: 0o644, size: 12, hash }],
+    [
+      { path: "outside", mode: 0o777, link: directory },
+      { path: Path.join("outside", "escaped"), mode: 0o644, size: 12, hash },
+    ],
+  ]) {
+    const manifest = JSON.parse(original);
+    manifest.roots.find((root: { source: string }) => root.source === state).entries = forged;
+    FS.chmodSync(manifestPath, 0o600);
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    expect(() => manager.restore(backup.id)).toThrow(/Invalid backup entry/);
+    expect(FS.existsSync(Path.join(directory, "escaped"))).toBe(false);
+    expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
+  }
+});
+
+it("flushes each newly stored object where flushing is cheap", () => {
+  const { state, profile, backups } = fixture();
+  for (let index = 0; index < 10; index += 1)
+    FS.writeFileSync(Path.join(state, `file-${index}.json`), `value ${index}`);
+  const manager = new DataRecovery(backups, [state, profile], "1.0.0", undefined, true);
+  const fsync = vi.spyOn(FS, "fsyncSync");
+  manager.create("manual");
+  expect(fsync.mock.calls.length).toBeGreaterThanOrEqual(12);
+});
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}

@@ -419,6 +419,10 @@ const recoveryCodeStateDir = Path.join(
 let dataRecoveryStartupError: string | null = null;
 let dataRecoveryNotice: string | null = null;
 let dataRecovery: DataRecovery | null = null;
+// Recovery runs before log capture exists; keep its cost for the launch log so a
+// slow pre-window phase is visible instead of an unexplained gap.
+let dataRecoveryStartupSummary: string | null = null;
+const dataRecoveryStartedAt = performance.now();
 const restorePrefix = "--tabs-restore-backup=";
 const versionSwitchPrefix = "--tabs-prepare-version=";
 const versionSwitchArgument = process.argv.find((argument) =>
@@ -455,6 +459,7 @@ try {
     app.exit(0);
   } else if (app.isPackaged || process.env.TABS_ENABLE_DEV_BACKUPS === "1" || backupRequested) {
     const result = dataRecovery.startup();
+    dataRecoveryStartupSummary = `data recovery startup durationMs=${Math.round(performance.now() - dataRecoveryStartedAt)} snapshot=${result.backup ? "created" : result.restored ? "restored" : "skipped"}`;
     if (result.restored) {
       dataRecovery.releaseLocks();
       app.relaunch({ args: process.argv.slice(1) });
@@ -1040,7 +1045,10 @@ function initializePackagedLogging(): void {
       maxFiles: LOG_FILE_MAX_FILES,
     });
     installStdIoCapture();
-    writeDesktopLogHeader(`runtime log capture enabled logDir=${LOG_DIR}`);
+    writeDesktopLogHeader(
+      `runtime log capture enabled logDir=${LOG_DIR} processUptimeMs=${Math.round(process.uptime() * 1000)}`,
+    );
+    if (dataRecoveryStartupSummary) writeDesktopLogHeader(dataRecoveryStartupSummary);
   } catch (error) {
     // Logging setup should never block app startup.
     console.error("[desktop] failed to initialize packaged logging", error);
