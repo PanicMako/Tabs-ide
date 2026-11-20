@@ -578,34 +578,59 @@ it("opens Quick Actions with the default Option-K shortcut without using Siri's 
 });
 
 describe("model picker keys only apply while the picker is open", () => {
-  const key = (name: string) => event({ key: name, metaKey: true });
-  const inPicker = {
+  const macKey = (name: string) => event({ key: name, metaKey: true });
+  const linuxKey = (name: string) => event({ key: name, ctrlKey: true });
+  const inPicker = (platform = "MacIntel") => ({
+    platform,
     context: { modelPickerOpen: true, terminalFocus: false, shellChromeFocus: false },
-  };
-  const outside = { context: { terminalFocus: false, shellChromeFocus: true } };
+  });
+  const outside = (platform = "MacIntel") => ({
+    platform,
+    context: { terminalFocus: false, shellChromeFocus: true },
+  });
 
   it("jumps to a model by number inside the picker, and switches tools outside it", () => {
     assert.strictEqual(
-      resolveShortcutCommand(key("3"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      resolveShortcutCommand(macKey("3"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("MacIntel")),
       "modelPicker.jump.3",
     );
     assert.strictEqual(
-      resolveShortcutCommand(key("3"), DEFAULT_RESOLVED_KEYBINDINGS, outside),
+      resolveShortcutCommand(linuxKey("3"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("Linux")),
+      "modelPicker.jump.3",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(macKey("3"), DEFAULT_RESOLVED_KEYBINDINGS, outside("MacIntel")),
+      "tool.jumpTo3",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(linuxKey("3"), DEFAULT_RESOLVED_KEYBINDINGS, outside("Linux")),
       "tool.jumpTo3",
     );
   });
 
   it("steps providers inside the picker, and navigates history outside it", () => {
     assert.strictEqual(
-      resolveShortcutCommand(key("]"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      resolveShortcutCommand(macKey("]"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("MacIntel")),
       "modelPicker.nextProvider",
     );
     assert.strictEqual(
-      resolveShortcutCommand(key("["), DEFAULT_RESOLVED_KEYBINDINGS, inPicker),
+      resolveShortcutCommand(linuxKey("]"), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("Linux")),
+      "modelPicker.nextProvider",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(macKey("["), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("MacIntel")),
       "modelPicker.previousProvider",
     );
     assert.strictEqual(
-      resolveShortcutCommand(key("]"), DEFAULT_RESOLVED_KEYBINDINGS, outside),
+      resolveShortcutCommand(linuxKey("["), DEFAULT_RESOLVED_KEYBINDINGS, inPicker("Linux")),
+      "modelPicker.previousProvider",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(macKey("]"), DEFAULT_RESOLVED_KEYBINDINGS, outside("MacIntel")),
+      "navigation.forward",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(linuxKey("]"), DEFAULT_RESOLVED_KEYBINDINGS, outside("Linux")),
       "navigation.forward",
     );
   });
