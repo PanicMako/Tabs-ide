@@ -621,6 +621,87 @@ function paceOfShares(usedPercent: number, elapsed: number): LimitPace {
   return "on";
 }
 
+/**
+ * Where a window is heading if spending carries on at its average rate so far.
+ * `runsOut` windows run dry before they reset; `tight` ones finish with under
+ * 15% to spare. Very early in a window the rate is noise, so it reads `early`.
+ */
+export type RunwayVerdict = "exhausted" | "runsOut" | "tight" | "spare" | "early" | "unknown";
+
+export interface WindowRunway {
+  readonly verdict: RunwayVerdict;
+  readonly remainingPercent: number;
+  /** Quota left at reset at the current rate, 0..100; null without a rate. */
+  readonly projectedLeftPercent: number | null;
+  /** Until the window runs dry at the current rate; only for `runsOut`. */
+  readonly runsOutInMs: number | null;
+  /** Until the window resets; null without a reset time. */
+  readonly resetsInMs: number | null;
+}
+
+const RUNWAY_EARLY_SHARE = 0.03;
+const RUNWAY_TIGHT_PERCENT = 15;
+
+export function windowRunway(window: ServerProviderUsageWindow, now: number): WindowRunway {
+  const used = Math.max(0, Math.min(100, window.usedPercent));
+  const remaining = remainingPercent(window);
+  const resetsAt = resetMillis(window);
+  const resetsInMs = resetsAt === null ? null : Math.max(0, resetsAt - now);
+  const base = { remainingPercent: remaining, resetsInMs };
+  if (used >= 100) {
+    return { ...base, verdict: "exhausted", projectedLeftPercent: 0, runsOutInMs: 0 };
+  }
+  const elapsed = elapsedShare(window, now);
+  if (elapsed === null || window.windowDurationMins === undefined) {
+    return { ...base, verdict: "unknown", projectedLeftPercent: null, runsOutInMs: null };
+  }
+  if (used === 0) {
+    return { ...base, verdict: "spare", projectedLeftPercent: 100, runsOutInMs: null };
+  }
+  if (elapsed < RUNWAY_EARLY_SHARE) {
+    return { ...base, verdict: "early", projectedLeftPercent: null, runsOutInMs: null };
+  }
+  const projectedUsed = used / elapsed;
+  if (projectedUsed <= 100) {
+    const projectedLeftPercent = Math.round(100 - projectedUsed);
+    return {
+      ...base,
+      verdict: projectedLeftPercent < RUNWAY_TIGHT_PERCENT ? "tight" : "spare",
+      projectedLeftPercent,
+      runsOutInMs: null,
+    };
+  }
+  const length = window.windowDurationMins * MINUTE;
+  const usedPerMs = used / (elapsed * length);
+  return {
+    ...base,
+    verdict: "runsOut",
+    projectedLeftPercent: 0,
+    runsOutInMs: Math.round((100 - used) / usedPerMs),
+  };
+}
+
+const RUNWAY_SEVERITY: Record<RunwayVerdict, number> = {
+  exhausted: 0,
+  runsOut: 1,
+  tight: 2,
+  early: 3,
+  unknown: 3,
+  spare: 4,
+};
+
+/**
+ * Orders runways most urgent first: empty windows, then those running dry
+ * soonest, then the least quota left.
+ */
+export function compareRunways(left: WindowRunway, right: WindowRunway): number {
+  return (
+    RUNWAY_SEVERITY[left.verdict] - RUNWAY_SEVERITY[right.verdict] ||
+    (left.runsOutInMs ?? Infinity) - (right.runsOutInMs ?? Infinity) ||
+    left.remainingPercent - right.remainingPercent
+  );
+}
+
 /** `2h 13m`, `3d 4h`, `12m`. */
 export function formatDuration(ms: number): string {
   const remaining = Math.max(0, ms);

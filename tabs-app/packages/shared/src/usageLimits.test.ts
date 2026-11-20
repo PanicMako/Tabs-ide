@@ -26,6 +26,8 @@ import {
   paceOf,
   providersWithLimits,
   remainingPercent,
+  compareRunways,
+  windowRunway,
 } from "./usageLimits.ts";
 
 const now = Date.parse("2026-09-03T12:00:00.000Z");
@@ -78,6 +80,46 @@ describe("pace", () => {
     expect(formatResetsIn({ ...window, resetsAt: "2026-09-03T11:00:00.000Z" }, now)).toBe(
       "resets now",
     );
+  });
+});
+
+describe("windowRunway", () => {
+  // Three fifths through a five-hour window, two hours to go.
+  it("projects quota left at reset from the rate so far", () => {
+    expect(windowRunway({ ...window, usedPercent: 30 }, now)).toEqual({
+      verdict: "spare",
+      remainingPercent: 70,
+      projectedLeftPercent: 50,
+      runsOutInMs: null,
+      resetsInMs: 2 * 60 * 60_000,
+    });
+    expect(windowRunway({ ...window, usedPercent: 54 }, now).verdict).toBe("tight");
+  });
+
+  it("says when a window runs dry before its reset", () => {
+    // 90% in three hours is 30% an hour, so the last 10% lasts twenty minutes.
+    const runway = windowRunway({ ...window, usedPercent: 90 }, now);
+    expect(runway.verdict).toBe("runsOut");
+    expect(runway.runsOutInMs).toBe(20 * 60_000);
+  });
+
+  it("does not project without a clock, before a rate exists, or when already empty", () => {
+    expect(windowRunway({ ...window, resetsAt: undefined }, now).verdict).toBe("unknown");
+    expect(
+      windowRunway({ ...window, usedPercent: 5, resetsAt: "2026-09-03T16:59:00.000Z" }, now)
+        .verdict,
+    ).toBe("early");
+    expect(windowRunway({ ...window, usedPercent: 0 }, now).projectedLeftPercent).toBe(100);
+    expect(windowRunway({ ...window, usedPercent: 100 }, now).verdict).toBe("exhausted");
+  });
+
+  it("orders the most urgent window first", () => {
+    const runways = [30, 100, 95, 90, 54].map((usedPercent) =>
+      windowRunway({ ...window, usedPercent }, now),
+    );
+    expect(runways.toSorted(compareRunways).map((runway) => runway.remainingPercent)).toEqual([
+      0, 5, 10, 46, 70,
+    ]);
   });
 });
 
