@@ -227,19 +227,60 @@
   backdrop-filter: var(--qa-glass-blur);
   animation: qa-sub-in 180ms var(--qa-spring) both;
 }
-.qa-sub-panel[data-side="right"] {
-  --qa-sub-x: 0;
-  transform: translate(0, -50%);
-}
-.qa-sub-panel[data-side="left"] {
-  --qa-sub-x: -100%;
-  transform: translate(-100%, -50%);
-}
 @keyframes qa-sub-in {
   from {
     opacity: 0;
-    transform: translate(var(--qa-sub-x), -50%) scale(0.94);
+    transform: scale(0.94);
   }
+}
+/* Curved: the panel bends around the plate. Its glass is clipped to the curved outline so the
+   blur follows the shape; the rows inside stay level and step along the curve. */
+.qa-curved-menu {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  animation: qa-curved-in 160ms var(--qa-spring) both;
+}
+@keyframes qa-curved-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.qa-curved-glass {
+  position: absolute;
+  inset: 0;
+  clip-path: var(--qa-curve-clip);
+  background: var(--qa-plate);
+  -webkit-backdrop-filter: var(--qa-glass-blur);
+  backdrop-filter: var(--qa-glass-blur);
+}
+.qa-curved-outline {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.qa-curved-outline path {
+  fill: none;
+  stroke: var(--qa-glass-edge);
+  stroke-width: 1;
+}
+.qa-curved-title {
+  position: absolute;
+  margin: 0;
+  padding: 5px 9px 0;
+  line-height: 19px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qa-more-action.qa-curved-row {
+  position: absolute;
+  /* A row's slot is 34px; the row leaves the same small gap the card's rows keep. */
+  height: 31px;
+  margin-top: 1.5px;
+  pointer-events: auto;
 }
 .qa-sub-title {
   margin: 2px 8px 3px;
