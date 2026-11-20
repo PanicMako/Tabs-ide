@@ -622,6 +622,10 @@ export const ClientSettingsSchema = Schema.Struct({
   confirmTabClose: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   diffWordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   pinnedModels: Schema.Array(PinnedModelEntry).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  /** Provider ids in the order the user arranged Settings → Providers; unlisted ones follow. */
+  providerDirectoryOrder: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   sliderAnimationsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   animatedTrackFillEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   nyanCatSliderMode: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -2697,6 +2701,7 @@ export const ClientSettingsPatch = Schema.Struct({
   confirmTabClose: Schema.optionalKey(Schema.Boolean),
   diffWordWrap: Schema.optionalKey(Schema.Boolean),
   pinnedModels: Schema.optionalKey(Schema.Array(PinnedModelEntry)),
+  providerDirectoryOrder: Schema.optionalKey(Schema.Array(Schema.String)),
   sliderAnimationsEnabled: Schema.optionalKey(Schema.Boolean),
   animatedTrackFillEnabled: Schema.optionalKey(Schema.Boolean),
   nyanCatSliderMode: Schema.optionalKey(Schema.Boolean),

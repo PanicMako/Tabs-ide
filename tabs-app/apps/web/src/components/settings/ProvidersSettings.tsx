@@ -6,6 +6,7 @@ import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
 import { AntigravityAccount } from "./AntigravityAccount";
 import { ProviderInstallProgress } from "./ProviderInstallProgress";
 import { ProviderDirectory } from "./ProviderDirectory";
+import { applyProviderOrder, isCustomProviderOrder } from "./providerOrder";
 import { CustomAgentProviders } from "./CustomAgentProviders";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
@@ -1028,10 +1029,26 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
     });
   }, [draftModelOrders, serverProviders, settings.providerModelPreferences, settings.providers]);
 
+  // The user's arrangement of the directory; providers it does not list keep
+  // their built-in place after the arranged ones.
+  const savedProviderOrder = settings.providerDirectoryOrder;
+  const orderedProviderCards = useMemo(
+    () =>
+      applyProviderOrder(
+        providerCards.map((card) => ({ id: card.provider, card })),
+        savedProviderOrder,
+      ).map(({ card }) => card),
+    [providerCards, savedProviderOrder],
+  );
+  const providerOrderIsCustom = isCustomProviderOrder(
+    providerCards.map((card) => card.provider),
+    savedProviderOrder,
+  );
+
   const selectedProvider =
-    providerCards.find((card) => openProviderDetails[card.provider])?.provider ??
-    providerCards.find((card) => card.providerConfig.enabled)?.provider ??
-    providerCards[0]!.provider;
+    orderedProviderCards.find((card) => openProviderDetails[card.provider])?.provider ??
+    orderedProviderCards.find((card) => card.providerConfig.enabled)?.provider ??
+    orderedProviderCards[0]!.provider;
 
   const selectedCards = providerCards.filter((card) => card.provider === selectedProvider);
 
@@ -1276,7 +1293,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
 
       <div className="providers-workspace">
         <ProviderDirectory
-          entries={providerCards.map((card) => {
+          entries={orderedProviderCards.map((card) => {
             const action = providerNextAction({
               enabled: Boolean(card.providerConfig.enabled),
               needsInstall: card.needsInstall,
@@ -1327,6 +1344,9 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
           })}
           selectedId={selectedProvider}
           onSelect={(id) => setOpenProviderDetails(() => ({ [id]: true }))}
+          onReorder={(orderedIds) => updateSettings({ providerDirectoryOrder: orderedIds })}
+          isCustomOrder={providerOrderIsCustom}
+          onResetOrder={() => updateSettings({ providerDirectoryOrder: [] })}
         />
         {(() => {
           const enabledProvidersCount = providerCards.filter(
