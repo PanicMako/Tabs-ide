@@ -5,6 +5,7 @@ import {
   type UsageSummaryInput,
 } from "@tabs/contracts";
 import { makeWindow } from "@tabs/shared/usageFormat";
+import { ALL_TIME_SINCE_DAY } from "../components/settings/usage/usageLedger";
 import { ensureNativeApi } from "../nativeApi";
 import { appAtomRegistry } from "./atomRegistry";
 import { onUsageUpdated } from "../wsNativeApi";
@@ -34,6 +35,32 @@ export const usageMetricAtom = Atom.make<UsageMetric>("tokens").pipe(
   Atom.withLabel("tabs-usage-metric"),
   Atom.keepAlive,
 );
+
+export type UsageChartStyle = "bars" | "lines";
+const CHART_STYLE_KEY = "tabs:usage-chart-style";
+
+function storedChartStyle(): UsageChartStyle {
+  try {
+    return globalThis.localStorage?.getItem(CHART_STYLE_KEY) === "lines" ? "lines" : "bars";
+  } catch {
+    return "bars";
+  }
+}
+
+/** A per-device viewing preference, so it lives beside the browser rather than in settings. */
+export const usageChartStyleAtom = Atom.make<UsageChartStyle>(storedChartStyle()).pipe(
+  Atom.withLabel("tabs-usage-chart-style"),
+  Atom.keepAlive,
+);
+
+export function setUsageChartStyle(style: UsageChartStyle): void {
+  appAtomRegistry.set(usageChartStyleAtom, style);
+  try {
+    globalThis.localStorage?.setItem(CHART_STYLE_KEY, style);
+  } catch {
+    // Storage can be blocked; the choice still holds for this session.
+  }
+}
 
 /** Applies a usage shortcut to the page's state; the caller opens Settings on the usage page. */
 export function applyUsageCommand(command: UsageCommand): void {
@@ -74,7 +101,7 @@ export function presetToSummaryInput(preset: UsageWindowPreset): UsageSummaryInp
       const standard = makeWindow(3650); // 10 years
       return {
         ...standard,
-        sinceDay: "2020-01-01" as UsageSummaryInput["sinceDay"],
+        sinceDay: ALL_TIME_SINCE_DAY as UsageSummaryInput["sinceDay"],
       };
     }
   }
@@ -99,27 +126,41 @@ export function initUsageListeners() {
   });
 }
 
-let summaryRequest = 0;
-const summaryCache = new Map<string, { fetchedAt: number; value: UsageSummary }>();
+/** The window the shown summary covers, which lags the selected one while a scan runs. */
+export const usageShownWindowAtom = Atom.make<UsageWindowPreset | null>(null).pipe(
+  Atom.withLabel("tabs-usage-shown-window"),
+  Atom.keepAlive,
+);
 
+let summaryRequest = 0;
+const SUMMARY_FRESH_MS = 30_000;
+const summaryCache = new Map<UsageWindowPreset, { fetchedAt: number; value: UsageSummary }>();
+
+function showSummary(preset: UsageWindowPreset, value: UsageSummary, fetchedAt: number) {
+  appAtomRegistry.set(usageShownWindowAtom, preset);
+  appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
+    ...prev,
+    data: value,
+    error: null,
+    lastFetchedAt: fetchedAt,
+  }));
+}
+
+/**
+ * Shows whatever this window last returned at once, then rescans when that is
+ * older than {@link SUMMARY_FRESH_MS}. Switching back to a window never blanks
+ * the page; only a window never seen this session waits on its first scan.
+ */
 export async function fetchUsageSummary(
   customPreset?: UsageWindowPreset,
   options: { force?: boolean } = {},
 ): Promise<UsageSummary | null> {
-  const presetToFetch = customPreset ?? appAtomRegistry.get(usageTimeWindowAtom);
-  const input = presetToSummaryInput(presetToFetch);
+  const preset = customPreset ?? appAtomRegistry.get(usageTimeWindowAtom);
   const requestId = ++summaryRequest;
-  const cacheKey = JSON.stringify(input);
-  if (options.force) summaryCache.clear();
-  const cached = summaryCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < 30_000) {
-    appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
-      ...prev,
-      data: cached.value,
-      loading: false,
-      error: null,
-      lastFetchedAt: cached.fetchedAt,
-    }));
+  const cached = summaryCache.get(preset);
+  if (cached) showSummary(preset, cached.value, cached.fetchedAt);
+  if (cached && !options.force && Date.now() - cached.fetchedAt < SUMMARY_FRESH_MS) {
+    appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({ ...prev, loading: false }));
     return cached.value;
   }
   appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
@@ -130,17 +171,14 @@ export async function fetchUsageSummary(
 
   try {
     const api = ensureNativeApi();
-    const result = await api.server.readUsageSummary(input);
-    summaryCache.set(cacheKey, { fetchedAt: Date.now(), value: result });
-    while (summaryCache.size > 8) summaryCache.delete(summaryCache.keys().next().value!);
+    // Built per request so rolling windows end now, not when the page opened.
+    const result = await api.server.readUsageSummary(presetToSummaryInput(preset));
+    const fetchedAt = Date.now();
+    summaryCache.delete(preset);
+    summaryCache.set(preset, { fetchedAt, value: result });
     if (requestId !== summaryRequest) return result;
-    appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
-      ...prev,
-      data: result,
-      loading: false,
-      error: null,
-      lastFetchedAt: Date.now(),
-    }));
+    showSummary(preset, result, fetchedAt);
+    appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({ ...prev, loading: false }));
     return result;
   } catch (err: unknown) {
     if (requestId !== summaryRequest) return null;

@@ -56,3 +56,26 @@ it("reuses a recent window but an explicit refresh fetches fresh data", async ()
   await usage.fetchUsageSummary("7d", { force: true });
   expect(read).toHaveBeenCalledTimes(2);
 });
+it("keeps the last window on screen while a new one scans, and returns to a seen window at once", async () => {
+  const usage = await import("./usage");
+  const { appAtomRegistry } = await import("./atomRegistry");
+  let finishMonth!: (value: UsageSummary) => void;
+  read.mockResolvedValueOnce(summary(7)).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishMonth = resolve;
+      }),
+  );
+  await usage.fetchUsageSummary("7d");
+  const month = usage.fetchUsageSummary("30d");
+  expect(appAtomRegistry.get(usage.usageShownWindowAtom)).toBe("7d");
+  expect(appAtomRegistry.get(usage.usageSummaryStateAtom)).toMatchObject({ loading: true });
+  await usage.fetchUsageSummary("7d");
+  expect(appAtomRegistry.get(usage.usageSummaryStateAtom).data?.pricing.knownModels).toBe(7);
+  finishMonth(summary(30));
+  await month;
+  expect(appAtomRegistry.get(usage.usageShownWindowAtom)).toBe("7d");
+  await usage.fetchUsageSummary("30d");
+  expect(appAtomRegistry.get(usage.usageShownWindowAtom)).toBe("30d");
+  expect(read).toHaveBeenCalledTimes(2);
+});
