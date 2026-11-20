@@ -21,7 +21,15 @@ import { modelPickerJumpIndexFromCommand, resolveShortcutCommand } from "~/keybi
 import { MODEL_PICKER_SHORTCUT_CONTEXT, stepProviderTab } from "~/lib/modelPickerNav";
 import { useKeybindings } from "~/state/settings";
 import gsap from "gsap";
-import { ChevronDownIcon, LayersIcon, PinIcon, SearchIcon, XIcon, ZapIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  LayersIcon,
+  PinIcon,
+  SearchIcon,
+  StarIcon,
+  XIcon,
+  ZapIcon,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Menu, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -50,6 +58,13 @@ import { getProviderModels, getProviderSnapshot } from "../../providerModels";
 import { PROVIDER_OPTIONS, type ProviderPickerKind } from "../../session-logic";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { curateModels, SHORTLIST_LIMIT } from "./fusedModelCuration";
+import {
+  arrangeFavoritesFirst,
+  getFavoriteModels,
+  isFavoriteModel,
+  isFavoritesFirst,
+  toggleFavoriteModel,
+} from "../../modelFavorites";
 import { getPinnedModels, isPinnedModel, togglePinnedModel } from "../../modelPinning";
 import {
   applyCustomModelOrdering,
@@ -281,6 +296,19 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       updateSettings({ pinnedModels: nextPinned as any });
     },
     [settings, updateSettings],
+  );
+
+  const handleToggleProviderFavorite = useCallback(
+    (providerId: string, modelSlug: string) => {
+      updateSettings({
+        providerModelPreferences: toggleFavoriteModel(
+          settings.providerModelPreferences,
+          providerId,
+          modelSlug,
+        ) as any,
+      });
+    },
+    [settings.providerModelPreferences, updateSettings],
   );
 
   // Aggregated models with provider attribution across all providers
@@ -603,7 +631,33 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
     activeTab === "pinned" ? undefined : settings.providerModelPreferences?.[activeTab as any];
   const userCurated =
     (providerPrefs?.hiddenModels?.length ?? 0) > 0 || (providerPrefs?.modelOrder?.length ?? 0) > 0;
+  // Opt-in per provider (Settings → Providers → Models). While it is off the
+  // picker keeps its usual shortlist.
+  const favoritesFirst =
+    activeTab !== "pinned" && isFavoritesFirst(settings.providerModelPreferences, activeTab);
+  const favoriteSlugs = useMemo(
+    () =>
+      activeTab === "pinned" ? [] : getFavoriteModels(settings.providerModelPreferences, activeTab),
+    [activeTab, settings.providerModelPreferences],
+  );
+  const keepSelectedModel = useCallback(
+    (m: (typeof models)[number]) =>
+      m.slug === props.model ||
+      (m.thinkingVariants?.some((v) => v.model.slug === props.model) ?? false),
+    [props.model],
+  );
+  // How many models "Show favorites only" folds away again.
+  const favoritesHiddenCount = useMemo(
+    () =>
+      favoritesFirst
+        ? arrangeFavoritesFirst(models, favoriteSlugs, keepSelectedModel, false).hidden
+        : 0,
+    [favoritesFirst, favoriteSlugs, keepSelectedModel, models],
+  );
   const curation = useMemo(() => {
+    if (favoritesFirst && !searchQuery.trim()) {
+      return arrangeFavoritesFirst(models, favoriteSlugs, keepSelectedModel, showAllModels);
+    }
     if (activeTab === "pinned" || userCurated || searchQuery.trim() || showAllModels) {
       return { shown: models, hidden: 0 };
     }
@@ -619,7 +673,18 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       },
       SHORTLIST_LIMIT,
     );
-  }, [activeTab, userCurated, searchQuery, showAllModels, models, props.model, pinnedList]);
+  }, [
+    activeTab,
+    favoritesFirst,
+    favoriteSlugs,
+    keepSelectedModel,
+    userCurated,
+    searchQuery,
+    showAllModels,
+    models,
+    props.model,
+    pinnedList,
+  ]);
 
   // Filter models based on search query
   const filteredModels = useMemo(() => {
@@ -1169,6 +1234,13 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                             activeTab={activeTab}
                             isFavorite={isFav}
                             onToggleFavorite={() => handleTogglePinned(modelProvider, model.slug)}
+                            {...(favoritesFirst
+                              ? {
+                                  isProviderFavorite: isFavoriteModel(model, favoriteSlugs),
+                                  onToggleProviderFavorite: () =>
+                                    handleToggleProviderFavorite(modelProvider, model.slug),
+                                }
+                              : {})}
                             themeColor={
                               modelColors[
                                 models.findIndex((m) => m.slug === model.slug) % modelColors.length
@@ -1221,6 +1293,19 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                       Show {curation.hidden} more {curation.hidden === 1 ? "model" : "models"}
                     </button>
                   )}
+                  {favoritesFirst &&
+                    showAllModels &&
+                    !searchQuery.trim() &&
+                    favoriteSlugs.length > 0 &&
+                    favoritesHiddenCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllModels(false)}
+                        className="mx-2 mt-1 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                      >
+                        Show favorites only
+                      </button>
+                    )}
                 </div>
               )}
             </div>
@@ -1345,6 +1430,9 @@ const ModelRow = memo(function ModelRow(props: {
   activeTab?: ProviderPickerKind | "pinned" | null;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /** Only while the provider's "Favorites first" switch is on. */
+  isProviderFavorite?: boolean;
+  onToggleProviderFavorite?: () => void;
   themeColor: (typeof THEME_COLORS)[number];
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined;
   globalStops: ReadonlyArray<{ id: string; label: string }>;
@@ -1651,6 +1739,32 @@ const ModelRow = memo(function ModelRow(props: {
                 "size-3.5 transition",
                 props.isFavorite
                   ? "fill-current text-amber-500 opacity-100 scale-100"
+                  : "text-muted-foreground opacity-40 hover:opacity-100 hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300 scale-90",
+              )}
+            />
+          </button>
+        )}
+        {props.onToggleProviderFavorite && (
+          <button
+            type="button"
+            title={props.isProviderFavorite ? "Remove from favorites" : "Add to favorites"}
+            aria-label={
+              props.isProviderFavorite
+                ? `Remove ${props.model.name} from favorites`
+                : `Add ${props.model.name} to favorites`
+            }
+            aria-pressed={props.isProviderFavorite === true}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onToggleProviderFavorite?.();
+            }}
+            className="shrink-0 p-0.5 rounded-full hover:bg-muted transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:hover:bg-white/10"
+          >
+            <StarIcon
+              className={cn(
+                "size-3.5 transition",
+                props.isProviderFavorite
+                  ? "fill-current text-foreground opacity-100 scale-100"
                   : "text-muted-foreground opacity-40 hover:opacity-100 hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300 scale-90",
               )}
             />

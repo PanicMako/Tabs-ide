@@ -411,3 +411,35 @@ html[data-reduced-motion="reduce"]
 html[data-reduced-motion="reduce"] .provider-directory-entry {
   transition: none !important;
 }
+
+/* Opt-in: the provider's favorites lead its model picker tab. */
+.provider-favorites-first {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.provider-favorites-first-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.provider-favorites-first-text label {
+  font-family: var(--font-row, var(--font-sans));
+  font-weight: var(--font-row-weight, 500);
+  letter-spacing: var(--font-row-tracking, normal);
+  font-size: 13px;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.provider-favorites-first-text p {
+  font-family: var(--font-supporting, var(--font-sans));
+  font-weight: var(--font-supporting-weight, 400);
+  font-style: var(--font-supporting-style, normal);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  max-width: 60ch;
+}

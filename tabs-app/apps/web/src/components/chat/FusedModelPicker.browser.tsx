@@ -40,8 +40,9 @@ test("routes Copilot Auto to Copilot when the current selection belongs to Claud
   await screen.unmount();
 });
 
+const mockedSettings = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("../../hooks/useSettings", () => ({
-  useSettings: () => DEFAULT_UNIFIED_SETTINGS,
+  useSettings: () => mockedSettings.value ?? DEFAULT_UNIFIED_SETTINGS,
   useUpdateSettings: () => ({ updateSettings: vi.fn() }),
 }));
 
@@ -372,5 +373,77 @@ test("uses the available model-list height beside a long provider rail", async (
     await expect.poll(() => panel.getBoundingClientRect().bottom).toBeLessThanOrEqual(640);
   } finally {
     await screen.unmount();
+  }
+});
+
+test("lists a provider's favorites first only when its Favorites first switch is on", async () => {
+  const providers = [
+    makeTestServerProvider({
+      instanceId: "codex",
+      models: ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel"].map(
+        (name) => ({ slug: name.toLowerCase(), name, isCustom: false, capabilities: {} }),
+      ),
+    }),
+  ];
+  const renderPicker = () =>
+    render(
+      <FusedModelPicker
+        provider="codex"
+        lockedProvider="codex"
+        model={"alpha" as ModelSlug}
+        providers={providers}
+        prompt=""
+        onPromptChange={vi.fn()}
+        onProviderModelChange={vi.fn()}
+        onModelOptionsChange={vi.fn()}
+      />,
+    );
+  const withPrefs = (prefs: Record<string, unknown>) => ({
+    ...DEFAULT_UNIFIED_SETTINGS,
+    providerModelPreferences: { codex: { hiddenModels: [], modelOrder: [], ...prefs } },
+  });
+
+  // Favorites saved, switch off (the default): the picker is unchanged and offers no stars.
+  mockedSettings.value = withPrefs({ favoriteModels: ["foxtrot", "charlie"] });
+  let screen = await renderPicker();
+  try {
+    await page.getByRole("button", { name: "Alpha" }).click();
+    await expect
+      .element(page.getByRole("button", { name: "Add Bravo to favorites" }))
+      .not.toBeInTheDocument();
+  } finally {
+    await screen.unmount();
+  }
+
+  mockedSettings.value = withPrefs({
+    favoritesFirst: true,
+    favoriteModels: ["foxtrot", "charlie"],
+  });
+  screen = await renderPicker();
+  try {
+    await page.getByRole("button", { name: "Alpha" }).click();
+    const list = () => document.querySelector<HTMLElement>("[data-fused-model-list]")!;
+    const order = (names: string[]) =>
+      names
+        .map((name) => ({ name, at: list().textContent!.indexOf(name) }))
+        .filter((entry) => entry.at >= 0)
+        .sort((a, b) => a.at - b.at)
+        .map((entry) => entry.name);
+    // Favorites in provider order, then the selected model; the rest are folded.
+    await expect
+      .poll(() => order(["Alpha", "Charlie", "Foxtrot", "Bravo"]))
+      .toEqual(["Charlie", "Foxtrot", "Alpha"]);
+    await expect
+      .element(page.getByRole("button", { name: "Remove Charlie from favorites" }))
+      .toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Show 5 more models" }).click();
+    await expect
+      .poll(() => order(["Alpha", "Bravo", "Charlie", "Foxtrot"]))
+      .toEqual(["Charlie", "Foxtrot", "Alpha", "Bravo"]);
+    await page.getByRole("button", { name: "Show favorites only" }).click();
+    await expect.poll(() => order(["Bravo"])).toEqual([]);
+  } finally {
+    await screen.unmount();
+    mockedSettings.value = null;
   }
 });

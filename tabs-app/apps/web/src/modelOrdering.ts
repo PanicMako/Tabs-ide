@@ -1,17 +1,47 @@
 export interface ProviderModelPreference {
   readonly hiddenModels: ReadonlyArray<string>;
   readonly modelOrder: ReadonlyArray<string>;
+  /** Off unless the user turns it on for this provider in Settings → Providers. */
+  readonly favoritesFirst?: boolean;
+  readonly favoriteModels?: ReadonlyArray<string>;
 }
 
-export type ProviderModelPreferencesMap = Readonly<
-  Record<
-    string,
-    {
-      readonly hiddenModels: ReadonlyArray<string>;
-      readonly modelOrder: ReadonlyArray<string>;
-    }
-  >
->;
+export type ProviderModelPreferencesMap = Readonly<Record<string, ProviderModelPreference>>;
+
+/**
+ * Stores `next` for a provider, or drops the entry once nothing in it differs
+ * from the defaults. Every preference field counts, so clearing one list never
+ * discards another (for example favorites when the model order is reset).
+ */
+export function withProviderPreference<T extends ProviderModelPreferencesMap>(
+  preferences: T | null | undefined,
+  instanceId: string,
+  next: ProviderModelPreference,
+): T {
+  const currentMap = (preferences ?? {}) as Record<string, ProviderModelPreference>;
+  const isEmpty =
+    next.hiddenModels.length === 0 &&
+    next.modelOrder.length === 0 &&
+    (next.favoriteModels?.length ?? 0) === 0 &&
+    next.favoritesFirst !== true;
+  if (isEmpty) {
+    const { [instanceId]: _, ...rest } = currentMap;
+    return rest as T;
+  }
+  return { ...currentMap, [instanceId]: next } as T;
+}
+
+function currentPreference(
+  preferences: ProviderModelPreferencesMap | null | undefined,
+  instanceId: string,
+): ProviderModelPreference {
+  const current = preferences?.[instanceId];
+  return {
+    ...current,
+    hiddenModels: current?.hiddenModels ?? [],
+    modelOrder: current?.modelOrder ?? [],
+  };
+}
 
 export function getModelScore(name: string): number {
   const lower = name.toLowerCase();
@@ -105,25 +135,11 @@ export function updateModelOrder<T extends ProviderModelPreferencesMap>(
   instanceId: string,
   newOrder: string[],
 ): T {
-  const currentMap = (preferences ?? {}) as Record<string, any>;
-  const currentPref = currentMap[instanceId] ?? { hiddenModels: [], modelOrder: [] };
   const cleanedOrder = [...new Set(newOrder.filter((s) => s.trim().length > 0))];
-
-  if (
-    cleanedOrder.length === 0 &&
-    (!currentPref.hiddenModels || currentPref.hiddenModels.length === 0)
-  ) {
-    const { [instanceId]: _, ...rest } = currentMap;
-    return rest as T;
-  }
-
-  return {
-    ...currentMap,
-    [instanceId]: {
-      ...currentPref,
-      modelOrder: cleanedOrder,
-    },
-  } as T;
+  return withProviderPreference(preferences, instanceId, {
+    ...currentPreference(preferences, instanceId),
+    modelOrder: cleanedOrder,
+  });
 }
 
 /**
@@ -136,18 +152,10 @@ export function resetModelOrder<T extends ProviderModelPreferencesMap>(
   if (!preferences || !preferences[instanceId]) {
     return (preferences ?? {}) as T;
   }
-  const { [instanceId]: target, ...rest } = preferences as Record<string, any>;
-
-  if (target && target.hiddenModels && target.hiddenModels.length > 0) {
-    return {
-      ...rest,
-      [instanceId]: {
-        hiddenModels: target.hiddenModels,
-        modelOrder: [],
-      },
-    } as T;
-  }
-  return rest as T;
+  return withProviderPreference(preferences, instanceId, {
+    ...currentPreference(preferences, instanceId),
+    modelOrder: [],
+  });
 }
 
 export interface BulkToggleOptions {
@@ -217,25 +225,11 @@ export function updateHiddenModels<T extends ProviderModelPreferencesMap>(
   instanceId: string,
   newHidden: string[],
 ): T {
-  const currentMap = (preferences ?? {}) as Record<string, any>;
-  const currentPref = currentMap[instanceId] ?? { hiddenModels: [], modelOrder: [] };
   const cleanedHidden = [...new Set(newHidden.filter((s) => s.trim().length > 0))];
-
-  if (
-    cleanedHidden.length === 0 &&
-    (!currentPref.modelOrder || currentPref.modelOrder.length === 0)
-  ) {
-    const { [instanceId]: _, ...rest } = currentMap;
-    return rest as T;
-  }
-
-  return {
-    ...currentMap,
-    [instanceId]: {
-      ...currentPref,
-      hiddenModels: cleanedHidden,
-    },
-  } as T;
+  return withProviderPreference(preferences, instanceId, {
+    ...currentPreference(preferences, instanceId),
+    hiddenModels: cleanedHidden,
+  });
 }
 
 /**

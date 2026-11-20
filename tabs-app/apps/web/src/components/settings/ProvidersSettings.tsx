@@ -81,6 +81,7 @@ import {
   updateHiddenModels,
   updateModelOrder,
 } from "~/modelOrdering";
+import { getFavoriteModels, isFavoritesFirst, setFavoritesFirst } from "~/modelFavorites";
 import { getDefaultServerModel, getProviderModels } from "~/providerModels";
 import { MAX_CUSTOM_MODEL_LENGTH, resolveAppModelSelectionState } from "~/modelSelection";
 import { normalizeModelSlug } from "@tabs/shared/model";
@@ -1475,6 +1476,45 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         hidden={detailView !== "models"}
                         aria-label={`${providerDisplayName} model settings`}
                       >
+                        {(() => {
+                          const prefs = settings.providerModelPreferences;
+                          const favoritesOn = isFavoritesFirst(prefs, providerCard.provider);
+                          const favoriteCount = getFavoriteModels(
+                            prefs,
+                            providerCard.provider,
+                          ).length;
+                          const switchId = `favorites-first-${providerCard.provider}`;
+                          return (
+                            <div className="provider-favorites-first">
+                              <div className="provider-favorites-first-text">
+                                <label htmlFor={switchId}>
+                                  Favorites first in the model picker
+                                </label>
+                                <p>
+                                  Star models in the picker and {providerDisplayName} lists them
+                                  first, with the rest behind “Show more”.
+                                  {favoriteCount > 0
+                                    ? ` ${favoriteCount} ${favoriteCount === 1 ? "favorite" : "favorites"} saved.`
+                                    : ""}
+                                </p>
+                              </div>
+                              <Switch
+                                id={switchId}
+                                aria-label={`Favorites first for ${providerDisplayName}`}
+                                checked={favoritesOn}
+                                onCheckedChange={(checked) =>
+                                  updateSettings({
+                                    providerModelPreferences: setFavoritesFirst(
+                                      prefs,
+                                      providerCard.provider,
+                                      checked,
+                                    ) as any,
+                                  })
+                                }
+                              />
+                            </div>
+                          );
+                        })()}
                         {/* Models Section */}
                         <div className="border-t border-border/60 px-4 py-4 sm:px-5">
                           <div className="rounded-xl border border-border/50 bg-muted/10 overflow-hidden shadow-2xs">

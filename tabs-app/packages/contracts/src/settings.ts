@@ -738,6 +738,9 @@ export const ClientSettingsSchema = Schema.Struct({
         Schema.withDecodingDefault(Effect.succeed([])),
       ),
       modelOrder: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+      /** Model picker lists favorites first and folds the rest. Off by default. */
+      favoritesFirst: Schema.optionalKey(Schema.Boolean),
+      favoriteModels: Schema.optionalKey(Schema.Array(Schema.String)),
     }),
   ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   pullRequestMergeMethodOverrides: Schema.Record(
@@ -2757,6 +2760,8 @@ export const ClientSettingsPatch = Schema.Struct({
         modelOrder: Schema.Array(Schema.String).pipe(
           Schema.withDecodingDefault(Effect.succeed([])),
         ),
+        favoritesFirst: Schema.optionalKey(Schema.Boolean),
+        favoriteModels: Schema.optionalKey(Schema.Array(Schema.String)),
       }),
     ),
   ),
