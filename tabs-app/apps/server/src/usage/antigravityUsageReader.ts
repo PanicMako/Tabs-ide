@@ -271,15 +271,169 @@ let cachedCandidates = 0;
 // candidates for a large account so sequential scans do not evict the next DB
 // before it is visited. The cache remains bounded by candidates and databases.
 const MAX_CACHED_CANDIDATES = 1_000_000;
-const MAX_CACHED_DATABASES = 512;
+// Heavy users keep several hundred conversations per store. A cap below the
+// store size makes the in-order walk evict each database just before the next
+// scan reaches it, so every scan decodes everything again.
+const MAX_CACHED_DATABASES = 8_192;
+
+/**
+ * Last write to a conversation, counting a WAL that has not been checkpointed yet.
+ * SQLite recreates an empty WAL whenever a connection opens, including this
+ * reader's own, so an empty WAL's mtime says nothing about new usage.
+ */
+async function lastWriteMs(path: string, databaseMtimeMs: number): Promise<number> {
+  try {
+    const wal = await NodeFSP.stat(`${path}-wal`);
+    return wal.size > 0 ? Math.max(databaseMtimeMs, wal.mtimeMs) : databaseMtimeMs;
+  } catch {
+    return databaseMtimeMs;
+  }
+}
+let metadataVersion = 0;
+
+const KEY_PREFIX = "antigravity:";
+
+/**
+ * One cached candidate, positional to keep the snapshot small: timestamp,
+ * model index, the five token totals, identity keys without their shared
+ * prefix, timestamp quality, and the dedupe key only when it is not the
+ * first identity key (it almost always is).
+ */
+type SnapshotRow =
+  | [number, number, number, number, number, number, number, string[], number]
+  | [number, number, number, number, number, number, number, string[], number, string];
+
+/**
+ * Decoded usage metadata, never conversation text, keyed by database path and
+ * the signature it was read under. A database whose signature no longer
+ * matches on the next scan is decoded again, so a stale snapshot costs a
+ * re-read, never wrong figures.
+ */
+export interface AntigravityMetadataSnapshot {
+  readonly version: 2;
+  readonly models: string[];
+  readonly databases: Record<
+    string,
+    { readonly signature: string; readonly sessionId: string; readonly rows: SnapshotRow[] }
+  >;
+}
+
+/** Grows whenever a database is decoded, so a caller can tell whether its saved copy is behind. */
+export function antigravityMetadataVersion(): number {
+  return metadataVersion;
+}
+
+export function exportAntigravityMetadata(): AntigravityMetadataSnapshot {
+  const models: string[] = [];
+  const modelIndex = new Map<string, number>();
+  const indexOf = (model: string) => {
+    let index = modelIndex.get(model);
+    if (index === undefined) {
+      index = models.push(model) - 1;
+      modelIndex.set(model, index);
+    }
+    return index;
+  };
+  const databases: Record<string, AntigravityMetadataSnapshot["databases"][string]> = {};
+  for (const [path, { signature, candidates }] of metadataCache) {
+    // Keys this reader did not build itself cannot be stored without their prefix.
+    if (!candidates.every(({ keys }) => keys.every((key) => key.startsWith(KEY_PREFIX)))) continue;
+    databases[path] = {
+      signature,
+      sessionId: candidates[0]?.record.sessionId ?? "",
+      rows: candidates.map(({ record, keys, timestampQuality }): SnapshotRow => {
+        const row: SnapshotRow = [
+          record.timestampMs,
+          indexOf(record.model),
+          record.totals.uncachedInputTokens,
+          record.totals.cachedInputTokens,
+          record.totals.cacheCreationTokens,
+          record.totals.outputTokens,
+          record.totals.reasoningTokens,
+          keys.map((key) => key.slice(KEY_PREFIX.length)),
+          timestampQuality,
+        ];
+        return record.dedupeKey === keys[0] || record.dedupeKey === null
+          ? row
+          : [...row, record.dedupeKey];
+      }),
+    };
+  }
+  return { version: 2, models, databases };
+}
+
+const isRow = (row: unknown, modelCount: number): row is SnapshotRow =>
+  Array.isArray(row) &&
+  (row.length === 9 || (row.length === 10 && typeof row[9] === "string")) &&
+  typeof row[0] === "number" &&
+  Number.isInteger(row[1]) &&
+  row[1] >= 0 &&
+  row[1] < modelCount &&
+  row.slice(2, 7).every((value) => typeof value === "number" && value >= 0) &&
+  Array.isArray(row[7]) &&
+  row[7].every((key) => typeof key === "string") &&
+  typeof row[8] === "number";
+
+/**
+ * Seeds the cache from a saved snapshot. Entries the process already decoded
+ * win, and anything malformed is skipped rather than trusted.
+ */
+export function importAntigravityMetadata(snapshot: unknown): void {
+  if (typeof snapshot !== "object" || snapshot === null) return;
+  const { version, models, databases } = snapshot as Partial<AntigravityMetadataSnapshot>;
+  if (version !== 2 || !Array.isArray(models) || typeof databases !== "object" || !databases) {
+    return;
+  }
+  if (!models.every((model) => typeof model === "string")) return;
+  for (const [path, entry] of Object.entries(databases)) {
+    if (metadataCache.has(path) || metadataCache.size >= MAX_CACHED_DATABASES) continue;
+    if (typeof entry?.signature !== "string" || typeof entry.sessionId !== "string") continue;
+    if (!Array.isArray(entry.rows) || !entry.rows.every((row) => isRow(row, models.length))) {
+      continue;
+    }
+    if (cachedCandidates + entry.rows.length > MAX_CACHED_CANDIDATES) continue;
+    const candidates = entry.rows.map((row): UsageCandidate => {
+      const [timestampMs, model, uncached, cached, creation, output, reasoning, ids, quality] = row;
+      const keys = ids.map((id) => KEY_PREFIX + id);
+      return {
+        record: {
+          provider: "antigravity",
+          sessionId: entry.sessionId,
+          timestampMs,
+          model: models[model]!,
+          totals: {
+            uncachedInputTokens: uncached,
+            cachedInputTokens: cached,
+            cacheCreationTokens: creation,
+            outputTokens: output,
+            reasoningTokens: reasoning,
+          },
+          reportedCostUsd: null,
+          speed: "standard",
+          dedupeKey: row[9] ?? keys[0] ?? null,
+        },
+        keys,
+        timestampQuality: quality,
+      };
+    });
+    metadataCache.set(path, { signature: entry.signature, candidates });
+    cachedCandidates += candidates.length;
+  }
+}
+
 async function databaseSignature(path: string): Promise<string> {
   const parts = await Promise.all(
     [path, `${path}-wal`].map(async (file) => {
       try {
         const stat = await NodeFSP.stat(file, { bigint: true });
+        // SQLite recreates an empty WAL on every open, Antigravity's and ours
+        // included; one holding no frames cannot change what the database says.
+        if (file !== path && stat.size === 0n) return "empty";
         return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(":");
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing";
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          return file === path ? "missing" : "empty";
+        }
         throw error;
       }
     }),
@@ -305,6 +459,7 @@ async function readCachedDatabase(
       if (candidates.length <= MAX_CACHED_CANDIDATES) {
         metadataCache.set(path, { signature, candidates });
         cachedCandidates += candidates.length;
+        metadataVersion += 1;
         while (
           cachedCandidates > MAX_CACHED_CANDIDATES ||
           metadataCache.size > MAX_CACHED_DATABASES
@@ -420,6 +575,10 @@ export async function readAntigravityUsage(
           if (visited.has(canonical)) continue;
           visited.add(canonical);
           const stat = await NodeFSP.stat(path);
+          // Usage is written as it happens, so a conversation untouched since the
+          // window opened holds nothing inside it. Skipping it avoids decoding
+          // gigabytes of old history for a short window.
+          if ((await lastWriteMs(canonical, stat.mtimeMs)) < sinceMs) continue;
           const candidates = await readCachedDatabase(canonical, stat.mtimeMs);
           const fileIndex = files.length;
           files.push({ root, path, records: [] });
