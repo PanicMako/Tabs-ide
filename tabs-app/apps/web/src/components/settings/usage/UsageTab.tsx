@@ -1,171 +1,138 @@
-import { SegmentedControl } from "../../ui/segmented-control";
 import "./usage.css";
-import { useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import gsap from "gsap";
 import { useAtomValue } from "@effect/atom-react";
+import type { UsageProviderKind } from "@tabs/contracts";
 import { formatCount, formatPercent, formatTokens, formatUsd } from "@tabs/shared/usageFormat";
-import { isModelCostUnknown, mergeUsage } from "@tabs/shared/usageMerge";
-import { PROVIDER_DISPLAY_NAMES } from "@tabs/contracts";
+import { isModelCostUnknown, mergeUsage, type ModelTotals } from "@tabs/shared/usageMerge";
+import { DatabaseIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 import {
   usageMetricAtom,
   usageTimeWindowAtom,
+  usageShownWindowAtom,
   usageSummaryStateAtom,
   fetchUsageSummary,
   type UsageWindowPreset,
 } from "../../../state/usage";
 import { appAtomRegistry } from "../../../state/atomRegistry";
-import {
-  AntigravityIcon,
-  ClaudeAI,
-  CopilotIcon,
-  CursorIcon,
-  DroidIcon,
-  GoogleGemini,
-  GrokIcon,
-  KiloIcon,
-  OpenAI,
-  OpenCodeIcon,
-  OpenRouterIcon,
-  type Icon,
-} from "../../Icons";
-import { UsageDailyChart } from "./UsageDailyChart";
 import { ModelDetailModal } from "./ModelDetailModal";
-import type { ModelTotals } from "@tabs/shared/usageMerge";
 import { Button } from "../../ui/button";
+import { SegmentedControl } from "../../ui/segmented-control";
 import { UsagePriceOverrides } from "../../usage/UsagePriceOverrides";
-import { SlidersHorizontalIcon, DatabaseIcon } from "lucide-react";
-import { PageLoadingState } from "../../PageLoadingState";
+import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "../../usage/usageProviders";
+import { morphTarget, useInlineMorph, useReorderGlide } from "./useUsageMorph";
+import { useSurfaceMotionSettings } from "../../../panelAnimations";
+import { cn } from "../../../lib/utils";
+import { ledgerPeriods, sliceSummary } from "./usageLedger";
+import { ActivityChart } from "./UsageActivityChart";
 
-const PROVIDER_ICONS: Record<string, Icon> = {
-  codex: OpenAI,
-  claude: ClaudeAI,
-  claudeAgent: ClaudeAI,
-  cursor: CursorIcon,
-  copilot: CopilotIcon,
-  grok: GrokIcon,
-  opencode: OpenCodeIcon,
-  kilo: KiloIcon,
-  gemini: GoogleGemini,
-  googleGemini: GoogleGemini,
-  droid: DroidIcon,
-  antigravity: AntigravityIcon,
-  openrouter: OpenRouterIcon,
-};
+type Metric = "cost" | "tokens";
 
-const PROVIDER_COLORS: Record<string, string> = {
-  codex: "#10a37f",
-  claude: "#d97706",
-  claudeAgent: "#d97706",
-  cursor: "#6366f1",
-  copilot: "#3b82f6",
-  grok: "#8b5cf6",
-  gemini: "#0284c7",
-  googleGemini: "#0284c7",
-  opencode: "#06b6d4",
-  droid: "#64748b",
-  kilo: "#ec4899",
-  antigravity: "#f43f5e",
-  openrouter: "#14b8a6",
-};
-
-function normalizeProvider(provider: string): {
-  key: string;
-  name: string;
-  icon: Icon;
-  color: string;
-} {
-  const normKey =
-    provider === "claude" ? "claudeAgent" : provider === "gemini" ? "googleGemini" : provider;
-
-  const name =
-    (PROVIDER_DISPLAY_NAMES as Record<string, string>)[normKey] ??
-    (PROVIDER_DISPLAY_NAMES as Record<string, string>)[provider] ??
-    (provider === "claude" || provider === "claudeAgent"
-      ? "Claude"
-      : provider === "codex"
-        ? "Codex"
-        : provider === "cursor"
-          ? "Cursor"
-          : provider === "copilot"
-            ? "GitHub Copilot"
-            : provider === "grok"
-              ? "Grok"
-              : provider === "gemini" || provider === "googleGemini"
-                ? "Google Gemini"
-                : provider === "opencode"
-                  ? "OpenCode"
-                  : provider === "droid"
-                    ? "Factory Droid"
-                    : provider === "kilo"
-                      ? "Kilo"
-                      : provider === "antigravity"
-                        ? "Antigravity"
-                        : provider === "openrouter"
-                          ? "OpenRouter"
-                          : provider.charAt(0).toUpperCase() + provider.slice(1));
-
-  const icon =
-    PROVIDER_ICONS[normKey] ??
-    PROVIDER_ICONS[provider] ??
-    (provider.toLowerCase().includes("claude") ? ClaudeAI : BotIcon);
-
-  const color =
-    PROVIDER_COLORS[normKey] ??
-    PROVIDER_COLORS[provider] ??
-    (provider.toLowerCase().includes("claude") ? "#d97706" : "#888888");
-
-  return { key: normKey, name, icon, color };
-}
-
-const WINDOW_PRESETS = [
-  { id: "24h" as const, label: "Past 24h" },
-  { id: "7d" as const, label: "7 days" },
-  { id: "30d" as const, label: "30 days" },
-  { id: "90d" as const, label: "90 days" },
-  { id: "all" as const, label: "All time" },
+const WINDOW_PRESETS: ReadonlyArray<{ id: UsageWindowPreset; label: string; phrase: string }> = [
+  { id: "24h", label: "24h", phrase: "past 24 hours" },
+  { id: "7d", label: "7 days", phrase: "past 7 days" },
+  { id: "30d", label: "30 days", phrase: "past 30 days" },
+  { id: "90d", label: "90 days", phrase: "past 90 days" },
+  { id: "all", label: "All time", phrase: "all time" },
 ];
 
-export function UsageTab({ subTabControl }: { subTabControl?: ReactNode } = {}) {
+const MODEL_PREVIEW = 8;
+
+const figure = (metric: Metric, value: { costUsd: number; totalTokens: number }) =>
+  metric === "cost" ? formatUsd(value.costUsd) : formatTokens(value.totalTokens);
+
+function providerOf(provider: UsageProviderKind) {
+  return PROVIDER_PRESENTATION[provider] ?? PROVIDER_PRESENTATION.codex;
+}
+
+export function UsageTab() {
   const timeWindow = useAtomValue(usageTimeWindowAtom);
+  const shownWindow = useAtomValue(usageShownWindowAtom);
   const summaryState = useAtomValue(usageSummaryStateAtom);
   const metric = useAtomValue(usageMetricAtom);
-  const setMetric = (next: "cost" | "tokens") => appAtomRegistry.set(usageMetricAtom, next);
-  const [breakdownView, setBreakdownView] = useState<"model" | "provider">("model");
+  const [hoverPeriod, setHoverPeriod] = useState<string | null>(null);
+  const [pinnedPeriod, setPinnedPeriod] = useState<string | null>(null);
+  const [focusProvider, setFocusProvider] = useState<UsageProviderKind | null>(null);
+  const [hoverProvider, setHoverProvider] = useState<UsageProviderKind | null>(null);
+  const [showAllModels, setShowAllModels] = useState(false);
   const [showPriceOverrides, setShowPriceOverrides] = useState(false);
   const [priceModelId, setPriceModelId] = useState<string | undefined>();
   const [inspectModel, setInspectModel] = useState<ModelTotals | null>(null);
 
   const summary = summaryState.data;
+  const hourly = (shownWindow ?? timeWindow) === "24h";
   const merged = useMemo(() => mergeUsage(summary), [summary]);
+  const periods = useMemo(
+    () => (summary ? ledgerPeriods(summary, merged, hourly) : []),
+    [summary, merged, hourly],
+  );
+  const activePeriodKey = hoverPeriod ?? pinnedPeriod;
+  const activePeriod = periods.find((period) => period.key === activePeriodKey) ?? null;
+  // The figures above the strip follow the scrubbed period and the focused provider.
+  const slice = useMemo(
+    () =>
+      summary && (activePeriodKey || focusProvider)
+        ? mergeUsage(
+            sliceSummary(summary, { periodKey: activePeriodKey, hourly, provider: focusProvider }),
+          )
+        : merged,
+    [summary, merged, activePeriodKey, hourly, focusProvider],
+  );
+  // Lists re-rank only on a deliberate choice (a pin or a filter), never while
+  // the pointer sweeps the chart, so scrubbing stays calm.
+  const committed = useMemo(
+    () =>
+      summary && (pinnedPeriod || focusProvider)
+        ? mergeUsage(
+            sliceSummary(summary, { periodKey: pinnedPeriod, hourly, provider: focusProvider }),
+          )
+        : merged,
+    [summary, merged, pinnedPeriod, hourly, focusProvider],
+  );
+  // The provider split ignores the provider focus so every share stays visible.
+  const periodSlice = useMemo(
+    () =>
+      summary && activePeriodKey
+        ? mergeUsage(sliceSummary(summary, { periodKey: activePeriodKey, hourly }))
+        : merged,
+    [summary, merged, activePeriodKey, hourly],
+  );
 
-  const selectWindow = (win: UsageWindowPreset) => {
-    appAtomRegistry.set(usageTimeWindowAtom, win);
-    void fetchUsageSummary(win);
+  const stale = summaryState.loading && shownWindow !== null && shownWindow !== timeWindow;
+  const updating = summaryState.loading && summary !== null;
+  const hasActivity = merged.totalTokens > 0 || merged.costUsd > 0;
+  const windowPhrase =
+    WINDOW_PRESETS.find((preset) => preset.id === (shownWindow ?? timeWindow))?.phrase ?? "";
+
+  const selectWindow = (next: UsageWindowPreset) => {
+    setPinnedPeriod(null);
+    setHoverPeriod(null);
+    appAtomRegistry.set(usageTimeWindowAtom, next);
+    void fetchUsageSummary(next);
+  };
+  const setMetric = (next: Metric) => appAtomRegistry.set(usageMetricAtom, next);
+  const openPrices = (modelId?: string) => {
+    setPriceModelId(modelId);
+    setShowPriceOverrides(true);
   };
 
-  const hasActivity = merged.totalTokens > 0 || merged.costUsd > 0;
-
-  const uncachedEquivalentCost = merged.costUsd + merged.costQuality.cacheSavingsUsd;
-  const cacheSavingsShare =
-    uncachedEquivalentCost > 0 ? merged.costQuality.cacheSavingsUsd / uncachedEquivalentCost : 0;
-  const inputTokens =
-    merged.uncachedInputTokens + merged.cachedInputTokens + merged.cacheCreationTokens;
-
   return (
-    <div className="usage-dashboard">
-      <div className="usage-toolbar">
-        <div className="flex items-center justify-start justify-self-start min-w-0">
-          {subTabControl}
+    <div className="usage-ledger" aria-busy={summaryState.loading}>
+      <div className="usage-ledger-toolbar">
+        <div className="usage-underline" role="radiogroup" aria-label="Usage date range">
+          {WINDOW_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              role="radio"
+              aria-checked={timeWindow === preset.id}
+              onClick={() => selectWindow(preset.id)}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center justify-center justify-self-center">
-          <SegmentedControl
-            value={timeWindow}
-            onValueChange={selectWindow}
-            options={WINDOW_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-            aria-label="Usage date range"
-            size="sm"
-          />
-        </div>
-        <div className="flex items-center justify-end justify-self-end gap-2">
+        <div className="usage-ledger-toolbar-end">
           <SegmentedControl
             value={metric}
             onValueChange={setMetric}
@@ -179,24 +146,20 @@ export function UsageTab({ subTabControl }: { subTabControl?: ReactNode } = {}) 
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setPriceModelId(undefined);
-              setShowPriceOverrides(true);
-            }}
+            onClick={() => openPrices()}
             aria-label="Configure custom model prices"
           >
             <SlidersHorizontalIcon className="size-3.5" aria-hidden />
-            <span>Prices</span>
+            Prices
           </Button>
         </div>
       </div>
+
       {showPriceOverrides ? (
         <UsagePriceOverrides
           usage={summary ? [{ summary }] : []}
           {...(priceModelId ? { initialModelId: priceModelId } : {})}
-          onSaved={() => {
-            void fetchUsageSummary();
-          }}
+          onSaved={() => void fetchUsageSummary(undefined, { force: true })}
           onOpenChange={setShowPriceOverrides}
         />
       ) : null}
@@ -204,288 +167,441 @@ export function UsageTab({ subTabControl }: { subTabControl?: ReactNode } = {}) 
         <ModelDetailModal
           model={inspectModel}
           summary={summary}
-          timeWindow={timeWindow}
+          timeWindow={shownWindow ?? timeWindow}
           parentDays={
-            timeWindow === "24h"
-              ? merged.hourly.map((hour) => hour.hourStart)
-              : merged.daily.map((day) => day.day)
+            hourly ? merged.hourly.map((hour) => hour.hourStart) : merged.daily.map((d) => d.day)
           }
           onClose={() => setInspectModel(null)}
-          onSetPrice={(modelId) => {
-            setPriceModelId(modelId);
-            setShowPriceOverrides(true);
-          }}
+          onSetPrice={(modelId) => openPrices(modelId)}
         />
       ) : null}
+
       {summaryState.error ? (
-        <p role="alert" className="usage-notice">
+        <p role="alert" className="usage-note">
           Could not refresh usage. {summaryState.error}
         </p>
       ) : null}
-      {summaryState.loading && !summary ? (
-        <PageLoadingState compact className="h-64" label="Loading usage history" />
+
+      {!summary ? (
+        <LedgerSkeleton />
       ) : !hasActivity ? (
-        <div className="usage-empty">
-          <DatabaseIcon className="size-6" aria-hidden />
-          <h3>No activity yet</h3>
-          <p>Usage will appear here as you work with your agents.</p>
+        <div className={cn("usage-empty", stale && "is-stale")}>
+          <DatabaseIcon className="size-5" aria-hidden />
+          <h3>Nothing recorded for the {windowPhrase}</h3>
+          <p>Usage appears here as your agents work. Try a longer range.</p>
         </div>
       ) : (
-        <>
-          <section className="usage-overview" aria-label="Usage overview">
-            <div className="usage-totals">
-              <div className="usage-primary-stat">
-                <span>{metric === "cost" ? "API-equivalent cost" : "Tokens processed"}</span>
-                <strong>
-                  {metric === "cost" ? formatUsd(merged.costUsd) : formatTokens(merged.totalTokens)}
-                </strong>
-                <p>
-                  {metric === "cost"
-                    ? "Estimated API value, not your subscription bill."
-                    : `${formatCount(merged.sessions)} sessions · ${formatCount(merged.records)} records`}
-                </p>
-              </div>
-              <div className="usage-small-stat">
-                <span>{metric === "cost" ? "Tokens processed" : "API-equivalent cost"}</span>
-                <strong>
-                  {metric === "cost" ? formatTokens(merged.totalTokens) : formatUsd(merged.costUsd)}
-                </strong>
-                <p>
-                  {metric === "cost"
-                    ? `${formatCount(merged.sessions)} sessions`
-                    : "Estimate, not your bill"}
-                </p>
-              </div>
-              <div className="usage-small-stat">
-                <span>Input served from cache</span>
-                <strong>
-                  {formatPercent(inputTokens > 0 ? merged.cachedInputTokens / inputTokens : 0)}
-                </strong>
-                <p>{formatTokens(merged.cachedInputTokens)} cached tokens</p>
-              </div>
-            </div>
-            <div className="usage-activity">
-              <div className="usage-section-heading">
-                <h3>{timeWindow === "24h" ? "Hourly activity" : "Daily activity"}</h3>
-                <span>
-                  {timeWindow === "24h" ? "Past 24 hours" : `${merged.daily.length} active days`}
-                </span>
-              </div>
-              <UsageDailyChart
-                days={[]}
-                daily={
-                  timeWindow === "24h"
-                    ? merged.hourly.map((hour) => ({ ...hour, day: hour.hourStart }))
-                    : merged.daily
-                }
-                hourly={timeWindow === "24h"}
-                metric={metric}
-                className="usage-chart"
+        <div className={cn("usage-ledger-body", stale && "is-stale")}>
+          <section className="usage-hero" aria-label="Usage overview">
+            <div className="usage-hero-lead">
+              <span className="usage-caption">
+                {activePeriod ? activePeriod.label : windowPhrase}
+                {focusProvider ? ` · ${providerOf(focusProvider).label}` : ""}
+                {updating ? <em> · updating</em> : null}
+              </span>
+              <TweenedFigure
+                className="usage-hero-figure"
+                value={metric === "cost" ? slice.costUsd : slice.totalTokens}
+                format={metric === "cost" ? formatUsd : formatTokens}
               />
+              <p className="usage-hero-sub">
+                {metric === "cost"
+                  ? "API-equivalent value, not your subscription bill"
+                  : `${formatCount(slice.sessions)} sessions · ${formatCount(slice.records)} requests`}
+              </p>
             </div>
+            <dl className="usage-hero-facts">
+              <div>
+                <dt>{metric === "cost" ? "Tokens" : "API value"}</dt>
+                <dd>
+                  {metric === "cost" ? formatTokens(slice.totalTokens) : formatUsd(slice.costUsd)}
+                </dd>
+              </div>
+              <div>
+                <dt>Served from cache</dt>
+                <dd>{formatPercent(cacheShare(slice))}</dd>
+              </div>
+              <div>
+                <dt>Cache saved</dt>
+                <dd>{formatUsd(slice.costQuality.cacheSavingsUsd)}</dd>
+              </div>
+            </dl>
           </section>
-          {merged.costQuality.unpricedShare > 0 ? (
-            <p role="status" className="usage-notice">
-              {formatPercent(merged.costQuality.unpricedShare)} of tokens have no known price. They
-              count toward usage, but are excluded from cost.
+
+          <ActivityChart
+            periods={periods}
+            metric={metric}
+            hourly={hourly}
+            activeKey={activePeriodKey}
+            pinnedKey={pinnedPeriod}
+            highlight={hoverProvider ?? focusProvider}
+            onHover={setHoverPeriod}
+            onPin={setPinnedPeriod}
+          />
+
+          {pinnedPeriod || focusProvider ? (
+            <div className="usage-filters" aria-label="Active filters">
+              {pinnedPeriod ? (
+                <button type="button" onClick={() => setPinnedPeriod(null)}>
+                  {periods.find((period) => period.key === pinnedPeriod)?.label ?? "Period"}
+                  <XIcon className="size-3" aria-label="Clear period" />
+                </button>
+              ) : null}
+              {focusProvider ? (
+                <button type="button" onClick={() => setFocusProvider(null)}>
+                  {providerOf(focusProvider).label}
+                  <XIcon className="size-3" aria-label="Clear provider" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <ProviderSpectrum
+            usage={periodSlice}
+            metric={metric}
+            focus={focusProvider}
+            onHover={setHoverProvider}
+            onFocus={(provider) =>
+              setFocusProvider((current) => (current === provider ? null : provider))
+            }
+          />
+
+          {merged.costQuality.unpricedShare > 0 && metric === "cost" ? (
+            <p role="status" className="usage-note">
+              {formatPercent(merged.costQuality.unpricedShare)} of tokens have no known price, so
+              they count toward usage but not cost.{" "}
+              <button type="button" className="usage-link" onClick={() => openPrices()}>
+                Set prices
+              </button>
             </p>
           ) : null}
-          <section aria-label="Usage by provider" className="usage-providers">
-            {merged.providers.map((p) => {
-              const { name, icon: IconComp } = normalizeProvider(p.provider);
-              const share = metric === "cost" ? p.costShare : p.tokenShare;
-              return (
-                <div key={p.provider} className="usage-provider">
-                  <div className="usage-section-heading">
-                    <span className="flex items-center gap-2">
-                      <IconComp className="size-4" aria-hidden />
-                      <b>{name}</b>
-                    </span>
-                    <span>{formatPercent(share)}</span>
-                  </div>
-                  <strong>
-                    {metric === "cost" ? formatUsd(p.costUsd) : formatTokens(p.totalTokens)}
-                  </strong>
-                  <div className="usage-share" aria-hidden="true">
-                    <div style={{ width: `${Math.max(0, Math.min(100, share * 100))}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-          <section className="usage-breakdown">
-            <div className="usage-section-heading">
-              <h3>Breakdown</h3>
-              <SegmentedControl
-                value={breakdownView}
-                onValueChange={setBreakdownView}
-                options={[
-                  { value: "model", label: "Models" },
-                  { value: "provider", label: "Providers" },
-                ]}
-                aria-label="Model breakdown"
-                size="sm"
-              />
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border/80 bg-card/30 backdrop-blur-sm shadow-xs">
-              <table className="w-full min-w-[560px] text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-muted-foreground">
-                    <th scope="col" className="py-2.5 px-4 font-semibold">
-                      {breakdownView === "model" ? "Model Name" : "Provider"}
-                    </th>
-                    {breakdownView === "model" ? (
-                      <th scope="col" className="py-2.5 px-4 font-semibold">
-                        Provider
-                      </th>
-                    ) : null}
-                    <th scope="col" className="py-2.5 px-4 text-right font-semibold">
-                      Total Cost
-                    </th>
-                    <th scope="col" className="py-2.5 px-4 text-right font-semibold">
-                      Share
-                    </th>
-                    <th scope="col" className="py-2.5 px-4 text-right font-semibold">
-                      Total Tokens
-                    </th>
-                    <th scope="col" className="py-2.5 px-4 text-right font-semibold">
-                      Records
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {breakdownView === "model"
-                    ? merged.models.map((m) => {
-                        const { name: providerName, icon: IconComp } = normalizeProvider(
-                          m.provider,
-                        );
 
-                        return (
-                          <tr
-                            key={`${m.provider}-${m.model}`}
-                            className="hover:bg-muted/40 transition-colors cursor-pointer group"
-                            onClick={() => setInspectModel(m)}
-                            title={`Inspect ${m.model} usage statistics`}
-                          >
-                            <td className="py-2.5 px-4 font-medium text-foreground font-mono break-all">
-                              <span className="group-hover:text-primary transition-colors underline-offset-4 group-hover:underline">
-                                {m.model}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-4 text-muted-foreground">
-                              <div className="flex items-center gap-1.5">
-                                <IconComp className="size-3.5" />
-                                <span>{providerName}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-4 text-right font-semibold text-foreground tabular-nums">
-                              {isModelCostUnknown(m) ? (
-                                <button
-                                  type="button"
-                                  className="usage-price-action"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setPriceModelId(m.model);
-                                    setShowPriceOverrides(true);
-                                  }}
-                                  aria-label={`Set prices for ${m.model}`}
-                                >
-                                  Set price <span aria-hidden="true">↗</span>
-                                </button>
-                              ) : (
-                                formatUsd(m.costUsd)
-                              )}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {metric === "cost" && isModelCostUnknown(m)
-                                ? "—"
-                                : formatPercent(metric === "cost" ? m.costShare : m.tokenShare)}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {formatTokens(m.totalTokens)}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {formatCount(m.records)}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    : merged.providers.map((p) => {
-                        const { name: providerName, icon: IconComp } = normalizeProvider(
-                          p.provider,
-                        );
+          <ModelIndex
+            models={committed.models}
+            metric={metric}
+            showAll={showAllModels}
+            onToggleShowAll={() => setShowAllModels((value) => !value)}
+            onInspect={setInspectModel}
+            onSetPrice={openPrices}
+            highlight={hoverProvider}
+          />
 
-                        return (
-                          <tr key={p.provider} className="hover:bg-muted/30 transition-colors">
-                            <td className="py-2.5 px-4 font-medium text-foreground">
-                              <div className="flex items-center gap-2">
-                                <IconComp className="size-4" />
-                                <span>{providerName}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-4 text-right font-semibold text-foreground tabular-nums">
-                              {formatUsd(p.costUsd)}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {formatPercent(metric === "cost" ? p.costShare : p.tokenShare)}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {formatTokens(p.totalTokens)}
-                            </td>
-                            <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
-                              {formatCount(p.records)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <details className="usage-details">
-            <summary>
-              Token details <span>Input, output & cache savings</span>
-            </summary>
-            <dl className="usage-token-details">
-              {[
-                ["Processed", formatTokens(merged.totalTokens)],
-                ["Cached input", formatTokens(merged.cachedInputTokens)],
-                ["Uncached input", formatTokens(merged.uncachedInputTokens)],
-                ["Cache writes", formatTokens(merged.cacheCreationTokens)],
-                ["Output", formatTokens(merged.outputTokens)],
-                ["Reasoning", formatTokens(merged.reasoningTokens)],
-                ["Estimated cache savings", formatUsd(merged.costQuality.cacheSavingsUsd)],
-                ["Savings vs. uncached input", formatPercent(cacheSavingsShare)],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </details>
-        </>
+          <TokenAnatomy usage={committed} />
+
+          <p className="usage-footnote">
+            Read {formatCount(summary.sources.reduce((n, source) => n + source.scannedFiles, 0))}{" "}
+            files from {formatCount(summary.sources.filter((s) => s.scannedFiles > 0).length)}{" "}
+            sources in {(summary.scanDurationMs / 1000).toFixed(1)}s · prices{" "}
+            {summary.pricing.status === "unavailable"
+              ? "unavailable"
+              : `via LiteLLM (${summary.pricing.status})`}
+          </p>
+        </div>
       )}
     </div>
   );
 }
 
-function BotIcon(props: React.SVGProps<SVGSVGElement>) {
+function cacheShare(usage: ReturnType<typeof mergeUsage>): number {
+  const input = usage.uncachedInputTokens + usage.cachedInputTokens + usage.cacheCreationTokens;
+  return input > 0 ? usage.cachedInputTokens / input : 0;
+}
+
+/** A figure that counts to its new value instead of snapping, on the app's motion pace. */
+function TweenedFigure({
+  value,
+  format,
+  className,
+}: {
+  readonly value: number;
+  readonly format: (value: number) => string;
+  readonly className?: string;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const shown = useRef(value);
+  const { active, seconds, profile } = useSurfaceMotionSettings();
+  // Writes text directly so a count-up does not re-render the page every frame.
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (!active || shown.current === value) {
+      shown.current = value;
+      node.textContent = format(value);
+      return;
+    }
+    const state = { value: shown.current };
+    const tween = gsap.to(state, {
+      value,
+      duration: seconds(0.32),
+      ease: profile.ease,
+      onUpdate: () => {
+        shown.current = state.value;
+        node.textContent = format(state.value);
+      },
+      onComplete: () => {
+        shown.current = value;
+        node.textContent = format(value);
+      },
+    });
+    return () => {
+      tween.kill();
+    };
+  }, [active, format, profile.ease, seconds, value]);
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect width="18" height="10" x="3" y="11" rx="2" />
-      <circle cx="12" cy="5" r="2" />
-      <path d="M12 7v4" />
-      <line x1="8" x2="8" y1="16" y2="16" />
-      <line x1="16" x2="16" y1="16" y2="16" />
-    </svg>
+    <strong ref={ref} className={className}>
+      {format(value)}
+    </strong>
+  );
+}
+
+/** One bar split by provider, with a legend that highlights on hover and filters on click. */
+function ProviderSpectrum({
+  usage,
+  metric,
+  focus,
+  onHover,
+  onFocus,
+}: {
+  readonly usage: ReturnType<typeof mergeUsage>;
+  readonly metric: Metric;
+  readonly focus: UsageProviderKind | null;
+  readonly onHover: (provider: UsageProviderKind | null) => void;
+  readonly onFocus: (provider: UsageProviderKind) => void;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  useInlineMorph(barRef, "i[data-key]", "flexGrow", [usage, metric]);
+  const providers = usage.providers.filter((p) => p.totalTokens > 0 || p.costUsd > 0);
+  if (providers.length === 0) return null;
+  const share = (p: (typeof providers)[number]) => (metric === "cost" ? p.costShare : p.tokenShare);
+  return (
+    <section className="usage-spectrum" aria-label="Usage by provider">
+      <div ref={barRef} className="usage-spectrum-bar" aria-hidden>
+        {providers.map((p) => (
+          <i
+            key={p.provider}
+            data-key={p.provider}
+            {...morphTarget("flexGrow", Math.max(share(p), 0.004))}
+            style={{
+              flexGrow: Math.max(share(p), 0.004),
+              background: providerOf(p.provider).color,
+            }}
+            data-dim={focus && focus !== p.provider ? "" : undefined}
+          />
+        ))}
+      </div>
+      <ul className="usage-spectrum-legend" onPointerLeave={() => onHover(null)}>
+        {providers.map((p) => {
+          const presentation = providerOf(p.provider);
+          const Mark = presentation.mark;
+          return (
+            <li key={p.provider}>
+              <button
+                type="button"
+                aria-pressed={focus === p.provider}
+                onPointerEnter={() => onHover(p.provider)}
+                onFocus={() => onHover(p.provider)}
+                onBlur={() => onHover(null)}
+                onClick={() => onFocus(p.provider)}
+                data-dim={focus && focus !== p.provider ? "" : undefined}
+              >
+                <i style={{ background: presentation.color }} aria-hidden />
+                <Mark className="size-3.5" aria-hidden />
+                <span className="usage-spectrum-name">{presentation.label}</span>
+                <span className="usage-spectrum-share">{formatPercent(share(p))}</span>
+                <b>{figure(metric, p)}</b>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Models as an editorial index: rank, name, provider, a bar against the leader, the figure. */
+function ModelIndex({
+  models,
+  metric,
+  showAll,
+  onToggleShowAll,
+  onInspect,
+  onSetPrice,
+  highlight,
+}: {
+  readonly models: readonly ModelTotals[];
+  readonly metric: Metric;
+  readonly showAll: boolean;
+  readonly onToggleShowAll: () => void;
+  readonly onInspect: (model: ModelTotals) => void;
+  readonly onSetPrice: (modelId: string) => void;
+  readonly highlight: UsageProviderKind | null;
+}) {
+  const listRef = useRef<HTMLOListElement>(null);
+  const ranked = useMemo(
+    () =>
+      metric === "tokens"
+        ? models.toSorted((a, b) => b.totalTokens - a.totalTokens)
+        : models.toSorted((a, b) => b.costUsd - a.costUsd || b.totalTokens - a.totalTokens),
+    [models, metric],
+  );
+  const shown = showAll ? ranked : ranked.slice(0, MODEL_PREVIEW);
+  const lead = ranked[0] ? (metric === "cost" ? ranked[0].costUsd : ranked[0].totalTokens) : 0;
+
+  // A new period or metric re-ranks the models: rows glide to their place and bars ease.
+  const order = shown.map((model) => `${model.provider}:${model.model}`).join("|");
+  useReorderGlide(listRef, ":scope > li", [order]);
+  useInlineMorph(listRef, ".usage-model-bar > i", "width", [shown, metric]);
+
+  if (ranked.length === 0) return null;
+  return (
+    <section className="usage-models" aria-label="Usage by model">
+      <div className="usage-section-head">
+        <h3>Models</h3>
+        <span className="usage-caption">{ranked.length} in use</span>
+      </div>
+      <ol ref={listRef}>
+        {shown.map((model, index) => {
+          const presentation = providerOf(model.provider);
+          const Mark = presentation.mark;
+          const unknownCost = isModelCostUnknown(model);
+          const value = metric === "cost" ? model.costUsd : model.totalTokens;
+          const barWidth = `${lead > 0 && !(metric === "cost" && unknownCost) ? (value / lead) * 100 : 0}%`;
+          return (
+            <li
+              key={`${model.provider}:${model.model}`}
+              data-key={`${model.provider}:${model.model}`}
+              data-dim={highlight && highlight !== model.provider ? "" : undefined}
+            >
+              <button
+                type="button"
+                className="usage-model-row"
+                onClick={() => onInspect(model)}
+                aria-label={`Inspect ${model.model}`}
+              >
+                <span className="usage-model-rank">{String(index + 1).padStart(2, "0")}</span>
+                <span className="usage-model-name">
+                  <code>{model.model}</code>
+                  <small>
+                    <Mark className="size-3" aria-hidden />
+                    {presentation.label}
+                    {` · ${formatCount(model.records)} requests`}
+                  </small>
+                </span>
+                <span className="usage-model-bar" aria-hidden>
+                  <i
+                    data-key={`${model.provider}:${model.model}`}
+                    {...morphTarget("width", barWidth)}
+                    style={{
+                      width: barWidth,
+                      background: presentation.color,
+                    }}
+                  />
+                </span>
+                <span className="usage-model-share">
+                  {metric === "cost" && unknownCost
+                    ? "—"
+                    : formatPercent(metric === "cost" ? model.costShare : model.tokenShare)}
+                </span>
+              </button>
+              <span className="usage-model-figure">
+                {metric === "tokens" ? (
+                  formatTokens(model.totalTokens)
+                ) : unknownCost ? (
+                  <button
+                    type="button"
+                    className="usage-link"
+                    onClick={() => onSetPrice(model.model)}
+                    aria-label={`Set prices for ${model.model}`}
+                  >
+                    Set price
+                  </button>
+                ) : (
+                  formatUsd(model.costUsd)
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {ranked.length > MODEL_PREVIEW ? (
+        <button type="button" className="usage-link usage-models-more" onClick={onToggleShowAll}>
+          {showAll ? "Show top models" : `Show all ${ranked.length} models`}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** Where input and output tokens went, as one proportional bar with its legend. */
+function TokenAnatomy({ usage }: { readonly usage: ReturnType<typeof mergeUsage> }) {
+  const parts = [
+    { label: "Cache read", value: usage.cachedInputTokens, tone: 26 },
+    { label: "Uncached input", value: usage.uncachedInputTokens, tone: 52 },
+    { label: "Cache write", value: usage.cacheCreationTokens, tone: 70 },
+    { label: "Output", value: usage.outputTokens, tone: 90 },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  const barRef = useRef<HTMLDivElement>(null);
+  useInlineMorph(barRef, "i[data-key]", "flexGrow", [usage]);
+  if (total === 0) return null;
+  return (
+    <section className="usage-anatomy" aria-label="Token details">
+      <div className="usage-section-head">
+        <h3>Token anatomy</h3>
+        <span className="usage-caption">
+          {formatTokens(usage.reasoningTokens)} of output was reasoning
+        </span>
+      </div>
+      <div ref={barRef} className="usage-anatomy-bar" aria-hidden>
+        {parts.map((part) => (
+          <i
+            key={part.label}
+            data-key={part.label}
+            {...morphTarget("flexGrow", part.value / total)}
+            style={{
+              flexGrow: part.value / total,
+              background: `color-mix(in oklab, var(--foreground) ${part.tone}%, var(--background))`,
+            }}
+          />
+        ))}
+      </div>
+      <dl className="usage-anatomy-legend">
+        {parts.map((part) => (
+          <div key={part.label}>
+            <dt>
+              <i
+                style={{
+                  background: `color-mix(in oklab, var(--foreground) ${part.tone}%, var(--background))`,
+                }}
+                aria-hidden
+              />
+              {part.label}
+            </dt>
+            <dd>
+              {formatTokens(part.value)} <span>{formatPercent(part.value / total)}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+/** The ledger's shape while the first scan of a window runs; static, so it costs no frames. */
+function LedgerSkeleton() {
+  return (
+    <div className="usage-skeleton" role="status" aria-label="Loading usage history">
+      <div className="usage-skeleton-hero">
+        <span />
+        <strong />
+        <span />
+      </div>
+      <div className="usage-skeleton-strip">
+        {Array.from({ length: 30 }, (_, index) => (
+          <i key={index} style={{ height: `${18 + ((index * 37) % 70)}%` }} />
+        ))}
+      </div>
+      <p className="usage-caption">Reading transcripts from your providers…</p>
+    </div>
   );
 }

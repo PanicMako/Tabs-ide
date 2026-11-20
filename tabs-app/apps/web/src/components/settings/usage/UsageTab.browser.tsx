@@ -1,19 +1,25 @@
 import "../../../index.css";
 import type { UsageSummary, UsageDay } from "@tabs/contracts";
 import { USAGE_CONTRACT_VERSION } from "@tabs/contracts";
-import { afterEach, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { StrictMode } from "react";
+import { afterEach, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import {
   AppAtomRegistryProvider,
   appAtomRegistry,
   resetAppAtomRegistryForTests,
 } from "../../../state/atomRegistry";
-import { usageSummaryStateAtom, usageTimeWindowAtom } from "../../../state/usage";
+import {
+  setUsageChartStyle,
+  usageSummaryStateAtom,
+  usageTimeWindowAtom,
+} from "../../../state/usage";
 import { UsageTab } from "./UsageTab";
 
 function seed() {
   resetAppAtomRegistryForTests();
+  setUsageChartStyle("bars");
   const data: UsageSummary = {
     contractVersion: USAGE_CONTRACT_VERSION,
     readAt: "2026-10-08T12:00:00.000Z",
@@ -77,22 +83,23 @@ it("distinguishes unknown prices from zero cost and retains token details", asyn
     </AppAtomRegistryProvider>,
   );
   try {
+    await expect.element(page.getByText("unknown-model", { exact: true })).toBeVisible();
+    await page.getByRole("radio", { name: "API cost", exact: true }).click();
     await expect
       .element(page.getByRole("button", { name: "Set prices for unknown-model", exact: true }))
       .toBeVisible();
-    await page.getByRole("radio", { name: "API cost", exact: true }).click();
-    await expect.element(page.getByRole("cell", { name: "—", exact: true })).toBeVisible();
-    await page.getByText("Token details", { exact: false }).click();
+    await expect.element(page.getByText("—", { exact: true })).toBeVisible();
     await expect.element(page.getByText("Uncached input", { exact: true })).toBeVisible();
-    await page.getByRole("radio", { name: "Providers", exact: true }).click();
+    await page.getByRole("button", { name: /^Codex \d/ }).click();
     await expect
-      .element(page.getByRole("columnheader", { name: "Provider", exact: true }))
+      .element(page.getByRole("button", { name: /^Codex \d/, pressed: true }))
       .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Codex Clear provider" })).toBeVisible();
   } finally {
     await view.unmount();
   }
 });
-it("uses hourly buckets and confines narrow table overflow to its scroll area", async () => {
+it("uses hourly periods, previews a scrubbed hour, and stays within a narrow width", async () => {
   seed();
   appAtomRegistry.set(usageTimeWindowAtom, "24h");
   const view = await render(
@@ -103,9 +110,11 @@ it("uses hourly buckets and confines narrow table overflow to its scroll area", 
     </AppAtomRegistryProvider>,
   );
   try {
-    await expect
-      .element(page.getByRole("img", { name: "Hourly token usage across 1 intervals" }))
-      .toBeVisible();
+    const strip = page.getByRole("slider", { name: "Hourly token usage across 24 intervals" });
+    await expect.element(strip).toBeVisible();
+    await strip.element().focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect.element(strip).toHaveAttribute("aria-valuenow", "23");
     const dashboard = page.getByRole("region", { name: "Usage overview" }).element().parentElement!;
     expect(dashboard.scrollWidth).toBeLessThanOrEqual(360);
   } finally {
@@ -125,6 +134,55 @@ it("shows refresh failures alongside retained data", async () => {
   );
   try {
     await expect.element(page.getByRole("alert")).toHaveTextContent("Provider offline");
+    await expect.element(page.getByRole("region", { name: "Usage overview" })).toBeVisible();
+  } finally {
+    await view.unmount();
+  }
+});
+it("switches the activity chart between bars and remembered lines", async () => {
+  seed();
+  const view = await render(
+    <AppAtomRegistryProvider>
+      <UsageTab />
+    </AppAtomRegistryProvider>,
+  );
+  try {
+    const plot = page.getByRole("slider");
+    await expect.element(plot).toHaveAttribute("data-style", "bars");
+    await page.getByRole("radio", { name: "Lines" }).click();
+    await expect.element(plot).toHaveAttribute("data-style", "lines");
+    expect(localStorage.getItem("tabs:usage-chart-style")).toBe("lines");
+  } finally {
+    await view.unmount();
+    localStorage.removeItem("tabs:usage-chart-style");
+  }
+});
+it("settles bars and lines fully visible under Strict Mode's double mount", async () => {
+  seed();
+  appAtomRegistry.set(usageTimeWindowAtom, "24h");
+  const view = await render(
+    <StrictMode>
+      <AppAtomRegistryProvider>
+        <UsageTab />
+      </AppAtomRegistryProvider>
+    </StrictMode>,
+  );
+  try {
+    const stack = () =>
+      document.querySelector<HTMLElement>(".usage-strip-stack[data-morph-height='100%']");
+    await vi.waitFor(() => expect(stack()?.style.height).toBe("100%"));
+    await page.getByRole("radio", { name: "Lines" }).click();
+    await vi.waitFor(() => {
+      const svg = document.querySelector<SVGSVGElement>(".usage-lines svg");
+      expect(svg && getComputedStyle(svg).clipPath).toBe("none");
+      const curve = document.querySelector<SVGPathElement>(".usage-lines-curve");
+      expect(curve?.getAttribute("d")).toBe(curve?.dataset.d);
+    });
+    await page.getByRole("radio", { name: "API cost", exact: true }).click();
+    await vi.waitFor(() => {
+      const curve = document.querySelector<SVGPathElement>(".usage-lines-curve");
+      expect(curve?.getAttribute("d")).toBe(curve?.dataset.d);
+    });
   } finally {
     await view.unmount();
   }
