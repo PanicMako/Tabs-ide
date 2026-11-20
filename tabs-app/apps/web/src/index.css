@@ -1152,6 +1152,216 @@ svg[class*="lucide-loader"].animate-spin {
   --accent-wash-border: rgba(38, 139, 210, 0.3);
 }
 
+[data-theme="graphite"] {
+  color-scheme: dark;
+  --background: #121211;
+  --app-chrome-background: var(--background);
+  --foreground: #ecebe6;
+  --card: #1a1a18;
+  --card-foreground: #ecebe6;
+  --popover: #232320;
+  --popover-foreground: #ecebe6;
+  --primary: #e07a52;
+  --primary-foreground: #140c08;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #ecebe6;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #a3a199;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #ecebe6;
+  --border: #2e2d2a;
+  --input: #2e2d2a;
+  --ring: #e07a52;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(224, 122, 82, 0.1);
+  --accent-wash-border: rgba(224, 122, 82, 0.3);
+}
+
+[data-theme="ultraviolet"] {
+  color-scheme: dark;
+  --background: #0b0a10;
+  --app-chrome-background: var(--background);
+  --foreground: #ecebf5;
+  --card: #13111c;
+  --card-foreground: #ecebf5;
+  --popover: #1c1928;
+  --popover-foreground: #ecebf5;
+  --primary: #9b7bff;
+  --primary-foreground: #0b0720;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #ecebf5;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #9c98b0;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #ecebf5;
+  --border: #28243a;
+  --input: #28243a;
+  --ring: #9b7bff;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(155, 123, 255, 0.1);
+  --accent-wash-border: rgba(155, 123, 255, 0.3);
+}
+
+[data-theme="acid"] {
+  color-scheme: dark;
+  --background: #0d0f10;
+  --app-chrome-background: var(--background);
+  --foreground: #e9eded;
+  --card: #151819;
+  --card-foreground: #e9eded;
+  --popover: #1e2224;
+  --popover-foreground: #e9eded;
+  --primary: #c4f135;
+  --primary-foreground: #121a00;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #e9eded;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #9aa3a6;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #e9eded;
+  --border: #2a2f31;
+  --input: #2a2f31;
+  --ring: #c4f135;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(196, 241, 53, 0.1);
+  --accent-wash-border: rgba(196, 241, 53, 0.3);
+}
+
+[data-theme="cyberdeck"] {
+  color-scheme: dark;
+  --background: #0c0b1a;
+  --app-chrome-background: var(--background);
+  --foreground: #e8e8f7;
+  --card: #151329;
+  --card-foreground: #e8e8f7;
+  --popover: #1e1b38;
+  --popover-foreground: #e8e8f7;
+  --primary: #3ee0ff;
+  --primary-foreground: #041a20;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #e8e8f7;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #9d9bbd;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #e8e8f7;
+  --border: #2b2850;
+  --input: #2b2850;
+  --ring: #3ee0ff;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(62, 224, 255, 0.1);
+  --accent-wash-border: rgba(62, 224, 255, 0.3);
+}
+
+[data-theme="redline"] {
+  color-scheme: dark;
+  --background: #0c0c0d;
+  --app-chrome-background: var(--background);
+  --foreground: #eeeeef;
+  --card: #151516;
+  --card-foreground: #eeeeef;
+  --popover: #1e1e20;
+  --popover-foreground: #eeeeef;
+  --primary: #ff5a45;
+  --primary-foreground: #1f0400;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #eeeeef;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #a0a0a6;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #eeeeef;
+  --border: #2a2a2d;
+  --input: #2a2a2d;
+  --ring: #ff5a45;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(255, 90, 69, 0.1);
+  --accent-wash-border: rgba(255, 90, 69, 0.3);
+}
+
+[data-theme="paper"] {
+  color-scheme: light;
+  --background: #f3f0e8;
+  --app-chrome-background: var(--background);
+  --foreground: #1c1a17;
+  --card: #fbf9f4;
+  --card-foreground: #1c1a17;
+  --popover: #ffffff;
+  --popover-foreground: #1c1a17;
+  --primary: #c63d22;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(0, 0, 0, 0.05);
+  --secondary-foreground: #1c1a17;
+  --muted: rgba(0, 0, 0, 0.05);
+  --muted-foreground: #5f5a52;
+  --accent: rgba(0, 0, 0, 0.06);
+  --accent-foreground: #1c1a17;
+  --border: #dcd6ca;
+  --input: #dcd6ca;
+  --ring: #c63d22;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(198, 61, 34, 0.1);
+  --accent-wash-border: rgba(198, 61, 34, 0.3);
+}
+
+[data-theme="fog"] {
+  color-scheme: light;
+  --background: #eceef0;
+  --app-chrome-background: var(--background);
+  --foreground: #161b20;
+  --card: #f7f8f9;
+  --card-foreground: #161b20;
+  --popover: #ffffff;
+  --popover-foreground: #161b20;
+  --primary: #0f6b63;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(0, 0, 0, 0.05);
+  --secondary-foreground: #161b20;
+  --muted: rgba(0, 0, 0, 0.05);
+  --muted-foreground: #566069;
+  --accent: rgba(0, 0, 0, 0.06);
+  --accent-foreground: #161b20;
+  --border: #d3d8dd;
+  --input: #d3d8dd;
+  --ring: #0f6b63;
+  --fg-90: color-mix(in srgb, var(--foreground) 90%, transparent);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-50: color-mix(in srgb, var(--foreground) 50%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --accent-wash-bg: rgba(15, 107, 99, 0.1);
+  --accent-wash-border: rgba(15, 107, 99, 0.3);
+}
+
 [data-theme="custom"] {
   --app-chrome-background: var(--background);
   --card-foreground: var(--foreground);
