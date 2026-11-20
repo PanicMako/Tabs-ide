@@ -32,8 +32,10 @@ import {
   deleteSideChatThread,
   isUnusedSideChat,
   readSideChatSettings,
+  sideChatDisabledReason,
   startSideChat,
 } from "./chat/useSideChat";
+import { serverConfigAtom } from "~/state/settings";
 import { toastManager } from "./ui/toast";
 
 export interface RightPanelTabsProps {
@@ -69,6 +71,15 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   const totalQueuedCount = serverQueuedCount + pendingLocalCount;
 
   const shouldUseDragRegion = isElectron && mode !== "sheet";
+  // Read only: ChatView already keeps the config fresh, and a bare panel must not fetch it.
+  const serverConfig = useAtomValue(serverConfigAtom);
+  // T3's rule: a side chat forks an existing thread, so a draft, a side chat and a subagent get none.
+  const sideChatReason = sideChatDisabledReason({
+    parent: serverThread,
+    capable:
+      serverConfig === null ? undefined : serverConfig.environment.capabilities.sideChats === true,
+  });
+  const disabledSurfaces = sideChatReason === null ? undefined : { sidechat: sideChatReason };
 
   const target = useActiveProjectTarget(threadId);
   const scope = `${environmentId ?? target?.environmentId ?? "local"}:${threadId ?? target?.projectId ?? "projectless"}`;
@@ -97,6 +108,14 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   const handleSelectTab = useCallback(
     (tab: RightPanelTab) => {
       if (tab === "sidechat") {
+        if (sideChatReason !== null) {
+          toastManager.add({
+            type: "info",
+            title: "Side chat unavailable",
+            description: sideChatReason,
+          });
+          return;
+        }
         // Starting one forks the thread, so it opens as a tab once the fork reached this client.
         const parentThreadId = threadId ?? null;
         const resolvedEnvironmentId = environmentId ?? target?.environmentId ?? undefined;
@@ -113,7 +132,15 @@ export const RightPanelTabs = memo(function RightPanelTabs({
       setActiveTab(tab);
       setChoosing(false);
     },
-    [scope, setActiveTab, setChoosing, threadId, environmentId, target?.environmentId],
+    [
+      scope,
+      setActiveTab,
+      setChoosing,
+      threadId,
+      environmentId,
+      target?.environmentId,
+      sideChatReason,
+    ],
   );
   const handleSelectInstance = (id: string) => {
     const tab = workspace.tabs.find((item) => item.id === id);
@@ -238,6 +265,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
         activeId={workspace.activeId}
         choosing={choosing}
         counts={counts}
+        disabledSurfaces={disabledSurfaces}
         dragRegion={shouldUseDragRegion}
         maximized={maximized}
         projectName={target?.projectName}
