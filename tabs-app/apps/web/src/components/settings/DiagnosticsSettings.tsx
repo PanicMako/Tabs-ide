@@ -46,6 +46,7 @@ import { SegmentedControl, type SegmentOption } from "../ui/segmented-control";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsRow, SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 import { RendererResponsivenessDiagnostics } from "./RendererResponsivenessDiagnostics";
+import { ObservabilityExportSettings } from "./ObservabilityExportSettings";
 import { ExpandableText } from "./ExpandableText";
 import {
   AttributionTable,
@@ -1323,6 +1324,12 @@ export function DiagnosticsSettings() {
                 Slow interactions <span>Renderer responsiveness</span>
               </summary>
               <RendererResponsivenessDiagnostics />
+            </details>
+            <details className="diagnostics-details">
+              <summary>
+                Export <span>Send traces, metrics and logs to a collector</span>
+              </summary>
+              <ObservabilityExportSettings />
             </details>
             <details className="diagnostics-details">
               <summary>
