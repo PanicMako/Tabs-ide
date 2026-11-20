@@ -7,6 +7,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { ConnectionGuideDialog } from "./ConnectionGuideDialog";
 import { RemoteAccessSection } from "./RemoteAccessSettings";
 import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
+import { LoadBalancingSettings } from "./LoadBalancingSettings";
 import { toastManager } from "~/components/ui/toast";
 import { useConfirm } from "~/hooks/useConfirm";
 import {
@@ -404,6 +405,8 @@ export function ConnectionsSettings() {
       </SettingsSection>
 
       <RemoteAccessSection />
+
+      <LoadBalancingSettings />
 
       <SettingsSection
         title="Remote Environments"

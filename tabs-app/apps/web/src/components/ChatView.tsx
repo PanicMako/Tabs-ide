@@ -75,7 +75,10 @@ import {
   openComposerHostPicker,
   openComposerModelPicker,
 } from "~/lib/composerControls";
-import { COMPOSER_CYCLE_HOST_EVENT } from "./BranchToolbarEnvironmentSelector";
+import {
+  COMPOSER_CYCLE_HOST_EVENT,
+  resolveComposerMachines,
+} from "./BranchToolbarEnvironmentSelector";
 import { requestQueueShortcut } from "~/lib/queueShortcuts";
 import { previousWorktreeChoice } from "~/lib/previousWorktree";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
@@ -227,7 +230,17 @@ import {
 } from "~/projectScripts";
 import { SidebarTrigger } from "./ui/sidebar";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
-import { environmentApi } from "~/connection/environmentApiRegistry";
+import {
+  connectedEnvironmentIds,
+  environmentApi,
+  environmentConfig,
+} from "~/connection/environmentApiRegistry";
+import {
+  justSwitchedMachine,
+  markMachineSwitch,
+  pickBalancedEnvironment,
+  weightFor,
+} from "~/lib/loadBalancing";
 import {
   getProviderModelCapabilities,
   getProviderModels,
@@ -5497,6 +5510,7 @@ export default function ChatView({
         });
         return;
       }
+      markMachineSwitch();
       const actions = createScopedComposerDraftActions(target.environmentId);
       const existing = actions.getDraftThreadByProjectId(target.id);
       if (existing) {
@@ -5553,6 +5567,61 @@ export default function ChatView({
       clearProjectDraftThreadId,
     ],
   );
+
+  // With "Choose the machine for me" on, a fresh draft that exists on several
+  // machines is moved to one picked in proportion to the saved weights, once.
+  const balancedDraftsRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!settings.loadBalancingEnabled || !isLocalDraftThread || envLocked || !activeProject)
+      return;
+    if (balancedDraftsRef.current.has(threadId)) return;
+    balancedDraftsRef.current.add(threadId);
+    if (justSwitchedMachine()) return;
+    if (draftThread?.branch || draftThread?.worktreePath) return;
+    if (
+      composerImagesRef.current.length ||
+      composerFilesRef.current.length ||
+      composerTerminalContextsRef.current.length ||
+      composerReviewCommentsRef.current.length
+    )
+      return;
+    const descriptors = connectedEnvironmentIds().flatMap((id) => {
+      const descriptor = environmentConfig(id)?.environment;
+      return descriptor ? [descriptor] : [];
+    });
+    const options = resolveComposerMachines(activeProject, projects, descriptors).filter(
+      (option) => option.project,
+    );
+    if (options.length < 2) return;
+    const weights = settings.loadBalancingWeights as Record<string, number>;
+    const pick = pickBalancedEnvironment(
+      options.map((option) => ({
+        environmentId: option.environmentId,
+        weight: weightFor(weights, option.environmentId),
+      })),
+      Math.random(),
+    );
+    const target = options.find((option) => option.environmentId === pick)?.project;
+    if (!target || target.environmentId === environmentId) return;
+    if (
+      createScopedComposerDraftActions(target.environmentId!).getDraftThreadByProjectId(target.id)
+    )
+      return;
+    markMachineSwitch();
+    void onMachineChange(target);
+  }, [
+    activeProject,
+    draftThread?.branch,
+    draftThread?.worktreePath,
+    envLocked,
+    environmentId,
+    isLocalDraftThread,
+    onMachineChange,
+    projects,
+    settings.loadBalancingEnabled,
+    settings.loadBalancingWeights,
+    threadId,
+  ]);
 
   const extendReplacementRangeForTrailingSpace = (
     text: string,
