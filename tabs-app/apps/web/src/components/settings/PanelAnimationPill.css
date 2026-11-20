@@ -17,8 +17,11 @@
 .panel-animation-pill-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  width: calc((100% - var(--duration-thumb)) * var(--duration-progress));
-  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  /* Runs on to the middle of the value pill, so its end is always tucked under it. */
+  width: calc(
+    (100% - var(--duration-thumb)) * var(--duration-progress) + var(--duration-thumb) / 2
+  );
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--primary) 12%, var(--muted));
 }
 .panel-animation-pill-detents {
@@ -45,7 +48,9 @@
   place-items: center;
   border-radius: var(--radius-control);
   border: 1px solid var(--seg-lit-border);
-  background-color: color-mix(in srgb, var(--card) 60%, var(--seg-lit-bg-tint));
+  z-index: 1;
+  /* Opaque, so the track and fill pass cleanly behind it instead of showing through. */
+  background-color: color-mix(in srgb, var(--primary) 7%, var(--card));
   background-image: var(--seg-lit-bg-gradient);
   color: var(--seg-lit-label);
   font-family: var(--font-sans);
