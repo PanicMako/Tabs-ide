@@ -5,7 +5,7 @@ import { resolveSymlinkTarget } from "@tabs/shared/symlink";
 
 export const writeFileStringAtomically = (input: {
   readonly filePath: string;
-  readonly contents: string;
+  readonly contents: string | Uint8Array;
 }) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -24,7 +24,9 @@ export const writeFileStringAtomically = (input: {
       );
       const tempPath = path.join(tempDirectory, "contents.tmp");
 
-      yield* fs.writeFileString(tempPath, input.contents);
+      yield* typeof input.contents === "string"
+        ? fs.writeFileString(tempPath, input.contents)
+        : fs.writeFile(tempPath, input.contents);
       yield* fs.rename(tempPath, targetPath);
     }),
   );
