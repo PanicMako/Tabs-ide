@@ -25,11 +25,29 @@ export const TOTAL_TAGS_COUNT = 195;
 
 export const changelogData: ChangelogRelease[] = [
   {
+    tag: "v2.8.0",
+    title: "New themes, curved Quick Actions, composer formatting and a redesigned Usage page",
+    date: "November 20, 2026",
+    shortDate: "Nov 20",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.8.0 adds seven new themes, curved Quick Actions menus with a configurable blank browser, Markdown formatting shortcuts in the message box, a redesigned Usage and Limits page with Antigravity quota, and a faster, snappier interface.",
+    highlights: [
+      "Pick Graphite, Ultraviolet, Acid, Cyberdeck, Redline, Paper or Fog, and the embedded editor follows.",
+      "Open Quick Actions sub-menus that follow the edge of the ring, or switch back to plain cards.",
+      "Choose what a blank browser opens on and keep its controls open on a blank page.",
+      "Press Cmd/Ctrl B, I or E in the message box to bold, italicize or code the selection.",
+      "Track activity and limits on a redesigned Usage page that includes Antigravity quota.",
+      "Enjoy faster animations and a quicker startup splash.",
+    ],
+    categories: [],
+  },
+  {
     tag: "v2.7.0",
     title: "Companion surface, Antigravity provider, and robust thread orchestration",
     date: "November 18, 2026",
     shortDate: "Nov 18",
-    isLatest: true,
     type: "feature",
     summary:
       "Tabs 2.7.0 introduces the companion surface with an embedded web browser and interactive omnibox, native integration for Google Antigravity with local ACP and quota telemetry, enhanced Cursor adapter v2 error reporting, thread context handoffs, local speech transcription models, and expanded workspace layout controls.",

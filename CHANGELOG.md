@@ -2,6 +2,23 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.8.0] - 2026-11-20
+
+### New themes, curved Quick Actions, composer formatting and a redesigned Usage page
+
+Tabs 2.8.0 adds seven new themes, curved Quick Actions menus with a configurable blank browser, Markdown formatting shortcuts in the message box, a redesigned Usage and Limits page with Antigravity quota, and a faster, snappier interface.
+
+### What changed
+
+- **New themes**: Graphite, Ultraviolet, Acid, Cyberdeck, Redline, Paper and Fog join the theme picker, and the embedded editor follows them.
+- **Curved Quick Actions menus**: Sub-menus follow the edge of the ring, with a setting to switch back to plain cards.
+- **Blank browser settings**: Choose whether a blank browser opens empty, on Google, on DuckDuckGo or on your own address, and keep its controls open on a blank page.
+- **Message box formatting**: Press Cmd/Ctrl B, I or E to make the selection bold, italic or inline code, and press again to undo it.
+- **Usage and Limits redesign**: A new activity chart, a rebuilt Usage tab, a clearer Limits page and Antigravity quota reported alongside the other providers.
+- **Faster interface**: Animations and the startup splash run noticeably quicker, and the panel animation setting has a new live preview.
+- **Side chats and surfaces**: Surfaces that cannot open are disabled with the reason, and a side chat explains why it cannot start from a draft thread.
+- **Fixes**: Image attachments stay on inherited conversation turns, and Agents opens on a fresh thread when there is nothing to resume.
+
 ## [v2.7.0] - 2026-11-18
 
 ### Companion surface, Antigravity provider, and robust thread orchestration
