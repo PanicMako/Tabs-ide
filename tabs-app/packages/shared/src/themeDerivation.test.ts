@@ -129,7 +129,7 @@ describe("themeDerivation shared module", () => {
 
   it("systematically guarantees valid hex & WCAG AA contrast (>= 4.5:1) for button.background & button.foreground across all built-in themes and custom themes", () => {
     const builtinThemeIds = Object.keys(BUILTIN_THEME_CONFIGS);
-    expect(builtinThemeIds.length).toBe(9);
+    expect(builtinThemeIds.length).toBe(16);
 
     for (const themeId of builtinThemeIds) {
       const config = BUILTIN_THEME_CONFIGS[themeId]!;

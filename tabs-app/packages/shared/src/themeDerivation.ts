@@ -122,6 +122,83 @@ export const BUILTIN_THEME_CONFIGS: Record<string, CustomThemeConfig> = {
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
+  graphite: {
+    baseVariant: "dark",
+    colors: {
+      background: "#121211",
+      card: "#1a1a18",
+      foreground: "#ecebe6",
+      border: "#2e2d2a",
+      primary: "#e07a52",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  ultraviolet: {
+    baseVariant: "dark",
+    colors: {
+      background: "#0b0a10",
+      card: "#13111c",
+      foreground: "#ecebf5",
+      border: "#28243a",
+      primary: "#9b7bff",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  acid: {
+    baseVariant: "dark",
+    colors: {
+      background: "#0d0f10",
+      card: "#151819",
+      foreground: "#e9eded",
+      border: "#2a2f31",
+      primary: "#c4f135",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  cyberdeck: {
+    baseVariant: "dark",
+    colors: {
+      background: "#0c0b1a",
+      card: "#151329",
+      foreground: "#e8e8f7",
+      border: "#2b2850",
+      primary: "#3ee0ff",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  redline: {
+    baseVariant: "dark",
+    colors: {
+      background: "#0c0c0d",
+      card: "#151516",
+      foreground: "#eeeeef",
+      border: "#2a2a2d",
+      primary: "#ff5a45",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  paper: {
+    baseVariant: "light",
+    colors: {
+      background: "#f3f0e8",
+      card: "#fbf9f4",
+      foreground: "#1c1a17",
+      border: "#dcd6ca",
+      primary: "#c63d22",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
+  fog: {
+    baseVariant: "light",
+    colors: {
+      background: "#eceef0",
+      card: "#f7f8f9",
+      foreground: "#161b20",
+      border: "#d3d8dd",
+      primary: "#0f6b63",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
 };
 
 export type TokenCategory =
