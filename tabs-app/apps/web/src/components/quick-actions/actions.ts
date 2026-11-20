@@ -399,6 +399,21 @@ export interface QuickSubAction {
   label: string;
   query: string;
 }
+/** What "Blank browser" opens: an empty page with its controls showing, unless set otherwise. */
+export interface BlankBrowserPreferences {
+  readonly startUrl: string;
+  readonly keepControlsOpen: boolean;
+}
+export const DEFAULT_BLANK_BROWSER: BlankBrowserPreferences = {
+  startUrl: "",
+  keepControlsOpen: true,
+};
+/** The page a new blank browser opens on; an empty start page is about:blank. */
+export function blankBrowserStartUrl(preferences: BlankBrowserPreferences | undefined): string {
+  const start = (preferences ?? DEFAULT_BLANK_BROWSER).startUrl.trim();
+  return start ? searchTarget(start) : "about:blank";
+}
+
 export const DEFAULT_SUB_ACTIONS: readonly QuickSubAction[] = [
   {
     id: "search-google",

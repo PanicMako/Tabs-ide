@@ -24,7 +24,12 @@ import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { BrowserStartupState } from "./BrowserStartupState";
 import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
 import { QuickActionsHost } from "./quick-actions/QuickActions";
-import { searchTarget, type QuickActionId } from "./quick-actions/actions";
+import {
+  DEFAULT_BLANK_BROWSER,
+  blankBrowserStartUrl,
+  searchTarget,
+  type QuickActionId,
+} from "./quick-actions/actions";
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
 import { DockWorkspace, type DockPreset } from "./dock/DockWorkspace";
 import { useComposerDraftStore } from "../composerDraftStore";
@@ -971,6 +976,12 @@ function resolveProjectDefaultBrowserUrl(
     return custom;
   }
   return "https://www.google.com";
+}
+
+/** A page with nothing on it yet: about:blank, or no address at all. */
+export function isBlankBrowserUrl(url: string | null | undefined): boolean {
+  const value = (url ?? "").trim();
+  return value === "" || value === "about:blank";
 }
 
 function normalizeBrowserUrl(rawUrl: string): string {
@@ -8319,6 +8330,8 @@ function GitConflictTextPane(props: {
 
 function DesktopBrowserChrome(props: {
   companion?: boolean | undefined;
+  /** The controls cannot be folded away (a blank page). */
+  chromePinned?: boolean | undefined;
   projectId: ProjectId;
   projectCwd: string;
   sessionId?: string | undefined;
@@ -8625,7 +8638,11 @@ function DesktopBrowserChrome(props: {
               onExternal={() =>
                 void api?.shell.openExternal(props.sessionState.currentUrl ?? props.normalizedUrl)
               }
-              onCollapse={props.companion ? undefined : () => props.setIsChromeExpanded(false)}
+              onCollapse={
+                props.companion || props.chromePinned
+                  ? undefined
+                  : () => props.setIsChromeExpanded(false)
+              }
               address={
                 <form
                   className="flex h-9 min-w-0 items-center gap-1 rounded-lg border border-border/70 bg-muted/40 px-1.5 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10"
@@ -10061,7 +10078,13 @@ export function DesktopCustomEmbedTool(props: {
     createEmptyBrowserSessionState(props.project.id, props.sessionId),
   );
   const [browserScopedState, setBrowserScopedState] = useProjectBrowserState(sessionKey);
-  const isChromeExpanded = browserState.chromeExpanded ?? true;
+  // A blank page has nothing to read and everything to type, so its controls stay open.
+  const keepBlankControlsOpen = useSettings(
+    (settings) => (settings.quickActions.blankBrowser ?? DEFAULT_BLANK_BROWSER).keepControlsOpen,
+  );
+  const onBlankPage = isBlankBrowserUrl(sessionState.currentUrl ?? normalizeBrowserUrl(initialUrl));
+  const pinnedOpen = keepBlankControlsOpen && onBlankPage;
+  const isChromeExpanded = pinnedOpen || (browserState.chromeExpanded ?? true);
   const setIsChromeExpanded = useCallback(
     (expanded: boolean) => {
       workspaceShellActions.setBrowserChromeExpanded(props.project.id, expanded, props.sessionId);
@@ -10443,6 +10466,7 @@ export function DesktopCustomEmbedTool(props: {
       sessionId={props.sessionId}
       title={props.title}
       isChromeExpanded={props.companion || isChromeExpanded}
+      chromePinned={pinnedOpen}
       setIsChromeExpanded={setIsChromeExpanded}
       sessionState={sessionState}
       browserState={browserState}
@@ -14257,7 +14281,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       await navigate({ to: "/" });
     } else if (activeProject && (id === "scratch-browser" || id === "search")) {
       const embedId = `${SCRATCH_BROWSER_ID_PREFIX}${randomUUID()}`;
-      const url = id === "search" || query.trim() ? searchTarget(query) : "about:blank";
+      const url =
+        id === "search" || query.trim()
+          ? searchTarget(query)
+          : blankBrowserStartUrl(settings.quickActions.blankBrowser);
       upsertProjectSettings(activeProject.id, (current) =>
         addScratchBrowserTool(current, {
           id: embedId,
