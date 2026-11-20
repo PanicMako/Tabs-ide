@@ -125,10 +125,6 @@
     transparent 80%
   );
 }
-.providers-page .provider-pins {
-  padding: 14px 18px;
-  border-radius: var(--radius-surface);
-}
 .providers-overview {
   display: flex;
   flex-wrap: wrap;
@@ -266,15 +262,6 @@ html[data-reduced-motion="reduce"] .provider-directory-select {
 }
 .provider-detail[data-provider-view="models"] .provider-focus-bar {
   border-bottom: 1px solid var(--border);
-}
-.providers-page .provider-pins {
-  position: relative;
-  border-style: dashed;
-  background: linear-gradient(
-    110deg,
-    color-mix(in srgb, var(--primary) 4%, var(--card)),
-    var(--card)
-  );
 }
 @media (prefers-reduced-motion: reduce) {
   .provider-directory-icon {

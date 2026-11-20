@@ -8,22 +8,12 @@ import { ProviderInstallProgress } from "./ProviderInstallProgress";
 import { ProviderDirectory } from "./ProviderDirectory";
 import { applyProviderOrder, isCustomProviderOrder } from "./providerOrder";
 import { CustomAgentProviders } from "./CustomAgentProviders";
-import { OrbitGroup } from "../ui/orbit-group";
+import { PinnedModelsPanel } from "./PinnedModelsPanel";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
-import {
-  DndContext,
-  closestCenter,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -32,7 +22,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { Equal } from "effect";
 import {
   ArrowUpCircleIcon,
-  BotIcon,
   DownloadIcon,
   EyeIcon,
   EyeOffIcon,
@@ -73,13 +62,6 @@ import { Switch } from "~/components/ui/switch";
 import { Badge } from "~/components/ui/badge";
 import { Collapsible, CollapsibleContent } from "~/components/ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
-import {
-  Dialog,
-  DialogBackdrop,
-  DialogPopup,
-  DialogPortal,
-  DialogViewport,
-} from "~/components/ui/dialog";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { toastManager } from "~/components/ui/toast";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
@@ -89,12 +71,7 @@ import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { readNativeApi } from "~/nativeApi";
 import { cn } from "~/lib/utils";
 import { formatRelativeTime } from "~/timestampFormat";
-import {
-  getPinnedModels,
-  isPinnedModel,
-  reorderPinnedModels,
-  togglePinnedModel,
-} from "~/modelPinning";
+import { getPinnedModels, isPinnedModel, togglePinnedModel } from "~/modelPinning";
 import {
   applyCustomModelOrdering,
   isAllBuiltInModelsHidden,
@@ -112,7 +89,6 @@ import {
   PROVIDER_DISPLAY_NAMES,
   type ServerProvider,
   type ServerProviderModel,
-  type UnifiedSettings,
 } from "@tabs/contracts";
 
 import { PROVIDER_SETTINGS_KEYS, type ProviderSettingsKey } from "./providerSettings.shared";
@@ -120,23 +96,6 @@ import { PROVIDER_SETTINGS_KEYS, type ProviderSettingsKey } from "./providerSett
 export type { ProviderSettingsKey } from "./providerSettings.shared";
 
 const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
-
-const PROVIDER_ICONS_BY_KIND: Record<string, any> = {
-  codex: OpenAI,
-  claudeAgent: ClaudeAI,
-  cursor: CursorIcon,
-  copilot: CopilotIcon,
-  grok: GrokIcon,
-  kiro: KiroIcon,
-  fx: FxIcon,
-  opencode: OpenCodeIcon,
-  kilo: KiloIcon,
-  droid: DroidIcon,
-  antigravity: AntigravityIcon,
-  openrouter: OpenRouterIcon,
-  pi: PiIcon,
-  muse: MuseIcon,
-};
 
 interface InstallProviderSettings {
   provider: ProviderSettingsKey;
@@ -329,29 +288,6 @@ function SortableModelRowItem({
   );
 }
 
-function SortablePinnedModelItem({
-  id,
-  children,
-}: {
-  id: string;
-  children: (handle: Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">) => ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(
-        isDragging && "relative z-20 opacity-70 shadow-md ring-1 ring-border rounded-lg",
-      )}
-    >
-      {children({ attributes, listeners })}
-    </div>
-  );
-}
-
 function getProviderSummary(provider: ServerProvider | undefined): {
   readonly headline: string;
   readonly detail: string | null;
@@ -442,257 +378,6 @@ function getProviderUpdatePrompt(
   const detail =
     advisory.message ?? (current && latest ? `Installed ${current}, latest ${latest}.` : null);
   return { headline, detail, command: advisory.updateCommand };
-}
-
-function PinModelCommandPalette({
-  serverProviders,
-  settings,
-  updateSettings,
-  providerCards,
-}: {
-  serverProviders: ReadonlyArray<ServerProvider>;
-  settings: Partial<UnifiedSettings> | null | undefined;
-  updateSettings: (next: Partial<UnifiedSettings>) => void;
-  providerCards: ReadonlyArray<{ provider: string; title: string }>;
-}) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeProviderFilter, setActiveProviderFilter] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
-
-  const pinnedEntries = getPinnedModels(settings);
-
-  const allModels = useMemo(() => {
-    const items: Array<{
-      provider: string;
-      providerName: string;
-      model: ServerProviderModel;
-    }> = [];
-
-    for (const card of providerCards) {
-      const providerName =
-        PROVIDER_DISPLAY_NAMES[card.provider as keyof typeof PROVIDER_DISPLAY_NAMES] ?? card.title;
-      const models = getProviderModels(serverProviders, card.provider);
-      for (const m of models) {
-        items.push({
-          provider: card.provider,
-          providerName,
-          model: m,
-        });
-      }
-    }
-    return items;
-  }, [providerCards, serverProviders]);
-
-  const filteredModels = useMemo(() => {
-    return allModels.filter(
-      (item: { provider: string; providerName: string; model: ServerProviderModel }) => {
-        if (activeProviderFilter && item.provider !== activeProviderFilter) {
-          return false;
-        }
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase().trim();
-        return (
-          item.model.name.toLowerCase().includes(q) ||
-          item.model.slug.toLowerCase().includes(q) ||
-          item.providerName.toLowerCase().includes(q)
-        );
-      },
-    );
-  }, [allModels, activeProviderFilter, searchQuery]);
-
-  if (allModels.length === 0) return null;
-
-  return (
-    <>
-      <Button
-        size="xs"
-        variant="outline"
-        className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-        onClick={() => setIsOpen(true)}
-      >
-        <PlusIcon className="size-3.5" />
-        Pin Model
-      </Button>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogPortal>
-          <DialogBackdrop />
-          <DialogViewport>
-            <DialogPopup
-              showCloseButton={false}
-              className="w-full max-w-xl p-0 overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground shadow-2xl isolate my-auto"
-            >
-              {/* Search Header */}
-              <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3 bg-muted/20">
-                <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search models to pin across all providers..."
-                  className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-                  autoFocus
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="text-muted-foreground/60 hover:text-foreground p-1 rounded cursor-pointer"
-                  >
-                    <XIcon className="size-4" />
-                  </button>
-                ) : null}
-                <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground select-none">
-                  ESC
-                </kbd>
-              </div>
-
-              {/* Provider Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 border-b border-border/40 bg-muted/10 [&::-webkit-scrollbar]:hidden">
-                <OrbitGroup
-                  className="tabs-segmented inline-flex items-center shrink-0 rounded-full"
-                  role="group"
-                  aria-label="Provider filter"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveProviderFilter(null)}
-                    aria-pressed={activeProviderFilter === null}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
-                      activeProviderFilter === null
-                        ? "bg-foreground text-background font-semibold shadow-xs"
-                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
-                    )}
-                  >
-                    All Providers
-                  </button>
-                  {providerCards.map((card) => {
-                    const providerName =
-                      PROVIDER_DISPLAY_NAMES[
-                        card.provider as keyof typeof PROVIDER_DISPLAY_NAMES
-                      ] ?? card.title;
-                    const isSelected = activeProviderFilter === card.provider;
-                    return (
-                      <button
-                        key={card.provider}
-                        type="button"
-                        onClick={() => setActiveProviderFilter(isSelected ? null : card.provider)}
-                        aria-pressed={isSelected}
-                        className={cn(
-                          "px-2.5 py-1 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
-                          isSelected
-                            ? "bg-foreground text-background font-semibold shadow-xs"
-                            : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
-                        )}
-                      >
-                        {providerName}
-                      </button>
-                    );
-                  })}
-                </OrbitGroup>
-              </div>
-
-              {/* Model Results List */}
-              <div className="max-h-96 overflow-y-auto p-2 divide-y divide-border/20">
-                {filteredModels.length === 0 ? (
-                  <div className="py-12 px-4 text-center select-none">
-                    <SearchIcon className="size-8 text-muted-foreground/30 mx-auto mb-2" />
-                    <div className="text-sm font-medium text-foreground">No Matching Models</div>
-                    <div className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                      No models match "{searchQuery}"
-                    </div>
-                  </div>
-                ) : (
-                  filteredModels.map(
-                    (item: {
-                      provider: string;
-                      providerName: string;
-                      model: ServerProviderModel;
-                    }) => {
-                      const IconComponent = PROVIDER_ICONS_BY_KIND[item.provider] ?? BotIcon;
-                      const caps = item.model.capabilities;
-                      const capLabels: string[] = [];
-                      if (caps?.supportsFastMode) capLabels.push("Fast");
-                      if (caps?.supportsThinkingToggle) capLabels.push("Thinking");
-                      if (caps?.reasoningEffortLevels && caps.reasoningEffortLevels.length > 0)
-                        capLabels.push("Reasoning");
-
-                      const isPinned = isPinnedModel(pinnedEntries, item.provider, item.model.slug);
-
-                      return (
-                        <div
-                          key={`${item.provider}:${item.model.slug}`}
-                          className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-accent/50 transition group cursor-pointer"
-                          onClick={() => {
-                            const nextPinned = togglePinnedModel(
-                              settings,
-                              item.provider,
-                              item.model.slug,
-                            );
-                            updateSettings({ pinnedModels: nextPinned as any });
-                          }}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground group-hover:text-foreground group-hover:bg-muted">
-                              <IconComponent className="size-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 truncate">
-                                <span className="text-sm font-medium text-foreground truncate">
-                                  {item.model.name}
-                                </span>
-                                <span className="text-xs font-mono text-muted-foreground/60 shrink-0">
-                                  ({item.providerName})
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs font-mono text-muted-foreground/50 truncate">
-                                  {item.model.slug}
-                                </span>
-                                {capLabels.map((label) => (
-                                  <span
-                                    key={label}
-                                    className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted/50 text-muted-foreground/70 shrink-0 border border-border/30"
-                                  >
-                                    {label}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                          {isPinned ? (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              className="h-7 gap-1 px-2.5 text-xs font-medium text-foreground bg-muted/80 hover:bg-muted cursor-pointer shrink-0"
-                            >
-                              <PinIcon className="size-3.5 fill-current" />
-                              Pinned
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              className="h-7 gap-1 px-2.5 text-xs font-medium text-muted-foreground group-hover:text-foreground group-hover:bg-accent cursor-pointer shrink-0"
-                            >
-                              <PlusIcon className="size-3.5" />
-                              Pin
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    },
-                  )
-                )}
-              </div>
-            </DialogPopup>
-          </DialogViewport>
-        </DialogPortal>
-      </Dialog>
-    </>
-  );
 }
 
 export interface ProvidersSettingsProps {
@@ -793,17 +478,6 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
   >({});
   const [modelFilters, setModelFilters] = useState<Record<string, string>>({});
   const modelListRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const pinnedDndSensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
 
   const textGenerationModelSelection = resolveAppModelSelectionState(settings, serverProviders);
   const textGenInstanceId = textGenerationModelSelection.instanceId;
@@ -1095,151 +769,16 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
         />
       </div>
 
-      {/* 📌 Pinned Models Section */}
-      {(() => {
-        const pinnedEntries = getPinnedModels(settings);
-        return (
-          <div className="provider-pins border border-border/60 bg-card/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex size-7 items-center justify-center rounded-lg bg-muted/80 text-foreground">
-                  <PinIcon className="size-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-foreground">Pinned Models</h3>
-                    <span className="rounded-full bg-muted/80 px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
-                      {pinnedEntries.length}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Your shortcuts in the model picker.
-                  </p>
-                </div>
-              </div>
-
-              {/* Cockpit Command Palette for Pinning Models */}
-              <PinModelCommandPalette
-                serverProviders={serverProviders}
-                settings={settings}
-                updateSettings={updateSettings}
-                providerCards={providerCards}
-              />
-            </div>
-
-            {pinnedEntries.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Pin your go-to models for quick access.
-              </p>
-            ) : (
-              <DndContext
-                sensors={pinnedDndSensors}
-                collisionDetection={closestCenter}
-                onDragEnd={(event: DragEndEvent) => {
-                  const { active, over } = event;
-                  if (!over || active.id === over.id) return;
-                  const oldIndex = pinnedEntries.findIndex(
-                    (entry) => `${entry.provider}:${entry.model}` === active.id,
-                  );
-                  const newIndex = pinnedEntries.findIndex(
-                    (entry) => `${entry.provider}:${entry.model}` === over.id,
-                  );
-                  if (oldIndex !== -1 && newIndex !== -1) {
-                    const nextPinned = reorderPinnedModels(
-                      settings.pinnedModels,
-                      oldIndex,
-                      newIndex,
-                    );
-                    updateSettings({
-                      pinnedModels: nextPinned as any,
-                    });
-                  }
-                }}
-              >
-                <SortableContext
-                  items={pinnedEntries.map((entry) => `${entry.provider}:${entry.model}`)}
-                  strategy={rectSortingStrategy}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {pinnedEntries.map((entry) => {
-                      const itemId = `${entry.provider}:${entry.model}`;
-                      const providerName =
-                        PROVIDER_DISPLAY_NAMES[
-                          entry.provider as keyof typeof PROVIDER_DISPLAY_NAMES
-                        ] ?? entry.provider;
-                      const IconComponent = PROVIDER_ICONS_BY_KIND[entry.provider] ?? BotIcon;
-
-                      const providerModels = getProviderModels(serverProviders, entry.provider);
-                      const matchedModel = providerModels.find((m) => m.slug === entry.model);
-                      const displayName = matchedModel?.name ?? entry.model;
-
-                      return (
-                        <SortablePinnedModelItem key={itemId} id={itemId}>
-                          {(handle) => (
-                            <div className="group/pinnedcard flex items-center justify-between gap-2.5 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2 transition hover:bg-muted/40 hover:border-border">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <button
-                                  type="button"
-                                  className="cursor-grab active:cursor-grabbing text-muted-foreground/40 group-hover/pinnedcard:text-muted-foreground hover:!text-foreground transition-colors p-0.5 rounded touch-none shrink-0"
-                                  aria-label={`Reorder ${displayName}`}
-                                  {...handle.attributes}
-                                  {...handle.listeners}
-                                >
-                                  <GripVerticalIcon className="size-3.5" />
-                                </button>
-                                <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/60">
-                                  <IconComponent className="size-3.5 text-muted-foreground" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1.5 truncate">
-                                    <span className="text-xs font-semibold text-foreground truncate">
-                                      {displayName}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0">
-                                      ({providerName})
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-0.5 shrink-0">
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <Button
-                                        size="icon-xs"
-                                        variant="ghost"
-                                        className="size-6 shrink-0 rounded text-foreground/80 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                                        onClick={() => {
-                                          const nextPinned = togglePinnedModel(
-                                            settings.pinnedModels,
-                                            entry.provider,
-                                            entry.model,
-                                          );
-                                          updateSettings({
-                                            pinnedModels: nextPinned as any,
-                                          });
-                                        }}
-                                        aria-label={`Unpin ${displayName}`}
-                                      >
-                                        <PinIcon className="size-3.5 fill-current" />
-                                      </Button>
-                                    }
-                                  />
-                                  <TooltipPopup side="top">Unpin model</TooltipPopup>
-                                </Tooltip>
-                              </div>
-                            </div>
-                          )}
-                        </SortablePinnedModelItem>
-                      );
-                    })}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-          </div>
-        );
-      })()}
+      <PinnedModelsPanel
+        serverProviders={serverProviders}
+        settings={settings}
+        updateSettings={updateSettings}
+        providers={orderedProviderCards.map((card) => ({
+          provider: card.provider,
+          title: card.title,
+          enabled: Boolean(card.providerConfig.enabled),
+        }))}
+      />
 
       <div className="providers-overview">
         <p>
