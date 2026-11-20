@@ -26,6 +26,8 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { toastManager } from "../ui/toast";
 import { AddProviderDialog } from "./AddProviderDialog";
+import { ProviderAccentPicker } from "./ProviderAccentPicker";
+import { withProviderAccent } from "./providerAccent";
 import { instanceLoginCommand } from "./addProvider.logic";
 import type { ProviderSettingsKey } from "./providerSettings.shared";
 import { AntigravityAccount } from "./AntigravityAccount";
@@ -207,6 +209,21 @@ export function CustomAgentProviders(props: {
                 }
                 control={
                   <div className="flex items-center gap-2">
+                    <ProviderAccentPicker
+                      name={instance.displayName ?? instanceId}
+                      value={instance.accentColor}
+                      onChange={(accent) =>
+                        void run(
+                          () =>
+                            mutate({
+                              operation: "upsert",
+                              instanceId: ProviderInstanceId.make(instanceId),
+                              instance: withProviderAccent(instance, accent),
+                            }),
+                          "Could not change the colour",
+                        )
+                      }
+                    />
                     {loginCommand && props.startProviderAction ? (
                       <Button
                         size="xs"
