@@ -15,6 +15,7 @@ import {
   type OrchestrationProjectShell,
   type OrchestrationV2ThreadShell,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2ShellThreadStatus,
   isListedThreadLineage,
 } from "@tabs/contracts";
@@ -722,6 +723,62 @@ function mapProjectsFromV2Shells(
     .map((entry) => entry.project);
 }
 
+type ChatAttachmentInput = {
+  readonly type: string;
+  readonly id: string;
+} & Record<string, unknown>;
+
+function mapChatAttachments(
+  attachments: ReadonlyArray<ChatAttachmentInput> | undefined,
+): ChatMessage["attachments"] {
+  return attachments?.map((attachment) =>
+    attachment.type === "image"
+      ? {
+          ...attachment,
+          type: "image" as const,
+          previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+        }
+      : {
+          ...attachment,
+          type: "file" as const,
+        },
+  ) as ChatMessage["attachments"];
+}
+
+/**
+ * The conversation a fork carries over from its source thread, as chat messages in order.
+ * Only inherited user and assistant turn items count; the fork's own messages come from the
+ * projection's messages and are skipped here by id.
+ */
+export function inheritedConversationMessages(
+  visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+  ownMessageIds: ReadonlySet<string>,
+): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  const seen = new Set<string>();
+  for (const row of visibleTurnItems) {
+    if (row.visibility !== "inherited") continue;
+    const item = row.item;
+    if (item.type !== "user_message" && item.type !== "assistant_message") continue;
+    if (ownMessageIds.has(item.messageId) || seen.has(item.messageId)) continue;
+    seen.add(item.messageId);
+    const streaming = item.type === "assistant_message" ? item.streaming : false;
+    const attachments = mapChatAttachments(
+      item.attachments as ReadonlyArray<ChatAttachmentInput> | undefined,
+    );
+    out.push({
+      id: item.messageId,
+      role: item.type === "user_message" ? "user" : "assistant",
+      text: item.text,
+      createdAt: toIsoDate(item.startedAt ?? item.updatedAt),
+      streaming,
+      ...(streaming ? {} : { completedAt: toIsoDate(item.completedAt ?? item.updatedAt) }),
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+    } as ChatMessage);
+  }
+  return out;
+}
+
 function mapThreadFromV2Shell(
   shell: OrchestrationV2ThreadShell,
   existing?: Thread,
@@ -1117,21 +1174,10 @@ export function applyThreadProjection(
       )
       .map((run) => run.userMessageId),
   );
-  const mappedMessages: ChatMessage[] = projection.messages
+  const ownMessages: ChatMessage[] = projection.messages
     .filter((message) => !waitingMessageIds.has(message.id))
     .map((message) => {
-      const attachments = message.attachments?.map((attachment) =>
-        attachment.type === "image"
-          ? {
-              ...attachment,
-              type: "image" as const,
-              previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
-            }
-          : {
-              ...attachment,
-              type: "file" as const,
-            },
-      );
+      const attachments = mapChatAttachments(message.attachments);
       return {
         id: message.id,
         role: message.role,
@@ -1146,6 +1192,15 @@ export function applyThreadProjection(
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
       };
     });
+  // A fork or side chat starts from another thread's conversation. The server sends that history
+  // only as inherited turn items, so without this the fork opens looking empty.
+  const mappedMessages: ChatMessage[] = [
+    ...inheritedConversationMessages(
+      projection.visibleTurnItems ?? [],
+      new Set(ownMessages.map((message) => message.id)),
+    ),
+    ...ownMessages,
+  ];
 
   const queuedRuns: QueuedRunItem[] = (projection.runs ?? [])
     .filter((r) => r.status === "queued")
