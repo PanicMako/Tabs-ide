@@ -163,6 +163,23 @@ describe("startSideChat", () => {
     expect(await first).toBe(true);
   });
 
+  it("explains that a draft thread has nothing to fork yet", async () => {
+    appAtomRegistry.update(readModelStateAtom, (state) => ({ ...state, threads: [] }));
+    const onError = vi.fn();
+    expect(
+      await startSideChat({
+        environmentId,
+        parentThreadId,
+        settings: undefined,
+        onError,
+      }),
+    ).toBe(false);
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringContaining("Send a message in this thread first"),
+    );
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
   it("does nothing without a thread to ask about", async () => {
     expect(
       await startSideChat({

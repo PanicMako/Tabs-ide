@@ -104,6 +104,16 @@ export async function startSideChat(input: {
   if (!environmentId || !parentThreadId) return false;
   const scope = sideChatScope(environmentId, parentThreadId);
   if (startingParents.has(scope)) return false;
+  // A draft thread exists only in this window until its first message, so the server has nothing to fork.
+  const parentOnServer = appAtomRegistry
+    .get(readModelStateAtom)
+    .threads.some((thread) => thread.id === parentThreadId);
+  if (!parentOnServer) {
+    onError(
+      "Send a message in this thread first. A side chat asks about a thread that already exists.",
+    );
+    return false;
+  }
   startingParents.add(scope);
   const targetThreadId = newThreadId();
   let created = false;
@@ -208,5 +218,21 @@ export function bringBackBlockedReason(input: {
 }): string | null {
   if (!input.parentIdle) return "Available when the main thread is idle.";
   if (!input.sideChatHasReply) return "Available after a finished reply.";
+  return null;
+}
+
+/** Why a side chat cannot start from this thread, or null when it can. */
+export function sideChatDisabledReason(input: {
+  readonly parent:
+    | { readonly isSideChat?: boolean | undefined; readonly isSubagent?: boolean | undefined }
+    | undefined;
+  readonly capable: boolean | undefined;
+}): string | null {
+  if (input.parent?.isSideChat === true) return "Side chats cannot start side chats.";
+  if (input.parent?.isSubagent === true) return "Subagent threads cannot start side chats.";
+  // A draft thread exists only in this window until its first message, so there is nothing to fork.
+  if (input.parent === undefined) return "Side chats start after the first message.";
+  if (input.capable === undefined) return "Side chats are not ready yet. Try again in a moment.";
+  if (!input.capable) return "Update this environment's server to use side chats.";
   return null;
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { bringBackBlockedReason, isUnusedSideChat, sideChatScope } from "./useSideChat";
+import {
+  bringBackBlockedReason,
+  isUnusedSideChat,
+  sideChatDisabledReason,
+  sideChatScope,
+} from "./useSideChat";
 
 describe("isUnusedSideChat", () => {
   it("is unused until a message, an item or a turn exists", () => {
@@ -28,5 +33,27 @@ describe("sideChatScope", () => {
   it("matches the right panel's per-thread scope", () => {
     expect(sideChatScope("env", "thread-1" as never)).toBe("env:thread-1");
     expect(sideChatScope(undefined, "thread-1" as never)).toBe("local:thread-1");
+  });
+});
+
+describe("sideChatDisabledReason", () => {
+  it("offers a side chat only from an existing, top-level thread on a capable server", () => {
+    expect(sideChatDisabledReason({ parent: {}, capable: true })).toBeNull();
+    // A draft exists only in the window, so the server has nothing to fork.
+    expect(sideChatDisabledReason({ parent: undefined, capable: true })).toBe(
+      "Side chats start after the first message.",
+    );
+    expect(sideChatDisabledReason({ parent: { isSideChat: true }, capable: true })).toBe(
+      "Side chats cannot start side chats.",
+    );
+    expect(sideChatDisabledReason({ parent: { isSubagent: true }, capable: true })).toBe(
+      "Subagent threads cannot start side chats.",
+    );
+    expect(sideChatDisabledReason({ parent: {}, capable: undefined })).toBe(
+      "Side chats are not ready yet. Try again in a moment.",
+    );
+    expect(sideChatDisabledReason({ parent: {}, capable: false })).toBe(
+      "Update this environment's server to use side chats.",
+    );
   });
 });
