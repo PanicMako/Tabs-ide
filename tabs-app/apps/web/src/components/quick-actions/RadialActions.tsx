@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -40,6 +40,7 @@ import {
   type QuickActionId,
   type LauncherDesign,
 } from "./actions";
+import { CurvedMenu, type CurvedMenuBounds, type CurvedMenuRow } from "./CurvedMenu";
 import "./radial-actions.css";
 
 type RadialIconComponent = React.ComponentType<{
@@ -136,6 +137,43 @@ export function radialSector(inner: number, outer: number, start: number, end: n
     ei = Math.sqrt((inner + corner) ** 2 - corner ** 2);
   return `M${p(outer, start + dO)}A${outer} ${outer} 0 0 1 ${p(outer, end - dO)}A${corner} ${corner} 0 0 1 ${p(eo, end)}L${p(ei, end)}A${corner} ${corner} 0 0 1 ${p(inner, end - dI)}A${inner} ${inner} 0 0 0 ${p(inner, start + dI)}A${corner} ${corner} 0 0 1 ${p(ei, start)}L${p(eo, start)}A${corner} ${corner} 0 0 1 ${p(outer, start + dO)}Z`;
 }
+export type FlyoutShape = "curved" | "card";
+
+/** The plate's radius, and the gap a flyout keeps from it. */
+const PLATE_RADIUS = 170;
+const FLYOUT_GAP = 10;
+export const SUB_PANEL_WIDTH = 178;
+
+export interface SubPanelPlacement {
+  /** Top-left corner, relative to the ring's center. */
+  left: number;
+  top: number;
+  origin: string;
+}
+
+/**
+ * Where a card sub-menu sits for the action at `angle` (0 is the top, clockwise): straight out
+ * from that action, past the plate, with the edge or corner that faces the ring touching it.
+ */
+export function subPanelPlacement(input: {
+  angle: number;
+  width: number;
+  height: number;
+}): SubPanelPlacement {
+  const radians = (input.angle * Math.PI) / 180;
+  const dx = Math.sin(radians),
+    dy = -Math.cos(radians);
+  const reach = Math.max(Math.abs(dx), Math.abs(dy));
+  // Square up the direction, so a diagonal action meets the panel's corner and a straight one
+  // meets the middle of an edge.
+  const sx = dx / reach,
+    sy = dy / reach;
+  const distance = PLATE_RADIUS + FLYOUT_GAP;
+  const left = dx * distance - input.width / 2 + (input.width / 2) * sx;
+  const top = dy * distance - input.height / 2 + (input.height / 2) * sy;
+  return { left, top, origin: `${50 - 50 * sx}% ${50 - 50 * sy}%` };
+}
+
 export function RadialLauncher({
   design,
   actions,
@@ -144,6 +182,7 @@ export function RadialLauncher({
   onClose,
   preview = false,
   subActions = DEFAULT_SUB_ACTIONS,
+  flyoutShape = "curved",
 }: {
   design: LauncherDesign;
   actions: readonly QuickAction[];
@@ -152,6 +191,7 @@ export function RadialLauncher({
   onClose?: () => void;
   preview?: boolean;
   subActions?: readonly QuickSubAction[] | undefined;
+  flyoutShape?: FlyoutShape | undefined;
 }) {
   const root = useRef<HTMLDivElement>(null),
     input = useRef<HTMLInputElement>(null);
@@ -203,12 +243,45 @@ export function RadialLauncher({
   const activeAngle = (currentIndex * 360) / Math.max(nodes.length, 1);
   const indicatorAngle = useContinuousAngle(activeAngle);
   const wedge = 360 / Math.max(nodes.length, 1);
-  // Sub-actions sit in one panel beside the plate on the parent's side, so any
-  // number of them stays readable and none crosses the ring.
-  const parentPoint = point(112, activeAngle);
-  const stackSide: "left" | "right" = parentPoint.x < -8 ? "left" : "right";
-  const panelReach = 270 - (40 + children.length * 37) / 2;
-  const panelY = Math.min(Math.max(parentPoint.y, -panelReach), panelReach);
+  // Sub-actions open straight out from the action they belong to, just past the blue band.
+  const subPanelRef = useRef<HTMLDivElement>(null);
+  const [subPanelHeight, setSubPanelHeight] = useState(0);
+  const estimatedHeight = 40 + children.length * 37;
+  const flyout = subPanelPlacement({
+    angle: activeAngle,
+    width: SUB_PANEL_WIDTH,
+    height: subPanelHeight || estimatedHeight,
+  });
+  // The visible window, in ring coordinates, so a curved menu can turn to stay on screen.
+  const [menuBounds, setMenuBounds] = useState<CurvedMenuBounds | null>(null);
+  useLayoutEffect(() => {
+    if (!expanded) return;
+    const measure = () => {
+      const box = root.current?.getBoundingClientRect();
+      if (!box || !scale) return;
+      const cx = box.left + box.width / 2,
+        cy = box.top + box.height / 2;
+      const margin = 8;
+      setMenuBounds({
+        left: (margin - cx) / scale,
+        top: (margin - cy) / scale,
+        right: (window.innerWidth - margin - cx) / scale,
+        bottom: (window.innerHeight - margin - cy) / scale,
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [expanded, scale]);
+  useLayoutEffect(() => {
+    const panel = subPanelRef.current;
+    if (!panel) return;
+    const measure = () => setSubPanelHeight(panel.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [expanded, searching, children.length]);
   const eyes = point(16, activeAngle);
   const run = async (action: QuickAction | undefined, given = query) => {
     // A custom action always runs with its own saved input.
@@ -587,16 +660,47 @@ export function RadialLauncher({
             <span className="sr-only">Type to search</span>
           </div>
         )}
-        {expanded && !searching && children.length > 0 && (
+        {expanded && !searching && children.length > 0 && flyoutShape === "curved" && (
+          <CurvedMenu
+            angle={activeAngle}
+            center={280}
+            title={active ? shortLabel(active) : "More"}
+            label={`${active?.label ?? "More"} options`}
+            current={subIndex}
+            busy={busy}
+            bounds={menuBounds}
+            // More's long list wraps the ring's side; the others centre on their action.
+            wrap={isMore}
+            onHover={setSubIndex}
+            onRun={(i) => {
+              const entry = children[i];
+              if (entry) void run(entry.action, entry.query);
+            }}
+            rows={children.map((entry) => {
+              const reason = disabled(actionRunId(entry.action));
+              return {
+                id: entry.id,
+                label: entry.label,
+                hint: destinationHint(entry.query),
+                icon: QUICK_ACTION_ICONS[entry.action.icon] as CurvedMenuRow["icon"],
+                disabledReason: reason,
+                title: `${entry.label} · ${reason ?? entry.action.detail}`,
+              };
+            })}
+          />
+        )}
+        {expanded && !searching && children.length > 0 && flyoutShape === "card" && (
           <div
+            ref={subPanelRef}
             className="qa-sub-panel"
             role="group"
             aria-label={`${active?.label ?? "More"} options`}
-            data-side={stackSide}
             style={
               {
-                left: 280 + (stackSide === "right" ? 178 : -178),
-                top: 280 + panelY,
+                left: 280 + flyout.left,
+                top: 280 + flyout.top,
+                width: SUB_PANEL_WIDTH,
+                transformOrigin: flyout.origin,
               } as CSSProperties
             }
             onPointerDown={(event) => event.stopPropagation()}

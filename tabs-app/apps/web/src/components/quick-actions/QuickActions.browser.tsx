@@ -146,7 +146,7 @@ it("uses custom sub-actions in saved order", async () => {
   expect(execute).toHaveBeenCalledWith("scratch-browser", "https://example.com/docs");
 });
 
-it("keeps More options in a compact fan beside their parent", async () => {
+it("bends More's menu around the ring, on its parent's side", async () => {
   await render(
     <LauncherSurface
       design="compass"
@@ -158,14 +158,18 @@ it("keeps More options in a compact fan beside their parent", async () => {
   );
   await page.getByRole("button", { name: "More actions" }).click();
   const parent = document.querySelector<HTMLElement>('[aria-label="More actions"]')!;
-  const px = Number.parseFloat(parent.style.left) - 280,
-    py = Number.parseFloat(parent.style.top) - 280;
-  const panel = document.querySelector<HTMLElement>(".qa-sub-panel")!;
-  const cx = Number.parseFloat(panel.style.left) - 280;
-  // Beside the plate, on the same side as its parent.
-  expect(Math.abs(cx)).toBeCloseTo(178, 0);
-  expect(Math.sign(cx)).toBe(px < -8 ? -1 : 1);
-  void py;
+  const px = Number.parseFloat(parent.style.left) - 280;
+  const menu = document.querySelector<HTMLElement>(".qa-curved-menu")!;
+  const left = Number.parseFloat(menu.style.left) - 280;
+  const right = left + Number.parseFloat(menu.style.width);
+  // On the same side as its parent, reaching in toward the ring without crossing past its middle.
+  if (px < -8) {
+    expect(left + right).toBeLessThan(0);
+    expect(right).toBeLessThanOrEqual(190);
+  } else {
+    expect(left + right).toBeGreaterThan(0);
+    expect(left).toBeGreaterThanOrEqual(-190);
+  }
 });
 it("searches using a chosen engine while keeping browser shortcuts separate", async () => {
   const execute = vi.fn(async () => {});

@@ -24,7 +24,7 @@ import {
   type QuickActionId,
   type LauncherDesign,
 } from "./actions";
-import { RadialLauncher } from "./RadialActions";
+import { RadialLauncher, type FlyoutShape } from "./RadialActions";
 import { useInstalledExtensions } from "~/state/extensions";
 import { extensionLauncherActions } from "./extensionQuickActions";
 import { QuickGlance } from "./QuickGlance";
@@ -52,6 +52,7 @@ export function LauncherSurface(props: {
   onClose?: () => void;
   preview?: boolean;
   subActions?: readonly QuickSubAction[] | undefined;
+  flyoutShape?: FlyoutShape | undefined;
 }) {
   return <RadialLauncher {...props} />;
 }
@@ -300,6 +301,7 @@ export function QuickActionsHost({
                     extensionLauncherActions(installedExtensions),
                   )}
                   subActions={settings.subActions}
+                  flyoutShape={settings.flyoutShape}
                   execute={hostExecute}
                   disabled={disabled}
                   onClose={dismiss}
