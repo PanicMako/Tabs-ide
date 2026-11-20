@@ -18,6 +18,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { ClaudeOrchestratorReplayHarness } from "../Adapters/ClaudeAdapterV2.testkit.ts";
 import { CodexOrchestratorReplayHarness } from "../Adapters/CodexAdapterV2.testkit.ts";
+import * as ContextHandoffService from "../ContextHandoffService.ts";
 import * as IdAllocator from "../IdAllocator.ts";
 import { provideDeterministicTestRuntime } from "./DeterministicRuntime.ts";
 import {
@@ -139,9 +140,9 @@ function userAndAssistantText(
 }
 
 describe("orchestration V2 thread fork", () => {
-  it.effect(
-    "creates an idle app fork and resolves it with Codex native thread/fork on first dispatch",
-    () =>
+  it.effect.each([{ sideChat: false }, { sideChat: true }] as const)(
+    "creates an idle app fork and resolves it with Codex native thread/fork on first dispatch, side chat: $sideChat",
+    ({ sideChat }) =>
       Effect.gen(function* () {
         const rawTranscript = yield* readTranscript();
         const cwd = yield* Effect.acquireRelease(makeCheckpointWorkspace, (directory) =>
@@ -150,8 +151,31 @@ describe("orchestration V2 thread fork", () => {
             Effect.orDie,
           ),
         );
+        // A side chat sends the main thread's context ahead of the user's message, so the replayed
+        // provider turn expects that exact text. The parent has no activity after the fork point.
+        const expectedPrompt = sideChat
+          ? yield* Effect.gen(function* () {
+              const ids = yield* IdAllocator.IdAllocatorV2;
+              const projectId = yield* ids.allocate.project({ fixtureName: "thread-fork-native" });
+              const parentThreadId = yield* ids.allocate.thread({
+                fixtureName: "thread-fork-native-source",
+                projectId,
+              });
+              return `${ContextHandoffService.makeSideChatContext({ parentThreadId, digest: [] })}\n\nUser message:\n${THREAD_FORK_NATIVE_TARGET_PROMPT}`;
+            }).pipe(Effect.provide(IdAllocator.layer), provideDeterministicTestRuntime)
+          : THREAD_FORK_NATIVE_TARGET_PROMPT;
+        const promptForReplay = (value: string) => JSON.stringify(value).slice(1, -1);
+        const replayTranscript =
+          expectedPrompt === THREAD_FORK_NATIVE_TARGET_PROMPT
+            ? rawTranscript
+            : (JSON.parse(
+                JSON.stringify(rawTranscript).replaceAll(
+                  promptForReplay(THREAD_FORK_NATIVE_TARGET_PROMPT),
+                  promptForReplay(expectedPrompt),
+                ),
+              ) as typeof rawTranscript);
         const transcript = yield* CodexOrchestratorReplayHarness.decodeTranscript(
-          materializeReplayTranscriptWorkspace(rawTranscript, cwd),
+          materializeReplayTranscriptWorkspace(replayTranscript, cwd),
         );
 
         const materialized = yield* Effect.gen(function* () {
@@ -205,6 +229,7 @@ describe("orchestration V2 thread fork", () => {
               targetThreadId,
               sourcePoint: { type: "latest_stable" },
               title: "Forked thread",
+              ...(sideChat ? { sideChat: true } : {}),
             },
             {
               type: "thread.fork",
@@ -215,6 +240,7 @@ describe("orchestration V2 thread fork", () => {
               targetThreadId,
               sourcePoint: { type: "latest_stable" },
               title: "Forked thread",
+              ...(sideChat ? { sideChat: true } : {}),
             },
             {
               type: "message.dispatch",
@@ -267,6 +293,7 @@ describe("orchestration V2 thread fork", () => {
         assert.isDefined(targetProjection);
         assert.equal(targetProjection.thread.lineage.parentThreadId, materialized.sourceThreadId);
         assert.equal(targetProjection.thread.lineage.relationshipToParent, "fork");
+        assert.equal(targetProjection.thread.lineage.sideChat === true, sideChat);
         assert.lengthOf(targetProjection.providerSessions, 1);
         assert.lengthOf(targetProjection.providerThreads, 1);
         assert.equal(
@@ -313,6 +340,19 @@ describe("orchestration V2 thread fork", () => {
           1,
           "duplicate fork command must return the receipt without creating another transfer",
         );
+
+        // A side chat's first turn carries the main thread's context, delivered inline once.
+        const sideChatHandoffs = targetProjection.contextHandoffs.filter(
+          ContextHandoffService.isSideChatContextHandoff,
+        );
+        if (sideChat) {
+          assert.lengthOf(sideChatHandoffs, 1);
+          assert.equal(sideChatHandoffs[0]?.delivery?.status, "inline");
+          assert.include(sideChatHandoffs[0]?.summaryText ?? "", "You are in a side chat");
+          assert.include(sideChatHandoffs[0]?.summaryText ?? "", materialized.sourceThreadId);
+        } else {
+          assert.lengthOf(sideChatHandoffs, 0);
+        }
       }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
