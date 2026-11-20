@@ -22,6 +22,7 @@ import * as ExternalLauncher from "./process/externalLauncher.ts";
 import {
   hasCompatibleOrchestrationProtocol,
   resolveAvailableEditorsForConfig,
+  SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT,
   shouldUseBoundedThreadSnapshot,
   subscribeOrchestrationV2Thread,
   withLateEditorConfig,
@@ -61,6 +62,17 @@ it.effect("does not block server config when editor discovery never resolves", (
     const availableEditors = yield* Fiber.join(responseFiber);
     yield* Deferred.await(discoveryInterrupted);
     assert.deepEqual(availableEditors, []);
+  }),
+);
+
+it.effect("gives up on editors after the short snapshot budget when late updates follow", () =>
+  Effect.gen(function* () {
+    const responseFiber = yield* resolveAvailableEditorsForConfig(
+      Effect.never,
+      SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT,
+    ).pipe(Effect.forkChild);
+    yield* TestClock.adjust(SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT);
+    assert.deepEqual(yield* Fiber.join(responseFiber), []);
   }),
 );
 

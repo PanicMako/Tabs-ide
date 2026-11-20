@@ -280,24 +280,29 @@ import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
+/**
+ * Editor discovery budget for the subscription snapshot. That stream re-sends
+ * the editors once the shared scan lands (`withLateEditorConfig`), so the first
+ * config never waits seconds on a busy host's PATH walk to paint the app.
+ */
+export const SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT = Duration.millis(300);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
 
 const resolveDiscoveryForConfig = <A, E, R>(
   discovery: Effect.Effect<A, E, R>,
   onTimeout: () => A,
-) =>
-  discovery.pipe(
-    Effect.timeoutOption(CONFIG_DISCOVERY_TIMEOUT),
-    Effect.map(Option.getOrElse(onTimeout)),
-  );
+  timeout: Duration.Input = CONFIG_DISCOVERY_TIMEOUT,
+) => discovery.pipe(Effect.timeoutOption(timeout), Effect.map(Option.getOrElse(onTimeout)));
 
 export const resolveAvailableEditorsForConfig = <A, E, R>(
   discovery: Effect.Effect<ReadonlyArray<A>, E, R>,
-) => resolveDiscoveryForConfig(discovery, () => []);
+  timeout: Duration.Input = CONFIG_DISCOVERY_TIMEOUT,
+) => resolveDiscoveryForConfig(discovery, () => [], timeout);
 
 const resolveFileManagerRevealKindForConfig = <E, R>(
   discovery: Effect.Effect<FileManagerRevealKind | undefined, E, R>,
-) => resolveDiscoveryForConfig(discovery, () => undefined);
+  timeout: Duration.Input = CONFIG_DISCOVERY_TIMEOUT,
+) => resolveDiscoveryForConfig(discovery, () => undefined, timeout);
 
 type EditorDiscovery = Pick<
   ExternalLauncher.ExternalLauncher["Service"],
@@ -1765,6 +1770,8 @@ const layerWsRpc = (
         const loadServerConfig = (options: {
           readonly usageLimitsCommand: boolean;
           readonly workspaceSnapshotsOnDemand?: boolean;
+          /** Only for callers that receive late editor updates afterwards. */
+          readonly editorDiscoveryTimeout?: Duration.Input;
         }) =>
           Effect.gen(function* () {
             const keybindingsConfig = yield* keybindings.loadConfigState;
@@ -1781,12 +1788,33 @@ const layerWsRpc = (
             const environment = yield* serverEnvironment.getDescriptor;
             const auth = yield* serverAuth.getDescriptor();
             const scratchWorkspaceRoot = yield* managedFolders.scratchRoot;
-            const editorConfig = yield* resolveEditorConfig(
-              yield* resolveAvailableEditorsForConfig(externalLauncher.resolveAvailableEditors()),
-              resolveFileManagerRevealKindForConfig(
-                externalLauncher.resolveFileManagerRevealKind(),
-              ),
-            );
+            const editorTimeout = options.editorDiscoveryTimeout ?? CONFIG_DISCOVERY_TIMEOUT;
+            // Independent probes run together, so a slow host costs the longest
+            // wait once rather than every timeout in sequence.
+            const [editorConfig, resolvedRemoteOpenTargets, resolvedDirectEndpoints] =
+              yield* Effect.all(
+                [
+                  Effect.flatMap(
+                    resolveAvailableEditorsForConfig(
+                      externalLauncher.resolveAvailableEditors(),
+                      editorTimeout,
+                    ),
+                    (editors) =>
+                      resolveEditorConfig(
+                        editors,
+                        resolveFileManagerRevealKindForConfig(
+                          externalLauncher.resolveFileManagerRevealKind(),
+                          editorTimeout,
+                        ),
+                      ),
+                  ),
+                  // Same discovery-with-timeout treatment as editors: a slow probe
+                  // must not stall server.getConfig, so it degrades to no targets.
+                  resolveAvailableEditorsForConfig(remoteOpenTargets.resolveTargets()),
+                  resolveAvailableEditorsForConfig(directEndpoints.resolve()),
+                ],
+                { concurrency: "unbounded" },
+              );
 
             return {
               environment,
@@ -1817,12 +1845,8 @@ const layerWsRpc = (
               providers,
               ...(options.workspaceSnapshotsOnDemand ? { workspaceSnapshotsOmitted: true } : {}),
               ...editorConfig,
-              // Same discovery-with-timeout treatment as editors: a slow probe
-              // must not stall server.getConfig, so it degrades to no targets.
-              remoteOpenTargets: yield* resolveAvailableEditorsForConfig(
-                remoteOpenTargets.resolveTargets(),
-              ),
-              directEndpoints: yield* resolveAvailableEditorsForConfig(directEndpoints.resolve()),
+              remoteOpenTargets: resolvedRemoteOpenTargets,
+              directEndpoints: resolvedDirectEndpoints,
               observability: {
                 logsDirectoryPath: config.logsDir,
                 localTracingEnabled: true,
@@ -3985,6 +4009,8 @@ const layerWsRpc = (
                 const config = yield* loadServerConfig({
                   usageLimitsCommand,
                   ...(input.workspaceSnapshotsOnDemand ? { workspaceSnapshotsOnDemand: true } : {}),
+                  // withLateEditorConfig below re-sends editors once they resolve.
+                  editorDiscoveryTimeout: SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT,
                 });
                 const keybindingsUpdates = keybindings.streamChanges.pipe(
                   Stream.map((event) => ({
