@@ -1,4 +1,6 @@
 import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
+import { useSettings } from "~/hooks/useSettings";
+import { formatSelection, markdownFormatForKey } from "~/lib/composerMarkdownFormat";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -21,6 +23,7 @@ import {
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_ARROW_UP_COMMAND,
+  KEY_DOWN_COMMAND,
   KEY_ENTER_COMMAND,
   KEY_TAB_COMMAND,
   COMMAND_PRIORITY_HIGH,
@@ -616,6 +619,43 @@ function appendTextNodes(nodes: LexicalNode[], text: string): void {
     if (line) nodes.push($createTextNode(line));
     if (index < lines.length - 1) nodes.push($createLineBreakNode());
   }
+}
+
+/**
+ * Cmd/Ctrl+B, I and E wrap the selection in Markdown bold, italic and code
+ * markers (and unwrap it again), so formatting is a keystroke instead of typing
+ * the markers by hand. The draft stays plain Markdown text.
+ */
+function ComposerMarkdownFormatPlugin() {
+  const [editor] = useLexicalComposerContext();
+  const enabled = useSettings((settings) => settings.composerRichTextEnabled);
+  useEffect(() => {
+    if (!enabled) return;
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event: KeyboardEvent) => {
+        const format = markdownFormatForKey({
+          key: event.key,
+          mod: event.metaKey || event.ctrlKey,
+          shift: event.shiftKey,
+          alt: event.altKey,
+        });
+        if (format === null) return false;
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
+        event.preventDefault();
+        const edit = formatSelection(selection.getTextContent(), format);
+        selection.insertText(edit.text);
+        if (edit.caretBack > 0) {
+          // Sit between the markers, using the same offset helpers the token plugins use.
+          $setSelectionAtComposerOffset($readSelectionOffsetFromEditorState(0) - edit.caretBack);
+        }
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, enabled]);
+  return null;
 }
 
 function ComposerInlineTokenPastePlugin() {
@@ -1355,6 +1395,7 @@ function ComposerPromptEditorInner({
           <ComposerInlineTokenSelectionNormalizePlugin />
           <ComposerInlineTokenBackspacePlugin />
           <ComposerInlineTokenPastePlugin />
+          <ComposerMarkdownFormatPlugin />
           <HistoryPlugin />
         </div>
       </ComposerCitationCommentContext.Provider>
