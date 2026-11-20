@@ -127,6 +127,7 @@ export function SettingsRow({
   description,
   status,
   resetAction,
+  titleAccessory,
   control,
   children,
 }: {
@@ -134,6 +135,8 @@ export function SettingsRow({
   description: string;
   status?: ReactNode;
   resetAction?: ReactNode;
+  /** A small live preview that sits on the title line, after the reset button. */
+  titleAccessory?: ReactNode;
   control?: ReactNode;
   children?: ReactNode;
 }) {
@@ -158,6 +161,9 @@ export function SettingsRow({
             <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
               {resetAction}
             </span>
+            {titleAccessory ? (
+              <span className="ml-1 inline-flex items-center">{titleAccessory}</span>
+            ) : null}
           </div>
           <p
             className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
@@ -325,5 +331,6 @@ const SETTINGS_PAGE_SUMMARIES: Record<string, string> = {
   "Browser Profiles": "Keep browsing contexts separate.",
   Keybindings: "Make shortcuts your own.",
   About: "Build details and updates.",
+  Devices: "Simulators and emulators beside your threads.",
   Labs: "Try what comes next.",
 };
