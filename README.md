@@ -4,7 +4,7 @@
 
 <br />
 
-**[Download](https://buildwithtabs.com/downloads)** &nbsp;·&nbsp; [Watch the film](docs/readme/tabs-launch.mp4) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself) &nbsp;·&nbsp; [What’s new](CHANGELOG.md) &nbsp;·&nbsp; [Shoutouts](#acknowledgments--shoutouts)
+**[Download](https://buildwithtabs.com/downloads)** &nbsp;·&nbsp; [Watch the film](docs/readme/tabs-launch.mp4) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself) &nbsp;·&nbsp; [Docs](tabs-app/docs/README.md) &nbsp;·&nbsp; [What’s new](CHANGELOG.md) &nbsp;·&nbsp; [Shoutouts](#acknowledgments--shoutouts)
 
 </div>
 
@@ -141,7 +141,7 @@ bun run dev:desktop
 - Python 3 and a C/C++ toolchain for your OS
 - Git
 
-Stuck, or want to work on the code? See the [developer guide](tabs-app/README.md).
+Stuck, or want to work on the code? See the [developer guide](tabs-app/README.md) and the [docs index](tabs-app/docs/README.md).
 
 </details>
 
@@ -203,7 +203,7 @@ Tabs does not collect your code, chats, or provider keys. Requests go to the pro
 <br />
 
 - [Report a bug](https://github.com/PanicMako/Tabs-ide/issues/new?template=bug_report.yml)
-- [Contribute](CONTRIBUTING.md) or read the [security policy](SECURITY.md)
+- Read the [docs](tabs-app/docs/README.md), [contribute](CONTRIBUTING.md) or read the [security policy](SECURITY.md)
 - [Releases](https://github.com/PanicMako/Tabs-ide/releases) and [release history](CHANGELOG.md)
 - Extensions live in [Tabs Exchange](https://exchange.buildwithtabs.com)
 
