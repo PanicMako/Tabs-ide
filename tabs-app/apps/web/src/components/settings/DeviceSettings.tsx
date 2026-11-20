@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
-import { SettingsRow, SettingsSection } from "./SettingsLayout";
+import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 import { SshHostsEditor } from "./SshHostsEditor";
 import { configureDevices, inspectDevices, useDeviceStore } from "~/device/deviceStore";
 import { deviceToolUpdatePolicy, deviceToolVersionLabels } from "~/device/deviceToolVersions";
@@ -36,8 +36,12 @@ export default function DeviceSettings() {
 
   return (
     <div className="space-y-6">
-      <SettingsSection
+      <SettingsSectionHeader
         title="Devices"
+        description="Watch simulators and emulators next to a thread, on this machine or over SSH."
+      />
+      <SettingsSection
+        title="Access"
         description="Watch simulators and emulators next to a thread."
       >
         <SettingsRow
@@ -118,7 +122,10 @@ export default function DeviceSettings() {
         />
       </SettingsSection>
       {error && (
-        <p role="alert" className="device-error">
+        <p
+          role="alert"
+          className="rounded-2xl border border-destructive/30 bg-card px-4 py-3 text-xs leading-relaxed text-destructive-foreground sm:px-5"
+        >
           {error}
         </p>
       )}

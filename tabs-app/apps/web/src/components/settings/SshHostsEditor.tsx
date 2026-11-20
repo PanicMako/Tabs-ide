@@ -67,7 +67,7 @@ export function SshHostsEditor({
           title={host.label}
           description={`${host.target}${host.port ? `:${host.port}` : ""}. ${status[host.id] ?? "Not tested yet."}`}
           control={
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {onTest && (
                 <Button size="sm" variant="outline" onClick={() => onTest(host)}>
                   Test connection
@@ -93,8 +93,11 @@ export function SshHostsEditor({
       {editing ? (
         <div className="space-y-3 border-t border-border px-4 py-4 sm:px-5">
           {FIELDS.map((field) => (
-            <label key={field.key} className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">{field.label}</span>
+            <label key={field.key} className="flex flex-col gap-1.5">
+              <span
+                className="text-xs text-muted-foreground/80"
+                style={{ fontFamily: "var(--font-supporting, var(--font-sans))" }}
+              >{field.label}</span>
               <Input
                 value={editing.form[field.key]}
                 placeholder={field.placeholder}
