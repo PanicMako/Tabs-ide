@@ -727,7 +727,8 @@ describe("SQLite usage readers", () => {
       } finally {
         db.close();
       }
-      await NodeFSP.utimes(path, 1780000000, 1780000000);
+      // Written after its last record, as a real store is.
+      await NodeFSP.utimes(path, 1780000300, 1780000300);
     }
     const result = await readAntigravityUsage(dir, 1780000100000);
     assert.deepStrictEqual(result.errors, []);
@@ -775,6 +776,94 @@ describe("SQLite usage readers", () => {
       10,
     );
   });
+});
+
+it("skips Antigravity databases last written before the window", async () => {
+  const path = NodePath.join(dir, "old.db");
+  const db = new NodeSqlite.DatabaseSync(path);
+  db.exec("PRAGMA journal_mode=WAL; CREATE TABLE gen_metadata (idx INTEGER, data BLOB)");
+  db.prepare("INSERT INTO gen_metadata VALUES (?, ?)").run(
+    0,
+    new Uint8Array(
+      protoBytes(1, [
+        ...protoBytes(4, [...protoNumber(2, 10), ...protoText(11, "old-response")]),
+        ...protoBytes(9, protoBytes(4, protoNumber(1, 1780000000))),
+      ]),
+    ),
+  );
+  db.close();
+  await NodeFSP.utimes(path, 1780000000, 1780000000);
+  // Opening a WAL database leaves an empty, freshly touched WAL behind. It holds no writes.
+  await NodeFSP.writeFile(`${path}-wal`, "");
+  const prepare = vi.spyOn(NodeSqlite.DatabaseSync.prototype, "prepare");
+  try {
+    const result = await readAntigravityUsage(dir, 1780000100000);
+    assert.deepStrictEqual(result.files, []);
+    assert.deepStrictEqual(result.errors, []);
+    assert.strictEqual(prepare.mock.calls.length, 0);
+    const wider = await readAntigravityUsage(dir, 0);
+    assert.strictEqual(wider.files.flatMap((file) => file.records).length, 1);
+  } finally {
+    prepare.mockRestore();
+  }
+});
+
+it("restores decoded Antigravity metadata after a restart without reopening unchanged databases", async () => {
+  const path = NodePath.join(dir, "restart.db");
+  const db = new NodeSqlite.DatabaseSync(path);
+  db.exec("PRAGMA journal_mode=WAL; CREATE TABLE gen_metadata (idx INTEGER, data BLOB)");
+  db.prepare("INSERT INTO gen_metadata VALUES (?, ?)").run(
+    0,
+    new Uint8Array(
+      protoBytes(1, [
+        ...protoBytes(4, [...protoNumber(2, 10), ...protoNumber(3, 4), ...protoText(11, "r-1")]),
+        ...protoText(19, "Gemini 3.8 Flash"),
+      ]),
+    ),
+  );
+  db.close();
+  vi.resetModules();
+  const before = await import("./antigravityUsageReader.ts");
+  const first = await before.readAntigravityUsage(dir, 0);
+  const snapshot = JSON.parse(JSON.stringify(before.exportAntigravityMetadata()));
+
+  // A fresh module stands in for a restarted server.
+  vi.resetModules();
+  const after = await import("./antigravityUsageReader.ts");
+  assert.notStrictEqual(after, before);
+  after.importAntigravityMetadata({
+    version: 2,
+    models: [],
+    databases: { "/elsewhere.db": { signature: "s", sessionId: "x", rows: [[1]] } },
+  });
+  after.importAntigravityMetadata(snapshot);
+  // Antigravity reopening the database leaves a fresh, empty WAL behind.
+  await NodeFSP.writeFile(`${path}-wal`, "");
+  const prepare = vi.spyOn(NodeSqlite.DatabaseSync.prototype, "prepare");
+  try {
+    const restored = await after.readAntigravityUsage(dir, 0);
+    assert.strictEqual(prepare.mock.calls.length, 0);
+    assert.deepStrictEqual(
+      restored.files.flatMap((file) => file.records),
+      first.files.flatMap((file) => file.records),
+    );
+    const live = new NodeSqlite.DatabaseSync(path);
+    live.exec("PRAGMA journal_mode=WAL");
+    live
+      .prepare("INSERT INTO gen_metadata VALUES (?, ?)")
+      .run(
+        1,
+        new Uint8Array(
+          protoBytes(1, protoBytes(4, [...protoNumber(2, 5), ...protoText(11, "r-2")])),
+        ),
+      );
+    const updated = await after.readAntigravityUsage(dir, 0);
+    live.close();
+    assert.isAbove(prepare.mock.calls.length, 0);
+    assert.strictEqual(updated.files.flatMap((file) => file.records).length, 2);
+  } finally {
+    prepare.mockRestore();
+  }
 });
 
 it("reuses unchanged Antigravity metadata across windows and detects live WAL writes", async () => {

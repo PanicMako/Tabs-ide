@@ -14,6 +14,8 @@
  */
 import { resolveInstanceEnvironment } from "../provider/ProviderInstanceSecrets.ts";
 import * as NodeOS from "node:os";
+import * as NodeUtil from "node:util";
+import * as NodeZlib from "node:zlib";
 
 import {
   ClaudeSettings,
@@ -54,7 +56,12 @@ import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
 import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { readOpenCodeUsage } from "./opencodeUsageReader.ts";
-import { readAntigravityUsage } from "./antigravityUsageReader.ts";
+import {
+  antigravityMetadataVersion,
+  exportAntigravityMetadata,
+  importAntigravityMetadata,
+  readAntigravityUsage,
+} from "./antigravityUsageReader.ts";
 import { readCursorAccountUsage } from "./cursorUsageReader.ts";
 import { resolveModelAliases, UsageAggregator } from "./usageAggregation.ts";
 import { createOverrideRateTable, parseRateTable, type RateTable } from "./usagePricing.ts";
@@ -90,6 +97,11 @@ const RATES_REFRESH_FLOOR_MS = 60 * 1000;
  */
 const MTIME_SLACK_MS = 36 * 60 * 60 * 1000;
 const MAX_HOURLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const ANTIGRAVITY_METADATA_FILE_NAME = "usage-antigravity-metadata-v1.json.gz";
+const ANTIGRAVITY_SAVE_INTERVAL_MS = 30_000;
+const gzip = NodeUtil.promisify(NodeZlib.gzip);
+const gunzip = NodeUtil.promisify(NodeZlib.gunzip);
 
 /** Longest window the UI offers, plus slack. Older entries are pruned. */
 const CACHE_RETENTION_DAYS = 90;
@@ -207,7 +219,10 @@ export const make = Effect.gen(function* () {
   const ratesCachePath = path.join(config.stateDir, "usage-model-rates.json");
   const scanCachePath = path.join(config.stateDir, SCAN_CACHE_FILE_NAME);
   const legacyScanCachePath = path.join(config.stateDir, LEGACY_SCAN_CACHE_FILE_NAME);
-  const writeCacheFile = (filePath: string, contents: string) =>
+  const antigravityMetadataPath = path.join(config.stateDir, ANTIGRAVITY_METADATA_FILE_NAME);
+  let savedAntigravityVersion = -1;
+  let savedAntigravityAtMs = 0;
+  const writeCacheFile = (filePath: string, contents: string | Uint8Array) =>
     writeFileStringAtomically({ filePath, contents }).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
@@ -435,6 +450,15 @@ export const make = Effect.gen(function* () {
    */
   const ensureScanCacheLoaded = yield* Effect.cached(
     Effect.gen(function* () {
+      // Decoding every Antigravity database again after a restart takes tens of
+      // seconds on a large history; the saved metadata makes it a stat per file.
+      yield* fileSystem.readFile(antigravityMetadataPath).pipe(
+        Effect.flatMap((bytes) => Effect.promise(() => gunzip(bytes))),
+        Effect.flatMap((raw) => Effect.try(() => JSON.parse(raw.toString("utf8")) as unknown)),
+        Effect.tap((snapshot) => Effect.sync(() => importAntigravityMetadata(snapshot))),
+        Effect.ignoreCause,
+      );
+      savedAntigravityVersion = antigravityMetadataVersion();
       const readDocument = (filePath: string) =>
         fileSystem.readFileString(filePath).pipe(
           Effect.flatMap((raw) => decodeScanCacheFile(raw)),
@@ -480,6 +504,34 @@ export const make = Effect.gen(function* () {
       persistLock.withPermit,
     );
   });
+
+  /**
+   * Saves decoded Antigravity metadata when it changed, at most every
+   * {@link ANTIGRAVITY_SAVE_INTERVAL_MS}: an open conversation changes on every
+   * scan, and rewriting the whole snapshot each time would cost more than the
+   * one database it saves re-reading. Runs after the response, never before it.
+   */
+  const persistAntigravityMetadata = Effect.fn("UsageService.persistAntigravityMetadata")(
+    function* () {
+      const version = antigravityMetadataVersion();
+      const now = yield* Clock.currentTimeMillis;
+      if (version === savedAntigravityVersion) return;
+      if (now - savedAntigravityAtMs < ANTIGRAVITY_SAVE_INTERVAL_MS) return;
+      savedAntigravityAtMs = now;
+      // Compression runs on libuv's pool, so a large history never stalls the server.
+      yield* Effect.sync(() => JSON.stringify(exportAntigravityMetadata())).pipe(
+        Effect.flatMap((json) => Effect.promise(() => gzip(json))),
+        Effect.flatMap((contents) => writeCacheFile(antigravityMetadataPath, contents)),
+        Effect.tap(() =>
+          Effect.sync(() => {
+            savedAntigravityVersion = version;
+          }),
+        ),
+        Effect.ignoreCause,
+        persistLock.withPermit,
+      );
+    },
+  );
 
   /**
    * Parses one transcript, reusing the cached result when it is unchanged.
@@ -945,6 +997,7 @@ export const make = Effect.gen(function* () {
     const pruned = pruneScanCache(fileCache, retentionCutoffMs);
     if (pruned > 0) cacheDirty = true;
     yield* persistScanCache();
+    yield* persistAntigravityMetadata().pipe(Effect.forkDetach);
 
     const aggregated = aggregator.finish();
     const readAt = yield* DateTime.now;
