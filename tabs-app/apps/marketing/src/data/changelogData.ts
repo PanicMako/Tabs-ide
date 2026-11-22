@@ -21,15 +21,33 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 195;
+export const TOTAL_TAGS_COUNT = 196;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.10.0",
+    title: "A redesigned Notch, a top-bar teammate, custom teammates and a slimmer model picker",
+    date: "November 22, 2026",
+    shortDate: "Nov 22",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.10.0 redesigns the Teammates space and the New teammate flow, tucks your teammate into the top bar as a pair of eyes, lets you describe a custom teammate and have it written for you, and adds a compact model and mode picker for narrow chat panels.",
+    highlights: [
+      "Swipe through starting-point cards to create a teammate, or choose Custom and have the model write it from what it is for.",
+      "Pick a finish on an orbit dial, or turn the hue ring to any colour.",
+      "Minimise your teammate into the top bar as a pair of eyes that follow your cursor; hover for a quick card, click to open Teammates.",
+      "Redesigned Now, Memory, Soul and Settings pages, with rename in Settings.",
+      "A slim model picker with search and thinking level, and one mode and access button, in narrow chats.",
+      "Windows installers are not code-signed yet; the README explains how to continue past the warning.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.9.0",
     title: "Meet Notch, your AI teammate, plus session search, worktree cleanup and computer use",
     date: "November 22, 2026",
     shortDate: "Nov 22",
-    isLatest: true,
     type: "feature",
     summary:
       "Tabs 2.9.0 adds Notch, an optional AI teammate that hands code work to normal Tabs threads and tracks it for you. It also adds search across your past agent sessions, evidence-based worktree cleanup, terminal quick commands, optional computer use for agents, and a new set of themed menus, dropdowns and scrollbars.",

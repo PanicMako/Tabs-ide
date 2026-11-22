@@ -62,7 +62,7 @@ Notch is a long-lived AI teammate that lives in Tabs. You chat with it, and it h
 - **Home folder:** every teammate has a folder with `SOUL.md` (who it is and how it works) and `MEMORY.md` (what it remembers about you and your projects). You can read and edit both, and you can forget individual memories in Settings.
 - **Items and workers:** when you ask for code work, the teammate starts a worker, which is a normal Tabs thread in its own worktree, and tracks it as an item: to do, working, needs you, done or dropped. When a worker finishes, the result is posted back to the teammate’s chat.
 - **Up Next:** turn on the look-around for a teammate and it checks in on a schedule (every 4 hours, every 2 hours, twice a day or mornings), read-only, and posts suggestions. Start one and it becomes a worker. Dismiss one and it is not suggested again. **Look around now** runs it on demand.
-- **Moods:** the teammate is drawn as the Tabs mascot in a corner of the window. It looks idle, thinking, working, waiting for you, happy, upset or asleep (paused) to match what it is doing. You can hide the corner mascot.
+- **Moods:** the teammate is drawn as the Tabs mascot in a corner of the window. It looks idle, thinking, working, waiting for you, happy, upset or asleep (paused) to match what it is doing. Your teammate starts minimised in the top bar beside Settings as a pair of eyes; hover them for a quick card, click them to open Teammates, and bring the floating mascot back from **Settings → Teammates**.
 - **Privacy:** everything stays on your machine. Teammates use your own agent subscriptions, with no Tabs account, cloud service or sharing.
 
 ## Also new
@@ -156,8 +156,23 @@ Connect an agent later in **Settings → Providers**.
 <br />
 
 - **Mac:** open **Apple menu → About This Mac** to see whether you have Apple Silicon or Intel.
-- **Windows:** run the `.exe` installer.
+- **Windows:** run the `.exe` installer. If Windows warns about it, see the note below.
 - **Linux:** use the `.AppImage` and allow it to run as a program if asked.
+
+</details>
+
+<details>
+<summary>Windows warns about the installer, or antivirus flags it</summary>
+
+<br />
+
+The Windows installer is **not code-signed yet**, and Tabs is a new app with no download history, so Windows SmartScreen or an antivirus program can flag it as unrecognized or suspicious. Code signing for Windows is in progress. The installer is built by GitHub Actions from this repository, and every release is listed on the [releases page](https://github.com/PanicMako/Tabs-ide/releases).
+
+- **"Windows protected your PC" (SmartScreen):** choose **More info**, then **Run anyway**.
+- **Microsoft Defender removed or blocked the file:** open **Windows Security → Virus & threat protection → Protection history**, select the entry, and choose **Actions → Allow on device**, then download the installer again.
+- **Report a false alarm:** send the file to Microsoft at [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/en-us/wdsi/filesubmission) as a software developer, and to your antivirus vendor.
+- **Prefer not to run it?** [Build it yourself](#build-it-yourself) from source.
+- **Computer use** (a Labs feature, off by default) controls the mouse and keyboard through PowerShell. Some antivirus programs are wary of that, which can add to the warning.
 
 </details>
 

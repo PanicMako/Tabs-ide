@@ -613,7 +613,7 @@ jobs:
               "$AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME" "$AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"; then
               args+=(--signed)
             else
-              echo "::warning::Windows signing disabled because one or more Azure signing secrets are missing."
+              echo "::warning::Windows signing disabled because one or more Azure signing secrets are missing. The installer will be unsigned and may trigger SmartScreen or antivirus warnings. See docs/windows-code-signing.md."
             fi
           fi
 
