@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { applyTestColorScheme, resetTestColorScheme } from "../../test/colorScheme";
 import { SettingsNavigation, SETTINGS_NAV, type SettingsPageId } from "./SettingsNavigation";
 
 function NavigationFixture() {
@@ -20,13 +21,13 @@ function NavigationFixture() {
 it("groups every existing settings page once under labelled sections", async () => {
   const view = await render(<NavigationFixture />);
   try {
-    for (const name of ["Make it yours", "Agent desk", "Workbench", "Inside Tabs", "First look"]) {
+    for (const name of ["Make it yours", "Agent desk", "Workbench", "Inside Tabs"]) {
       await expect.element(page.getByRole("group", { name, exact: true })).toBeVisible();
     }
     await expect
       .element(
         page
-          .getByRole("group", { name: "First look", exact: true })
+          .getByRole("group", { name: "Inside Tabs", exact: true })
           .getByRole("button", { name: "Labs", exact: true }),
       )
       .toBeVisible();
@@ -67,27 +68,62 @@ it("preserves page selection, badges and keyboard access across groups", async (
   }
 });
 
-it("fits all groups in a short desktop window and keeps small-screen overflow inside the rail", async () => {
-  await page.viewport(1280, 720);
-  const view = await render(
+function ShellFixture() {
+  return (
     <div
       data-slot="settings-columns"
-      className="settings-shell-columns"
-      style={{ display: "flex", height: "calc(100dvh - 90px)", width: "100%" }}
+      className="settings-shell-columns bg-background"
+      style={{ display: "flex", height: "calc(100dvh - 53px)", width: "100%", padding: "0 64px" }}
     >
       <NavigationFixture />
       <main aria-label="Settings content" style={{ minWidth: 0, flex: 1 }}>
         Page content
       </main>
-    </div>,
+    </div>
   );
+}
+
+async function expectNavFits() {
+  const nav = page.getByRole("navigation", { name: "Settings pages" }).element();
+  const last = page.getByRole("button", { name: "About", exact: true }).element();
+  expect(nav.scrollHeight).toBeLessThanOrEqual(nav.clientHeight);
+  expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    nav.getBoundingClientRect().bottom,
+  );
+}
+
+for (const [width, height] of [
+  [1440, 900],
+  [1512, 982],
+] as const) {
+  for (const scheme of ["light", "dark"] as const) {
+    it(`shows every page without a scrollbar at ${width}x${height} (${scheme})`, async () => {
+      await page.viewport(width, height);
+      applyTestColorScheme(scheme);
+      const view = await render(<ShellFixture />);
+      try {
+        await expectNavFits();
+        // Rows stay comfortable (never squeezed under 26px) at these sizes.
+        const row = page.getByRole("button", { name: "General", exact: true }).element();
+        expect(row.getBoundingClientRect().height).toBeGreaterThanOrEqual(26);
+        await page.screenshot({
+          path: `__screenshots__/settings-nav-${width}x${height}-${scheme}.png`,
+        });
+      } finally {
+        await view.unmount();
+        resetTestColorScheme();
+      }
+    });
+  }
+}
+
+it("falls back to a themed scrollbar inside the rail on very short windows and stacks on phones", async () => {
+  await page.viewport(1280, 600);
+  const view = await render(<ShellFixture />);
   try {
     const nav = page.getByRole("navigation", { name: "Settings pages" }).element();
-    const about = page.getByRole("button", { name: "Labs", exact: true }).element();
-    expect(about.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-      nav.getBoundingClientRect().bottom,
-    );
-    expect(nav.scrollHeight).toBeLessThanOrEqual(nav.clientHeight);
+    expect(nav.scrollHeight).toBeGreaterThan(nav.clientHeight);
+    expect(getComputedStyle(nav).overflowY).toBe("auto");
     await page.viewport(390, 844);
     expect(nav.getBoundingClientRect().width).toBeLessThanOrEqual(390);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);

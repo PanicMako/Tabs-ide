@@ -39,6 +39,7 @@ import {
   ResourceTelemetrySnapshot,
   type OrchestrationReadModel,
   ScheduledTaskListResult,
+  TeammatesSnapshot,
 } from "@tabs/contracts";
 import { providerUsageSnapshots } from "./providerUsageSnapshots";
 import * as Schema from "effect/Schema";
@@ -601,6 +602,11 @@ export function createWsNativeApi(options?: {
       inspectWorktrees: (cwd) => transport.request("worktrees.inspect", { cwd }),
       removeWorktree: (cwd, path) =>
         transport.request("worktrees.remove", { cwd, path, force: false }),
+      cleanupScan: (input) => transport.request("workspaceCleanup.scan", input),
+      cleanupApply: (input) =>
+        transport.request("workspaceCleanup.apply", input, { timeoutMs: 300_000 }),
+      cleanupHistory: (limit) =>
+        transport.request("workspaceCleanup.history", limit === undefined ? {} : { limit }),
     },
     pullRequests: {
       list: (input) => transport.request(WS_METHODS.pullRequestsList, input),
@@ -746,9 +752,7 @@ export function createWsNativeApi(options?: {
         items: readonly ContextMenuItem<T>[],
         position?: { x: number; y: number },
       ): Promise<T | null> => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position) as Promise<T | null>;
-        }
+        // Always the themed in-app menu: never the operating system's native menu.
         return showContextMenuFallback(items, position);
       },
     },
@@ -790,6 +794,7 @@ export function createWsNativeApi(options?: {
       discoverSourceControl: () => transport.request(WS_METHODS.serverDiscoverSourceControl),
       checkSecretSource: (source) =>
         transport.request(WS_METHODS.serverCheckSecretSource, { source }),
+      computerUsePermissions: () => transport.request(WS_METHODS.serverComputerUsePermissions, {}),
       cloneRepository: (input) => transport.request(WS_METHODS.serverCloneRepository, input),
       lookupRepository: (input) => transport.request(WS_METHODS.serverLookupRepository, input),
       updateProvider: (input) => transport.request(WS_METHODS.serverUpdateProvider, input),
@@ -851,6 +856,37 @@ export function createWsNativeApi(options?: {
       },
       consumeResetCredit: (input) =>
         transport.request(WS_METHODS.providerConsumeResetCredit, input),
+    },
+    sessionSearch: {
+      query: (input) => transport.request(WS_METHODS.sessionSearchQuery, input),
+      status: () => transport.request(WS_METHODS.sessionSearchStatus, {}),
+      reindex: (input) => transport.request(WS_METHODS.sessionSearchReindex, input),
+      resume: (input) => transport.request(WS_METHODS.sessionSearchResume, input),
+      preview: (input) => transport.request(WS_METHODS.sessionSearchPreview, input),
+    },
+    teammates: {
+      list: () => transport.request(WS_METHODS.teammatesList, {}),
+      subscribe: (callback, onError) =>
+        transport.subscribeRpc(
+          WS_METHODS.teammatesSubscribe,
+          () => ({}),
+          Schema.decodeUnknownSync(TeammatesSnapshot),
+          callback,
+          onError,
+        ),
+      create: (input) => transport.request(WS_METHODS.teammatesCreate, input),
+      update: (input) => transport.request(WS_METHODS.teammatesUpdate, input),
+      delete: (input) => transport.request(WS_METHODS.teammatesDelete, input),
+      openHome: (input) => transport.request(WS_METHODS.teammatesOpenHome, input),
+      updateItem: (input) => transport.request(WS_METHODS.teammatesItemsUpdate, input),
+      startSuggestion: (input) => transport.request(WS_METHODS.teammatesSuggestionsStart, input),
+      dismissSuggestion: (input) =>
+        transport.request(WS_METHODS.teammatesSuggestionsDismiss, input),
+      listMemory: (input) => transport.request(WS_METHODS.teammatesMemoryList, input),
+      forgetMemory: (input) => transport.request(WS_METHODS.teammatesMemoryForget, input),
+      lookAroundNow: (input) => transport.request(WS_METHODS.teammatesLookAroundNow, input),
+      getSoul: (input) => transport.request(WS_METHODS.teammatesSoulGet, input),
+      setSoul: (input) => transport.request(WS_METHODS.teammatesSoulSet, input),
     },
     scheduledTasks: {
       list: () => transport.request(WS_METHODS.scheduledTasksList, {}),

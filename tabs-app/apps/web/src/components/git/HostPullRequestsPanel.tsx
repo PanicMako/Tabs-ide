@@ -17,6 +17,8 @@ import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
+import { SimpleSelect } from "../ui/simple-select";
+import { Details, Summary } from "../ui/disclosure";
 
 type StateFilter = "open" | "merged" | "closed" | "all";
 
@@ -353,18 +355,13 @@ function HostPullRequestDetail({
       {actions.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Actions">
           {methods.length > 1 && actions.includes("merge") ? (
-            <select
+            <SimpleSelect
               aria-label="Merge method"
-              className="h-7 rounded-md border border-border bg-background px-2 text-xs"
-              value={method}
-              onChange={(event) => setMergeMethod(event.target.value as PullRequestMergeMethod)}
-            >
-              {methods.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate}
-                </option>
-              ))}
-            </select>
+              size="xs"
+              value={method ?? ""}
+              onValueChange={(next) => setMergeMethod(next as PullRequestMergeMethod)}
+              options={methods.map((candidate) => ({ value: candidate, label: candidate }))}
+            />
           ) : null}
           {actions.map((action) => (
             <Button
@@ -505,18 +502,16 @@ function HostPullRequestDetail({
             className="w-full rounded-md border border-border bg-background px-2 py-1.5"
           />
           <div className="flex items-center gap-2">
-            <select
+            <SimpleSelect
               aria-label="Review verdict"
-              className="h-7 rounded-md border border-border bg-background px-2 text-xs"
+              size="xs"
               value={verdict}
-              onChange={(event) => setVerdict(event.target.value as PullRequestReviewVerdict)}
-            >
-              {permissions.verdicts.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate.replace("-", " ")}
-                </option>
-              ))}
-            </select>
+              onValueChange={(next) => setVerdict(next as PullRequestReviewVerdict)}
+              options={permissions.verdicts.map((candidate) => ({
+                value: candidate,
+                label: candidate.replace("-", " "),
+              }))}
+            />
             <Button
               size="sm"
               disabled={
@@ -638,13 +633,13 @@ function HostPullRequestFiles({
     <div className="space-y-2">
       {files.length === 0 ? <p className="text-muted-foreground">No changes reported.</p> : null}
       {files.map((file) => (
-        <details key={file.path} className="rounded-md border border-border/70">
-          <summary className="flex cursor-pointer items-center justify-between gap-3 px-2 py-1.5">
+        <Details key={file.path} className="rounded-md border border-border/70">
+          <Summary className="flex cursor-pointer items-center justify-between gap-3 px-2 py-1.5">
             <span className="truncate font-mono">{file.path}</span>
             <span className="shrink-0 text-muted-foreground">
               +{file.additions} −{file.deletions}
             </span>
-          </summary>
+          </Summary>
           <pre className="max-h-96 overflow-auto border-t border-border/70 p-2 font-mono text-[11px] leading-snug">
             {file.text.split("\n").map((line, index) => (
               <div
@@ -673,7 +668,7 @@ function HostPullRequestFiles({
               onRemoveDraft={onRemoveDraft}
             />
           ) : null}
-        </details>
+        </Details>
       ))}
       {failure ? <p className="text-destructive-foreground">{failure}</p> : null}
       {cursor !== null ? (
@@ -745,15 +740,16 @@ function InlineCommentForm({
           onChange={(event) => setLine(event.target.value)}
           className="h-7 w-16 rounded-md border border-border bg-background px-2"
         />
-        <select
+        <SimpleSelect
           aria-label="Side of the diff"
+          size="xs"
           value={side}
-          onChange={(event) => setSide(event.target.value as "new" | "old")}
-          className="h-7 rounded-md border border-border bg-background px-2"
-        >
-          <option value="new">added / new</option>
-          <option value="old">removed / old</option>
-        </select>
+          onValueChange={(next) => setSide(next as "new" | "old")}
+          options={[
+            { value: "new", label: "added / new" },
+            { value: "old", label: "removed / old" },
+          ]}
+        />
         <input
           aria-label={`Comment on ${path}`}
           placeholder="Line comment"

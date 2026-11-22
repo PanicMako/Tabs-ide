@@ -51,6 +51,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { removeBrowserProfileAssignments } from "./browserProfileAssignments";
+import { Details, Summary } from "../ui/disclosure";
 
 const PRESET_COLORS = [
   "#3b82f6", // Blue
@@ -955,10 +956,10 @@ export function BrowserProfilesSettings() {
                   </div>
                 </div>
 
-                <details className="group mt-3">
-                  <summary className="w-fit cursor-pointer rounded-md text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
+                <Details className="group mt-3">
+                  <Summary className="w-fit cursor-pointer rounded-md text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
                     Profile details<span className="sr-only"> for {profile.label}</span>
-                  </summary>
+                  </Summary>
                   <div className="mt-3 space-y-3">
                     {/* Assigned tabs */}
                     <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs space-y-1.5">
@@ -1203,7 +1204,7 @@ export function BrowserProfilesSettings() {
                       </Button>
                     </div>
                   </div>
-                </details>
+                </Details>
               </div>
             );
           })}

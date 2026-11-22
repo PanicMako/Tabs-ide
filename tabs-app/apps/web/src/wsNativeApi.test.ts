@@ -848,8 +848,9 @@ describe("wsNativeApi", () => {
     });
   });
 
-  it("forwards context menu metadata to desktop bridge", async () => {
+  it("renders context menus in-app even when the desktop bridge exists", async () => {
     const showContextMenu = vi.fn().mockResolvedValue("delete");
+    showContextMenuFallbackMock.mockResolvedValue("rename");
     Object.defineProperty(getWindowForTest(), "desktopBridge", {
       configurable: true,
       writable: true,
@@ -860,21 +861,14 @@ describe("wsNativeApi", () => {
 
     const { createWsNativeApi } = await import("./wsNativeApi");
     const api = createWsNativeApi();
-    await api.contextMenu.show(
-      [
-        { id: "rename", label: "Rename thread" },
-        { id: "delete", label: "Delete", destructive: true },
-      ],
-      { x: 200, y: 300 },
-    );
+    const items = [
+      { id: "rename", label: "Rename thread" },
+      { id: "delete", label: "Delete", destructive: true },
+    ];
+    await expect(api.contextMenu.show(items, { x: 200, y: 300 })).resolves.toBe("rename");
 
-    expect(showContextMenu).toHaveBeenCalledWith(
-      [
-        { id: "rename", label: "Rename thread" },
-        { id: "delete", label: "Delete", destructive: true },
-      ],
-      { x: 200, y: 300 },
-    );
+    expect(showContextMenu).not.toHaveBeenCalled();
+    expect(showContextMenuFallbackMock).toHaveBeenCalledWith(items, { x: 200, y: 300 });
   });
 
   it("uses fallback context menu when desktop bridge is unavailable", async () => {
@@ -1492,6 +1486,58 @@ it("does not report success when a Git stream closes without its final result", 
   await expect(
     api.git.runStackedAction({ actionId: "a", cwd: "/repo", action: "commit" }),
   ).rejects.toThrow("without a completion result");
+});
+
+it("routes session search calls through the environment transport", async () => {
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  requestMock.mockResolvedValue({ hits: [], indexing: false, elapsedMs: 0 });
+  await api.sessionSearch.query({ query: "debounce", agents: ["claude"] });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.sessionSearchQuery, {
+    query: "debounce",
+    agents: ["claude"],
+  });
+  await api.sessionSearch.status();
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.sessionSearchStatus, {});
+  await api.sessionSearch.reindex({ full: true });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.sessionSearchReindex, { full: true });
+  await api.sessionSearch.preview({ agent: "codex", sessionId: "abc", query: "x" });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.sessionSearchPreview, {
+    agent: "codex",
+    sessionId: "abc",
+    query: "x",
+  });
+  await api.sessionSearch.resume({ agent: "codex", sessionId: "abc" });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.sessionSearchResume, {
+    agent: "codex",
+    sessionId: "abc",
+  });
+});
+
+it("routes teammate calls through the environment transport", async () => {
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  requestMock.mockResolvedValue({});
+  const id = "teammate-1" as import("@tabs/contracts").TeammateId;
+  await api.teammates.list();
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.teammatesList, {});
+  await api.teammates.update({ id, patch: { name: "Pixel" } });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.teammatesUpdate, {
+    id,
+    patch: { name: "Pixel" },
+  });
+  await api.teammates.openHome({ id });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.teammatesOpenHome, { id });
+  await api.teammates.getSoul({ id });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.teammatesSoulGet, { id });
+  api.teammates.subscribe(vi.fn(), vi.fn());
+  expect(subscribeRpcMock).toHaveBeenLastCalledWith(
+    WS_METHODS.teammatesSubscribe,
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+  );
 });
 
 it("keeps automation operations on the selected environment transport", async () => {

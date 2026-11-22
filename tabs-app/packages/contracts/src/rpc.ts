@@ -2,6 +2,7 @@ import { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import { WorkspaceCompatibilityRpcs } from "./workspaceCompatibilityRpc.ts";
 import { SecretReference } from "./secretReference.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
+import { ComputerUsePermissionStatus } from "./computerUse.ts";
 import { TESTING_WS_METHODS, TestingRpcs } from "./testingRpc.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
@@ -359,6 +360,46 @@ import {
   ScheduledTaskUpsertInput,
   ScheduledTaskMutationResult,
 } from "./scheduledTask.ts";
+import {
+  TeammateError,
+  TeammatesCreateInput,
+  TeammatesDeleteInput,
+  TeammatesDeleteResult,
+  TeammatesItemsUpdateInput,
+  TeammatesItemsUpdateResult,
+  TeammatesListInput,
+  TeammatesLookAroundNowInput,
+  TeammatesLookAroundNowResult,
+  TeammatesMemoryForgetInput,
+  TeammatesMemoryForgetResult,
+  TeammatesMemoryListInput,
+  TeammatesMemoryListResult,
+  TeammatesMutationResult,
+  TeammatesOpenHomeInput,
+  TeammatesOpenHomeResult,
+  TeammatesSnapshot,
+  TeammatesSoulGetInput,
+  TeammatesSoulGetResult,
+  TeammatesSoulSetInput,
+  TeammatesSoulSetResult,
+  TeammatesSuggestionsDismissInput,
+  TeammatesSuggestionsDismissResult,
+  TeammatesSuggestionsStartInput,
+  TeammatesSuggestionsStartResult,
+  TeammatesUpdateInput,
+} from "./teammates.ts";
+import {
+  SessionSearchError,
+  SessionSearchPreviewInput,
+  SessionSearchPreviewResult,
+  SessionSearchQueryInput,
+  SessionSearchQueryResult,
+  SessionSearchReindexInput,
+  SessionSearchResumeInput,
+  SessionSearchResumeResult,
+  SessionSearchStatus,
+  SessionSearchStatusInput,
+} from "./sessionSearch.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 import {
   ProjectCloneActionInput,
@@ -497,6 +538,7 @@ export const WS_METHODS = {
   serverUpdateSettings: "server.updateSettings",
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverCheckSecretSource: "server.checkSecretSource",
+  serverComputerUsePermissions: "server.computerUsePermissions",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -533,6 +575,27 @@ export const WS_METHODS = {
   secretsAnswerRequest: "secrets.answerRequest",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
+  teammatesList: "teammates.list",
+  teammatesSubscribe: "teammates.subscribe",
+  teammatesCreate: "teammates.create",
+  teammatesUpdate: "teammates.update",
+  teammatesDelete: "teammates.delete",
+  teammatesOpenHome: "teammates.openHome",
+  teammatesItemsUpdate: "teammates.items.update",
+  teammatesSuggestionsStart: "teammates.suggestions.start",
+  teammatesSuggestionsDismiss: "teammates.suggestions.dismiss",
+  teammatesMemoryList: "teammates.memory.list",
+  teammatesMemoryForget: "teammates.memory.forget",
+  teammatesLookAroundNow: "teammates.lookAroundNow",
+  teammatesSoulGet: "teammates.soul.get",
+  teammatesSoulSet: "teammates.soul.set",
+
+  // Cross-agent session search
+  sessionSearchQuery: "sessionSearch.query",
+  sessionSearchStatus: "sessionSearch.status",
+  sessionSearchReindex: "sessionSearch.reindex",
+  sessionSearchResume: "sessionSearch.resume",
+  sessionSearchPreview: "sessionSearch.preview",
 
   // Cloud environment methods
   cloudGetRelayClientStatus: "cloud.getRelayClientStatus",
@@ -791,6 +854,12 @@ const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
 const WsServerCheckSecretSourceRpc = Rpc.make(WS_METHODS.serverCheckSecretSource, {
   payload: Schema.Struct({ source: SecretReference }),
   success: SecretSourceCheckResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsServerComputerUsePermissionsRpc = Rpc.make(WS_METHODS.serverComputerUsePermissions, {
+  payload: Schema.Struct({}),
+  success: ComputerUsePermissionStatus,
   error: EnvironmentAuthorizationError,
 });
 
@@ -1907,6 +1976,123 @@ const WsScheduledTasksRotateWebhookTokenRpc = Rpc.make(
   },
 );
 
+const SessionSearchRpcError = Schema.Union([SessionSearchError, EnvironmentAuthorizationError]);
+
+const WsSessionSearchQueryRpc = Rpc.make(WS_METHODS.sessionSearchQuery, {
+  payload: SessionSearchQueryInput,
+  success: SessionSearchQueryResult,
+  error: SessionSearchRpcError,
+});
+
+const WsSessionSearchStatusRpc = Rpc.make(WS_METHODS.sessionSearchStatus, {
+  payload: SessionSearchStatusInput,
+  success: SessionSearchStatus,
+  error: SessionSearchRpcError,
+});
+
+const WsSessionSearchReindexRpc = Rpc.make(WS_METHODS.sessionSearchReindex, {
+  payload: SessionSearchReindexInput,
+  success: SessionSearchStatus,
+  error: SessionSearchRpcError,
+});
+
+const WsSessionSearchResumeRpc = Rpc.make(WS_METHODS.sessionSearchResume, {
+  payload: SessionSearchResumeInput,
+  success: SessionSearchResumeResult,
+  error: SessionSearchRpcError,
+});
+
+const WsSessionSearchPreviewRpc = Rpc.make(WS_METHODS.sessionSearchPreview, {
+  payload: SessionSearchPreviewInput,
+  success: SessionSearchPreviewResult,
+  error: SessionSearchRpcError,
+});
+
+const WsTeammatesListRpc = Rpc.make(WS_METHODS.teammatesList, {
+  payload: TeammatesListInput,
+  success: TeammatesSnapshot,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesSubscribeRpc = Rpc.make(WS_METHODS.teammatesSubscribe, {
+  payload: TeammatesListInput,
+  success: TeammatesSnapshot,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsTeammatesCreateRpc = Rpc.make(WS_METHODS.teammatesCreate, {
+  payload: TeammatesCreateInput,
+  success: TeammatesMutationResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesUpdateRpc = Rpc.make(WS_METHODS.teammatesUpdate, {
+  payload: TeammatesUpdateInput,
+  success: TeammatesMutationResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesDeleteRpc = Rpc.make(WS_METHODS.teammatesDelete, {
+  payload: TeammatesDeleteInput,
+  success: TeammatesDeleteResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesOpenHomeRpc = Rpc.make(WS_METHODS.teammatesOpenHome, {
+  payload: TeammatesOpenHomeInput,
+  success: TeammatesOpenHomeResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesItemsUpdateRpc = Rpc.make(WS_METHODS.teammatesItemsUpdate, {
+  payload: TeammatesItemsUpdateInput,
+  success: TeammatesItemsUpdateResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesSuggestionsStartRpc = Rpc.make(WS_METHODS.teammatesSuggestionsStart, {
+  payload: TeammatesSuggestionsStartInput,
+  success: TeammatesSuggestionsStartResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesSuggestionsDismissRpc = Rpc.make(WS_METHODS.teammatesSuggestionsDismiss, {
+  payload: TeammatesSuggestionsDismissInput,
+  success: TeammatesSuggestionsDismissResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesMemoryListRpc = Rpc.make(WS_METHODS.teammatesMemoryList, {
+  payload: TeammatesMemoryListInput,
+  success: TeammatesMemoryListResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesMemoryForgetRpc = Rpc.make(WS_METHODS.teammatesMemoryForget, {
+  payload: TeammatesMemoryForgetInput,
+  success: TeammatesMemoryForgetResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesLookAroundNowRpc = Rpc.make(WS_METHODS.teammatesLookAroundNow, {
+  payload: TeammatesLookAroundNowInput,
+  success: TeammatesLookAroundNowResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesSoulGetRpc = Rpc.make(WS_METHODS.teammatesSoulGet, {
+  payload: TeammatesSoulGetInput,
+  success: TeammatesSoulGetResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
+const WsTeammatesSoulSetRpc = Rpc.make(WS_METHODS.teammatesSoulSet, {
+  payload: TeammatesSoulSetInput,
+  success: TeammatesSoulSetResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
 const WsSecretsAnswerRequestRpc = Rpc.make(WS_METHODS.secretsAnswerRequest, {
   payload: SecretRequestAnswerInput,
   error: Schema.Union([SecretRequestError, EnvironmentAuthorizationError]),
@@ -1991,6 +2177,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsServerUpdateSettingsRpc,
   WsServerDiscoverSourceControlRpc,
   WsServerCheckSecretSourceRpc,
+  WsServerComputerUsePermissionsRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,
@@ -2022,6 +2209,11 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsSecretsAnswerRequestRpc,
   WsScheduledTasksListWebhookDeliveriesRpc,
   WsScheduledTasksGetWebhookDeliveryRpc,
+  WsSessionSearchQueryRpc,
+  WsSessionSearchStatusRpc,
+  WsSessionSearchReindexRpc,
+  WsSessionSearchResumeRpc,
+  WsSessionSearchPreviewRpc,
   WsServerReportClientActivityRpc,
   WsServerReportHostPowerStateRpc,
   WsServerGetBackgroundPolicyRpc,
@@ -2171,4 +2363,25 @@ export const TestingWsRpcGroup = RpcGroup.make(...TestingRpcs).middleware(RpcSco
 export const WorkspaceCompatibilityRpcGroup = RpcGroup.make(
   ...WorkspaceCompatibilityRpcs,
 ).middleware(RpcScopeAuthorization);
-export const WsRpcGroup = CoreWsRpcGroup.merge(TestingWsRpcGroup, WorkspaceCompatibilityRpcGroup);
+/** Kept apart from the core group: past a size, one group's handler type exceeds the compiler's instantiation depth. */
+export const TeammatesRpcGroup = RpcGroup.make(
+  WsTeammatesListRpc,
+  WsTeammatesSubscribeRpc,
+  WsTeammatesCreateRpc,
+  WsTeammatesUpdateRpc,
+  WsTeammatesDeleteRpc,
+  WsTeammatesOpenHomeRpc,
+  WsTeammatesItemsUpdateRpc,
+  WsTeammatesSuggestionsStartRpc,
+  WsTeammatesSuggestionsDismissRpc,
+  WsTeammatesMemoryListRpc,
+  WsTeammatesMemoryForgetRpc,
+  WsTeammatesLookAroundNowRpc,
+  WsTeammatesSoulGetRpc,
+  WsTeammatesSoulSetRpc,
+).middleware(RpcScopeAuthorization);
+export const WsRpcGroup = CoreWsRpcGroup.merge(
+  TestingWsRpcGroup,
+  WorkspaceCompatibilityRpcGroup,
+  TeammatesRpcGroup,
+);

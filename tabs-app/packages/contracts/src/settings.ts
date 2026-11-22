@@ -25,6 +25,7 @@ import {
   ProviderOptionSelections,
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { TerminalQuickCommands } from "./terminalQuickCommands.ts";
 import { ProjectScript } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
@@ -806,6 +807,8 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   // Labs: shows the composer microphone. Off until the user opts in.
   voiceInputEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Labs: search past Claude Code / Codex / Gemini / OpenCode sessions. Indexing is lazy, so on by default.
+  sessionSearchEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Where dictated audio is transcribed. "local" never leaves this machine.
   voiceTranscriptionProvider: Schema.Union([Schema.Literal("local"), CloudSpeechProvider]).pipe(
     Schema.withDecodingDefault(Effect.succeed("local" as const)),
@@ -2021,6 +2024,9 @@ export const ServerSettings = Schema.Struct({
   projectAutoPullOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  // Labs: Teammates (Notch), AI teammates with their own home chat. Server-side so background
+  // look-arounds stop when it is off. Off until the user opts in.
+  teammatesEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   defaultModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -2095,6 +2101,8 @@ export const ServerSettings = Schema.Struct({
   ),
   /** The user's own palette overrides and CSS; see `UserTheme`. */
   userTheme: UserTheme.pipe(Schema.withDecodingDefault(Effect.succeed(EMPTY_USER_THEME))),
+  /** Saved terminal commands, in the order the user arranged them. Replaced whole on patch. */
+  terminalQuickCommands: TerminalQuickCommands.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   subagentModels: SubagentModelSettings.pipe(
     Schema.withDecodingDefault(
       Effect.succeed({ enabled: false, workers: null, roles: {} } as SubagentModelSettings),
@@ -2210,6 +2218,11 @@ export const ServerSettings = Schema.Struct({
   cursorKeychainUsageEnabled: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
+  /**
+   * Labs: lets agents drive native desktop apps through the computer_* MCP tools. Off until the
+   * user opts in; macOS also needs Accessibility (and Screen Recording for screenshots).
+   */
+  computerUseEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /** Exact model IDs, applied to past and future usage on this environment. */
   usagePriceOverrides: Schema.Record(TrimmedNonEmptyString, UsageModelPriceOverride).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -2558,6 +2571,7 @@ export const ServerSettingsPatch = Schema.Struct({
   projectAutoPullOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
+  teammatesEnabled: Schema.optionalKey(Schema.Boolean),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   gitAi: Schema.optionalKey(GitAiSettingsPatch),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
@@ -2594,6 +2608,7 @@ export const ServerSettingsPatch = Schema.Struct({
   userTheme: Schema.optionalKey(UserTheme),
   /** Replaces the whole sub-agent model choice; send the full value. */
   subagentModels: Schema.optionalKey(SubagentModelSettings),
+  terminalQuickCommands: Schema.optionalKey(TerminalQuickCommands),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   defaultThreadEnvMode: Schema.optionalKey(Schema.NullOr(ThreadEnvMode)),
   newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
@@ -2666,6 +2681,7 @@ export const ServerSettingsPatch = Schema.Struct({
     Schema.Record(UsageLimitSourceId, Schema.NullOr(UsageLimitSourceConfig)),
   ),
   cursorKeychainUsageEnabled: Schema.optionalKey(Schema.Boolean),
+  computerUseEnabled: Schema.optionalKey(Schema.Boolean),
   /** Each entry replaces one model's rates; `null` restores automatic pricing. */
   usagePriceOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, Schema.NullOr(UsageModelPriceOverride)),
@@ -2788,6 +2804,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarThreadPreviewCount: Schema.optionalKey(SidebarThreadPreviewCount),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceInputEnabled: Schema.optionalKey(Schema.Boolean),
+  sessionSearchEnabled: Schema.optionalKey(Schema.Boolean),
   voiceTranscriptionProvider: Schema.optionalKey(
     Schema.Union([Schema.Literal("local"), CloudSpeechProvider]),
   ),

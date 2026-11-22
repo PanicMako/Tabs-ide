@@ -174,8 +174,8 @@ it("enforces interval minimum validation and supports weekday selection", async 
     await expect.element(page.getByRole("button", { name: "Save automation" })).toBeDisabled();
 
     // Select daily / fixed time and choose Monday and Friday
-    const scheduleSelect = page.getByRole("combobox", { name: "Schedule type" });
-    await scheduleSelect.selectOptions("fixed_time");
+    await page.getByRole("combobox", { name: "Schedule type" }).click();
+    await page.getByRole("option", { name: "Daily / Selected days", exact: true }).click();
     await page.getByRole("button", { name: "Mon", exact: true }).click();
     await page.getByRole("button", { name: "Fri", exact: true }).click();
 

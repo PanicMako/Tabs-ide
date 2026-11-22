@@ -23,6 +23,12 @@ const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const OPEN_POPOUT_WINDOW_CHANNEL = "desktop:open-popout-window";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
+const BROWSER_CONTEXT_MENU_CHANNEL = "desktop:browser-context-menu";
+const BROWSER_CONTEXT_MENU_READY_CHANNEL = "desktop:browser-context-menu-ready";
+const BROWSER_CONTEXT_MENU_RESOLVE_CHANNEL = "desktop:browser-context-menu-resolve";
+const EDIT_CONTEXT_MENU_CHANNEL = "desktop:edit-context-menu";
+const REPLACE_MISSPELLING_CHANNEL = "desktop:replace-misspelling";
+const ADD_TO_DICTIONARY_CHANNEL = "desktop:add-to-dictionary";
 const APP_CLOSING_CHANNEL = "desktop:app-closing";
 const APP_SETTINGS_FLUSH_DONE_CHANNEL = "desktop:settings-flush-done";
 const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
@@ -262,6 +268,34 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setAiProvider: (provider) => ipcRenderer.invoke(SET_AI_PROVIDER_CHANNEL, provider),
   setZoomFactor: (factor) => ipcRenderer.invoke(SET_ZOOM_FACTOR_CHANNEL, factor),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
+  onEditContextMenu: (listener) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, params: unknown) => {
+      if (typeof params === "object" && params !== null) {
+        listener(params as Parameters<typeof listener>[0]);
+      }
+    };
+    ipcRenderer.on(EDIT_CONTEXT_MENU_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(EDIT_CONTEXT_MENU_CHANNEL, wrapped);
+    };
+  },
+  onBrowserContextMenu: (listener) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      if (typeof payload === "object" && payload !== null) {
+        listener(payload as Parameters<typeof listener>[0]);
+      }
+    };
+    ipcRenderer.on(BROWSER_CONTEXT_MENU_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(BROWSER_CONTEXT_MENU_CHANNEL, wrapped);
+    };
+  },
+  browserContextMenuReady: (token: string) =>
+    ipcRenderer.invoke(BROWSER_CONTEXT_MENU_READY_CHANNEL, token),
+  resolveBrowserContextMenu: (token: string, id: string | null) =>
+    ipcRenderer.invoke(BROWSER_CONTEXT_MENU_RESOLVE_CHANNEL, token, id),
+  replaceMisspelling: (word: string) => ipcRenderer.invoke(REPLACE_MISSPELLING_CHANNEL, word),
+  addWordToDictionary: (word: string) => ipcRenderer.invoke(ADD_TO_DICTIONARY_CHANNEL, word),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   isPopout: isPopoutProcess,
   getCursorPosition: () => ipcRenderer.invoke("desktop:cursor-position"),

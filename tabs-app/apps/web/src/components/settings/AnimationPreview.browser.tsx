@@ -69,7 +69,7 @@ it("Auto uses the resolved dark theme and fills both animation previews at every
   }
 });
 
-it("plays the full startup preview and only a close control ends it early", async () => {
+it("keeps the startup preview up through a stray click; the close control ends it", async () => {
   const view = await render(<AnimationsSettings />);
   try {
     await page.getByRole("button", { name: "Startup", exact: true }).click();
@@ -77,14 +77,60 @@ it("plays the full startup preview and only a close control ends it early", asyn
     await page.getByRole("button", { name: "Preview Fullscreen", exact: true }).click();
     const preview = page.getByRole("dialog", { name: "Startup animation preview" });
     await expect.element(preview).toBeVisible();
-    // A stray click must not dismiss it, and the old 2s cut-off is gone.
     await preview.click({ position: { x: 40, y: 200 } });
-    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    await new Promise((resolve) => setTimeout(resolve, 400));
     const curtain = document.querySelector('[aria-label="Starting Tabs"]')!;
+    // Mid-intro: nothing has started rising yet.
     expect(curtain.hasAttribute("data-leaving")).toBe(false);
-    await expect.element(preview).toBeVisible();
     await page.getByRole("button", { name: "Close startup animation preview" }).click();
     await expect.element(preview).not.toBeInTheDocument();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("plays the whole mascot intro, then a full rise, then closes on its own", async () => {
+  const view = await render(<AnimationsSettings />);
+  try {
+    await page.getByRole("button", { name: "Startup", exact: true }).click();
+    await page.getByRole("button", { name: "Tabs Mascot", exact: true }).click();
+    await page.getByRole("button", { name: "Preview Fullscreen", exact: true }).click();
+    const preview = page.getByRole("dialog", { name: "Startup animation preview" });
+    await expect.element(preview).toBeVisible();
+    await expect.element(preview, { timeout: 5_000 }).not.toBeInTheDocument();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("shows the typeface list only for the Solari board", async () => {
+  const view = await render(<AnimationsSettings />);
+  try {
+    await page.getByRole("button", { name: "Solari Grid", exact: true }).click();
+    await expect
+      .element(page.getByRole("radiogroup", { name: "Animation typeface" }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Tabs Mascot", exact: true }).click();
+    await expect
+      .element(page.getByRole("radiogroup", { name: "Animation typeface" }))
+      .not.toBeInTheDocument();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("lists animation typefaces as one compact index", async () => {
+  const view = await render(<AnimationsSettings />);
+  try {
+    const list = page.getByRole("radiogroup", { name: "Animation typeface" });
+    await expect.element(list).toBeVisible();
+    await expect
+      .element(list.getByRole("radio", { name: /^App theme/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await page.screenshot({
+      element: list.element(),
+      path: "__screenshots__/animation-typeface-list.png",
+    });
   } finally {
     await view.unmount();
   }

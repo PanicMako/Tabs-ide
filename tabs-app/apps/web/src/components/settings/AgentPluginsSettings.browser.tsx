@@ -77,9 +77,10 @@ it("puts the plugin list and one add action first, with help and configuration o
       1,
     );
     expect(
-      fixture.view.container.querySelector<HTMLDetailsElement>("details.agent-plugins-advanced")
-        ?.open,
-    ).toBe(false);
+      fixture.view.container
+        .querySelector(".agent-plugins-advanced[data-disclosure]")
+        ?.getAttribute("data-state"),
+    ).toBe("closed");
     await page.getByRole("button", { name: "About plugins" }).click();
     await expect
       .element(page.getByRole("dialog", { name: "About DeepSeek plugins" }))

@@ -7,6 +7,7 @@ import { createWsNativeApi, getWsTransport } from "~/wsNativeApi";
 import { ensureNativeApi } from "~/nativeApi";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Details, Summary } from "../ui/disclosure";
 
 export function AntigravityAccount({
   instanceId,
@@ -152,10 +153,10 @@ export function AntigravityAccount({
 
         {active && auth?.authorizationUrl ? (
           <div className="border-t border-border/40 pt-3">
-            <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer hover:text-foreground">
+            <Details className="text-xs text-muted-foreground">
+              <Summary className="cursor-pointer hover:text-foreground">
                 Sign-in redirect did not finish automatically?
-              </summary>
+              </Summary>
               <label className="block mt-2">
                 Redirect URL
                 <Input
@@ -182,7 +183,7 @@ export function AntigravityAccount({
               >
                 Complete sign-in
               </Button>
-            </details>
+            </Details>
           </div>
         ) : null}
       </div>

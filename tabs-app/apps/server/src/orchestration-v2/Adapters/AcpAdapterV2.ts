@@ -777,6 +777,29 @@ export const AcpProviderCapabilitiesV2 = {
  * `session/fork` `_meta` for a fork from `providerTurnId`: none for the session head,
  * the flavor's meta for a turn the agent named, or `null` when the agent can't fork there.
  */
+/** How long a model switch may take to publish the option set of the new model. */
+export const CONFIG_OPTION_WAIT_MS = 1500;
+
+/**
+ * Re-reads the session's config options, waiting up to `timeoutMs` for an update that satisfies
+ * `ready`. Resolves with the latest options either way; the caller decides what a miss means.
+ */
+export const awaitConfigOptions = (
+  runtime: Pick<
+    AcpSessionRuntime.AcpSessionRuntime["Service"],
+    "getConfigOptions" | "configOptionChanges"
+  >,
+  ready: (options: ReadonlyArray<EffectAcpSchema.SessionConfigOption>) => boolean,
+  timeoutMs: number,
+) =>
+  runtime.configOptionChanges.pipe(
+    Stream.filter(ready),
+    Stream.take(1),
+    Stream.runHead,
+    Effect.timeoutOption(timeoutMs),
+    Effect.andThen(runtime.getConfigOptions),
+  );
+
 function forkFromTurnMetaFor(input: {
   readonly driver: ProviderDriverKind;
   readonly flavor: Pick<AcpAdapterV2Flavor, "forkFromTurn">;
@@ -1912,6 +1935,9 @@ export function makeAcpAdapterV2(
         const activeSessionSetup =
           yield* Ref.make<AcpSessionRuntime.AcpSessionRuntimeStartResult | null>(null);
         const activeSelection = yield* Ref.make<ModelSelection | null>(null);
+        // Session-setup problems the user should see, such as a model option the agent refused.
+        // They are posted to the thread as notices once the next turn exists.
+        const pendingSessionNotices = yield* Ref.make<ReadonlyArray<string>>([]);
         const activeInteractionMode = yield* Ref.make<ProviderInteractionMode | null>(null);
         const promptInstructionStates = yield* Ref.make(new Map<string, T3AcpInstructionState>());
         const runtimeRestartRequired = yield* Ref.make(false);
@@ -2627,6 +2653,36 @@ export function makeAcpAdapterV2(
             },
           });
         });
+        const emitPendingSessionNotices = (context: ActiveAcpTurn) =>
+          Effect.gen(function* () {
+            const notices = yield* Ref.getAndSet(pendingSessionNotices, []);
+            for (const [index, notice] of notices.entries()) {
+              const now = yield* DateTime.now;
+              const nativeItemId = `session-notice:${context.providerTurnId}:${index}`;
+              yield* emitProviderEvent({
+                type: "turn_item.updated",
+                driver,
+                turnItem: {
+                  id: idAllocator.derive.turnItemFromProviderItem({ driver, nativeItemId }),
+                  threadId: context.input.threadId,
+                  runId: context.input.runId,
+                  nodeId: context.input.rootNodeId,
+                  providerThreadId: context.input.providerThread.id,
+                  providerTurnId: context.providerTurnId,
+                  nativeItemRef: { driver, nativeId: nativeItemId, strength: "weak" },
+                  parentItemId: null,
+                  ordinal: yield* resolveItemOrdinal(context, nativeItemId),
+                  type: "system_notice",
+                  status: "completed",
+                  title: notice,
+                  message: notice,
+                  startedAt: now,
+                  completedAt: now,
+                  updatedAt: now,
+                },
+              });
+            }
+          });
         const lastProposedPlanMarkdown = Effect.gen(function* () {
           const context = yield* Ref.get(activeTurn);
           const previous = yield* Ref.get(lastCapturedProposedPlan);
@@ -6610,7 +6666,29 @@ export function makeAcpAdapterV2(
           const optionSelections = (modelSelection.options ?? []).filter(
             (selection) => flavor.ownedModelOptionIds?.includes(selection.id) !== true,
           );
-          const configOptions = yield* runtime.getConfigOptions;
+          let configOptions = yield* runtime.getConfigOptions;
+          // The model switch can publish its option set (a `thought_level` for the new model) a
+          // moment after the response, so give a missing option a bounded window to arrive.
+          if (
+            (modelSelection.options ?? []).some(
+              (selection) =>
+                flavor.ownedModelOptionIds?.includes(selection.id) !== true &&
+                selection.id !== ACP_SESSION_MODE_OPTION_ID &&
+                !configOptions.some((option) => option.id === selection.id),
+            )
+          ) {
+            configOptions = yield* awaitConfigOptions(
+              runtime,
+              (options) =>
+                (modelSelection.options ?? []).every(
+                  (selection) =>
+                    flavor.ownedModelOptionIds?.includes(selection.id) === true ||
+                    selection.id === ACP_SESSION_MODE_OPTION_ID ||
+                    options.some((option) => option.id === selection.id),
+                ),
+              CONFIG_OPTION_WAIT_MS,
+            );
+          }
           const availableConfigIds = new Set(configOptions.map((option) => option.id));
           const hasNativeConfigWithSyntheticModeId = availableConfigIds.has(
             ACP_SESSION_MODE_OPTION_ID,
@@ -6631,6 +6709,10 @@ export function makeAcpAdapterV2(
             .map((selection) => selection.id)
             .filter((id) => !availableConfigIds.has(id));
           if (unsupportedConfigIds.length > 0) {
+            yield* Ref.update(pendingSessionNotices, (current) => [
+              ...current,
+              `${flavor.runtimeHarness ?? driver} did not offer ${unsupportedConfigIds.join(", ")} for this model, so the agent default applies.`,
+            ]);
             yield* Effect.logWarning(
               "ACP session does not expose requested configuration option(s)",
               {
@@ -6663,11 +6745,18 @@ export function makeAcpAdapterV2(
             yield* runtime.setConfigOption(selection.id, selection.value).pipe(
               Effect.catchTags({
                 AcpRequestError: (error) =>
-                  Effect.logWarning("ACP session rejected a configuration option value", {
-                    optionId: selection.id,
-                    value: selection.value,
-                    detail: error.message,
-                  }),
+                  Ref.update(pendingSessionNotices, (current) => [
+                    ...current,
+                    `${flavor.runtimeHarness ?? driver} rejected ${selection.id}=${String(selection.value)}: ${error.message}. The agent default applies.`,
+                  ]).pipe(
+                    Effect.andThen(
+                      Effect.logWarning("ACP session rejected a configuration option value", {
+                        optionId: selection.id,
+                        value: selection.value,
+                        detail: error.message,
+                      }),
+                    ),
+                  ),
               }),
             );
           }
@@ -7523,6 +7612,7 @@ export function makeAcpAdapterV2(
               threadId: turnInput.threadId,
               providerTurn: runningTurn,
             });
+            yield* emitPendingSessionNotices(context);
             const activeProviderThread: OrchestrationV2ProviderThread = {
               ...turnInput.providerThread,
               providerSessionId: input.providerSessionId,

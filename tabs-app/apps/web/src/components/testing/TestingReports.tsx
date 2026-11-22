@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { useTestingData } from "./context";
+import { Details, Summary } from "../ui/disclosure";
 
 export const TestingReports = memo(function TestingReports() {
   const {
@@ -200,10 +201,10 @@ export const TestingReports = memo(function TestingReports() {
         </Card>
       ) : null}
 
-      <details className="rounded-xl border border-border bg-card">
-        <summary className="cursor-pointer px-6 py-5 text-base font-semibold">
+      <Details className="rounded-xl border border-border bg-card">
+        <Summary className="cursor-pointer px-6 py-5 text-base font-semibold">
           Advanced: discovered application states
-        </summary>
+        </Summary>
         <Card className="rounded-none border-x-0 border-b-0 shadow-none">
           <CardHeader>
             <CardTitle>State graph explorer</CardTitle>
@@ -255,7 +256,7 @@ export const TestingReports = memo(function TestingReports() {
             </p>
           </CardContent>
         </Card>
-      </details>
+      </Details>
     </section>
   );
 });

@@ -25,11 +25,29 @@ export const TOTAL_TAGS_COUNT = 195;
 
 export const changelogData: ChangelogRelease[] = [
   {
+    tag: "v2.9.0",
+    title: "Meet Notch, your AI teammate, plus session search, worktree cleanup and computer use",
+    date: "November 22, 2026",
+    shortDate: "Nov 22",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.9.0 adds Notch, an optional AI teammate that hands code work to normal Tabs threads and tracks it for you. It also adds search across your past agent sessions, evidence-based worktree cleanup, terminal quick commands, optional computer use for agents, and a new set of themed menus, dropdowns and scrollbars.",
+    highlights: [
+      "Turn on Teammates in Labs to get Notch, an AI teammate you can rename, with workers in their own worktrees and Up next suggestions.",
+      "Search past Claude Code, Codex, Gemini and OpenCode sessions from the Command Palette.",
+      "Review and remove old agent worktrees in Workspace Maintenance, with the evidence shown for each.",
+      "Save terminal quick commands and run them from the toolbar, Command Palette or Quick Actions.",
+      "Let agents control desktop apps with optional computer use, off by default.",
+      "Themed dropdowns, menus and scrollbars, a regrouped Settings sidebar, and a working Gemini 3.8 Flash thinking level.",
+    ],
+    categories: [],
+  },
+  {
     tag: "v2.8.1",
     title: "Tabs opens in seconds again, and you can arrange providers and favorite models",
     date: "November 20, 2026",
     shortDate: "Nov 20",
-    isLatest: true,
     type: "feature",
     summary:
       "Tabs 2.8.1 fixes the long launch that kept the Dock icon bouncing for a minute or more after updating, and on the first launch of each day. It also lets you drag providers into your own order, brings a cleaner Pinned models list, and adds optional per-provider favorites to the model picker.",

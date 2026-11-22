@@ -1,0 +1,159 @@
+/* Notch: the Tabs mascot with moods layered on top. TabsMascot is rendered "still", so every
+   motion here comes from the data-mood on the wrapper. */
+.notch-avatar {
+  --notch-body: #0e2af3;
+  --notch-eye: #f3efe9;
+  --notch-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  display: inline-block;
+  color: var(--notch-body);
+}
+.notch-avatar .tabs-mascot {
+  width: 100%;
+  height: 100%;
+  color: inherit;
+}
+.notch-avatar .tabs-mascot-eyes {
+  fill: var(--notch-eye);
+}
+.notch-avatar[data-finish="blue-white"] {
+  --notch-body: #0e2af3;
+  --notch-eye: #ffffff;
+}
+.notch-avatar[data-finish="mono"] {
+  --notch-body: #000000;
+  --notch-eye: #ffffff;
+}
+.dark .notch-avatar[data-finish="mono"] {
+  --notch-body: #f3efe9;
+  --notch-eye: #111318;
+}
+.notch-avatar[data-finish="ivory-ink"] {
+  --notch-body: #111318;
+  --notch-eye: #f3efe9;
+}
+.dark .notch-avatar[data-finish="ivory-ink"] {
+  --notch-body: #f3efe9;
+  --notch-eye: #111318;
+}
+.notch-avatar[data-finish="blue-ink"] {
+  --notch-body: #1529e9;
+  --notch-eye: #111318;
+}
+
+/* idle: the mascot's resting pose with a slow blink */
+.notch-avatar[data-mood="idle"] .tabs-mascot-eye {
+  animation: notch-blink 4.8s ease-in-out infinite;
+}
+
+/* thinking: eyes glance side to side */
+.notch-avatar[data-mood="thinking"] .tabs-mascot-eyes {
+  animation: notch-glance 1.8s ease-in-out infinite;
+}
+
+/* working: the tab piece hops slowly */
+.notch-avatar[data-mood="working"] .tabs-mascot-tab {
+  animation: notch-hop 1.6s ease-in-out infinite;
+}
+.notch-avatar[data-mood="working"] .tabs-mascot-eye {
+  animation: notch-blink 4.2s ease-in-out infinite;
+}
+
+/* needsYou: looks at you with a small tilt */
+.notch-avatar[data-mood="needsYou"] .tabs-mascot-rig {
+  animation: notch-tilt 2.4s ease-in-out infinite;
+}
+
+/* happy: blinks twice, once */
+.notch-avatar[data-mood="happy"] .tabs-mascot-eye {
+  animation: notch-blink-twice 640ms ease-in-out 1 both;
+}
+
+/* error: eyes narrow */
+.notch-avatar[data-mood="error"] .tabs-mascot-eye {
+  transform: scaleY(0.45);
+}
+
+/* sleeping: eyes closed, slow breathing */
+.notch-avatar[data-mood="sleeping"] .tabs-mascot-eye {
+  transform: scaleY(0.08);
+}
+.notch-avatar[data-mood="sleeping"] .tabs-mascot-body {
+  animation: notch-breathe 4.4s ease-in-out infinite;
+}
+
+@keyframes notch-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes notch-blink-twice {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  20%,
+  60% {
+    transform: scaleY(0.1);
+  }
+  40%,
+  80% {
+    transform: scaleY(1);
+  }
+}
+@keyframes notch-glance {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-9px);
+  }
+  70% {
+    transform: translateX(9px);
+  }
+}
+@keyframes notch-hop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  40% {
+    transform: translateY(-16px) rotate(-6deg);
+  }
+  60% {
+    transform: translateY(-16px) rotate(-6deg);
+  }
+}
+@keyframes notch-tilt {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
+}
+@keyframes notch-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.02, 1.035);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notch-avatar *,
+  .notch-avatar .tabs-mascot-eyes {
+    animation: none !important;
+  }
+}
+:root[data-reduced-motion="reduce"] .notch-avatar * {
+  animation: none !important;
+}

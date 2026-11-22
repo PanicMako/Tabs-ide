@@ -1,7 +1,7 @@
 import type { PullRequestRef } from "@tabs/contracts";
 import type { ReactElement } from "react";
 import { PullRequestReactionBar } from "./PullRequestReactionBar";
-import { useId, useState } from "react";
+import { useState } from "react";
 import type {
   GitPullRequestActor,
   GitPullRequestReview,
@@ -12,6 +12,7 @@ import { User, Tag, Check, X, AlertCircle } from "lucide-react";
 import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { SuggestInput } from "../ui/suggest-input";
 import ChatMarkdown from "../ChatMarkdown";
 
 export function PullRequestReviewersSection({
@@ -39,7 +40,6 @@ export function PullRequestReviewersSection({
 }) {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const listId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,23 +136,16 @@ export function PullRequestReviewersSection({
         <form onSubmit={handleSubmit} className="flex gap-1.5 pt-1">
           <div className="relative flex-1 min-w-0">
             <User className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground z-10" />
-            <input
+            <SuggestInput
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onValueChange={setInput}
               placeholder="Add reviewer by username…"
               aria-label="Reviewer username"
-              list={suggestions && suggestions.length > 0 ? listId : undefined}
+              suggestions={suggestions ?? []}
               onFocus={() => onRequestSuggestions?.()}
               className="w-full rounded-md border border-border bg-background pl-8 pr-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={isPending || submitting}
             />
-            {suggestions && suggestions.length > 0 ? (
-              <datalist id={listId}>
-                {suggestions.map((login) => (
-                  <option key={login} value={login} />
-                ))}
-              </datalist>
-            ) : null}
           </div>
           <Button
             type="submit"
@@ -196,7 +189,6 @@ export function PullRequestLabelsSection({
 }) {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const listId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,23 +250,16 @@ export function PullRequestLabelsSection({
         <form onSubmit={handleSubmit} className="flex gap-1.5 pt-1">
           <div className="relative flex-1 min-w-0">
             <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground z-10" />
-            <input
+            <SuggestInput
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onValueChange={setInput}
               placeholder="Add label name…"
               aria-label="Label name"
-              list={suggestions && suggestions.length > 0 ? listId : undefined}
+              suggestions={suggestions ?? []}
               onFocus={() => onRequestSuggestions?.()}
               className="w-full rounded-md border border-border bg-background pl-8 pr-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={isPending || submitting}
             />
-            {suggestions && suggestions.length > 0 ? (
-              <datalist id={listId}>
-                {suggestions.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-            ) : null}
           </div>
           <Button
             type="submit"

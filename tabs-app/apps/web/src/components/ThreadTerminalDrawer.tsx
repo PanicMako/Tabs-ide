@@ -15,6 +15,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -47,6 +48,11 @@ import {
   type ThreadTerminalGroup,
 } from "../types";
 import { useQuery } from "@tanstack/react-query";
+import { TerminalQuickCommandsMenu } from "./terminal-quick-commands/TerminalQuickCommandsMenu";
+import {
+  registerTerminalQuickCommandTarget,
+  touchTerminalQuickCommandTarget,
+} from "../terminalQuickCommandTarget";
 import { environmentApi } from "~/connection/environmentApiRegistry";
 
 const MIN_DRAWER_HEIGHT = 180;
@@ -1077,6 +1083,21 @@ export default function ThreadTerminalDrawer({
     };
   }, [syncHeight]);
 
+  // Saved quick commands are typed into whichever terminal was focused last.
+  const quickCommandKey = useId();
+  const quickCommandTarget = useMemo(
+    () => ({
+      threadId,
+      terminalId: resolvedActiveTerminalId,
+      environmentId: environmentId ?? null,
+    }),
+    [environmentId, resolvedActiveTerminalId, threadId],
+  );
+  useEffect(
+    () => registerTerminalQuickCommandTarget(quickCommandKey, quickCommandTarget),
+    [quickCommandKey, quickCommandTarget],
+  );
+
   return (
     <aside
       className={
@@ -1085,6 +1106,8 @@ export default function ThreadTerminalDrawer({
           : "thread-terminal-drawer relative flex min-w-0 shrink-0 flex-col overflow-hidden border-t border-border/80 bg-background"
       }
       style={variant === "embedded" ? undefined : { height: `${drawerHeight}px` }}
+      onFocusCapture={() => touchTerminalQuickCommandTarget(quickCommandKey)}
+      onPointerDownCapture={() => touchTerminalQuickCommandTarget(quickCommandKey)}
     >
       {variant === "drawer" ? (
         <div
@@ -1110,6 +1133,10 @@ export default function ThreadTerminalDrawer({
             >
               <SquareSplitHorizontal className="size-3.25" />
             </TerminalActionButton>
+            <TerminalQuickCommandsMenu
+              target={quickCommandTarget}
+              className="border-l border-border/80 p-1 text-foreground/90 transition-colors hover:bg-accent"
+            />
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               className="p-1 text-foreground/90 transition-colors hover:bg-accent"
@@ -1241,6 +1268,10 @@ export default function ThreadTerminalDrawer({
                   >
                     <SquareSplitHorizontal className="size-3.25" />
                   </TerminalActionButton>
+                  <TerminalQuickCommandsMenu
+                    target={quickCommandTarget}
+                    className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
+                  />
                   <TerminalActionButton
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
                     onClick={onNewTerminalAction}

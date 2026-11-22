@@ -25,6 +25,13 @@ import type {
   ManagedWorktree,
 } from "./workspaceMaintenance.ts";
 import type {
+  WorkspaceCleanupApplyInput,
+  WorkspaceCleanupHistoryResult,
+  WorkspaceCleanupRun,
+  WorkspaceCleanupScanInput,
+  WorkspaceCleanupScanResult,
+} from "./workspaceCleanup.ts";
+import type {
   PullRequestAuthorCandidateList,
   PullRequestAuthorSearchInput,
   PullRequestActionInput,
@@ -52,6 +59,7 @@ import type {
 } from "./pullRequest.ts";
 import type { SecretReference } from "./secretReference.ts";
 import type { SecretSourceCheckResult } from "./settingsSecretValue.ts";
+import type { ComputerUsePermissionStatus } from "./computerUse.ts";
 import type {
   ScheduledTaskListResult,
   ScheduledTaskUpsertInput,
@@ -67,6 +75,42 @@ import type {
   ScheduledTaskGetWebhookDeliveryInput,
   ScheduledTaskGetWebhookDeliveryResult,
 } from "./scheduledTask.ts";
+import type {
+  TeammatesCreateInput,
+  TeammatesDeleteInput,
+  TeammatesDeleteResult,
+  TeammatesItemsUpdateInput,
+  TeammatesItemsUpdateResult,
+  TeammatesLookAroundNowInput,
+  TeammatesLookAroundNowResult,
+  TeammatesMemoryForgetInput,
+  TeammatesMemoryForgetResult,
+  TeammatesMemoryListInput,
+  TeammatesMemoryListResult,
+  TeammatesMutationResult,
+  TeammatesOpenHomeInput,
+  TeammatesOpenHomeResult,
+  TeammatesSnapshot,
+  TeammatesSoulGetInput,
+  TeammatesSoulGetResult,
+  TeammatesSoulSetInput,
+  TeammatesSoulSetResult,
+  TeammatesSuggestionsDismissInput,
+  TeammatesSuggestionsDismissResult,
+  TeammatesSuggestionsStartInput,
+  TeammatesSuggestionsStartResult,
+  TeammatesUpdateInput,
+} from "./teammates.ts";
+import type {
+  SessionSearchPreviewInput,
+  SessionSearchPreviewResult,
+  SessionSearchQueryInput,
+  SessionSearchQueryResult,
+  SessionSearchReindexInput,
+  SessionSearchResumeInput,
+  SessionSearchResumeResult,
+  SessionSearchStatus,
+} from "./sessionSearch.ts";
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
 import type { NotificationToastPayload } from "./notificationOverlay.ts";
@@ -364,6 +408,34 @@ import type {
   SourceControlRepositoryInfo,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
+
+/** Right-click on an editable field, forwarded from Electron so the renderer can draw the menu. */
+export interface DesktopEditContextMenuParams {
+  readonly x: number;
+  readonly y: number;
+  readonly misspelledWord: string;
+  readonly dictionarySuggestions: readonly string[];
+  readonly canCut: boolean;
+  readonly canCopy: boolean;
+  readonly canPaste: boolean;
+  readonly canSelectAll: boolean;
+}
+
+/** Embedded-browser right-click: a snapshot of the page plus the menu to draw over it. */
+export interface DesktopBrowserContextMenuPayload {
+  readonly token: string;
+  /** JPEG data URL of the page's current frame. */
+  readonly snapshot: string;
+  /** Where the page sits in the window, in CSS pixels. */
+  readonly bounds: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly point: { readonly x: number; readonly y: number };
+  readonly items: readonly ContextMenuItem<string>[];
+}
 
 export interface ContextMenuItem<T extends string = string> {
   id: T;
@@ -1448,6 +1520,17 @@ export interface DesktopBridge {
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },
   ) => Promise<T | null>;
+  /** Spellcheck-aware edit menu: Electron reports the right-click, the renderer draws it. */
+  onEditContextMenu?: (listener: (params: DesktopEditContextMenuParams) => void) => () => void;
+  onBrowserContextMenu?: (
+    listener: (payload: DesktopBrowserContextMenuPayload) => void,
+  ) => () => void;
+  /** The snapshot is on screen; the native page view may now be hidden. */
+  browserContextMenuReady?: (token: string) => Promise<void>;
+  /** The menu closed: `id` is the chosen item, or null when dismissed. */
+  resolveBrowserContextMenu?: (token: string, id: string | null) => Promise<void>;
+  replaceMisspelling?: (word: string) => Promise<void>;
+  addWordToDictionary?: (word: string) => Promise<void>;
   openExternal: (url: string) => Promise<boolean>;
   isPopout?: boolean;
   getCursorPosition?: () => Promise<{ x: number; y: number }>;
@@ -1777,6 +1860,8 @@ export interface LocalApi {
     prepareAcpRegistryAgent: (input: AcpRegistryPrepareInput) => Promise<AcpRegistryPrepareResult>;
     discoverSourceControl: () => Promise<SourceControlDiscoveryResult>;
     checkSecretSource: (source: SecretReference) => Promise<SecretSourceCheckResult>;
+    /** macOS Accessibility and Screen Recording status for the computer_* agent tools. */
+    computerUsePermissions: () => Promise<ComputerUsePermissionStatus>;
     getTraceDiagnostics: () => Promise<ServerTraceDiagnosticsResult>;
     getProcessDiagnostics: () => Promise<ServerProcessDiagnosticsResult>;
     getProcessResourceHistory: (
@@ -1816,6 +1901,14 @@ export interface LocalApi {
  * `environmentId` rather than reaching through the local desktop bridge.
  */
 export interface EnvironmentApi {
+  /** Full-text search over past Claude Code / Codex / Gemini / OpenCode sessions on the host. */
+  sessionSearch: {
+    query: (input: SessionSearchQueryInput) => Promise<SessionSearchQueryResult>;
+    status: () => Promise<SessionSearchStatus>;
+    reindex: (input: SessionSearchReindexInput) => Promise<SessionSearchStatus>;
+    resume: (input: SessionSearchResumeInput) => Promise<SessionSearchResumeResult>;
+    preview: (input: SessionSearchPreviewInput) => Promise<SessionSearchPreviewResult>;
+  };
   scheduledTasks: {
     list: () => Promise<ScheduledTaskListResult>;
     subscribe: (
@@ -1835,6 +1928,30 @@ export interface EnvironmentApi {
     getWebhookDelivery: (
       input: ScheduledTaskGetWebhookDeliveryInput,
     ) => Promise<ScheduledTaskGetWebhookDeliveryResult>;
+  };
+  teammates: {
+    list: () => Promise<TeammatesSnapshot>;
+    /** One snapshot on subscribe, then a fresh one after every change. */
+    subscribe: (
+      callback: (value: TeammatesSnapshot) => void,
+      onError: (error: Error) => void,
+    ) => () => void;
+    create: (input: TeammatesCreateInput) => Promise<TeammatesMutationResult>;
+    update: (input: TeammatesUpdateInput) => Promise<TeammatesMutationResult>;
+    delete: (input: TeammatesDeleteInput) => Promise<TeammatesDeleteResult>;
+    openHome: (input: TeammatesOpenHomeInput) => Promise<TeammatesOpenHomeResult>;
+    updateItem: (input: TeammatesItemsUpdateInput) => Promise<TeammatesItemsUpdateResult>;
+    startSuggestion: (
+      input: TeammatesSuggestionsStartInput,
+    ) => Promise<TeammatesSuggestionsStartResult>;
+    dismissSuggestion: (
+      input: TeammatesSuggestionsDismissInput,
+    ) => Promise<TeammatesSuggestionsDismissResult>;
+    listMemory: (input: TeammatesMemoryListInput) => Promise<TeammatesMemoryListResult>;
+    forgetMemory: (input: TeammatesMemoryForgetInput) => Promise<TeammatesMemoryForgetResult>;
+    lookAroundNow: (input: TeammatesLookAroundNowInput) => Promise<TeammatesLookAroundNowResult>;
+    getSoul: (input: TeammatesSoulGetInput) => Promise<TeammatesSoulGetResult>;
+    setSoul: (input: TeammatesSoulSetInput) => Promise<TeammatesSoulSetResult>;
   };
   terminal: {
     open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;
@@ -2080,6 +2197,9 @@ export interface NativeApi extends LocalApi, EnvironmentApi {
     cleanStorage: (ids: readonly string[]) => Promise<StorageCleanResult>;
     inspectWorktrees: (cwd: string) => Promise<readonly ManagedWorktree[]>;
     removeWorktree: (cwd: string, path: string) => Promise<void>;
+    cleanupScan: (input: WorkspaceCleanupScanInput) => Promise<WorkspaceCleanupScanResult>;
+    cleanupApply: (input: WorkspaceCleanupApplyInput) => Promise<WorkspaceCleanupRun>;
+    cleanupHistory: (limit?: number) => Promise<WorkspaceCleanupHistoryResult>;
   };
   testing: TestingApi;
   terminal: EnvironmentApi["terminal"] & {

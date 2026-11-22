@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as Maintenance from "./workspaceMaintenance.ts";
+import * as Cleanup from "./workspaceCleanup.ts";
 import * as Git from "./git.ts";
 import * as Server from "./server.ts";
 import * as SourceControl from "./sourceControl.ts";
@@ -35,6 +36,21 @@ export const WorkspaceCompatibilityRpcs = [
   Rpc.make("worktrees.remove", {
     payload: Git.GitRemoveWorktreeInput,
     success: Schema.Void,
+    error: Schema.Union([WorkspaceCompatibilityError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make("workspaceCleanup.scan", {
+    payload: Cleanup.WorkspaceCleanupScanInput,
+    success: Cleanup.WorkspaceCleanupScanResult,
+    error: Schema.Union([WorkspaceCompatibilityError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make("workspaceCleanup.apply", {
+    payload: Cleanup.WorkspaceCleanupApplyInput,
+    success: Cleanup.WorkspaceCleanupRun,
+    error: Schema.Union([WorkspaceCompatibilityError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make("workspaceCleanup.history", {
+    payload: Cleanup.WorkspaceCleanupHistoryInput,
+    success: Cleanup.WorkspaceCleanupHistoryResult,
     error: Schema.Union([WorkspaceCompatibilityError, EnvironmentAuthorizationError]),
   }),
   Rpc.make("terminal.list", {

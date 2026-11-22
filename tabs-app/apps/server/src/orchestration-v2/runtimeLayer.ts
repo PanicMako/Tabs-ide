@@ -50,6 +50,10 @@ import * as ThreadForkService from "./ThreadForkService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 import * as CancellationIntentStore from "./CancellationIntentStore.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
+import * as TeammateHome from "../teammates/TeammateHome.ts";
+import * as TeammateService from "../teammates/TeammateService.ts";
+import * as TeammateStore from "../teammates/TeammateStore.ts";
+import * as TeammateTurnHooks from "../teammates/TeammateTurnHooks.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
 /** The shared application event log and its command receipts. */
@@ -152,9 +156,14 @@ const layerRunExecutionServiceProvided = RunExecutionService.layer.pipe(
   ),
 );
 
+const layerTeammateStorage = Layer.merge(TeammateStore.layer, TeammateHome.layer);
+// Teammate chats start each provider thread with the teammate's preamble.
+const layerTeammateTurnHooks = TeammateTurnHooks.layer.pipe(Layer.provide(layerTeammateStorage));
+
 const layerProviderTurnStartServiceProvided = ProviderTurnStartService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
+      layerTeammateTurnHooks,
       layerContextHandoffServiceProvided,
       layerEventSinkProvided,
       IdAllocator.layer,
@@ -274,6 +283,18 @@ const layerScheduledTaskProvided = ScheduledTaskService.layer.pipe(
     ),
   ),
 );
+const layerTeammateServiceProvided = TeammateService.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      layerTeammateStorage,
+      layerThreadLaunchProvided,
+      layerThreadManagementProvided,
+      layerManagedProjectFoldersProvided,
+      layerProjectService,
+      IdAllocator.layer,
+    ),
+  ),
+);
 const layerProviderContinuationWorkerProvided = ProviderContinuationService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -337,6 +358,7 @@ export const layerProduction = Layer.mergeAll(
   layerThreadLaunchProvided,
   layerThreadLifecycleProvided,
   layerScheduledTaskProvided,
+  layerTeammateServiceProvided,
   layerSecretRequestsProvided,
   UsageLimitRecoveryWorker.layer.pipe(
     Layer.provide(Layer.mergeAll(ProjectionStore.layer, layerThreadManagementProvided)),

@@ -39,12 +39,22 @@ import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
 import { ThemeToolkit } from "./toolkits/theme/tools.ts";
+import { ComputerToolkit } from "./toolkits/computer/tools.ts";
+import { isComputerTool } from "./toolkits/computer/visibility.ts";
+import { TEAMMATE_TOOL_NAMES } from "./toolkits/teammate/tools.ts";
+import { hideTools } from "./toolVisibility.ts";
+import * as TeammateService from "../teammates/TeammateService.ts";
+import * as ServerSettings from "../serverSettings.ts";
+import * as ComputerHandlers from "./toolkits/computer/handlers.ts";
+import * as ComputerUse from "../computerUse/ComputerUseService.ts";
 import * as ThemeHandlers from "./toolkits/theme/handlers.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
+import { TeammateToolkit } from "./toolkits/teammate/tools.ts";
+import * as TeammateHandlers from "./toolkits/teammate/handlers.ts";
 import * as ThreadTools from "./toolkits/thread/tools.ts";
 import * as ThreadHandlers from "./toolkits/thread/handlers.ts";
 import * as ThreadMetadataMcpService from "./ThreadMetadataMcpService.ts";
@@ -130,6 +140,9 @@ export const makeMcpAuthMiddleware = Effect.gen(function* () {
     const threads = Context.getOrUndefined(services, ExtensionThreads.ThreadManagementService);
     const projects = Context.getOrUndefined(services, ExtensionProjects.ProjectStoreV2);
     const configuration = config?.desktopExtensionBroker;
+    // Best effort: without the settings service the computer_* tools stay listed and calls are refused.
+    const settings = Context.getOrUndefined(services, ServerSettings.ServerSettingsService);
+    const teammates = Context.getOrUndefined(services, TeammateService.TeammateService);
     const gateway =
       configuration && threads && projects && invocation.thread
         ? {
@@ -146,7 +159,7 @@ export const makeMcpAuthMiddleware = Effect.gen(function* () {
           }
         : undefined;
     const payload =
-      gateway && request.method === "POST"
+      (gateway || settings || teammates) && request.method === "POST"
         ? yield* request.json.pipe(Effect.orElseSucceed(() => undefined))
         : undefined;
     const rpc = payload as
@@ -169,19 +182,36 @@ export const makeMcpAuthMiddleware = Effect.gen(function* () {
       Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
       Effect.map(normalizeMcpHttpResponse),
     );
-    if (!gateway || rpc?.method !== "tools/list" || response.status !== 200) return response;
-    const tools = yield* Effect.tryPromise(() => ExtensionGateway.extensionMcpTools(gateway)).pipe(
-      Effect.orElseSucceed(() => []),
-    );
-    if (tools.length === 0) return response;
+    if (rpc?.method !== "tools/list" || response.status !== 200) return response;
+    // Tool visibility, decided per request from live settings and the calling thread. Hidden
+    // tools are only unadvertised; each still refuses an unauthorized call.
+    const current = settings
+      ? yield* settings.getSettings.pipe(Effect.orElseSucceed(() => undefined))
+      : undefined;
+    const hideComputer = current !== undefined && !current.computerUseEnabled;
+    const inTeammateChat =
+      current?.teammatesEnabled === true &&
+      teammates !== undefined &&
+      invocation.thread !== undefined &&
+      (yield* teammates.isTeammateThread(invocation.thread.threadId));
+    const hideTeammate = !inTeammateChat;
+    const isHidden = (name: string) =>
+      (hideComputer && isComputerTool(name)) || (hideTeammate && TEAMMATE_TOOL_NAMES.has(name));
+    const tools = gateway
+      ? yield* Effect.tryPromise(() => ExtensionGateway.extensionMcpTools(gateway)).pipe(
+          Effect.orElseSucceed(() => []),
+        )
+      : [];
+    if (tools.length === 0 && !hideComputer && !hideTeammate) return response;
     const body = yield* Effect.tryPromise(() =>
       HttpServerResponse.toWeb(response, { context: services }).text(),
     ).pipe(Effect.orDie);
-    const updated = ExtensionGateway.appendExtensionTools(
-      body,
-      response.headers["content-type"] ?? "",
-      tools,
-    );
+    const contentType = response.headers["content-type"] ?? "";
+    const withExtensions =
+      gateway && tools.length > 0
+        ? ExtensionGateway.appendExtensionTools(body, contentType, tools)
+        : body;
+    const updated = hideTools(withExtensions, contentType, isHidden);
     return HttpServerResponse.text(updated, {
       status: response.status,
       headers: {
@@ -910,6 +940,10 @@ export const layerOrchestratorToolkit = toolkit(OrchestratorToolkit).pipe(
 
 export const layerThreadToolkit = toolkit(ThreadToolkit).pipe(Layer.provide(ThreadHandlers.layer));
 
+export const layerTeammateToolkit = toolkit(TeammateToolkit).pipe(
+  Layer.provide(TeammateHandlers.layer),
+);
+
 const layerWorktreeToolkitRegistration = toolkit(WorktreeToolkit).pipe(
   Layer.provide(WorktreeHandlers.layer),
   Layer.provide(WorktreeMcpService.layer),
@@ -924,6 +958,11 @@ const layerEnvironmentRegistration = toolkit(EnvironmentToolkit).pipe(
 );
 
 const layerThemeRegistration = toolkit(ThemeToolkit).pipe(Layer.provide(ThemeHandlers.layer));
+
+const layerComputerRegistration = toolkit(ComputerToolkit).pipe(
+  Layer.provide(ComputerHandlers.layer),
+  Layer.provide(ComputerUse.layer),
+);
 
 const layerProjectRegistration = toolkit(ProjectToolkit).pipe(Layer.provide(ProjectHandlers.layer));
 
@@ -1020,10 +1059,12 @@ export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
+  layerTeammateToolkit,
   layerAttachmentRegistration,
   layerProjectRegistration,
   layerEnvironmentRegistration,
   layerThemeRegistration,
+  layerComputerRegistration,
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,
   layerPullRequestsToolkit,

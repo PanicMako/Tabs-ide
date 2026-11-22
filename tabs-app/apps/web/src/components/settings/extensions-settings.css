@@ -488,7 +488,7 @@
   color: var(--muted-foreground);
   cursor: pointer;
 }
-.market-resources details {
+.market-resources [data-slot="disclosure"] {
   width: 100%;
   color: var(--muted-foreground);
 }

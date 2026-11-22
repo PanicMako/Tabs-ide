@@ -54,6 +54,7 @@ import {
   InstalledExtensionLogo,
 } from "./ExtensionMarketplace";
 import "./extensions-settings.css";
+import { Details, Summary } from "../ui/disclosure";
 
 type Tab = "discover" | "installed" | "profiles";
 
@@ -1110,16 +1111,16 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                 </div>
               </div>
             ) : null}
-            <details className="extension-verification-details text-xs text-muted-foreground">
-              <summary className="cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
+            <Details className="extension-verification-details text-xs text-muted-foreground">
+              <Summary className="cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                 <ShieldCheckIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
                 <span>How installation is verified</span>
-              </summary>
+              </Summary>
               <p className="mt-2.5 pl-5 leading-relaxed text-muted-foreground/90 border-l border-border/60">
                 Tabs checks signed registry metadata and the exact package digest. New installations
                 are disabled until you enable them for projects. Review is not a security guarantee.
               </p>
-            </details>
+            </Details>
           </div>
         </section>
       ) : (
@@ -1760,11 +1761,11 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
 
                                       {/* Permissions checklist for this project */}
                                       {hasCapabilities ? (
-                                        <details className="border-t border-border/60 pt-2">
-                                          <summary className="cursor-pointer rounded text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+                                        <Details className="border-t border-border/60 pt-2">
+                                          <Summary className="cursor-pointer rounded text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
                                             Permissions{" "}
                                             <span className="sr-only">for {project.name}</span>
-                                          </summary>
+                                          </Summary>
                                           <div className="grid gap-2 px-1 pt-3">
                                             {extension.manifest.capabilities?.includes(
                                               "profile-storage",
@@ -1880,7 +1881,7 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                                               </label>
                                             ) : null}
                                           </div>
-                                        </details>
+                                        </Details>
                                       ) : null}
                                     </div>
                                   );

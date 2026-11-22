@@ -79,7 +79,7 @@ describe("PullRequestMetadataControls", () => {
 });
 
 describe("PullRequestMetadataControls suggestions", () => {
-  it("offers the host's names as options without limiting what can be typed", () => {
+  it("renders a themed combobox (no native datalist) that still accepts free text", () => {
     const reviewers = renderToStaticMarkup(
       <PullRequestReviewersSection
         reviewers={[]}
@@ -90,9 +90,11 @@ describe("PullRequestMetadataControls suggestions", () => {
         suggestions={["maria", "li"]}
       />,
     );
-    expect(reviewers).toContain('<option value="maria"');
-    expect(reviewers).toContain('<option value="li"');
-    expect(reviewers).toContain('list="');
+    // The suggestion popup is portalled and opens on focus; the input itself is a plain text combobox.
+    expect(reviewers).toContain('role="combobox"');
+    expect(reviewers).toContain('type="text"');
+    expect(reviewers).not.toContain("<datalist");
+    expect(reviewers).not.toContain("<option");
 
     const labels = renderToStaticMarkup(
       <PullRequestLabelsSection
@@ -104,7 +106,8 @@ describe("PullRequestMetadataControls suggestions", () => {
         suggestions={["bug"]}
       />,
     );
-    expect(labels).toContain('<option value="bug"');
+    expect(labels).toContain('role="combobox"');
+    expect(labels).not.toContain("<datalist");
 
     const none = renderToStaticMarkup(
       <PullRequestLabelsSection

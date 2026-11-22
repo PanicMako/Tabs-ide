@@ -2,6 +2,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { WorkspaceShell } from "../components/WorkspaceShell";
 import { SidebarProvider } from "../components/ui/sidebar";
+import { TeammatesHost } from "../components/teammates/TeammatesHost";
 import { toastManager } from "../components/ui/toast";
 import { isPopoutMode, isConversationPopout } from "../lib/utils";
 
@@ -44,6 +45,7 @@ function ChatRouteLayout() {
   return (
     <SidebarProvider defaultOpen={false}>
       <WorkspaceShell agentsContent={<Outlet />} settingsContent={<Outlet />} />
+      <TeammatesHost />
     </SidebarProvider>
   );
 }

@@ -447,3 +447,233 @@ test("lists a provider's favorites first only when its Favorites first switch is
     mockedSettings.value = null;
   }
 });
+
+test("shows Antigravity's thought_level as inline dots on Gemini 3.8 Flash only", async () => {
+  const onOptions = vi.fn();
+  const none = { slug: "", name: "", isCustom: false, capabilities: {} } as const;
+  const providers = [
+    makeTestServerProvider({
+      instanceId: "antigravity",
+      models: [
+        { ...none, slug: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
+        { ...none, slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
+        { ...none, slug: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+        {
+          ...none,
+          slug: "gemini-3.8-flash",
+          name: "Gemini 3.8 Flash",
+          capabilities: {
+            optionDescriptors: [
+              {
+                id: "thought_level",
+                label: "Thinking Level",
+                type: "select",
+                role: "reasoning",
+                currentValue: "high",
+                options: [
+                  { id: "low", label: "Low" },
+                  { id: "medium", label: "Medium" },
+                  { id: "high", label: "High" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  ];
+  const screen = await render(
+    <FusedModelPicker
+      provider="antigravity"
+      lockedProvider="antigravity"
+      model={"gemini-3.8-flash" as ModelSlug}
+      providers={providers}
+      prompt=""
+      onPromptChange={vi.fn()}
+      onProviderModelChange={vi.fn()}
+      onModelOptionsChange={onOptions}
+    />,
+  );
+  await page.getByRole("button", { name: "Gemini 3.8 Flash" }).click();
+  const slider = page.getByRole("slider", { name: "Gemini 3.8 Flash thinking level" });
+  await expect.element(slider).toBeVisible();
+  // One dots control, on the Gemini row only, and no separate right-column control.
+  expect(document.querySelectorAll('[role="slider"]')).toHaveLength(1);
+  expect(document.body.textContent).not.toContain("Thinking Level");
+  slider.element().dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+  expect(onOptions).toHaveBeenLastCalledWith([{ id: "thought_level", value: "low" }]);
+  await page.screenshot({
+    path: "/private/tmp/claude-501/-Users-rushil-dev--claude-spares-spare-klKeXi/502dcd60-00d5-40af-bc34-d75f2ff8878d/scratchpad/antigravity-dots.png",
+  });
+  await screen.unmount();
+});
+
+test("shows Gemini 3.8 Flash's seeded level dots while another model is selected", async () => {
+  const onOptions = vi.fn();
+  const none = { slug: "", name: "", isCustom: false, capabilities: {} } as const;
+  const providers = [
+    makeTestServerProvider({
+      instanceId: "antigravity",
+      models: [
+        { ...none, slug: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
+        { ...none, slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
+        { ...none, slug: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+        {
+          ...none,
+          slug: "gemini-3.8-flash",
+          name: "Gemini 3.8 Flash",
+          capabilities: {
+            optionDescriptors: [
+              {
+                id: "thought_level",
+                label: "Thinking Level",
+                type: "select",
+                role: "reasoning",
+                currentValue: "high",
+                options: [
+                  { id: "low", label: "Low" },
+                  { id: "medium", label: "Medium" },
+                  { id: "high", label: "High" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  ];
+  const screen = await render(
+    <FusedModelPicker
+      provider="antigravity"
+      lockedProvider="antigravity"
+      model={"claude-sonnet-4-6" as ModelSlug}
+      providers={providers}
+      prompt=""
+      onPromptChange={vi.fn()}
+      onProviderModelChange={vi.fn()}
+      onModelOptionsChange={onOptions}
+    />,
+  );
+  await page.getByRole("button", { name: "Claude Sonnet 4.6 (Thinking)" }).click();
+  const slider = page.getByRole("slider", { name: "Gemini 3.8 Flash thinking level" });
+  await expect.element(slider).toBeVisible();
+  // One dots control, on the Gemini row only, and no separate right-column control.
+  expect(document.querySelectorAll('[role="slider"]')).toHaveLength(1);
+  expect(document.body.textContent).not.toContain("Thinking Level");
+  await page.screenshot({
+    path: "/private/tmp/claude-501/-Users-rushil-dev--claude-spares-spare-klKeXi/502dcd60-00d5-40af-bc34-d75f2ff8878d/scratchpad/antigravity-dots-unselected.png",
+  });
+  await screen.unmount();
+});
+
+test("Antigravity shows level dots only for models that report thought_level", async () => {
+  const thoughtLevel = {
+    id: "thought_level",
+    label: "Thinking Level",
+    type: "select" as const,
+    role: "reasoning" as const,
+    currentValue: "high",
+    options: [
+      { id: "low", label: "Low" },
+      { id: "medium", label: "Medium" },
+      { id: "high", label: "High", isDefault: true },
+    ],
+  };
+  const model = (slug: string, name: string, optionDescriptors: object[] = []) => ({
+    slug,
+    name,
+    isCustom: false,
+    capabilities: { optionDescriptors },
+  });
+  const screen = await render(
+    <FusedModelPicker
+      provider="antigravity"
+      lockedProvider="antigravity"
+      model={"gemini-3.8-flash" as ModelSlug}
+      providers={[
+        makeTestServerProvider({
+          instanceId: "antigravity",
+          models: [
+            model("gemini-3.8-flash", "Gemini 3.8 Flash", [thoughtLevel]),
+            model("claude-sonnet-4-6", "Claude Sonnet 4.6 (Thinking)"),
+            model("claude-opus-4-6-thinking", "Claude Opus 4.6 (Thinking)"),
+            model("gpt-oss-120b-medium", "GPT-OSS 120B (Medium)"),
+          ] as never,
+        }),
+      ]}
+      prompt=""
+      onPromptChange={vi.fn()}
+      onProviderModelChange={vi.fn()}
+      onModelOptionsChange={vi.fn()}
+    />,
+  );
+  await page.getByRole("button", { name: "Gemini 3.8 Flash" }).click();
+  await expect
+    .element(page.getByRole("slider", { name: "Gemini 3.8 Flash thinking level" }))
+    .toBeVisible();
+  // One slider for Gemini; Claude and GPT-OSS get the plain "no levels" row, not a second control.
+  expect(document.querySelectorAll('[role="slider"]')).toHaveLength(1);
+  expect(document.querySelectorAll('[data-model-reasoning-status="true"]')).toHaveLength(3);
+  expect(document.body.textContent).not.toContain("Thinking Level");
+  expect(document.body.textContent).not.toContain("Built-in thinking");
+  await screen.unmount();
+});
+
+test("a role-less thought_level from an older snapshot still gets the inline dots", async () => {
+  const thoughtLevel = {
+    id: "thought_level",
+    label: "Thinking Level",
+    type: "select" as const,
+    currentValue: "high",
+    options: [
+      { id: "low", label: "Low" },
+      { id: "medium", label: "Medium" },
+      { id: "high", label: "High", isDefault: true },
+    ],
+  };
+  const model = (slug: string, name: string, optionDescriptors: object[] = []) => ({
+    slug,
+    name,
+    isCustom: false,
+    capabilities: { optionDescriptors },
+  });
+  const screen = await render(
+    <FusedModelPicker
+      provider="antigravity"
+      lockedProvider={null}
+      modelOptions={[{ id: "thought_level", value: "medium" }] as never}
+      model={"gemini-3.8-flash" as ModelSlug}
+      providers={[
+        makeTestServerProvider({
+          instanceId: "codex",
+          models: [
+            { slug: "gpt-5.6-luna", name: "GPT-5.6-Luna", isCustom: false, capabilities: {} },
+          ] as never,
+        }),
+        makeTestServerProvider({
+          instanceId: "antigravity",
+          models: [
+            model("gemini-3.8-flash", "Gemini 3.8 Flash", [thoughtLevel]),
+            model("claude-sonnet-4-6", "Claude Sonnet 4.6 (Thinking)"),
+            model("claude-opus-4-6-thinking", "Claude Opus 4.6 (Thinking)"),
+            model("gpt-oss-120b-medium", "GPT-OSS 120B (Medium)"),
+          ] as never,
+        }),
+      ]}
+      prompt=""
+      onPromptChange={vi.fn()}
+      onProviderModelChange={vi.fn()}
+      onModelOptionsChange={vi.fn()}
+    />,
+  );
+  await page.getByRole("button", { name: "Gemini 3.8 Flash" }).click();
+  await expect
+    .element(page.getByRole("slider", { name: "Gemini 3.8 Flash thinking level" }))
+    .toBeVisible();
+  // One slider for Gemini; Claude and GPT-OSS get the plain "no levels" row, not a second control.
+  expect(document.querySelectorAll('[role="slider"]')).toHaveLength(1);
+  expect(document.querySelectorAll('[data-model-reasoning-status="true"]')).toHaveLength(3);
+  expect(document.body.textContent).not.toContain("Thinking Level");
+  expect(document.body.textContent).not.toContain("Built-in thinking");
+  await screen.unmount();
+});

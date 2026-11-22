@@ -22,6 +22,7 @@ import { ResetCredits, UsageLimitsSection, barColor } from "../../usage/UsageLim
 import { PROVIDER_PRESENTATION } from "../../usage/usageProviders";
 import { UsageProviderSettings } from "../UsageProviderSettings";
 import { morphTarget, useInlineMorph } from "./useUsageMorph";
+import { Details, Summary } from "../../ui/disclosure";
 
 const TIMELINE_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -221,22 +222,22 @@ export function LimitsTab() {
         </ul>
       ) : null}
 
-      <details className="usage-fold">
-        <summary>
+      <Details className="usage-fold">
+        <Summary>
           Pooled view <span>Every account per provider, side by side</span>
-        </summary>
+        </Summary>
         <div className="usage-fold-body">
           <UsageLimitsSection />
         </div>
-      </details>
-      <details className="usage-fold">
-        <summary>
+      </Details>
+      <Details className="usage-fold">
+        <Summary>
           Usage connections <span>Add a quota hub or another account</span>
-        </summary>
+        </Summary>
         <div className="usage-fold-body">
           <UsageProviderSettings />
         </div>
-      </details>
+      </Details>
     </div>
   );
 }

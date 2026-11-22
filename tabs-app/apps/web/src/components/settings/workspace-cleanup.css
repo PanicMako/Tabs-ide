@@ -1,0 +1,12 @@
+.workspace-cleanup {
+  font-family: var(--font-sans);
+}
+.workspace-cleanup .wc-panel {
+  border-top: 1px solid var(--border);
+  background: var(--muted);
+  backdrop-filter: blur(12px);
+}
+.workspace-cleanup :is(button, input):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

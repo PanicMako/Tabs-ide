@@ -7,30 +7,17 @@ import {
   tourMascotHtml,
   type TourMascotPosition,
 } from "@tabs/shared/tourMascot";
+import { readStoredPosition, saveStoredPosition } from "~/lib/cornerPosition";
 
 const POSITION_KEY = "tabs:tour-mascot-position:v1";
 const DEFAULT_POSITION = { x: 1, y: 1 };
 
 function readPosition(): TourMascotPosition {
-  try {
-    const saved = JSON.parse(localStorage.getItem(POSITION_KEY) ?? "null");
-    if (
-      typeof saved?.x === "number" &&
-      typeof saved?.y === "number" &&
-      saved.x >= 0 &&
-      saved.x <= 1 &&
-      saved.y >= 0 &&
-      saved.y <= 1
-    )
-      return saved;
-  } catch {}
-  return DEFAULT_POSITION;
+  return readStoredPosition(POSITION_KEY, DEFAULT_POSITION);
 }
 
 function savePosition(position: TourMascotPosition) {
-  try {
-    localStorage.setItem(POSITION_KEY, JSON.stringify(position));
-  } catch {}
+  saveStoredPosition(POSITION_KEY, position);
 }
 
 let artworkRequest: Promise<string> | undefined;

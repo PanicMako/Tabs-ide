@@ -37,6 +37,7 @@ import {
   validateInstanceId,
 } from "./addProvider.logic";
 import { DRIVER_OPTIONS } from "./providerDriverMeta";
+import { Details, Summary } from "../ui/disclosure";
 
 type IconComponent = ComponentType<{ className?: string }>;
 
@@ -418,8 +419,8 @@ export function AddProviderDialog(props: {
                 </p>
               ) : null}
               {choice.kind === "builtIn" ? (
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground">Advanced</summary>
+                <Details className="text-xs">
+                  <Summary className="cursor-pointer text-muted-foreground">Advanced</Summary>
                   <div className="mt-2 space-y-1.5">
                     <Label htmlFor="provider-binary">Binary path</Label>
                     <Input
@@ -429,7 +430,7 @@ export function AddProviderDialog(props: {
                       onChange={(event) => setBinaryPath(event.target.value)}
                     />
                   </div>
-                </details>
+                </Details>
               ) : null}
               {choice.kind === "registry" ? (
                 <p className="text-xs text-muted-foreground">

@@ -43,6 +43,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
@@ -86,6 +87,7 @@ import {
   acpProjectedCommandExitCode,
   acpToolCallDiffPatch,
   acpTurnStartShouldPreserveContinuation,
+  awaitConfigOptions,
   makeAcpAdapterV2,
   type AcpAdapterV2ExtensionContext,
   type AcpAdapterV2Flavor,
@@ -3173,7 +3175,7 @@ describe("AcpAdapterV2", () => {
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
-  it.effect("skips requested options that the active ACP session does not expose", () =>
+  it.live("skips requested options that the active ACP session does not expose", () =>
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const fileSystem = yield* FileSystem.FileSystem;
@@ -14542,4 +14544,55 @@ describe("acpPostSettleMonitorPromptShouldSuppress", () => {
       acpPostSettleMonitorPromptShouldSuppress({ taskId: "task-failed", status: "failed" }),
     );
   });
+});
+
+describe("awaitConfigOptions", () => {
+  const option = (id: string) =>
+    ({
+      id,
+      name: id,
+      category: "thought_level",
+      type: "select",
+      currentValue: "low",
+      options: [{ value: "low", name: "Low" }],
+    }) as const;
+  const makeRuntime = Effect.gen(function* () {
+    const ref = yield* SubscriptionRef.make<ReadonlyArray<ReturnType<typeof option>>>([]);
+    return {
+      ref,
+      runtime: {
+        getConfigOptions: SubscriptionRef.get(ref),
+        configOptionChanges: SubscriptionRef.changes(ref),
+      },
+    };
+  });
+  const hasThought = (options: ReadonlyArray<{ readonly id: string }>) =>
+    options.some((candidate) => candidate.id === "thought_level");
+
+  it.live("returns a late option as soon as the update arrives", () =>
+    Effect.gen(function* () {
+      const { ref, runtime } = yield* makeRuntime;
+      yield* Effect.sleep("50 millis").pipe(
+        Effect.andThen(SubscriptionRef.set(ref, [option("thought_level")])),
+        Effect.forkScoped,
+      );
+      const started = Date.now();
+      const found = yield* awaitConfigOptions(runtime, hasThought, 1500);
+      assert.deepEqual(
+        found.map((candidate) => candidate.id),
+        ["thought_level"],
+      );
+      assert.isBelow(Date.now() - started, 1000);
+    }).pipe(Effect.scoped),
+  );
+
+  it.live("gives up after the bound and returns what the session has", () =>
+    Effect.gen(function* () {
+      const { runtime } = yield* makeRuntime;
+      const started = Date.now();
+      const found = yield* awaitConfigOptions(runtime, hasThought, 150);
+      assert.deepEqual(found, []);
+      assert.isAtLeast(Date.now() - started, 140);
+    }),
+  );
 });

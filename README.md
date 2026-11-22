@@ -53,6 +53,73 @@ Press **⌘ ⌥ K** (or **Ctrl Alt K**) for Quick Actions: jump to a tool, or op
 
 </details>
 
+## Meet Notch, your AI teammate
+
+Notch is a long-lived AI teammate that lives in Tabs. You chat with it, and it hands real code work to normal Tabs threads, keeps track of them and tells you when it needs you. It is off by default.
+
+- **Turn it on:** **Settings → Labs → Teammates: Notch, your AI teammate**. The first time you enable it, a teammate named Notch is created. Manage teammates in **Settings → Teammates**.
+- **Name and multiple teammates:** rename Notch whenever you like, or add more teammates. Each one has its own name, personality, memory, model, colour finish and schedule.
+- **Home folder:** every teammate has a folder with `SOUL.md` (who it is and how it works) and `MEMORY.md` (what it remembers about you and your projects). You can read and edit both, and you can forget individual memories in Settings.
+- **Items and workers:** when you ask for code work, the teammate starts a worker, which is a normal Tabs thread in its own worktree, and tracks it as an item: to do, working, needs you, done or dropped. When a worker finishes, the result is posted back to the teammate’s chat.
+- **Up Next:** turn on the look-around for a teammate and it checks in on a schedule (every 4 hours, every 2 hours, twice a day or mornings), read-only, and posts suggestions. Start one and it becomes a worker. Dismiss one and it is not suggested again. **Look around now** runs it on demand.
+- **Moods:** the teammate is drawn as the Tabs mascot in a corner of the window. It looks idle, thinking, working, waiting for you, happy, upset or asleep (paused) to match what it is doing. You can hide the corner mascot.
+- **Privacy:** everything stays on your machine. Teammates use your own agent subscriptions, with no Tabs account, cloud service or sharing.
+
+## Also new
+
+<details>
+<summary>Search past agent sessions</summary>
+
+<br />
+
+Search what you and your agents did before, across Claude Code, Codex, Gemini and OpenCode history on this machine. Tabs builds a local full-text index in the background the first time you open it, and nothing is uploaded.
+
+- **Turn it on:** **Settings → Labs → Session search**.
+- **Where:** the Command Palette (**Search past agent sessions**) or Quick Actions.
+- **Use it:** filter by agent, project folder or date range. **Enter** resumes the session in a terminal. **Cmd/Ctrl Enter** copies the resume command instead. If an agent has no resume command, Tabs copies the transcript path.
+
+</details>
+
+<details>
+<summary>Workspace cleanup, with evidence</summary>
+
+<br />
+
+Find old agent worktrees that are safe to remove. For each worktree Tabs shows its evidence (last activity, size on disk, uncommitted files, unpushed commits and pull request state) and a verdict, then removes only what you select, after a confirmation.
+
+- **Where:** **Settings → Workspace Maintenance**, in the workspace cleanup section.
+- **Rules:** remove when the branch is merged, the pull request is merged or closed, or there has been no activity for a number of days (14 by default). Worktrees with uncommitted changes or unpushed commits are kept unless you relax those rules.
+- Main worktrees, project roots, locked worktrees and any worktree whose evidence cannot be read are never offered for removal.
+
+</details>
+
+<details>
+<summary>Terminal quick commands</summary>
+
+<br />
+
+Save the commands you type often and run them in the active terminal in one step.
+
+- **Where to save them:** **Settings → Terminal Commands**. Each command can run in a specific project, with or without pressing Enter at the end. You can search, reorder and edit them.
+- **Where to run them:** the terminal toolbar, the Command Palette or Quick Actions. The command is typed into the terminal you used last, and Tabs asks you to open a terminal if none is open.
+
+</details>
+
+<details>
+<summary>Computer use for agents</summary>
+
+<br />
+
+Let an agent read and control native desktop apps through accessibility: snapshots of the UI, clicks, typing, keys, scrolling, drags and window screenshots. It is off by default.
+
+- **Turn it on:** **Settings → Labs → Computer use**. **Check permissions** shows what is still missing.
+- **macOS:** allow Tabs under **System Settings → Privacy & Security → Accessibility**, and **Screen Recording** for screenshots.
+- **Windows:** needs PowerShell.
+- **Linux:** needs `python3` with AT-SPI, and `xdotool`.
+- **Safety:** only full-access threads can use it. Agents cannot type into password fields, and quit, log-out and lock shortcuts are blocked.
+
+</details>
+
 <br />
 
 <a name="get-tabs"></a>
@@ -218,6 +285,7 @@ Tabs would not exist without these projects. Huge thanks to their authors and co
 - **[T3 Code](https://github.com/pingdotgg/t3code)** by T3 Tools: the MIT-licensed agent workspace Tabs was forked from. Its agent harness, provider sessions and much of the web UI are the base Tabs is built on.
 - **[Code OSS](https://github.com/microsoft/vscode)** by Microsoft: the open source core of Visual Studio Code, which powers the embedded editor.
 - **[Synara](https://trysynara.com)**: inspiration for multi-agent workflows and provider integration patterns.
+- **[Orca](https://github.com/stablyai/orca)** (MIT, © 2026 Lovecast Inc.): ideas and some adapted code for Notch teammates, cross-agent session search, evidence-based workspace cleanup, terminal quick commands and computer use.
 
 Tabs keeps the original copyright notices. See the [MIT license](LICENSE) and [component notices](LICENSING.md). [View verified build activity on Not a Cent](https://notacent.app/en/app/tabs-ide).
 

@@ -251,7 +251,9 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     name: "Allow Dashboard profile storage in Alpha Project",
   });
   const permissions = screen.getByText("Permissions for Alpha Project", { exact: true });
-  expect(permissions.element().closest("details")?.open).toBe(false);
+  expect(permissions.element().closest("[data-disclosure]")?.getAttribute("data-state")).toBe(
+    "closed",
+  );
   await permissions.click();
   await expect.element(profileStorage).toBeVisible();
 

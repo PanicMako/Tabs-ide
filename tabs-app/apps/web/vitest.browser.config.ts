@@ -1,3 +1,4 @@
+import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig, mergeConfig } from "vitest/config";
@@ -6,7 +7,26 @@ import viteConfig from "./vite.config";
 
 const srcPath = fileURLToPath(new URL("./src", import.meta.url));
 
+/**
+ * Vitest's browser API defaults to a fixed port, so two concurrent runs (agents, a watcher plus CI
+ * script) collide. `TABS_VITEST_BROWSER_PORT` pins it; otherwise ask the OS for a free one.
+ */
+async function resolveBrowserApiPort(): Promise<number> {
+  const pinned = Number(process.env.TABS_VITEST_BROWSER_PORT);
+  if (Number.isInteger(pinned) && pinned > 0) return pinned;
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 63315;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
 export default defineConfig(async (env) => {
+  const browserApiPort = await resolveBrowserApiPort();
   const resolvedViteConfig = await viteConfig(env);
 
   return mergeConfig(
@@ -25,6 +45,7 @@ export default defineConfig(async (env) => {
         fileParallelism: false,
         browser: {
           enabled: true,
+          api: { port: browserApiPort, host: "127.0.0.1" },
           commands: {
             async scrollFontReel({ page, frame }, deltas: number[]) {
               const reel = (await frame()).locator(".font-reel");
@@ -42,6 +63,10 @@ export default defineConfig(async (env) => {
           instances: [{ browser: "chromium" }],
           headless: true,
         },
+        // expect.poll / expect.element default to 1 s, which a cold full-suite run (dependency
+        // optimisation, lazy chunks, a diff worker) can exceed. A generous ceiling costs nothing
+        // when the condition is already true.
+        expect: { poll: { timeout: 10_000, interval: 50 } },
         testTimeout: 30_000,
         hookTimeout: 30_000,
       },

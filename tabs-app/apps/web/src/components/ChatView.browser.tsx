@@ -734,7 +734,13 @@ async function waitForNewThreadShortcutLabel(): Promise<void> {
   const shortcutLabel = isMacPlatform(navigator.platform)
     ? "New thread (⇧⌘O)"
     : "New thread (Ctrl+Shift+O)";
-  await expect.element(newThreadButton).toHaveAttribute("title", shortcutLabel);
+  // TitleTooltipHost moves `title` into `data-tooltip-title` once the pointer has touched the control.
+  await expect
+    .poll(() => {
+      const el = newThreadButton.element();
+      return el.getAttribute("title") ?? el.getAttribute("data-tooltip-title");
+    })
+    .toBe(shortcutLabel);
 }
 
 async function waitForImagesToLoad(scope: ParentNode): Promise<void> {

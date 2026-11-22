@@ -18,6 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/dialog";
+import { Details, Summary } from "../ui/disclosure";
 export interface RegistryConnection {
   origin: string | null;
   connected: boolean;
@@ -272,8 +273,8 @@ export function RegistryConnectionCard({
                     </span>
                   </div>
                 </div>
-                <details className="rounded-xl border border-border p-4 text-sm">
-                  <summary className="cursor-pointer font-medium">Connection details</summary>
+                <Details className="rounded-xl border border-border p-4 text-sm">
+                  <Summary className="cursor-pointer font-medium">Connection details</Summary>
                   <div className="mt-4 space-y-4">
                     <div className="space-y-2">
                       <label htmlFor="exchange-setup-origin" className="text-sm font-medium">
@@ -306,7 +307,7 @@ export function RegistryConnectionCard({
                       </p>
                     </div>
                   </div>
-                </details>
+                </Details>
                 <div className="space-y-2">
                   <label htmlFor="exchange-setup-confirm" className="text-sm font-medium">
                     3. Confirm this registry
@@ -325,11 +326,11 @@ export function RegistryConnectionCard({
                 </div>
               </>
             )}
-            <details className="rounded-xl border border-border p-4 text-sm">
-              <summary className="cursor-pointer font-medium">
+            <Details className="rounded-xl border border-border p-4 text-sm">
+              <Summary className="cursor-pointer font-medium">
                 Private registry access{" "}
                 <span className="font-normal text-muted-foreground">· optional</span>
-              </summary>
+              </Summary>
               <p className="my-3 text-xs text-muted-foreground">
                 Public Exchange needs no login or token. Only add a read token if your operator runs
                 a private registry; it does not replace the public trust file.
@@ -389,7 +390,7 @@ export function RegistryConnectionCard({
                   Remove saved credential
                 </Button>
               </div>
-            </details>
+            </Details>
             {error && (
               <p
                 role="alert"

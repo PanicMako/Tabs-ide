@@ -1,3 +1,4 @@
+import { isReasoningSelectDescriptor } from "@tabs/shared/model";
 import type { ProviderOptionDescriptor, ServerProviderModel } from "@tabs/contracts";
 
 export const NATIVE_THINKING_OPTION = "nativeThinkingVariant";
@@ -47,6 +48,8 @@ export function groupNativeThinkingVariants(
 
 export function nativeThinkingDescriptor(model: ThinkingModel): ProviderOptionDescriptor[] {
   if (!model.thinkingVariants) return [];
+  // One mechanism: a model that reports its own reasoning control keeps that one.
+  if (model.capabilities?.optionDescriptors?.some(isReasoningSelectDescriptor)) return [];
   return [
     {
       id: NATIVE_THINKING_OPTION,
@@ -59,4 +62,23 @@ export function nativeThinkingDescriptor(model: ThinkingModel): ProviderOptionDe
       })),
     },
   ];
+}
+
+type Selection = { readonly id: string; readonly value: string | boolean };
+
+/**
+ * Turns a thinking-level choice on a folded family row into the native model ID that runs it.
+ * The level is a model choice, not an option, so it never reaches the model options.
+ */
+export function resolveNativeThinkingSelection(
+  model: ThinkingModel,
+  options: ReadonlyArray<Selection> | undefined,
+  level?: string,
+): { slug: string; options: Selection[] | undefined } {
+  const chosen = level ?? options?.find((o) => o.id === NATIVE_THINKING_OPTION)?.value;
+  const variant = model.thinkingVariants?.find((v) => v.level === chosen);
+  return {
+    slug: variant?.model.slug ?? model.slug,
+    options: options?.filter((o) => o.id !== NATIVE_THINKING_OPTION),
+  };
 }

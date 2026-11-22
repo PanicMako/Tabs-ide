@@ -10,6 +10,7 @@ import {
   getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
   isClaudeUltrathinkPrompt,
+  isReasoningSelectDescriptor,
 } from "@tabs/shared/model";
 import type { ReactNode } from "react";
 import { getProviderModelCapabilities } from "../../providerModels";
@@ -44,17 +45,7 @@ export function getComposerProviderState(input: ComposerProviderStateInput): Com
   const { provider, model, models, prompt, modelOptions } = input;
   const caps = getProviderModelCapabilities(models, model, provider);
   const descriptors = getProviderOptionDescriptors({ caps, selections: modelOptions });
-  const primarySelectDescriptor = descriptors.find(
-    (descriptor): descriptor is Extract<(typeof descriptors)[number], { type: "select" }> =>
-      descriptor.type === "select" &&
-      (descriptor.id === "reasoningEffort" ||
-        descriptor.id === "effort" ||
-        descriptor.id === "reasoning" ||
-        descriptor.id === "variant" ||
-        descriptor.id.toLowerCase().includes("effort") ||
-        descriptor.id.toLowerCase().includes("reasoning") ||
-        descriptor.id.toLowerCase().includes("variant")),
-  );
+  const primarySelectDescriptor = descriptors.find(isReasoningSelectDescriptor);
   const primaryValue = getProviderOptionCurrentValue(primarySelectDescriptor ?? null);
   const promptEffort = typeof primaryValue === "string" ? primaryValue : null;
   const explicitEffort = modelOptions?.find(

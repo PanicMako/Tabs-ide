@@ -32,6 +32,7 @@ import {
 import { environmentApi } from "../../connection/environmentApiRegistry";
 import { newCommandId, newMessageId } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { SimpleSelect } from "../ui/simple-select";
 import {
   Dialog,
   DialogPopup,
@@ -50,6 +51,7 @@ import {
   isParentThreadRelationship,
   threadRelationshipRowStatus,
 } from "@tabs/client-runtime/state/threadRelationships";
+import { Details, Summary } from "../ui/disclosure";
 
 export type WorkspaceAgentContext = Pick<
   OrchestrationV2ThreadProjection,
@@ -96,8 +98,6 @@ function ScopedWorkspaceAgents({
   const nativeChild = isProviderNativeSubagentThread(context.thread);
   const showAutomations = useDetailShown("automations");
   const taskInputId = useId();
-  const providerSelectId = useId();
-  const modelSelectId = useId();
 
   const [expanded, setExpanded] = useWorkspaceActionExpansion(
     `agents:${environmentId ?? "local"}:${context.thread.id}`,
@@ -524,14 +524,14 @@ function ScopedWorkspaceAgents({
 
                       {/* Subagent progress or result */}
                       {agent && (agent.progress || agent.result) && (
-                        <details className="mt-2 text-[11px] text-muted-foreground">
-                          <summary className="cursor-pointer">
+                        <Details className="mt-2 text-[11px] text-muted-foreground">
+                          <Summary className="cursor-pointer">
                             {agent.result ? "Result" : "Progress"}
-                          </summary>
+                          </Summary>
                           <p className="mt-1 whitespace-pre-wrap break-words">
                             {agent.result ?? agent.progress}
                           </p>
-                        </details>
+                        </Details>
                       )}
 
                       {/* Stop active child work */}
@@ -583,12 +583,12 @@ function ScopedWorkspaceAgents({
                   {agent.status}
                 </span>
                 {(agent.progress || agent.result) && (
-                  <details className="mt-2 text-[11px] text-muted-foreground">
-                    <summary>{agent.result ? "Result" : "Progress"}</summary>
+                  <Details className="mt-2 text-[11px] text-muted-foreground">
+                    <Summary>{agent.result ? "Result" : "Progress"}</Summary>
                     <p className="whitespace-pre-wrap break-words">
                       {agent.result ?? agent.progress}
                     </p>
-                  </details>
+                  </Details>
                 )}
               </div>
             ))}
@@ -746,16 +746,12 @@ function ScopedWorkspaceAgents({
                 {/* Provider and Model selectors */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium" htmlFor={providerSelectId}>
-                      Provider
-                    </label>
-                    <select
-                      id={providerSelectId}
+                    <span className="block text-xs font-medium">Provider</span>
+                    <SimpleSelect
                       aria-label="Provider"
-                      className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none"
+                      className="mt-1 w-full"
                       value={selectedInstanceId}
-                      onChange={(e) => {
-                        const nextInstance = e.target.value;
+                      onValueChange={(nextInstance) => {
                         setSelectedInstanceId(nextInstance);
                         const nextProvider = availableProviders.find(
                           (p) => p.instanceId === nextInstance,
@@ -764,40 +760,30 @@ function ScopedWorkspaceAgents({
                           setSelectedModel(nextProvider.models[0].slug);
                         }
                       }}
-                    >
-                      {availableProviders.length > 0 ? (
-                        availableProviders.map((p) => (
-                          <option key={p.instanceId} value={p.instanceId}>
-                            {p.displayName ?? p.instanceId}
-                          </option>
-                        ))
-                      ) : (
-                        <option value={selectedInstanceId}>{selectedInstanceId}</option>
-                      )}
-                    </select>
+                      options={
+                        availableProviders.length > 0
+                          ? availableProviders.map((p) => ({
+                              value: p.instanceId,
+                              label: p.displayName ?? p.instanceId,
+                            }))
+                          : [{ value: selectedInstanceId, label: selectedInstanceId }]
+                      }
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium" htmlFor={modelSelectId}>
-                      Model
-                    </label>
-                    <select
-                      id={modelSelectId}
+                    <span className="block text-xs font-medium">Model</span>
+                    <SimpleSelect
                       aria-label="Model"
-                      className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none"
+                      className="mt-1 w-full"
                       value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                    >
-                      {availableModels.length > 0 ? (
-                        availableModels.map((m) => (
-                          <option key={m.slug} value={m.slug}>
-                            {m.name ?? m.slug}
-                          </option>
-                        ))
-                      ) : (
-                        <option value={selectedModel}>{selectedModel}</option>
-                      )}
-                    </select>
+                      onValueChange={setSelectedModel}
+                      options={
+                        availableModels.length > 0
+                          ? availableModels.map((m) => ({ value: m.slug, label: m.name ?? m.slug }))
+                          : [{ value: selectedModel, label: selectedModel }]
+                      }
+                    />
                   </div>
                 </div>
 

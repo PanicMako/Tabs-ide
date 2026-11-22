@@ -327,7 +327,7 @@ describe("Git workflow interaction states", () => {
     );
 
     await page.getByRole("radio", { name: /^(All repository PRs|Repository)$/ }).click();
-    await page.getByRole("searchbox", { name: "Search pull requests" }).fill('fix "auth"');
+    await page.getByRole("combobox", { name: "Search pull requests" }).fill('fix "auth"');
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await vi.waitFor(() =>
       expect(listPullRequests).toHaveBeenCalledWith({

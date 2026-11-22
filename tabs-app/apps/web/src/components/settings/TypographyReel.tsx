@@ -20,6 +20,7 @@ import {
 } from "../../lib/themes";
 import { usePanelAnimationSettings } from "../../panelAnimations";
 import "./typography-reel.css";
+import { Details, Summary } from "../ui/disclosure";
 
 const presets = CURATED_FONT_COMBOS.filter((combo) => !combo.isNeutral);
 const displayFont = (combo: FontCombo) =>
@@ -510,10 +511,10 @@ export function TypographyReel({
           </div>
         </div>
       </div>
-      <details className="font-reel-saved">
-        <summary>Saved mixes</summary>
+      <Details className="font-reel-saved">
+        <Summary>Saved mixes</Summary>
         {savedMixes}
-      </details>
+      </Details>
     </div>
   );
 }

@@ -12,7 +12,12 @@ import { makeGitCore } from "./git/Layers/GitCore.ts";
 import { GitEnvironment } from "./git/Services/GitEnvironment.ts";
 import { GitEnvironmentLive } from "./git/Layers/GitEnvironment.ts";
 import { GitCommandError as LegacyGitCommandError } from "./git/Errors.ts";
-import { CoreWsRpcGroup, TestingWsRpcGroup, WorkspaceCompatibilityRpcGroup } from "@tabs/contracts";
+import {
+  CoreWsRpcGroup,
+  TeammatesRpcGroup,
+  TestingWsRpcGroup,
+  WorkspaceCompatibilityRpcGroup,
+} from "@tabs/contracts";
 import { TestingRuntime } from "./testing/TestingRuntime.ts";
 import { testingRpcHandlers } from "./testing/TestingRpcHandlers.ts";
 import {
@@ -140,6 +145,7 @@ import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as SecretCheck from "./secrets/SecretCheck.ts";
+import * as ComputerUse from "./computerUse/ComputerUseService.ts";
 import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
@@ -149,6 +155,7 @@ import * as CancellationIntentStore from "./orchestration-v2/CancellationIntentS
 import * as OrchestrationCommandReceipts from "./persistence/OrchestrationCommandReceipts.ts";
 import * as IdAllocator from "./orchestration-v2/IdAllocator.ts";
 import * as ScheduledTasks from "./scheduledTasks/ScheduledTaskService.ts";
+import { makeTeammatesHandlers } from "./teammates/teammatesHandlers.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
 import {
   archivedShellStreamItemFromThreadShell,
@@ -214,6 +221,7 @@ import * as TerminalManager from "./terminal/Manager.ts";
 import { withTerminalOutputWindow } from "./terminal/OutputProtocol.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
+import * as SessionSearch from "./sessionSearch/SessionSearchService.ts";
 import { remoteSshDeviceHosts } from "./device/localSshDeviceHost.ts";
 import * as PreviewManager from "./preview/Manager.ts";
 import { issueAssetUrl } from "./assets/AssetAccess.ts";
@@ -1293,6 +1301,7 @@ const layerWsRpc = (
         const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
         const providerSessionManager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
+        const sessionSearch = yield* SessionSearch.SessionSearchService;
         const secretRequests = yield* SecretRequests.SecretRequests;
         const pullRequests = yield* PullRequestService.PullRequestService;
         const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
@@ -2305,6 +2314,26 @@ const layerWsRpc = (
                 "orchestration_v2.message_id": input.messageId,
               },
             ),
+          [WS_METHODS.sessionSearchQuery]: (input) =>
+            observeRpcEffect(WS_METHODS.sessionSearchQuery, sessionSearch.query(input), {
+              "rpc.aggregate": "sessionSearch",
+            }),
+          [WS_METHODS.sessionSearchStatus]: (_input) =>
+            observeRpcEffect(WS_METHODS.sessionSearchStatus, sessionSearch.status, {
+              "rpc.aggregate": "sessionSearch",
+            }),
+          [WS_METHODS.sessionSearchReindex]: (input) =>
+            observeRpcEffect(WS_METHODS.sessionSearchReindex, sessionSearch.reindex(input), {
+              "rpc.aggregate": "sessionSearch",
+            }),
+          [WS_METHODS.sessionSearchResume]: (input) =>
+            observeRpcEffect(WS_METHODS.sessionSearchResume, sessionSearch.resume(input), {
+              "rpc.aggregate": "sessionSearch",
+            }),
+          [WS_METHODS.sessionSearchPreview]: (input) =>
+            observeRpcEffect(WS_METHODS.sessionSearchPreview, sessionSearch.preview(input), {
+              "rpc.aggregate": "sessionSearch",
+            }),
           [WS_METHODS.scheduledTasksList]: (_input) =>
             observeRpcEffect(
               WS_METHODS.scheduledTasksList,
@@ -2874,6 +2903,10 @@ const layerWsRpc = (
             ),
           [WS_METHODS.serverCheckSecretSource]: ({ source }) =>
             observeRpcEffect(WS_METHODS.serverCheckSecretSource, secretCheck.check(source), {
+              "rpc.aggregate": "server",
+            }),
+          [WS_METHODS.serverComputerUsePermissions]: (_input) =>
+            observeRpcEffect(WS_METHODS.serverComputerUsePermissions, ComputerUse.readPermissions, {
               "rpc.aggregate": "server",
             }),
           [WS_METHODS.serverDiscoverSourceControl]: (_input) =>
@@ -4256,6 +4289,7 @@ export const layer = Layer.unwrap(
         }).pipe(
           Effect.provide(
             layerWsRpc(session, clientOrigin, clientAnalyticsProps, previewAutomationBroker).pipe(
+              Layer.merge(TeammatesRpcGroup.toLayer(makeTeammatesHandlers)),
               Layer.provideMerge(RpcSerialization.layerJson),
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
               Layer.provide(AgentSessionScanner.layer),

@@ -16,6 +16,7 @@ import { RefreshCwIcon } from "lucide-react";
 import { SettingsSectionHeader } from "./SettingsLayout";
 import { NewWorktreeSettings } from "./NewWorktreeSettings";
 import { ArchivedThreadsSettings } from "./ArchivedThreadsSettings";
+import { WorkspaceCleanupSection } from "./WorkspaceCleanupSection";
 import { WorkspaceMaintenanceView, maintenanceBytes } from "./WorkspaceMaintenanceView";
 
 export default function WorkspaceMaintenanceSettings() {
@@ -127,6 +128,7 @@ export default function WorkspaceMaintenanceSettings() {
       )}
       <NewWorktreeSettings />
       <ArchivedThreadsSettings />
+      <WorkspaceCleanupSection cwd={project?.cwd ?? null} />
       <WorkspaceMaintenanceView
         projects={projects}
         projectId={projectId}

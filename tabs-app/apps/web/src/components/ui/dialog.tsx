@@ -8,6 +8,7 @@ import { XIcon, ChevronDownIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { Details, Summary } from "./disclosure";
 
 const DialogCreateHandle = DialogPrimitive.createHandle;
 
@@ -175,22 +176,22 @@ function DialogDetails({
   children,
   className,
   ...props
-}: React.ComponentProps<"details"> & { title: string }) {
+}: React.ComponentProps<typeof Details> & { title: string }) {
   return (
-    <details
+    <Details
       {...props}
       className={cn("group rounded-xl border border-border/60 bg-muted/15 px-3 py-2.5", className)}
       data-slot="dialog-details"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <Summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         {title}
         <ChevronDownIcon
           aria-hidden="true"
           className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
         />
-      </summary>
+      </Summary>
       <div className="space-y-3 pt-3">{children}</div>
-    </details>
+    </Details>
   );
 }
 

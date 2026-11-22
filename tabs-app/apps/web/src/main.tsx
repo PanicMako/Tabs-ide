@@ -2,12 +2,14 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { StartupShell } from "./StartupShell";
 import { activateStartupSplash, updateStartupSplash } from "./lib/startupSplashLifecycle";
+import { installScrollingIndicator } from "./lib/scrollingIndicator";
 import { handleZoomMenuAction, initializeZoom } from "./state/zoom";
 import "./localFonts.css";
 import "./index.css";
 
 activateStartupSplash();
 initializeZoom();
+installScrollingIndicator();
 // Register for every app window, including diagnostics popouts and recovery.
 const removeZoomMenuListener = window.desktopBridge?.onMenuAction(handleZoomMenuAction);
 if (import.meta.hot) import.meta.hot.dispose(() => removeZoomMenuListener?.());

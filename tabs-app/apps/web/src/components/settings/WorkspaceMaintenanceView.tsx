@@ -14,6 +14,7 @@ import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsSection, SettingsRow } from "./SettingsLayout";
 import "./workspace-maintenance.css";
+import { Details, Summary } from "../ui/disclosure";
 
 export const maintenanceBytes = (value: number) =>
   value === 0
@@ -227,12 +228,12 @@ export function WorkspaceMaintenanceView(props: Props) {
                     </span>
                   </div>
                   <div className="wm-tree-bottom">
-                    <details className="wm-tree-details">
-                      <summary>
+                    <Details className="wm-tree-details">
+                      <Summary>
                         <ChevronDownIcon className="size-3" aria-hidden="true" />
                         Details
                         {tree.threadCount > 0 ? ` · ${tree.threadCount} conversations` : ""}
-                      </summary>
+                      </Summary>
                       <div>
                         <dl>
                           <dt>Path</dt>
@@ -252,7 +253,7 @@ export function WorkspaceMaintenanceView(props: Props) {
                         </dl>
                         {tree.error && <p className="wm-inspection-error">{tree.error}</p>}
                       </div>
-                    </details>
+                    </Details>
                     <div className="wm-tree-actions">
                       <Button
                         size="sm"
@@ -352,8 +353,8 @@ export function WorkspaceMaintenanceView(props: Props) {
           </Button>
         </div>
         {storage && storage.candidates.length > 0 && (
-          <details className="wm-log-details">
-            <summary>Review {storage.candidates.length} eligible logs</summary>
+          <Details className="wm-log-details">
+            <Summary>Review {storage.candidates.length} eligible logs</Summary>
             <div>
               {storage.candidates.map((file) => (
                 <div key={file.id}>
@@ -363,7 +364,7 @@ export function WorkspaceMaintenanceView(props: Props) {
                 </div>
               ))}
             </div>
-          </details>
+          </Details>
         )}
         {storage?.warnings.map((warning) => (
           <p className="wm-warning" role="status" key={warning}>

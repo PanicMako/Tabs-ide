@@ -94,6 +94,8 @@ export interface ThreadLaunchInput {
   };
   readonly createdBy: OrchestrationV2Actor;
   readonly creationSource: OrchestrationV2CreationSource;
+  /** Stamps `lineage.teammate` so thread lists hide teammate home / look-around chats. */
+  readonly teammate?: boolean;
 }
 
 /** What workspace preparation reads from a launch; a retry rebuilds it from the run. */
@@ -792,6 +794,7 @@ const make = Effect.gen(function* () {
                 ...(input.importedNativeThread === undefined
                   ? {}
                   : { importedNativeThread: input.importedNativeThread }),
+                ...(input.teammate === true ? { teammate: true } : {}),
                 createdBy: input.createdBy,
                 creationSource: input.creationSource,
               });

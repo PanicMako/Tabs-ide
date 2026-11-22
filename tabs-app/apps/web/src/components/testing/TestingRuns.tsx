@@ -29,6 +29,7 @@ import {
 import { Switch } from "~/components/ui/switch";
 import { cn } from "~/lib/utils";
 import { useTestingData } from "./context";
+import { Details, Summary } from "../ui/disclosure";
 
 type ArtifactFile = {
   id: string;
@@ -437,11 +438,11 @@ export const TestingRuns = memo(function TestingRuns() {
           </div>
         </div>
       </Card>
-      <details className="rounded-xl border bg-card">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-medium">
+      <Details className="rounded-xl border bg-card">
+        <Summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-medium">
           <Settings2Icon aria-hidden="true" className="size-4" />
           Run settings and schedules
-        </summary>
+        </Summary>
         <div className="space-y-5 border-t p-5">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
@@ -504,7 +505,7 @@ export const TestingRuns = memo(function TestingRuns() {
             </ul>
           ) : null}
         </div>
-      </details>
+      </Details>
       {data.executionRuns.map((run) => (
         <Card key={run.id}>
           <CardHeader>
@@ -552,12 +553,12 @@ export const TestingRuns = memo(function TestingRuns() {
                 <li key={result.caseId} className="text-sm text-muted-foreground">
                   {result.externalId}: {result.status} · {result.durationMs}ms
                   {result.error ? (
-                    <details className="mt-1">
-                      <summary className="cursor-pointer">Failure details</summary>
+                    <Details className="mt-1">
+                      <Summary className="cursor-pointer">Failure details</Summary>
                       <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">
                         {result.error}
                       </pre>
-                    </details>
+                    </Details>
                   ) : null}
                 </li>
               ))}

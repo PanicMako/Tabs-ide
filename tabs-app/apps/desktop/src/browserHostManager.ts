@@ -39,6 +39,7 @@ import {
 } from "./browserDiagnostics";
 
 export const defaultPermissionMediator = new PermissionMediator();
+export const BROWSER_CONTEXT_MENU_CHANNEL = "desktop:browser-context-menu";
 const EXTERNAL_OAUTH_REQUIRED_MESSAGE =
   "This provider does not permit sign-in inside embedded browsers. Open the page in your system browser, but note that its login session cannot be transferred automatically back into this Tabs browser profile.";
 
@@ -47,15 +48,20 @@ import {
   BrowserWindow,
   clipboard,
   ClipboardItem,
-  Menu,
   nativeImage,
   WebContentsView,
   session as electronSession,
   shell,
-  type MenuItemConstructorOptions,
   type Rectangle,
   type Session,
 } from "electron";
+import { randomUUID } from "node:crypto";
+import {
+  pendingFromParams,
+  runBrowserContextMenuAction,
+  validateContextMenuReply,
+  type PendingBrowserContextMenu,
+} from "./browserContextMenu";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import type {
   DesktopBrowserHostActivateSessionInput,
@@ -2906,50 +2912,133 @@ export class BrowserHostManager {
     contents.on("did-create-window", (childWindow) => {
       configureChildPopupWindow(childWindow, contents, session.partition);
     });
+    // The page paints above the app's DOM, so the themed menu is drawn by the renderer over a
+    // snapshot of this view (see openContextMenu). No native menu is ever popped here.
     contents.on("context-menu", (_event, params) => {
-      const template: MenuItemConstructorOptions[] = [
-        {
-          label: "Back",
-          enabled: contents.canGoBack(),
-          click: () => contents.goBack(),
-        },
-        {
-          label: "Forward",
-          enabled: contents.canGoForward(),
-          click: () => contents.goForward(),
-        },
-        {
-          label: "Reload",
-          click: () => contents.reload(),
-        },
-        { type: "separator" },
-        {
-          label: "Open In Browser",
-          click: () => {
-            const url = contents.getURL();
-            if (url) {
-              void shell.openExternal(url).catch(() => undefined);
-            }
-          },
-        },
-        {
-          label: "Inspect Element",
-          click: () => {
-            if (!contents.isDevToolsOpened()) {
-              contents.openDevTools({ mode: DOCKED_DEVTOOLS_MODE });
-            }
-            contents.inspectElement(params.x, params.y);
-          },
-        },
-      ];
-      const popupWindow = this.getWindow();
-      Menu.buildFromTemplate(template).popup(
-        popupWindow
-          ? {
-              window: popupWindow,
-            }
-          : {},
-      );
+      void this.openContextMenu(session, params);
     });
+  }
+
+  private readonly pendingContextMenus = new Map<
+    string,
+    {
+      session: BrowserSession;
+      menu: PendingBrowserContextMenu;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
+
+  /** Snapshots the page, hides its native view and asks the renderer to draw the themed menu. */
+  private async openContextMenu(
+    session: BrowserSession,
+    params: Electron.ContextMenuParams,
+  ): Promise<void> {
+    const window = this.getWindow();
+    const contents = session.view.webContents;
+    if (!window || window.isDestroyed() || contents.isDestroyed() || !session.bounds) return;
+    if (this.activeKey !== session.key) return;
+    for (const token of [...this.pendingContextMenus.keys()]) this.settleContextMenu(token, null);
+    let snapshot: string;
+    try {
+      const image = await contents.capturePage();
+      if (image.isEmpty()) return;
+      snapshot = `data:image/jpeg;base64,${image.toJPEG(90).toString("base64")}`;
+    } catch {
+      return;
+    }
+    if (window.isDestroyed() || !session.bounds || this.activeKey !== session.key) return;
+    const { pending, items } = pendingFromParams({
+      x: params.x,
+      y: params.y,
+      linkURL: params.linkURL,
+      srcURL: params.srcURL,
+      mediaType: params.mediaType,
+      selectionText: params.selectionText,
+      isEditable: params.isEditable,
+      misspelledWord: params.misspelledWord,
+      dictionarySuggestions: params.dictionarySuggestions,
+      canGoBack: contents.canGoBack(),
+      canGoForward: contents.canGoForward(),
+      canCut: params.editFlags.canCut,
+      canCopy: params.editFlags.canCopy,
+      canPaste: params.editFlags.canPaste,
+      pageUrl: contents.getURL(),
+    });
+    const token = randomUUID();
+    // Safety net: never leave the page hidden if the renderer goes away.
+    const timer = setTimeout(() => this.settleContextMenu(token, null), 60_000);
+    this.pendingContextMenus.set(token, { session, menu: pending, timer });
+    const zoom = window.webContents.getZoomFactor() || 1;
+    const bounds = session.bounds;
+    window.webContents.send(BROWSER_CONTEXT_MENU_CHANNEL, {
+      token,
+      snapshot,
+      bounds: {
+        x: bounds.x / zoom,
+        y: bounds.y / zoom,
+        width: bounds.width / zoom,
+        height: bounds.height / zoom,
+      },
+      point: { x: (bounds.x + params.x) / zoom, y: (bounds.y + params.y) / zoom },
+      items,
+    });
+  }
+
+  /** The renderer has painted the snapshot; swap the live view out underneath it. */
+  confirmContextMenuSnapshot(rawToken: unknown): void {
+    if (typeof rawToken !== "string") return;
+    const entry = this.pendingContextMenus.get(rawToken);
+    if (entry && !entry.session.view.webContents.isDestroyed())
+      entry.session.view.setVisible(false);
+  }
+
+  resolveContextMenu(raw: { token: unknown; id: unknown }): void {
+    const reply = validateContextMenuReply(
+      raw,
+      new Map([...this.pendingContextMenus].map(([token, entry]) => [token, entry.menu])),
+    );
+    if (!reply) {
+      // A bad reply must still not strand the page hidden.
+      if (typeof raw.token === "string") this.settleContextMenu(raw.token, null);
+      return;
+    }
+    this.settleContextMenu(reply.token, reply.id);
+  }
+
+  private settleContextMenu(token: string, id: string | null): void {
+    const entry = this.pendingContextMenus.get(token);
+    if (!entry) return;
+    this.pendingContextMenus.delete(token);
+    clearTimeout(entry.timer);
+    const { session, menu } = entry;
+    const contents = session.view.webContents;
+    if (contents.isDestroyed()) return;
+    session.view.setVisible(true);
+    if (id === null) return;
+    contents.focus();
+    runBrowserContextMenuAction(
+      id,
+      menu,
+      {
+        goBack: () => contents.goBack(),
+        goForward: () => contents.goForward(),
+        reload: () => contents.reload(),
+        cut: () => contents.cut(),
+        copy: () => contents.copy(),
+        paste: () => contents.paste(),
+        selectAll: () => contents.selectAll(),
+        copyImageAt: (x, y) => contents.copyImageAt(x, y),
+        replaceMisspelling: (word) => contents.replaceMisspelling(word),
+        addWordToDictionary: (word) => contents.session.addWordToSpellCheckerDictionary(word),
+        inspectElement: (x, y) => contents.inspectElement(x, y),
+        openDevToolsIfClosed: () => {
+          if (!contents.isDevToolsOpened()) contents.openDevTools({ mode: DOCKED_DEVTOOLS_MODE });
+        },
+      },
+      {
+        writeClipboardText: (text) => clipboard.writeText(text),
+        openExternal: (url) => void shell.openExternal(url).catch(() => undefined),
+      },
+    );
   }
 }

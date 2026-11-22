@@ -24,6 +24,7 @@ import * as Keybindings from "./keybindings.ts";
 import * as ServerConfig from "./config.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
+import { makeWorkspaceCleanupHandlers } from "./workspaceCleanup/handlers.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
 
 export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
@@ -48,6 +49,7 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
     yield* SourceControlRepositoryService.SourceControlRepositoryService;
   const sql = yield* SqlClient.SqlClient;
   const projects = yield* ProjectStore.ProjectStoreV2;
+  const cleanup = yield* makeWorkspaceCleanupHandlers;
   const roots = { logs: config.logsDir, "browser-artifacts": config.browserArtifactsDir };
   const maintenanceError = (error: unknown) =>
     new WorkspaceCompatibilityError({
@@ -125,6 +127,9 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
           yield* refreshStatus(input);
         }),
       ).pipe(Effect.mapError(maintenanceError)),
+    "workspaceCleanup.scan": cleanup.scan,
+    "workspaceCleanup.apply": cleanup.apply,
+    "workspaceCleanup.history": cleanup.history,
     "terminal.list": () => terminalManager.list(),
     "git.fetch": (input) =>
       legacyGit.fetchLatest(input).pipe(

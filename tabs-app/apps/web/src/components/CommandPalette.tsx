@@ -18,15 +18,31 @@ import {
   LoaderCircleIcon,
   LinkIcon,
   PuzzleIcon,
+  BrushCleaningIcon,
   XIcon,
   PaletteIcon,
+  SquareTerminalIcon,
+  HistoryIcon,
+  BotIcon,
 } from "lucide-react";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import { useInstalledExtensions } from "~/state/extensions";
 import { extensionPaletteCommands, summarizePaletteResult } from "~/extensionPaletteCommands";
 import { useWorkspaceShellStore } from "~/workspaceShellStore";
 import { requestOpenExtensionTool } from "~/extensionToolRequests";
+import { useSettings } from "~/hooks/useSettings";
+import { openSessionSearch } from "./session-search/sessionSearchStore";
+import {
+  openNewTeammate,
+  openTeammatesPanel,
+  useTeammatesUiStore,
+} from "./teammates/teammatesStore";
+import { useTeammatesData } from "./teammates/useTeammates";
 import { toastManager } from "./ui/toast";
+import { useTerminalQuickCommands } from "~/hooks/useTerminalQuickCommands";
+import { quickCommandTitle } from "~/lib/terminalQuickCommands";
+import { runTerminalQuickCommand } from "~/terminalQuickCommandRunner";
+import { reportQuickCommandFailure } from "./terminal-quick-commands/TerminalQuickCommandsMenu";
 import {
   useCallback,
   useEffect,
@@ -250,6 +266,10 @@ function OpenCommandPaletteDialog(props: {
   readonly keybindings: ResolvedKeybindingsConfig;
 }) {
   const navigate = useNavigate();
+  const sessionSearchEnabled = useSettings((settings) => settings.sessionSearchEnabled);
+  const teammatesEnabled = useSettings((settings) => settings.teammatesEnabled);
+  const { active: activeTeammate } = useTeammatesData();
+  const teammateAvatarHidden = useTeammatesUiStore((state) => state.cornerHidden);
   const { clearOpenIntent, openIntent, setOpen, keybindings } = props;
 
   const workspaceSourceActions = useRef<WorkspaceProjectSourceActions | undefined>(undefined);
@@ -259,7 +279,10 @@ function OpenCommandPaletteDialog(props: {
 
   const projects = useAtomValue(readModelStateAtom, (state) => state.projects);
   const allThreads = useAtomValue(readModelStateAtom, (state) => state.threads);
-  const threads = useMemo(() => allThreads.filter((thread) => !thread.isSideChat), [allThreads]);
+  const threads = useMemo(
+    () => allThreads.filter((thread) => !thread.isSideChat && !thread.isTeammate),
+    [allThreads],
+  );
 
   const { handleNewThread } = useHandleNewThread();
 
@@ -809,6 +832,7 @@ function OpenCommandPaletteDialog(props: {
   }, [clearOpenIntent, openAddProjectSourcesView, openIntent]);
 
   const installedExtensions = useInstalledExtensions();
+  const { visible: terminalQuickCommands } = useTerminalQuickCommands();
   // Commands run for the project in front of the user, read when chosen.
   // An active empty New Tab means no project is in front of the user.
   const activeExtensionProjectId = () => {
@@ -898,6 +922,86 @@ function OpenCommandPaletteDialog(props: {
     },
   });
 
+  if (sessionSearchEnabled) {
+    actionItems.push({
+      kind: "action",
+      value: "action:session-search",
+      searchTerms: ["search", "past", "agent", "sessions", "history", "claude", "codex", "resume"],
+      title: "Search past agent sessions",
+      description: "Claude Code, Codex, Gemini and OpenCode on this machine",
+      icon: <HistoryIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        openSessionSearch();
+      },
+    });
+  }
+
+  if (teammatesEnabled) {
+    const teammateName = activeTeammate?.name ?? "Notch";
+    actionItems.push(
+      {
+        kind: "action",
+        value: "action:teammates-open",
+        searchTerms: ["teammates", "notch", "panel", "suggestions", "up next", "memory"],
+        title: "Open Teammates",
+        description: "What your teammates are doing and what they need from you",
+        icon: <BotIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          openTeammatesPanel();
+        },
+      },
+      {
+        kind: "action",
+        value: "action:teammates-ask",
+        searchTerms: ["ask", "chat", "teammate", "notch", teammateName.toLowerCase()],
+        title: `Ask ${teammateName}`,
+        description: "Open its home chat",
+        icon: <BotIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          useTeammatesUiStore.getState().requestHome();
+        },
+      },
+      {
+        kind: "action",
+        value: "action:teammates-new",
+        searchTerms: ["new", "add", "teammate", "notch", "create"],
+        title: "New teammate",
+        description: "Pick a starting point, a name and a finish",
+        icon: <BotIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          openNewTeammate();
+        },
+      },
+      ...(teammateAvatarHidden
+        ? [
+            {
+              kind: "action" as const,
+              value: "action:teammates-show-avatar",
+              searchTerms: ["show", "avatar", "notch", "teammate", "unhide"],
+              title: `Show ${teammateName}'s avatar`,
+              description: "Bring the floating avatar back",
+              icon: <BotIcon className={ITEM_ICON_CLASS} />,
+              run: async () => {
+                useTeammatesUiStore.getState().setCornerHidden(false);
+              },
+            },
+          ]
+        : []),
+    );
+  }
+
+  actionItems.push({
+    kind: "action",
+    value: "action:clean-up-worktrees",
+    searchTerms: ["clean", "cleanup", "worktree", "worktrees", "stale", "prune", "disk", "remove"],
+    title: "Clean up worktrees",
+    description: "Review and remove finished worktrees",
+    icon: <BrushCleaningIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      goToSettings(navigate, "maintenance");
+    },
+  });
+
   if (
     currentThreadId &&
     typeof window !== "undefined" &&
@@ -954,6 +1058,23 @@ function OpenCommandPaletteDialog(props: {
               description: summarizePaletteResult(result),
             }),
           fail,
+        );
+      },
+    });
+  }
+
+  // Saved terminal commands: typed into the terminal that was focused last.
+  for (const command of terminalQuickCommands) {
+    actionItems.push({
+      kind: "action",
+      value: `terminal-command:${command.id}`,
+      searchTerms: ["terminal", "command", "run", "quick", command.command.toLowerCase()],
+      title: `Run: ${quickCommandTitle(command)}`,
+      description: command.command.split(/\r?\n/, 1)[0] ?? "",
+      icon: <SquareTerminalIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await runTerminalQuickCommand(command).catch((error) =>
+          reportQuickCommandFailure(command, error),
         );
       },
     });

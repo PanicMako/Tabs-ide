@@ -203,11 +203,32 @@ export function antigravityModelOptions(
   return model.options.flatMap((entry) => ("value" in entry ? [entry] : entry.options));
 }
 
+const LEGACY_THINKING_LEVELS = ["low", "medium", "high"] as const;
+
+/**
+ * Runtime 1.3 encoded the thinking level in the model ID (`gemini-3.8-flash-high`). Runtime 1.4+
+ * lists the family (`gemini-3.8-flash`) and reports the level as its own `thought_level` option.
+ * Saved selections and the manifest default still carry the old IDs, so split one into the
+ * family the account offers plus the level.
+ */
+export function splitLegacyAntigravityModel(
+  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
+  model: string,
+): { readonly family: string; readonly level: string } | undefined {
+  const offered = antigravityModelOptions(configOptions).map((option) => option.value);
+  if (offered.includes(model)) return undefined;
+  const level = LEGACY_THINKING_LEVELS.find((candidate) => model.endsWith(`-${candidate}`));
+  if (level === undefined) return undefined;
+  const family = model.slice(0, -(level.length + 1));
+  return offered.includes(family) ? { family, level } : undefined;
+}
+
 /**
  * Resolves the model a turn should run on. A saved selection is reapplied
  * as-is. The provider default alias resolves to `defaultModel` when the
- * account offers it, so T3 can pick a newer model than the one Google marks
- * current. Otherwise the agent's current selection stands.
+ * account offers it (or offers its family, for a legacy per-level ID), so T3
+ * can pick a newer model than the one Google marks current. Otherwise the
+ * agent's current selection stands.
  */
 function resolveAntigravityModel(input: {
   readonly configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>;
@@ -218,9 +239,15 @@ function resolveAntigravityModel(input: {
   const current = modelConfig?.type === "select" ? modelConfig.currentValue : undefined;
   if (input.model && input.model !== ANTIGRAVITY_DEFAULT_MODEL) return input.model;
   const options = antigravityModelOptions(input.configOptions);
-  return input.defaultModel && options.some((option) => option.value === input.defaultModel)
-    ? input.defaultModel
-    : current;
+  if (input.defaultModel && options.some((option) => option.value === input.defaultModel)) {
+    return input.defaultModel;
+  }
+  // The alias keeps the agent's own thinking level, so only the family is taken from a legacy ID.
+  return (
+    (input.defaultModel
+      ? splitLegacyAntigravityModel(input.configOptions, input.defaultModel)?.family
+      : undefined) ?? current
+  );
 }
 
 /** Never replace a saved selection with the default returned by a cold resume. */
@@ -229,7 +256,8 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
     readonly runtime: Pick<
       AcpSessionRuntime.AcpSessionRuntime["Service"],
       "getConfigOptions" | "setModel"
-    >;
+    > &
+      Partial<Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setConfigOption">>;
     readonly model: string | null | undefined;
     /** Model to select for the provider default alias. See `resolveAntigravityModel`. */
     readonly defaultModel?: string | undefined;
@@ -250,6 +278,17 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
     if (resolved === undefined || (!explicit && resolved === current)) return current;
     const options = antigravityModelOptions(configOptions);
     if (!options.some((option) => option.value === resolved)) {
+      const legacy = splitLegacyAntigravityModel(configOptions, resolved);
+      if (legacy !== undefined) {
+        yield* input.runtime.setModel(legacy.family).pipe(Effect.mapError(input.mapError));
+        yield* applyLegacyThinkingLevel({
+          runtime: input.runtime,
+          legacyModel: resolved,
+          level: legacy.level,
+          mapError: input.mapError,
+        });
+        return legacy.family;
+      }
       return yield* Effect.fail(
         input.mapError(
           EffectAcpErrors.AcpRequestError.invalidParams(
@@ -262,6 +301,40 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
     return resolved;
   },
 );
+
+/**
+ * Applies the level of a legacy per-level model ID through the family's `thought_level` option,
+ * read after the model switch because the choices belong to the new model. A family without that
+ * option still gets the old ID, which the agent accepts as-is.
+ */
+const applyLegacyThinkingLevel = Effect.fn("applyAntigravityLegacyThinkingLevel")(function* <
+  E,
+>(input: {
+  readonly runtime: Partial<
+    Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setConfigOption">
+  > &
+    Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "getConfigOptions">;
+  readonly legacyModel: string;
+  readonly level: string;
+  readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
+}): Effect.fn.Return<void, E> {
+  const { setConfigOption } = input.runtime;
+  if (setConfigOption === undefined) return;
+  const thinking = antigravityThinkingConfig(yield* input.runtime.getConfigOptions);
+  const offersLevel =
+    thinking?.options
+      .flatMap((entry) => ("value" in entry ? [entry] : entry.options))
+      .some((choice) => choice.value === input.level) === true;
+  if (thinking !== undefined && offersLevel) {
+    yield* setConfigOption(thinking.id, input.level).pipe(Effect.mapError(input.mapError));
+    return;
+  }
+  if (thinking === undefined) {
+    yield* setConfigOption("model", input.legacyModel, { allowUnlistedValue: true }).pipe(
+      Effect.mapError(input.mapError),
+    );
+  }
+});
 
 const IMAGE_MIME_TYPES = new Set(["image/bmp", "image/jpeg", "image/png", "image/webp"]);
 // Formats the bundled SDK's Audio type accepts. Anything else is rejected up front.

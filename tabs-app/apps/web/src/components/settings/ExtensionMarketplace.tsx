@@ -9,6 +9,7 @@ import type {
 } from "@tabs/contracts";
 import { Button } from "../ui/button";
 import { PublisherVerifiedBadge } from "../PublisherVerifiedBadge";
+import { Details, Summary } from "../ui/disclosure";
 
 type Asset = { type: string; data: string } | null;
 function useListingAsset(
@@ -335,8 +336,8 @@ function ExtensionDetails({
               </button>
             ) : null,
           )}
-          <details>
-            <summary>Extension information</summary>
+          <Details>
+            <Summary>Extension information</Summary>
             <dl>
               <dt>Identifier</dt>
               <dd>{listing.id}</dd>
@@ -353,7 +354,7 @@ function ExtensionDetails({
                 </>
               )}
             </dl>
-          </details>
+          </Details>
         </footer>
       </div>
     </article>

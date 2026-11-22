@@ -30,12 +30,15 @@ import { ProjectService } from "../project/ProjectService.ts";
 import { ProjectSetupScriptRunner } from "../project/ProjectSetupScriptRunner.ts";
 import { ScheduledTaskService } from "../scheduledTasks/ScheduledTaskService.ts";
 import { SecretRequests } from "../secrets/SecretRequests.ts";
+import { TeammateService } from "../teammates/TeammateService.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { VcsStatusBroadcaster } from "../vcs/VcsStatusBroadcaster.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
 import { ProviderRegistry } from "./ProviderRegistry.ts";
 import { McpSessionRegistry } from "../mcp/McpSessionRegistry.ts";
+import { isComputerTool } from "../mcp/toolkits/computer/visibility.ts";
+import { TEAMMATE_TOOL_NAMES } from "../mcp/toolkits/teammate/tools.ts";
 import budget from "./agentContextBudget.json" with { type: "json" };
 
 const toolHandlerServices = Layer.mergeAll(
@@ -54,6 +57,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ProviderRegistry)({}),
   Layer.mock(ScheduledTaskService)({}),
   Layer.mock(SecretRequests)({}),
+  Layer.mock(TeammateService)({}),
   ServerConfig.layerTest(process.cwd(), { prefix: "tabs-agent-context-budget-" }),
   Layer.mock(ServerEnvironment)({}),
   Layer.mock(ServerSecretStore)({}),
@@ -97,15 +101,20 @@ it.effect(
   () =>
     Effect.gen(function* () {
       const mcp = yield* McpServer.McpServer;
+      // What a default agent is shown: computer-use is off and it is not in a teammate chat, so
+      // those tools are hidden from tools/list (see toolVisibility.ts).
+      const advertised = mcp.tools.filter(
+        ({ tool }) => !isComputerTool(tool.name) && !TEAMMATE_TOOL_NAMES.has(tool.name),
+      );
       const measured = {
         claudeSystemAppendBytes: utf8Bytes(claudeSystemAppend()),
         codexAdditionalContextBytes: utf8Bytes(codexAdditionalContext()),
         // Provider input descriptors are retained as a separate measurement so
         // compatibility metadata cannot hide growth in the actual registry.
-        mcpFullRegistryJsonBytes: utf8Bytes(JSON.stringify(mcp.tools.map(({ tool }) => tool))),
+        mcpFullRegistryJsonBytes: utf8Bytes(JSON.stringify(advertised.map(({ tool }) => tool))),
         mcpToolListJsonBytes: utf8Bytes(
           JSON.stringify(
-            mcp.tools.map(({ tool }) => ({
+            advertised.map(({ tool }) => ({
               name: tool.name,
               description: tool.description,
               inputSchema: tool.inputSchema,

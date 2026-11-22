@@ -293,6 +293,8 @@ export function applyServerSettingsPatch(
     userTheme: userThemePatch,
     // Replaced whole, so a cleared role override does not survive a merge.
     subagentModels: subagentModelsPatch,
+    // Replaced whole: a deleted or reordered command must not survive a merge.
+    terminalQuickCommands: terminalQuickCommandsPatch,
     // Already translated into `projectSettingsOverrides` above; the legacy
     // maps are derived views and must never be merged directly.
     projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
@@ -341,6 +343,9 @@ export function applyServerSettingsPatch(
     ...next,
     ...(userThemePatch !== undefined ? { userTheme: userThemePatch } : {}),
     ...(subagentModelsPatch !== undefined ? { subagentModels: subagentModelsPatch } : {}),
+    ...(terminalQuickCommandsPatch !== undefined
+      ? { terminalQuickCommands: terminalQuickCommandsPatch }
+      : {}),
     ...(defaultThreadEnvModePatch !== undefined
       ? { defaultThreadEnvMode: defaultThreadEnvModePatch ?? "local" }
       : {}),

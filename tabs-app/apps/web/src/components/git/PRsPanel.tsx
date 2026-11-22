@@ -61,6 +61,7 @@ import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
 import { GitCheckingState } from "./GitCheckingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { SuggestInput } from "../ui/suggest-input";
 import { toastManager } from "../ui/toast";
 import { SegmentedControl } from "../ui/segmented-control";
 import { Popover, PopoverTrigger, PopoverPopup, PopoverTitle } from "../ui/popover";
@@ -97,6 +98,7 @@ import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { countViewed } from "./pullRequestFilesViewed.logic";
 import { Checkbox } from "../ui/checkbox";
 import { findThreadsForPullRequest } from "@tabs/shared/threadPullRequests";
+import { Details, Summary } from "../ui/disclosure";
 
 interface PullRequestRow {
   n: number;
@@ -850,21 +852,18 @@ function GitPRsPanel({
                 }}
               >
                 <Search size={14} aria-hidden="true" />
-                <input
+                <SuggestInput
                   type="search"
                   aria-label="Search pull requests"
                   value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
+                  onValueChange={setSearchInput}
                   placeholder="Search titles, branches or author:name"
-                  list={authorMatch !== null ? "git-pr-author-suggestions" : undefined}
+                  suggestions={
+                    authorMatch !== null
+                      ? suggestions.authors.map((login) => `author:${login}`)
+                      : []
+                  }
                 />
-                {authorMatch !== null && suggestions.authors.length > 0 ? (
-                  <datalist id="git-pr-author-suggestions">
-                    {suggestions.authors.map((login) => (
-                      <option key={login} value={`author:${login}`} />
-                    ))}
-                  </datalist>
-                ) : null}
                 {searchQuery ? (
                   <button
                     type="button"
@@ -942,25 +941,19 @@ function GitPRsPanel({
                     setSearchQuery(searchInput.trim());
                   }}
                 >
-                  <label htmlFor="git-pr-search" className="sr-only">
-                    Search pull requests
-                  </label>
-                  <input
-                    id="git-pr-search"
+                  <SuggestInput
+                    aria-label="Search pull requests"
                     type="search"
                     value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
+                    onValueChange={setSearchInput}
                     placeholder="Search pull requests"
-                    list={authorMatch !== null ? "git-pr-author-suggestions" : undefined}
+                    suggestions={
+                      authorMatch !== null
+                        ? suggestions.authors.map((login) => `author:${login}`)
+                        : []
+                    }
                     className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs outline-none focus-blur-glow"
                   />
-                  {authorMatch !== null && suggestions.authors.length > 0 ? (
-                    <datalist id="git-pr-author-suggestions">
-                      {suggestions.authors.map((login) => (
-                        <option key={login} value={`author:${login}`} />
-                      ))}
-                    </datalist>
-                  ) : null}
                   <Button type="submit" size="sm">
                     Search
                   </Button>
@@ -1005,14 +998,14 @@ function GitPRsPanel({
                     {formatted.message}
                   </p>
                   {formatted.details && formatted.details !== formatted.message ? (
-                    <details className="mt-2 text-left">
-                      <summary className="cursor-pointer text-[11px] text-muted-foreground/75 hover:text-foreground">
+                    <Details className="mt-2 text-left">
+                      <Summary className="cursor-pointer text-[11px] text-muted-foreground/75 hover:text-foreground">
                         Technical details
-                      </summary>
+                      </Summary>
                       <pre className="mt-1 max-h-32 overflow-auto rounded-md bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground whitespace-pre-wrap break-all">
                         {formatted.details}
                       </pre>
-                    </details>
+                    </Details>
                   ) : null}
                 </div>
               );

@@ -28,8 +28,7 @@ import {
 } from "../quick-actions/actions";
 import { QuickCustomActionForm } from "./QuickCustomActionForm";
 import { QuickSubActionsSettings } from "./QuickSubActionsSettings";
-import { useInstalledExtensions } from "../../state/extensions";
-import { extensionLauncherActions } from "../quick-actions/extensionQuickActions";
+import { useLauncherExtraActions } from "../quick-actions/terminalQuickCommandActions";
 
 const DRAG_TYPE = "application/x-tabs-action";
 
@@ -86,8 +85,7 @@ export function QuickActionsArranger({
     customActions?: CustomQuickAction[];
   }) => void;
 }) {
-  const installedExtensions = useInstalledExtensions();
-  const extensionActions = extensionLauncherActions(installedExtensions);
+  const extensionActions = useLauncherExtraActions();
   const zones = actionZones(order, hidden, customActions, extensionActions);
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const [pointedAt, setPointedAt] = useState<string | null>(null);

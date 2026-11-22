@@ -101,7 +101,7 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
 
 it("limits the study to Settings while preserving the workspace appearance", async () => {
   const savedTheme = localStorage.getItem("tabs:theme");
-  localStorage.setItem("tabs:theme", "tabs-dark");
+  localStorage.setItem("tabs:theme", "true-black");
   window.dispatchEvent(new StorageEvent("storage", { key: "tabs:theme" }));
   const store = useSettingsLabsStore.getState();
   store.setEditorialSettings(false);
@@ -157,7 +157,7 @@ it("limits the study to Settings while preserving the workspace appearance", asy
     await userEvent.keyboard("{Escape}");
     expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
     expect(document.documentElement.style.getPropertyValue("--background")).toBe(background);
-    expect(localStorage.getItem("tabs:theme")).toBe("tabs-dark");
+    expect(localStorage.getItem("tabs:theme")).toBe("true-black");
     expect(localStorage.getItem("tabs_settings_labs_v1")).toContain('"editorialSettingsOnly":true');
 
     // Toggle Settings page only OFF -> manual Dark/Light segmented control returns

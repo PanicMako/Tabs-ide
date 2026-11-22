@@ -15,6 +15,7 @@ import {
   getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
   isClaudeUltrathinkPrompt,
+  isReasoningSelectDescriptor,
 } from "@tabs/shared/model";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { modelPickerJumpIndexFromCommand, resolveShortcutCommand } from "~/keybindings";
@@ -50,6 +51,7 @@ import {
   groupNativeThinkingVariants,
   nativeThinkingDescriptor,
   NATIVE_THINKING_OPTION,
+  resolveNativeThinkingSelection,
   type ThinkingModel,
 } from "./nativeThinkingVariants";
 import nyanCatSliderWideGif from "~/assets/nyan-cat-slider-wide.gif";
@@ -489,16 +491,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
   const sideToggleDescriptors = booleanDescriptors.filter(
     (d) => d.id !== "fastMode" && d.id !== "fast",
   );
-  const sidePrimarySelect = selectDescriptors.find(
-    (d) =>
-      d.id === "reasoningEffort" ||
-      d.id === "effort" ||
-      d.id === "reasoning" ||
-      d.id === "variant" ||
-      d.id.toLowerCase().includes("effort") ||
-      d.id.toLowerCase().includes("reasoning") ||
-      d.id.toLowerCase().includes("variant"),
-  );
+  const sidePrimarySelect = selectDescriptors.find(isReasoningSelectDescriptor);
   const sideSelectDescriptors = selectDescriptors.filter(
     (d) =>
       d.id !== sidePrimarySelect?.id &&
@@ -581,17 +574,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
   // Identify the primary select descriptor (reasoning effort)
   const activePrimarySelect = useMemo(
-    () =>
-      selectDescriptors.find(
-        (d) =>
-          d.id === "reasoningEffort" ||
-          d.id === "effort" ||
-          d.id === "reasoning" ||
-          d.id === "variant" ||
-          d.id.toLowerCase().includes("effort") ||
-          d.id.toLowerCase().includes("reasoning") ||
-          d.id.toLowerCase().includes("variant"),
-      ) ?? null,
+    () => selectDescriptors.find(isReasoningSelectDescriptor) ?? null,
     [selectDescriptors],
   );
 
@@ -1251,16 +1234,11 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                             prompt={props.prompt}
                             onPromptChange={props.onPromptChange}
                             onSelect={(nextOptions) => {
-                              const level = nextOptions?.find(
-                                (o) => o.id === NATIVE_THINKING_OPTION,
-                              )?.value;
-                              const variant = model.thinkingVariants?.find(
-                                (v) => v.level === level,
-                              );
+                              const next = resolveNativeThinkingSelection(model, nextOptions);
                               setModelAndOptions(
                                 modelProvider as ProviderPickerKind,
-                                variant?.model.slug ?? model.slug,
-                                nextOptions?.filter((o) => o.id !== NATIVE_THINKING_OPTION),
+                                next.slug,
+                                next.options,
                               );
                             }}
                             onSelectChange={(descriptor, optionId) => {
@@ -1268,15 +1246,21 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                                 handleSelectChange(descriptor, optionId);
                                 return;
                               }
-                              const variant = model.thinkingVariants?.find(
-                                (v) => v.level === optionId,
+                              const next = resolveNativeThinkingSelection(
+                                model,
+                                props.modelOptions ?? undefined,
+                                optionId,
                               );
-                              if (variant)
+                              // The folded row's own slug is one of the variants (e.g. High), so
+                              // compare against the variant list, not the row slug, or picking that
+                              // level would be ignored.
+                              if (model.thinkingVariants?.some((v) => v.level === optionId)) {
                                 setModelAndOptions(
                                   modelProvider as ProviderPickerKind,
-                                  variant.model.slug,
-                                  props.modelOptions ?? undefined,
+                                  next.slug,
+                                  next.options,
                                 );
+                              }
                             }}
                             onBooleanChange={handleBooleanChange}
                           />
@@ -1399,25 +1383,19 @@ function isModelSourceBadgeEnabled(): boolean {
 // Provider defaults are metadata, not a disabled reasoning control.
 const ModelReasoningStatus = memo(function ModelReasoningStatus({
   isActive,
-  nativeThinkingLevel,
 }: {
   isActive: boolean;
-  nativeThinkingLevel?: string | undefined;
 }) {
   return (
     <span
       data-model-reasoning-status="true"
-      title={
-        nativeThinkingLevel
-          ? "Thinking level is included directly in this model"
-          : "This provider does not expose an adjustable reasoning level for this model"
-      }
+      title="This provider does not expose an adjustable reasoning level for this model"
       className={cn(
         "inline-flex shrink-0 whitespace-nowrap py-1 text-[10px] font-medium select-none",
         isActive ? "text-foreground/80" : "text-muted-foreground/65",
       )}
     >
-      {nativeThinkingLevel ? "Built-in thinking" : "Model default"}
+      Model default
     </span>
   );
 });
@@ -1451,11 +1429,6 @@ const ModelRow = memo(function ModelRow(props: {
   const { sliderAnimationsEnabled, animatedTrackFillEnabled, nyanCatSliderMode } = useSettings();
   const isNyanActive = Boolean(props.ultra || nyanCatSliderMode);
   const providerId = (props.model as { providerId?: string }).providerId;
-  const nativeThinkingLevel =
-    !props.model.thinkingVariants &&
-    (props.activeTab === "antigravity" || providerId === "antigravity")
-      ? props.model.slug.match(/-(high|medium|low)$/)?.[1]
-      : undefined;
   const isGrok = providerId === "grok" || props.model.slug.toLowerCase().startsWith("grok");
   const caps = isGrok ? EMPTY_CAPABILITIES : (props.model.capabilities ?? EMPTY_CAPABILITIES);
   const hasGlobalStops = props.globalStops.length > 0;
@@ -1498,16 +1471,7 @@ const ModelRow = memo(function ModelRow(props: {
     )
     .filter((d) => d.id !== "fastMode" && d.id !== "fast");
 
-  const primarySelect = selects.find(
-    (d) =>
-      d.id === "reasoningEffort" ||
-      d.id === "effort" ||
-      d.id === "reasoning" ||
-      d.id === "variant" ||
-      d.id.toLowerCase().includes("effort") ||
-      d.id.toLowerCase().includes("reasoning") ||
-      d.id.toLowerCase().includes("variant"),
-  );
+  const primarySelect = selects.find(isReasoningSelectDescriptor);
   const secondarySelects = (
     primarySelect ? selects.filter((d) => d.id !== primarySelect.id) : selects
   ).filter(
@@ -1778,18 +1742,8 @@ const ModelRow = memo(function ModelRow(props: {
             textShadow: props.ultra ? `0 0 8px ${props.themeColor.hex}99` : undefined,
           }}
         >
-          {getCleanModelName(
-            nativeThinkingLevel
-              ? props.model.name.replace(/\s*\((High|Medium|Low)\)$/, "")
-              : props.model.name,
-            props.activeTab ?? null,
-          )}
+          {getCleanModelName(props.model.name, props.activeTab ?? null)}
         </span>
-        {nativeThinkingLevel ? (
-          <span className="shrink-0 rounded-md border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
-            {nativeThinkingLevel}
-          </span>
-        ) : null}
         {isModelSourceBadgeEnabled() &&
           (props.model.source === "inferred" || props.model.source === "remote-fallback") && (
             <span
@@ -1948,10 +1902,7 @@ const ModelRow = memo(function ModelRow(props: {
         </div>
       ) : hasGlobalStops ? (
         <div className="flex-1 flex items-center justify-center px-4 pointer-events-none select-none">
-          <ModelReasoningStatus
-            isActive={props.isActive}
-            nativeThinkingLevel={nativeThinkingLevel}
-          />
+          <ModelReasoningStatus isActive={props.isActive} />
         </div>
       ) : (
         <div className="shrink-0 pr-3.5 pl-2 flex items-center gap-2 select-none">
@@ -1960,10 +1911,7 @@ const ModelRow = memo(function ModelRow(props: {
               {contextWindowLabel}
             </span>
           )}
-          <ModelReasoningStatus
-            isActive={props.isActive}
-            nativeThinkingLevel={nativeThinkingLevel}
-          />
+          <ModelReasoningStatus isActive={props.isActive} />
         </div>
       )}
     </div>

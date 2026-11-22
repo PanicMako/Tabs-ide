@@ -40,6 +40,7 @@ describe("V2 preview upgrade", () => {
         [58, "ProjectionCompatibilityRepairs"],
         [59, "OrchestrationV2CancellationIntents"],
         [60, "PullRequestReviewGuides"],
+        [61, "Teammates"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* sql`SELECT * FROM orchestration_v2_legacy_imports`, imports);
@@ -120,6 +121,7 @@ describe("V2 preview upgrade", () => {
         [58, "ProjectionCompatibilityRepairs"],
         [59, "OrchestrationV2CancellationIntents"],
         [60, "PullRequestReviewGuides"],
+        [61, "Teammates"],
       ]);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );

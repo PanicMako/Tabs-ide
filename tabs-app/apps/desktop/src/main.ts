@@ -185,6 +185,11 @@ const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const OPEN_POPOUT_WINDOW_CHANNEL = "desktop:open-popout-window";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
+const BROWSER_CONTEXT_MENU_READY_CHANNEL = "desktop:browser-context-menu-ready";
+const BROWSER_CONTEXT_MENU_RESOLVE_CHANNEL = "desktop:browser-context-menu-resolve";
+const EDIT_CONTEXT_MENU_CHANNEL = "desktop:edit-context-menu";
+const REPLACE_MISSPELLING_CHANNEL = "desktop:replace-misspelling";
+const ADD_TO_DICTIONARY_CHANNEL = "desktop:add-to-dictionary";
 const APP_CLOSING_CHANNEL = "desktop:app-closing";
 const APP_SETTINGS_FLUSH_DONE_CHANNEL = "desktop:settings-flush-done";
 const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
@@ -959,6 +964,14 @@ function getSafeExternalUrl(rawUrl: unknown): string | null {
     parsedUrl = new URL(rawUrl);
   } catch {
     return null;
+  }
+
+  // The Computer use setup opens exactly these two macOS privacy panes, nothing else.
+  if (
+    rawUrl === "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" ||
+    rawUrl === "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+  ) {
+    return rawUrl;
   }
 
   if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
@@ -3740,6 +3753,19 @@ function registerIpcHandlers(): void {
     },
   );
 
+  ipcMain.removeHandler(REPLACE_MISSPELLING_CHANNEL);
+  handleTabsIpc(REPLACE_MISSPELLING_CHANNEL, (event, word: unknown) => {
+    if (typeof word === "string" && word.length > 0 && word.length < 200) {
+      event.sender.replaceMisspelling(word);
+    }
+  });
+  ipcMain.removeHandler(ADD_TO_DICTIONARY_CHANNEL);
+  handleTabsIpc(ADD_TO_DICTIONARY_CHANNEL, (event, word: unknown) => {
+    if (typeof word === "string" && word.length > 0 && word.length < 200) {
+      event.sender.session.addWordToSpellCheckerDictionary(word);
+    }
+  });
+
   ipcMain.removeHandler(OPEN_EXTERNAL_CHANNEL);
   handleTabsIpc(OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
     const externalUrl = getSafeExternalUrl(rawUrl);
@@ -4115,6 +4141,15 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.removeHandler(BROWSER_HOST_GET_STATE_CHANNEL);
+  ipcMain.removeHandler(BROWSER_CONTEXT_MENU_READY_CHANNEL);
+  handleTabsIpc(BROWSER_CONTEXT_MENU_READY_CHANNEL, (_event, token: unknown) => {
+    browserHostManager.confirmContextMenuSnapshot(token);
+  });
+  ipcMain.removeHandler(BROWSER_CONTEXT_MENU_RESOLVE_CHANNEL);
+  handleTabsIpc(BROWSER_CONTEXT_MENU_RESOLVE_CHANNEL, (_event, token: unknown, id: unknown) => {
+    browserHostManager.resolveContextMenu({ token, id });
+  });
+
   handleTabsIpc(BROWSER_HOST_GET_STATE_CHANNEL, async () => browserHostManager.getState());
 
   ipcMain.removeHandler(BROWSER_HOST_GET_SESSION_STATE_CHANNEL);
@@ -5115,32 +5150,21 @@ function createTabsWindow(): BrowserWindow {
     if (icon) window.setAppDetails(windowsIconDetails(APP_USER_MODEL_ID, icon));
   }
 
+  // The renderer draws the (themed) edit menu; Electron only reports what was clicked, including
+  // spellcheck results the DOM cannot see. No native menu is ever popped for the app window.
   window.webContents.on("context-menu", (event, params) => {
     event.preventDefault();
-
-    const menuTemplate: MenuItemConstructorOptions[] = [];
-
-    if (params.misspelledWord) {
-      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
-        menuTemplate.push({
-          label: suggestion,
-          click: () => window.webContents.replaceMisspelling(suggestion),
-        });
-      }
-      if (params.dictionarySuggestions.length === 0) {
-        menuTemplate.push({ label: "No suggestions", enabled: false });
-      }
-      menuTemplate.push({ type: "separator" });
-    }
-
-    menuTemplate.push(
-      { role: "cut", enabled: params.editFlags.canCut },
-      { role: "copy", enabled: params.editFlags.canCopy },
-      { role: "paste", enabled: params.editFlags.canPaste },
-      { role: "selectAll", enabled: params.editFlags.canSelectAll },
-    );
-
-    Menu.buildFromTemplate(menuTemplate).popup({ window });
+    if (!params.isEditable && !params.misspelledWord) return;
+    window.webContents.send(EDIT_CONTEXT_MENU_CHANNEL, {
+      x: params.x,
+      y: params.y,
+      misspelledWord: params.misspelledWord,
+      dictionarySuggestions: params.dictionarySuggestions.slice(0, 5),
+      canCut: params.editFlags.canCut,
+      canCopy: params.editFlags.canCopy,
+      canPaste: params.editFlags.canPaste,
+      canSelectAll: params.editFlags.canSelectAll,
+    });
   });
 
   window.webContents.setWindowOpenHandler(({ url }) => {

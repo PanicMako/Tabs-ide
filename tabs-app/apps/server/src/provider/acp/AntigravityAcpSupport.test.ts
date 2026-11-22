@@ -20,6 +20,7 @@ import {
   antigravityThinkingConfig,
   applyAntigravityAcpModelSelection,
   buildAntigravityPrompt,
+  splitLegacyAntigravityModel,
 } from "./AntigravityAcpSupport.ts";
 
 const modelConfig = {
@@ -633,4 +634,117 @@ describe("Antigravity CLI support", () => {
     expect(antigravityThinkingConfig([{ ...thinking, category: "other" }])).toBeUndefined();
     expect(antigravityThinkingConfig(undefined)).toBeUndefined();
   });
+});
+
+describe("Antigravity per-level model IDs on a runtime with a thought_level option", () => {
+  const flashModels = {
+    ...modelConfig,
+    currentValue: "gemini-3.8-flash",
+    options: [
+      { value: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+      { value: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+    ],
+  } satisfies EffectAcpSchema.SessionConfigOption;
+  const thought = {
+    id: "thinking",
+    name: "Thinking Level",
+    category: "thought_level",
+    type: "select",
+    currentValue: "medium",
+    options: [
+      { value: "low", name: "Low" },
+      { value: "medium", name: "Medium" },
+      { value: "high", name: "High" },
+    ],
+  } satisfies EffectAcpSchema.SessionConfigOption;
+
+  function makeRuntime(configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>) {
+    const calls: Array<readonly [string, string]> = [];
+    return {
+      calls,
+      runtime: {
+        getConfigOptions: Effect.succeed(configOptions),
+        setModel: (model: string) => Effect.sync(() => void calls.push(["model", model])),
+        setConfigOption: (id: string, value: string | boolean) =>
+          Effect.sync(() => {
+            calls.push([id, String(value)]);
+            return { configOptions };
+          }),
+      },
+    };
+  }
+
+  it("splits a legacy ID into the offered family and its level", () => {
+    expect(splitLegacyAntigravityModel([flashModels], "gemini-3.8-flash-low")).toEqual({
+      family: "gemini-3.8-flash",
+      level: "low",
+    });
+    // Offered IDs, unknown families and non-level suffixes are left alone.
+    expect(splitLegacyAntigravityModel([flashModels], "gemini-3.8-flash")).toBeUndefined();
+    expect(splitLegacyAntigravityModel([flashModels], "gpt-oss-120b-medium")).toBeUndefined();
+    expect(splitLegacyAntigravityModel([flashModels], "gemini-9-flash-high")).toBeUndefined();
+    expect(splitLegacyAntigravityModel([flashModels], "gemini-3.8-flash-max")).toBeUndefined();
+  });
+
+  it.effect.each(["low", "medium", "high"])(
+    "runs the %s variant by selecting the family and its thought_level",
+    (level) =>
+      Effect.gen(function* () {
+        const { runtime, calls } = makeRuntime([flashModels, thought]);
+        const model = yield* applyAntigravityAcpModelSelection({
+          runtime,
+          model: `gemini-3.8-flash-${level}`,
+          mapError: (cause) => cause,
+        });
+        expect(model).toBe("gemini-3.8-flash");
+        expect(calls).toEqual([
+          ["model", "gemini-3.8-flash"],
+          ["thinking", level],
+        ]);
+      }),
+  );
+
+  it.effect("passes the legacy ID through when the family has no thought_level option", () =>
+    Effect.gen(function* () {
+      const { runtime, calls } = makeRuntime([flashModels]);
+      yield* applyAntigravityAcpModelSelection({
+        runtime,
+        model: "gemini-3.8-flash-low",
+        mapError: (cause) => cause,
+      });
+      expect(calls).toEqual([
+        ["model", "gemini-3.8-flash"],
+        ["model", "gemini-3.8-flash-low"],
+      ]);
+    }),
+  );
+
+  it.effect("keeps the agent's own level when the alias resolves a legacy manifest default", () =>
+    Effect.gen(function* () {
+      const { runtime, calls } = makeRuntime([
+        { ...flashModels, currentValue: "gpt-oss-120b-medium" },
+        thought,
+      ]);
+      const model = yield* applyAntigravityAcpModelSelection({
+        runtime,
+        model: ANTIGRAVITY_DEFAULT_MODEL,
+        defaultModel: "gemini-3.8-flash-high",
+        mapError: (cause) => cause,
+      });
+      expect(model).toBe("gemini-3.8-flash");
+      expect(calls).toEqual([["model", "gemini-3.8-flash"]]);
+    }),
+  );
+
+  it.effect("leaves models without per-level variants, such as GPT-OSS, untouched", () =>
+    Effect.gen(function* () {
+      const { runtime, calls } = makeRuntime([flashModels, thought]);
+      yield* applyAntigravityAcpModelSelection({
+        runtime,
+        model: "gpt-oss-120b-medium",
+        mapError: (cause) => cause,
+      });
+      expect(calls).toEqual([["model", "gpt-oss-120b-medium"]]);
+    }),
+  );
 });

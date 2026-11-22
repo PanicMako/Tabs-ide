@@ -3,21 +3,12 @@ import { useTheme } from "../hooks/useTheme";
 import { cn } from "~/lib/utils";
 import "./close-animation.css";
 import "./loaders.css";
-import { TabsBedtime, TABS_MASCOT_GOODBYE_MS } from "./TabsMascot";
+import { MascotMotion } from "./mascot-motion/MascotMotion";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
 export type ClosePhase = "idle" | "closing" | "holding";
 
 const SOLARI_WORD = "TABS IDE";
-
-const CLOSE_MASCOT_MESSAGES = [
-  "TUCKING IN YOUR TABS",
-  "TELLING THE CPU TO TAKE A NAP",
-  "ARCHIVING ABANDONED SIDE PROJECTS",
-  "YEETING TEMPORARY FILES",
-  "PACKING UP SEMICOLONS",
-  "WRITING YOUR FAREWELL TODO",
-];
 
 const CLOSE_SOLARI_MESSAGES = [
   "RETURNING BORROWED STACK FRAMES",
@@ -78,7 +69,7 @@ function RotatingLabel({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TABS MASCOT CLOSE — says goodbye, hops into bed and falls asleep
+   TABS MASCOT CLOSE — the Halftone lockup dissolves, then a sign-off
    ═══════════════════════════════════════════════════════════════════════ */
 
 interface CloseAnimationProps {
@@ -95,59 +86,36 @@ interface CloseAnimationProps {
     | undefined;
 }
 
+/** After the outro lands, the sign-off line holds this long before exit. */
+const MOTION_SIGN_OFF_MS = 360;
+
+/** The mark plays its exit, then the sign-off holds for a beat. */
 function MascotClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAnimationProps) {
   const isBlock = palette === "block";
   const onIntroEndRef = useRef(onIntroEnd);
-  useEffect(() => {
-    onIntroEndRef.current = onIntroEnd;
-  }, [onIntroEnd]);
-
-  useEffect(() => {
-    if (phase !== "closing") return;
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
-      onIntroEndRef.current?.();
-      return;
-    }
-    const timer = setTimeout(() => onIntroEndRef.current?.(), TABS_MASCOT_GOODBYE_MS);
-    return () => clearTimeout(timer);
-  }, [phase]);
+  onIntroEndRef.current = onIntroEnd;
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const ink = isBlock || isDark ? "#ffffff" : "#0a0a0a";
   const paper = isBlock ? "#2563eb" : isDark ? "#09090b" : "#ffffff";
-  const muted = isBlock ? "text-white/75" : isDark ? "text-[#a1a1aa]" : "text-[#52525b]";
 
   return (
-    <div className="close-screen relative z-10 flex min-h-[300px] w-full max-w-[780px] flex-wrap items-center justify-center gap-x-10 gap-y-4 p-6 loader-respect-motion">
-      <TabsBedtime
-        // Remount on replay so bedtime plays from the start.
+    <div className="close-screen relative z-10 flex min-h-[300px] w-full flex-col items-center justify-center p-6">
+      <MascotMotion
         key={phase === "idle" ? "idle" : "bye"}
+        mode="outro"
         ink={ink}
         paper={paper}
-        phase={phase === "idle" ? "idle" : "closing"}
+        play={phase !== "idle"}
+        meta
+        metaFont={fonts?.uiFont}
+        onDone={() => {
+          clearTimeout(timer.current);
+          // Hold on the sign-off for a beat before the window goes.
+          timer.current = setTimeout(() => onIntroEndRef.current?.(), MOTION_SIGN_OFF_MS);
+        }}
       />
-      <div className="tabs-bed-side">
-        <p
-          className="m-0 mb-2 text-[20px] font-medium"
-          style={{
-            color: ink,
-            ...(fonts?.headingFont
-              ? { fontFamily: fonts.headingFont, fontWeight: fonts.headingWeight }
-              : {}),
-          }}
-        >
-          Shutting down…
-        </p>
-        <RotatingLabel
-          messages={CLOSE_MASCOT_MESSAGES}
-          phase={phase}
-          intervalMs={1_100}
-          uiFont={fonts?.uiFont}
-          className={cn("text-left", muted)}
-        />
-      </div>
     </div>
   );
 }

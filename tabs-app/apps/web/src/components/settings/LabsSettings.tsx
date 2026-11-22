@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { SegmentedControl } from "../ui/segmented-control";
 import { SettingsSection, SettingsRow, SettingsSectionHeader } from "./SettingsLayout";
+import { ComputerUseSettingsRow } from "./ComputerUseSettingsRow";
 import { SettingsLoadingState } from "./SettingsLoadingState";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "../ui/select";
@@ -53,6 +54,8 @@ export default function LabsSettings() {
     "wallpapers" | "extensions" | "voice" | "agent-theme" | null
   >(null);
   const voiceInputEnabled = useSettings((settings) => settings.voiceInputEnabled);
+  const sessionSearchEnabled = useSettings((settings) => settings.sessionSearchEnabled);
+  const teammatesEnabled = useSettings((settings) => settings.teammatesEnabled);
 
   useEffect(() => {
     if (editorial && settingsOnly && appearance !== resolvedTheme) {
@@ -241,6 +244,29 @@ export default function LabsSettings() {
             </div>
           }
         />
+        <SettingsRow
+          title="Session search"
+          description="Search past Claude Code, Codex, Gemini and OpenCode sessions on this machine from the command palette or Quick Actions. The index is built in the background the first time you open it."
+          control={
+            <Switch
+              aria-label="Session search"
+              checked={sessionSearchEnabled}
+              onCheckedChange={(checked) => void updateSettings({ sessionSearchEnabled: checked })}
+            />
+          }
+        />
+        <SettingsRow
+          title="Teammates: Notch, your AI teammate"
+          description="Long-lived AI teammates you can name and talk to. They hand code work to normal threads, track it, and suggest what to do next. Manage them in Settings, Teammates."
+          control={
+            <Switch
+              aria-label="Teammates"
+              checked={teammatesEnabled}
+              onCheckedChange={(checked) => void updateSettings({ teammatesEnabled: checked })}
+            />
+          }
+        />
+        <ComputerUseSettingsRow />
         <SettingsRow
           title="Agent theme"
           description="Let an agent restyle Tabs with its theme tool, or set colors and CSS yourself. It applies live on top of your theme."

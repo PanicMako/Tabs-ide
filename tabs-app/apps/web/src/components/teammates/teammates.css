@@ -1,0 +1,297 @@
+.notch-corner-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.notch-corner-shell > .notch-corner {
+  pointer-events: auto;
+}
+/* Teammates UI. Neutral surfaces, hairline borders, theme fonts and the shared radius tokens only. */
+.notch-corner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--background) 70%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  outline: none;
+}
+.notch-corner:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.notch-corner-dragging {
+  cursor: grabbing;
+}
+.notch-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-control);
+  background: var(--foreground);
+  color: var(--background);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* The Teammates space */
+.tm-space {
+  font-family: var(--font-sans);
+  -webkit-app-region: no-drag;
+}
+.tm-rail {
+  border-inline-end: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.tm-rail-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: var(--foreground);
+  transition: background-color 120ms ease-out;
+}
+.tm-rail-row:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.tm-rail-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+.tm-rail-row:focus-visible,
+.tm-tab:focus-visible,
+.tm-chip:focus-visible,
+.tm-finish:focus-visible,
+.tm-template:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.tm-rail-plus {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: var(--muted-foreground);
+  border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-control);
+}
+.tm-count {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  background: var(--foreground);
+  color: var(--background);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  line-height: 1;
+}
+.tm-name {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+.tm-status {
+  font-family: var(--font-supporting, var(--font-sans));
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  max-width: 52ch;
+}
+.tm-portrait {
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: var(--radius-preview);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.tm-portrait-large {
+  padding: 22px;
+}
+.tm-ask {
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--background) 60%, transparent);
+  transition: border-color 120ms ease-out;
+}
+.tm-ask:focus-within {
+  border-color: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+.tm-ask-input {
+  display: block;
+  width: 100%;
+  resize: none;
+  padding: 12px 14px 6px;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.tm-ask-input::placeholder {
+  color: var(--muted-foreground);
+}
+.tm-chip {
+  padding: 4px 11px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 12px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.tm-chip:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+.tm-tab {
+  padding: 5px 12px;
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 13px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.tm-tab:hover {
+  color: var(--foreground);
+}
+.tm-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  color: var(--foreground);
+}
+.tm-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.tm-intro-title {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 16px;
+  color: var(--foreground);
+}
+.tm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-joined);
+}
+.tm-finish {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 6px;
+  border: 1px solid transparent;
+  transition: background-color 120ms ease-out;
+}
+.tm-finish:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.tm-finish[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.tm-template {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 16px;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  transition: background-color 120ms ease-out;
+}
+.tm-template:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.tm-template[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+.tm-soul {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--foreground);
+  outline: none;
+}
+.tm-soul:focus-visible {
+  border-color: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
+/* Avatar hover card */
+.tm-hover {
+  width: 288px;
+  padding: 14px;
+  font-family: var(--font-sans);
+}
+
+.tm-section-title {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.tm-row-title {
+  font-family: var(--font-row, var(--font-sans));
+  font-size: 13px;
+  color: var(--foreground);
+}
+.tm-supporting {
+  font-family: var(--font-supporting, var(--font-sans));
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.tm-meta {
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.tm-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.tm-card {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  padding: 12px 14px;
+}

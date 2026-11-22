@@ -13,6 +13,7 @@ export const SETTINGS_NAV_GROUPS = [
       { id: "notifications", label: "Notifications" },
       { id: "themes", label: "Themes" },
       { id: "quick-actions", label: "Quick Actions" },
+      { id: "terminal-commands", label: "Terminal Commands" },
       { id: "startup-animation", label: "Animations" },
     ],
   },
@@ -22,6 +23,7 @@ export const SETTINGS_NAV_GROUPS = [
     items: [
       { id: "providers", label: "Providers" },
       { id: "agent-plugins", label: "Agent plugins" },
+      { id: "teammates", label: "Teammates" },
       { id: "usage", label: "Usage & Limits" },
     ],
   },
@@ -44,13 +46,9 @@ export const SETTINGS_NAV_GROUPS = [
     items: [
       { id: "diagnostics", label: "Diagnostics" },
       { id: "documentation", label: "Documentation" },
+      { id: "labs", label: "Labs" },
       { id: "about", label: "About" },
     ],
-  },
-  {
-    id: "first-look",
-    label: "First look",
-    items: [{ id: "labs", label: "Labs" }],
   },
 ] as const satisfies ReadonlyArray<{
   id: string;

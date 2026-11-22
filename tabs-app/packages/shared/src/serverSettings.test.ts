@@ -24,6 +24,24 @@ import {
 const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
 
 describe("serverSettings helpers", () => {
+  it("replaces saved terminal commands whole so deletions stick", () => {
+    const command = (id: string) => ({
+      id,
+      label: id,
+      command: `echo ${id}`,
+      appendEnter: true,
+      scope: { type: "global" as const },
+      cwd: "",
+    });
+    const two = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      terminalQuickCommands: [command("a"), command("b")],
+    });
+    expect(two.terminalQuickCommands.map((entry) => entry.id)).toEqual(["a", "b"]);
+    const one = applyServerSettingsPatch(two, { terminalQuickCommands: [command("b")] });
+    expect(one.terminalQuickCommands.map((entry) => entry.id)).toEqual(["b"]);
+    expect(applyServerSettingsPatch(one, {}).terminalQuickCommands).toHaveLength(1);
+  });
+
   it("changes a cleanup rule without replacing the machine's other rules", () => {
     const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
       storageCleanup: { worktreeAfterDays: 8, worktreeOnMerge: true, logsAfterDays: 30 },

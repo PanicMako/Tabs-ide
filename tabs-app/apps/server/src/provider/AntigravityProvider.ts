@@ -51,17 +51,19 @@ type ThinkingConfig = NonNullable<ReturnType<typeof antigravityThinkingConfig>>;
 /** Thinking options each model reported when selected; `null` means it has none. */
 export type AntigravityThinkingLevels = ReadonlyMap<string, ThinkingConfig | null>;
 
-function thinkingCapabilities(config: ThinkingConfig | null | undefined, observed: boolean) {
+/**
+ * A model has thinking levels only when the agent reported a `thought_level` option while that
+ * model was selected. Selecting a model is the only way to learn its levels, so a model nobody
+ * has selected yet publishes none rather than borrowing another model's.
+ */
+function thinkingCapabilities(config: ThinkingConfig | null | undefined) {
   const descriptor = config
     ? acpProviderOptionDescriptors({ configOptions: [config], modeState: undefined })[0]
     : undefined;
   if (descriptor?.type !== "select") return EMPTY_MODEL_CAPABILITIES;
-  // Another model's selected level is not this model's default.
-  const { currentValue: _currentValue, ...unobserved } = descriptor;
-  return createModelCapabilities({ optionDescriptors: [observed ? descriptor : unobserved] });
+  return createModelCapabilities({ optionDescriptors: [descriptor] });
 }
 
-/** Keep the native model IDs, including model-specific thinking levels. */
 export function buildAntigravityModelsFromSession(
   setup: SessionSetupResult,
   thinkingLevels: AntigravityThinkingLevels = new Map(),
@@ -100,10 +102,7 @@ export function buildAntigravityModelsFromSession(
         ...(entry.value === currentValue
           ? { isDefault: true, aliases: [ANTIGRAVITY_DEFAULT_MODEL] }
           : {}),
-        capabilities:
-          observed === undefined
-            ? thinkingCapabilities(currentThinking, false)
-            : thinkingCapabilities(observed, true),
+        capabilities: thinkingCapabilities(observed),
       },
     ];
   });

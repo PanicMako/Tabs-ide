@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isReasoningSelectDescriptor } from "./model.ts";
 import {
   DEFAULT_MODEL,
   ProviderDriverKind,
@@ -243,5 +244,25 @@ describe("descriptor helpers", () => {
     ).toBeUndefined();
     expect(getModelSelectionStringOptionValue(selection, "reasoningEffort")).toBe("high");
     expect(getModelSelectionBooleanOptionValue(selection, "fastMode")).toBe(true);
+  });
+});
+
+describe("isReasoningSelectDescriptor", () => {
+  const select = (id: string, role?: "reasoning") =>
+    ({
+      id,
+      label: id,
+      type: "select",
+      options: [{ id: "low", label: "Low" }],
+      ...(role ? { role } : {}),
+    }) as const;
+
+  it("accepts the agent-marked role and conventional ids, and rejects other options", () => {
+    expect(isReasoningSelectDescriptor(select("thought_level", "reasoning"))).toBe(true);
+    for (const id of ["effort", "reasoningEffort", "variant", "thought_level", "thinking"]) {
+      expect(isReasoningSelectDescriptor(select(id))).toBe(true);
+    }
+    expect(isReasoningSelectDescriptor(select("tone"))).toBe(false);
+    expect(isReasoningSelectDescriptor({ id: "effort", label: "x", type: "boolean" })).toBe(false);
   });
 });

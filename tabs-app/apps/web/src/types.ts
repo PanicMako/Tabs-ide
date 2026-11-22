@@ -126,6 +126,8 @@ export interface Thread {
   isSubagent?: boolean;
   /** A side chat: a hidden fork that lives in its parent's right panel, never in thread lists. */
   isSideChat?: boolean;
+  /** Teammate home / look-around chat: hidden from thread lists. */
+  isTeammate?: boolean;
   /** The thread that delegated this one, when it is a sub-thread. */
   parentThreadId?: ThreadId | null;
   id: ThreadId;

@@ -6,11 +6,11 @@ import { STARTUP_EXIT_GRACE_MS } from "./components/StartupCurtain";
 import {
   SOLARI_EXIT_BEAT_MS,
   SOLARI_INTRO_FALLBACK_MS,
-  SOLARI_RISE_EXIT_MS,
+  STARTUP_RISE_EXIT_MS,
 } from "./lib/startupAnimationTiming";
 
 /** From the moment the board is done: a short beat, then the workspace rises. */
-const EXIT_TOTAL_MS = SOLARI_EXIT_BEAT_MS + SOLARI_RISE_EXIT_MS;
+const EXIT_TOTAL_MS = SOLARI_EXIT_BEAT_MS + STARTUP_RISE_EXIT_MS;
 import { StartupShell } from "./StartupShell";
 import {
   activateStartupSplash,

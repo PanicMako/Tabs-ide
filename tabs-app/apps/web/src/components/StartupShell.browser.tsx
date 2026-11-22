@@ -43,7 +43,7 @@ it("paints the airport loader before imports finish, then raises the workspace o
   }
 });
 
-it("brings the workspace up from the bottom after the mascot gag", async () => {
+it("brings the workspace up from the bottom after the mascot lands", async () => {
   window.localStorage.setItem(
     "tabs:client-settings:v1",
     JSON.stringify({ splashLoaderStyle: "mascot" }),

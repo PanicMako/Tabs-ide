@@ -432,7 +432,12 @@ export default function Sidebar() {
   const projects = useAtomValue(readModelStateAtom, (state) => state.projects);
   const allThreads = useAtomValue(readModelStateAtom, (state) => state.threads);
   // Side chats live in their parent's right panel, never in the sidebar.
-  const threads = useMemo(() => allThreads.filter((thread) => !thread.isSideChat), [allThreads]);
+  // Teammate home and look-around threads are reached through the Teammates panel instead.
+  // The server marks them (`lineage.teammate`), so they stay hidden even with the Labs switch off.
+  const threads = useMemo(
+    () => allThreads.filter((thread) => !thread.isSideChat && !thread.isTeammate),
+    [allThreads],
+  );
   const markThreadUnread = markThreadUnreadInAtoms;
   const toggleProject = toggleProjectInAtoms;
   const reorderProjects = reorderProjectsInAtoms;

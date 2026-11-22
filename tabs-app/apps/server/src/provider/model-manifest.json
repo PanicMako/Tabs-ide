@@ -879,7 +879,7 @@
     },
     "antigravity": {
       "defaults": {
-        "chat": "gemini-3.8-flash-high"
+        "chat": "gemini-3.8-flash"
       },
       "profiles": {},
       "models": [
@@ -890,7 +890,11 @@
           "releasedAt": "2026-11-10"
         },
         { "slug": "gemini-4-argon", "name": "Gemini 4 Argon", "status": "current" },
-        { "slug": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "status": "current" },
+        {
+          "slug": "gemini-3.8-flash",
+          "name": "Gemini 3.8 Flash",
+          "status": "current"
+        },
         {
           "slug": "gemini-3.8-flash-high",
           "name": "Gemini 3.8 Flash (High)",

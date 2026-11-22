@@ -20,6 +20,7 @@ import {
 } from "../ui/dialog";
 import { SettingsSectionHeader } from "./SettingsLayout";
 import "./agent-plugins.css";
+import { Details, Summary } from "../ui/disclosure";
 
 type Profile = NonNullable<ServerConfig["deepSeekProfiles"]>[number];
 type RunCommand = (command: string, profileName: string) => void;
@@ -316,8 +317,8 @@ function ProfilePlugins({
           </ul>
         )}
       </section>
-      <details className="agent-plugins-advanced">
-        <summary>Advanced plugin configuration</summary>
+      <Details className="agent-plugins-advanced">
+        <Summary>Advanced plugin configuration</Summary>
         <p>
           For plugins that require custom options. Use the entry ID and options from the plugin’s
           documentation.
@@ -339,7 +340,7 @@ function ProfilePlugins({
             {saving ? "Saving…" : "Save configuration"}
           </Button>
         </div>
-      </details>
+      </Details>
       {error && !addOpen && (
         <p role="alert" className="text-sm text-destructive">
           {error}

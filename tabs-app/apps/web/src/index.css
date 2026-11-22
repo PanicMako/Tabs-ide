@@ -1496,36 +1496,51 @@ input {
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar styling */
+/* Scrollbars: one themed style for every scroller in the app. Thin, neutral, transparent
+   track; the thumb appears while hovering a scroller or while it is scrolling
+   (data-scrolling is set by installScrollingIndicator). Colours come from theme tokens so
+   light and dark both resolve correctly. Chromium ignores ::-webkit-scrollbar once
+   scrollbar-color is set, so the standard properties are only a fallback. */
+:root {
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 24%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
 ::-webkit-scrollbar {
   width: var(--app-scrollbar-width);
   /* Without a height, horizontal bars fall back to the thick native default. */
   height: var(--app-scrollbar-width);
-}
-
-::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-button {
   background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background-color: transparent;
+  background-clip: padding-box;
   border-radius: var(--radius-control);
+  transition: background-color 160ms ease;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+:hover::-webkit-scrollbar-thumb,
+[data-scrolling]::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-hover);
 }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
 
 .turn-chip-strip {
@@ -1760,42 +1775,6 @@ label:has(> select#reasoning-effort) select {
   padding: 0;
   font-size: 0.75rem;
   color: inherit;
-}
-
-.chat-markdown pre {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border) 78%, transparent) transparent;
-}
-
-.chat-markdown pre::-webkit-scrollbar {
-  height: 7px;
-}
-
-.chat-markdown pre::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.chat-markdown pre::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--border) 78%, transparent);
-}
-
-.markdown-file-link-tooltip-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border) 78%, transparent) transparent;
-}
-
-.markdown-file-link-tooltip-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-
-.markdown-file-link-tooltip-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.markdown-file-link-tooltip-scroll::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--border) 78%, transparent);
 }
 
 .chat-markdown .chat-markdown-codeblock {
@@ -2159,28 +2138,6 @@ label:has(> select#reasoning-effort) select {
   background-clip: text;
   -webkit-background-clip: text;
   animation: ultrathink-rainbow 10s linear infinite;
-}
-
-/* Thin scrollbar for model picker */
-.model-picker-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.model-picker-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius-control);
-}
-
-.model-picker-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.dark .model-picker-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dark .model-picker-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
 }
 
 /* Glassmorphism for dialog overlays / backdrops */
@@ -3637,4 +3594,13 @@ html :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) textarea:
 }
 ::highlight(chat-find-current) {
   background-color: color-mix(in srgb, var(--foreground) 42%, transparent);
+}
+
+/* Disclosure (components/ui/disclosure.tsx): replaces native <details>. */
+:where(summary[data-slot="disclosure-summary"]) {
+  display: block;
+  list-style: none;
+}
+[data-disclosure]:not([open]):not([data-closing]) > :not(summary) {
+  display: none;
 }

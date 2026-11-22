@@ -105,6 +105,20 @@ export const QUICK_ACTIONS = [
     icon: "toggles",
   },
   {
+    id: "session-search",
+    label: "Search past agent sessions",
+    detail: "Find a Claude Code, Codex, Gemini or OpenCode session and resume it",
+    group: "Explore",
+    icon: "search",
+  },
+  {
+    id: "ask-teammate",
+    label: "Ask Notch",
+    detail: "Open your teammate's home chat",
+    group: "Create",
+    icon: "agent",
+  },
+  {
     id: "customize",
     label: "Customize quick actions",
     detail: "Choose a design, reorder actions and set gestures",
@@ -118,7 +132,11 @@ export type BuiltInQuickAction = (typeof QUICK_ACTIONS)[number];
  * launcher entry runs (input: the toolbar tool id), and "open-thread" is what
  * a glance runs to jump to a conversation (input: "environmentId:threadId").
  */
-export type QuickActionId = BuiltInQuickAction["id"] | "extension-tool" | "open-thread";
+export type QuickActionId =
+  | BuiltInQuickAction["id"]
+  | "extension-tool"
+  | "open-thread"
+  | "terminal-quick-command";
 
 /**
  * Actions that open a panel inside the launcher instead of taking you
@@ -179,6 +197,8 @@ export interface ExtensionLauncherAction {
   extension: { id: string; displayName: string; toolLabel: string };
 }
 export type QuickAction = BuiltInQuickAction | CustomLauncherAction | ExtensionLauncherAction;
+/** Launcher entries that come from outside the built-in list: extensions and saved terminal commands. */
+export type LauncherExtraAction = ExtensionLauncherAction | CustomLauncherAction;
 
 export function isExtensionLauncherAction(action: QuickAction): action is ExtensionLauncherAction {
   return "extension" in action;
@@ -286,7 +306,7 @@ export function orderedActions(
   order: readonly string[],
   hidden: readonly string[],
   custom: readonly CustomQuickAction[] = [],
-  extensions: readonly ExtensionLauncherAction[] = [],
+  extensions: readonly LauncherExtraAction[] = [],
 ): QuickAction[] {
   const rank = new Map(order.map((id, index) => [id, index]));
   const all: QuickAction[] = [
@@ -330,7 +350,7 @@ export function actionZones(
   order: readonly string[],
   hidden: readonly string[],
   custom: readonly CustomQuickAction[] = [],
-  extensions: readonly ExtensionLauncherAction[] = [],
+  extensions: readonly LauncherExtraAction[] = [],
 ) {
   const visible = orderedActions(order, hidden, custom, extensions);
   return {
@@ -354,7 +374,7 @@ export function placeAction(
   zone: ActionZone,
   index: number,
   custom: readonly CustomQuickAction[] = [],
-  extensions: readonly ExtensionLauncherAction[] = [],
+  extensions: readonly LauncherExtraAction[] = [],
 ): { actionOrder: string[]; hiddenActions: string[] } {
   const zones = actionZones(order, hidden, custom, extensions);
   const ids = (list: readonly QuickAction[]): string[] =>

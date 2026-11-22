@@ -5,7 +5,7 @@ import { defineConfig } from "tsdown";
 const devBundle = process.env.TABS_SERVER_DEV_BUNDLE === "1";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/bin.ts", "src/claudeHistoryWorker.ts"],
+  entry: ["src/index.ts", "src/bin.ts", "src/claudeHistoryWorker.ts", "src/sessionSearchWorker.ts"],
   format: devBundle ? ["esm"] : ["esm", "cjs"],
   checks: {
     legacyCjs: false,

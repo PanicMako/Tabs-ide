@@ -1,3 +1,4 @@
+import { useTeammatesData } from "../teammates/useTeammates";
 import {
   createContext,
   useCallback,
@@ -25,8 +26,7 @@ import {
   type LauncherDesign,
 } from "./actions";
 import { RadialLauncher, type FlyoutShape } from "./RadialActions";
-import { useInstalledExtensions } from "~/state/extensions";
-import { extensionLauncherActions } from "./extensionQuickActions";
+import { useLauncherExtraActions } from "./terminalQuickCommandActions";
 import { QuickGlance } from "./QuickGlance";
 import { awaySummaryLine, deriveAwaySummary } from "./glanceLogic";
 import { useAtomValue } from "@effect/atom-react";
@@ -63,8 +63,11 @@ export function QuickActionsHost({
   disabled,
 }: ActionContext & { children: ReactNode }) {
   const settings = useSettings((s) => s.quickActions);
+  const sessionSearchEnabled = useSettings((s) => s.sessionSearchEnabled);
+  const teammatesEnabled = useSettings((s) => s.teammatesEnabled);
+  const teammateName = useTeammatesData().active?.name;
   const keybindings = useKeybindings();
-  const installedExtensions = useInstalledExtensions();
+  const extraActions = useLauncherExtraActions();
   const enabled = useRef(settings.enabled);
   enabled.current = settings.enabled;
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -296,9 +299,18 @@ export function QuickActionsHost({
                   design={normalizeLauncherDesign(settings.design)}
                   actions={orderedActions(
                     settings.actionOrder,
-                    settings.hiddenActions,
+                    [
+                      ...settings.hiddenActions,
+                      ...(sessionSearchEnabled ? [] : ["session-search"]),
+                      ...(teammatesEnabled ? [] : ["ask-teammate"]),
+                    ],
                     settings.customActions,
-                    extensionLauncherActions(installedExtensions),
+                    extraActions,
+                  ).map(
+                    (action): QuickAction =>
+                      action.id === "ask-teammate" && teammateName
+                        ? ({ ...action, label: `Ask ${teammateName}` } as QuickAction)
+                        : action,
                   )}
                   subActions={settings.subActions}
                   flyoutShape={settings.flyoutShape}

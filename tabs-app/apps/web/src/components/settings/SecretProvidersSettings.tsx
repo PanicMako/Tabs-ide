@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { SimpleSelect } from "../ui/simple-select";
 import { Label } from "../ui/label";
 import { SettingsRow, SettingsSection } from "./SettingsLayout";
 
@@ -323,18 +324,12 @@ function CheckSecretReference({
       control={
         <div className="flex items-center gap-2">
           {providers.length > 1 ? (
-            <select
+            <SimpleSelect
               aria-label="Secret provider"
-              className="h-8 rounded-md border border-border bg-background px-2 text-xs"
               value={providerId}
-              onChange={(event) => setProviderId(SecretProviderId.make(event.target.value))}
-            >
-              {providers.map(([id, config]) => (
-                <option key={id} value={id}>
-                  {config.label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(next) => setProviderId(SecretProviderId.make(next))}
+              options={providers.map(([id, config]) => ({ value: id, label: config.label }))}
+            />
           ) : null}
           <Input
             aria-label="Secret reference"

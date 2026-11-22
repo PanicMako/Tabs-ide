@@ -259,10 +259,10 @@ it("delegates with provider and model chooser, preserving permissions and stoppi
     await page.getByRole("textbox", { name: "Task", exact: true }).fill("Check the API contract");
 
     // Select alternative provider and model
-    const providerSelect = page.getByLabelText("Provider", { exact: true });
-    await providerSelect.selectOptions("claudeAgent");
-    const modelSelect = page.getByLabelText("Model", { exact: true });
-    await modelSelect.selectOptions("claude-sonnet");
+    await page.getByRole("combobox", { name: "Provider", exact: true }).click();
+    await page.getByRole("option", { name: "Claude Agent", exact: true }).click();
+    await page.getByRole("combobox", { name: "Model", exact: true }).click();
+    await page.getByRole("option", { name: "Claude Sonnet", exact: true }).click();
 
     await page.getByRole("button", { name: "Delegate", exact: true }).click();
     await expect.poll(() => fixture.dispatch.mock.calls.length).toBe(1);

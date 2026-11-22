@@ -25,7 +25,9 @@ import { environmentApi } from "../../connection/environmentApiRegistry";
 import { newCommandId } from "../../lib/utils";
 import type { WorkspaceAgentContext } from "./WorkspaceAgents";
 import { Button } from "../ui/button";
+import { SimpleSelect } from "../ui/simple-select";
 import { Switch } from "../ui/switch";
+import { TimeField } from "../ui/TimeField";
 import { useConfirm } from "../../hooks/useConfirm";
 import { useWorkspaceActionExpansion } from "./workspaceActionsState";
 import {
@@ -525,18 +527,16 @@ function ScopedWorkspaceAutomations({
 
                 <div className="flex items-center gap-3">
                   <label className="text-xs font-medium">Schedule</label>
-                  <select
+                  <SimpleSelect
                     aria-label="Schedule type"
-                    className="rounded-lg border border-border bg-background p-2 text-xs"
                     value={kind}
-                    onChange={(e) =>
-                      setKind(e.target.value as "interval" | "fixed_time" | "webhook")
-                    }
-                  >
-                    <option value="interval">Repeat every</option>
-                    <option value="fixed_time">Daily / Selected days</option>
-                    <option value="webhook">Webhook trigger</option>
-                  </select>
+                    onValueChange={(next) => setKind(next as "interval" | "fixed_time" | "webhook")}
+                    options={[
+                      { value: "interval", label: "Repeat every" },
+                      { value: "fixed_time", label: "Daily / Selected days" },
+                      { value: "webhook", label: "Webhook trigger" },
+                    ]}
+                  />
                 </div>
 
                 {kind === "interval" && (
@@ -563,16 +563,10 @@ function ScopedWorkspaceAutomations({
 
                 {kind === "fixed_time" && (
                   <div className="space-y-2">
-                    <label className="block text-xs font-medium">
-                      Local time
-                      <input
-                        type="time"
-                        aria-label="Time"
-                        className="mt-1 w-full rounded-lg border border-border bg-background p-2 text-sm"
-                        value={time}
-                        onChange={(e) => setTime(e.target.value)}
-                      />
-                    </label>
+                    <div className="block text-xs font-medium">
+                      <span className="mb-1 block">Local time</span>
+                      <TimeField aria-label="Time" value={time} onValueChange={setTime} />
+                    </div>
 
                     <div>
                       <span className="block text-xs font-medium mb-1">
@@ -636,17 +630,16 @@ function ScopedWorkspaceAutomations({
                         </label>
                         <label className="block text-xs">
                           Encoding
-                          <select
+                          <SimpleSelect
                             aria-label="Signature encoding"
-                            className="mt-1 w-full rounded border border-border bg-background p-1.5 text-xs"
+                            className="mt-1 w-full"
                             value={signatureEncoding}
-                            onChange={(e) =>
-                              setSignatureEncoding(e.target.value as "hex" | "base64")
-                            }
-                          >
-                            <option value="hex">hex</option>
-                            <option value="base64">base64</option>
-                          </select>
+                            onValueChange={(next) => setSignatureEncoding(next as "hex" | "base64")}
+                            options={[
+                              { value: "hex", label: "hex" },
+                              { value: "base64", label: "base64" },
+                            ]}
+                          />
                         </label>
                         <label className="block text-xs">
                           Secret

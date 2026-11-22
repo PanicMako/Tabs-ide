@@ -38,6 +38,7 @@ export function thinkingCapabilitiesForPiModel(
         id: "thinking",
         label: "Thinking",
         type: "select",
+        role: "reasoning",
         options: levels.map(
           (level): ProviderOptionChoice => ({
             id: level,

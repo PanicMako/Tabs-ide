@@ -178,7 +178,7 @@ describe("Antigravity model catalog", () => {
     expect(models.every((model) => !model.isCustom)).toBe(true);
   });
 
-  it("exposes the CLI's thinking levels per model, defaulting only the observed ones", () => {
+  it("publishes thinking levels only for models the agent reported them for", () => {
     const thinking = (currentValue: string) =>
       ({
         id: "thinking",
@@ -215,10 +215,57 @@ describe("Antigravity model catalog", () => {
     });
     // A model observed to have no thinking option has none.
     expect(levels(modelOptions[1]!.value, models)).toEqual([]);
-    // An unobserved model offers the levels without borrowing another model's selection.
-    const unobserved = levels(modelOptions[2]!.value, models)?.[0];
-    expect(unobserved).toMatchObject({ type: "select" });
-    expect(unobserved).not.toHaveProperty("currentValue");
+    // A model nobody has selected has not reported levels, so it shows none.
+    expect(levels(modelOptions[2]!.value, models)).toEqual([]);
+  });
+
+  it("gives Gemini levels and Claude / GPT-OSS none, as the live agent reports them", () => {
+    const model = (currentValue: string) => ({
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue,
+      options: [
+        "gemini-3.8-flash",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6-thinking",
+        "gpt-oss-120b-medium",
+      ].map((value) => ({ value, name: value })),
+    });
+    const thoughtLevel = {
+      id: "thought_level",
+      name: "Thinking Level",
+      category: "thought_level",
+      type: "select" as const,
+      currentValue: "high",
+      options: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    };
+    // Setup: Gemini is selected and reports levels. Each other model reports none once selected.
+    const observed = new Map<string, never | null>([
+      ["claude-sonnet-4-6", null],
+      ["claude-opus-4-6-thinking", null],
+      ["gpt-oss-120b-medium", null],
+    ]);
+    const models = buildAntigravityModelsFromSession(
+      { configOptions: [model("gemini-3.8-flash"), thoughtLevel] },
+      observed,
+    );
+    const descriptors = (slug: string) =>
+      models.find((m) => m.slug === slug)?.capabilities?.optionDescriptors ?? [];
+    expect(descriptors("gemini-3.8-flash")[0]).toMatchObject({
+      id: "thought_level",
+      role: "reasoning",
+      currentValue: "high",
+      options: [{ id: "low" }, { id: "medium" }, { id: "high" }],
+    });
+    for (const slug of ["claude-sonnet-4-6", "claude-opus-4-6-thinking", "gpt-oss-120b-medium"]) {
+      expect(descriptors(slug)).toEqual([]);
+    }
   });
 
   it("uses legacy session models only when model config is absent", () => {

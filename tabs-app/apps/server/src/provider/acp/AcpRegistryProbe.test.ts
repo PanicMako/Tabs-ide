@@ -287,6 +287,7 @@ describe("ACP Registry probe", () => {
           { id: "medium", label: "Medium" },
           { id: "high", label: "High" },
         ],
+        role: "reasoning",
       },
     ]);
   });

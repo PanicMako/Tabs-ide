@@ -23,6 +23,9 @@ import { AgentCliActivityHost } from "./chat/AgentCliActivityHost";
 import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { BrowserStartupState } from "./BrowserStartupState";
 import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
+import { SessionSearchPanel } from "./session-search/SessionSearchPanel";
+import { openSessionSearch } from "./session-search/sessionSearchStore";
+import { useTeammatesUiStore } from "./teammates/teammatesStore";
 import { QuickActionsHost } from "./quick-actions/QuickActions";
 import {
   DEFAULT_BLANK_BROWSER,
@@ -348,6 +351,7 @@ import {
 import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
+import { runTerminalQuickCommandById } from "../terminalQuickCommandRunner";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 import { toastManager } from "./ui/toast";
 import { getPrimaryEnvironmentId } from "~/connection/environmentApiRegistry";
@@ -14246,6 +14250,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       });
     } else if (id === "clipboard") {
       setClipboardOpen(true);
+    } else if (id === "session-search") {
+      openSessionSearch(query.trim());
+    } else if (id === "ask-teammate") {
+      useTeammatesUiStore.getState().requestHome();
     } else if (activeProject && id === "scratch-terminal") {
       const id = `scratch-terminal-${randomUUID()}`;
       // A custom action can carry a command; the tab runs it as it opens.
@@ -14294,6 +14302,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       );
       setActiveTool(activeProject.id, embedId);
       await navigate({ to: "/" });
+    } else if (id === "terminal-quick-command") {
+      // Types into the active terminal; with none open, it runs in a new one.
+      await runTerminalQuickCommandById(settings.terminalQuickCommands ?? [], query, (shellLine) =>
+        runQuickAction("scratch-terminal", shellLine),
+      );
     } else if (id === "extension-tool") {
       await openExtensionTool(query);
     } else if (id === "open-thread") {
@@ -14329,6 +14342,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       >
         {toolCloseDialog}
         <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
+        <SessionSearchPanel
+          runInTerminal={
+            activeProject ? (command) => runQuickAction("scratch-terminal", command) : undefined
+          }
+        />
         <AgentCliActivityHost />
         <KeepWorkspaceToolDialog
           tool={toolToKeep}

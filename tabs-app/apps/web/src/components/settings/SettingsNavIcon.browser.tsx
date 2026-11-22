@@ -20,6 +20,8 @@ it("animates the robot's internal parts on keyboard focus, without moving the na
   );
   try {
     const button = page.getByRole("button", { name: "Providers" });
+    // The pointer survives between files; a stale hover would start the blink before focus does.
+    await userEvent.unhover(document.body);
     const node = button.element();
     const eye = node.querySelector(".sni-robot-eye")!;
     const before = node.getBoundingClientRect();

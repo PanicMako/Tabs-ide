@@ -1,5 +1,5 @@
-import "./font-specimens.css";
 import { normalizeSplashLoaderStyle } from "@tabs/contracts/settings";
+import { AnimationTypeList } from "./AnimationTypeList";
 import { SegmentedControl } from "../ui/segmented-control";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -25,7 +25,7 @@ import {
   startupExitStyle,
 } from "../../lib/startupAnimationTiming";
 import { useStartupIntroDone } from "../../hooks/useStartupAnimation";
-import { CURATED_FONT_COMBOS as FONT_COMBOS, UI_FONT_OPTIONS } from "../../lib/themes";
+import { UI_FONT_OPTIONS } from "../../lib/themes";
 import {
   SettingResetButton,
   SettingsHeaderPortal,
@@ -596,306 +596,114 @@ export function AnimationsSettings() {
               }
             />
 
-            {/* Animation Font Combos */}
-            <div className="pt-2">
-              <div className="px-4 py-2 border-t border-border/40">
-                <h4 className="text-sm font-semibold text-foreground">
-                  Animation Typography &amp; Font
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Select a dedicated font combo for startup and close loader animations.
-                </p>
-              </div>
-
-              <div className="px-4 py-2 flex items-center gap-2 flex-wrap bg-muted/20">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mr-1">
-                  Defaults
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveFontComboId("app-default");
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
-                    activeFontComboId === "app-default"
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-                  )}
-                >
-                  {activeFontComboId === "app-default" && (
-                    <svg
-                      className="size-2.5 shrink-0"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2 6l3 3 5-5" />
-                    </svg>
-                  )}
-                  App Theme Font
-                  <span className="text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border border-primary/30 text-foreground/70 bg-primary/5">
-                    DEFAULT
-                  </span>
-                </button>
-
-                {FONT_COMBOS.filter((c) => c.isNeutral).map((combo) => {
-                  const isActive = activeFontComboId === combo.id;
-                  return (
-                    <button
-                      key={combo.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveFontComboId(combo.id);
-                      }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
-                        isActive
-                          ? "border-primary bg-primary/10 text-foreground"
-                          : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-                      )}
-                      style={{
-                        fontFamily: combo.uiFont !== "custom" ? combo.uiFont : undefined,
-                      }}
-                    >
-                      {isActive && (
-                        <svg
-                          className="size-2.5 shrink-0"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2.5}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M2 6l3 3 5-5" />
-                        </svg>
-                      )}
-                      {combo.name}
-                      <span
-                        className={cn(
-                          "text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border",
-                          isActive
-                            ? "border-primary/30 text-foreground/70 bg-primary/5"
-                            : "border-border/50 text-muted-foreground/50",
-                        )}
-                      >
-                        {combo.tag}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {activeFontComboId === "custom" && (
-                <div className="px-4 py-3.5 bg-muted/30 border-y border-border/60 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="text-xs font-semibold text-foreground">
-                        Custom Animation Display Font
-                      </h5>
-                      <p className="text-[10px] text-muted-foreground">
-                        Select a custom typography font for startup and close loader animations.
-                      </p>
-                    </div>
-                    <span className="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded border border-primary/30 text-foreground bg-primary/5 uppercase">
-                      CUSTOM
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5 rounded-lg border border-border/60 bg-card p-3">
-                      <label className="text-xs font-semibold text-foreground block">
-                        Animation Display Font
-                      </label>
-                      <p className="text-[10px] text-muted-foreground line-clamp-1">
-                        Main title, Solari cards &amp; status messages
-                      </p>
-                      <Select
-                        value={activeCustomFont}
-                        onValueChange={(val) => {
-                          if (!val) return;
-                          setActiveCustomFont(val);
-                        }}
-                      >
-                        <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
-                          <SelectValue placeholder="Select Display Font" />
-                        </SelectTrigger>
-                        <SelectPopup align="start">
-                          {UI_FONT_OPTIONS.map((f) => (
-                            <SelectItem key={f.value} value={f.value} className="text-xs">
-                              {f.label}
-                            </SelectItem>
-                          ))}
-                        </SelectPopup>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5 rounded-lg border border-border/60 bg-card p-3">
-                      <label className="text-xs font-semibold text-foreground block">
-                        Quick Display Picks
-                      </label>
-                      <p className="text-[10px] text-muted-foreground line-clamp-1">
-                        One-click font presets for splash loader
-                      </p>
-                      <div className="flex flex-wrap gap-1 pt-0.5">
-                        {[
-                          {
-                            name: "Syne",
-                            font: "'Syne', sans-serif",
-                          },
-                          {
-                            name: "Unbounded",
-                            font: "'Unbounded', sans-serif",
-                          },
-                          {
-                            name: "Outfit",
-                            font: "'Outfit', sans-serif",
-                          },
-                          {
-                            name: "Space Grotesk",
-                            font: "'Space Grotesk', sans-serif",
-                          },
-                          {
-                            name: "JetBrains Mono",
-                            font: "'JetBrains Mono', monospace",
-                          },
-                        ].map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => {
-                              setActiveCustomFont(preset.font);
-                            }}
-                            className={cn(
-                              "px-2 py-1 text-[10px] font-semibold rounded border transition-all cursor-pointer",
-                              activeCustomFont === preset.font
-                                ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                                : "border-border/60 bg-background text-muted-foreground hover:text-foreground hover:border-border",
-                            )}
-                            style={{ fontFamily: preset.font }}
-                          >
-                            {preset.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+            {/* Typeface: only the Solari tiles and status lines use it; the mascot's
+                TABS is the brand wordmark and never changes. */}
+            {activeStyle === "solari" ? (
+              <div className="flex flex-col gap-3 pt-2">
+                <div className="px-4 sm:px-5">
+                  <h4 className="text-sm font-medium text-foreground">Typeface</h4>
+                  <p className="text-xs text-muted-foreground">
+                    The face for the board's letters and the status line.
+                  </p>
                 </div>
-              )}
-
-              <div className="font-specimen-grid border-t border-border/40">
-                {FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
-                  const isActive = activeFontComboId === combo.id;
-                  return (
-                    <button
-                      data-shape="preview"
-                      key={combo.id}
-                      type="button"
-                      aria-pressed={isActive}
-                      aria-label={`Select ${combo.name}: ${combo.desc}`}
-                      onClick={() => {
-                        setActiveFontComboId(combo.id);
-                      }}
-                      className={cn(
-                        "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition duration-200 cursor-pointer overflow-hidden",
-                        isActive
-                          ? "border-primary bg-primary/5"
-                          : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",
-                      )}
-                    >
-                      {isActive && (
-                        <div className="absolute top-2.5 right-2.5 size-4 rounded-full bg-primary flex items-center justify-center">
-                          <svg
-                            className="size-2.5 text-primary-foreground"
-                            viewBox="0 0 12 12"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M2 6l3 3 5-5" />
-                          </svg>
-                        </div>
-                      )}
-
-                      <div data-slot="font-specimen" className="mb-3 w-full min-w-0 leading-none">
-                        <span
-                          className={cn("text-[26px] leading-none", combo.sansClass)}
-                          style={{
-                            fontFamily: combo.headingOnly
-                              ? combo.headingFont
-                              : combo.uiFont !== "custom"
-                                ? combo.uiFont
-                                : undefined,
-                            fontWeight: combo.typography?.headingWeight,
+                <AnimationTypeList value={activeFontComboId} onChange={setActiveFontComboId} />
+                {activeFontComboId === "custom" && (
+                  <div className="px-4 py-3.5 bg-muted/30 border-y border-border/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-xs font-semibold text-foreground">
+                          Custom Animation Display Font
+                        </h5>
+                        <p className="text-[10px] text-muted-foreground">
+                          Select a custom typography font for startup and close loader animations.
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded border border-primary/30 text-foreground bg-primary/5 uppercase">
+                        CUSTOM
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5 rounded-lg border border-border/60 bg-card p-3">
+                        <label className="text-xs font-semibold text-foreground block">
+                          Animation Display Font
+                        </label>
+                        <p className="text-[10px] text-muted-foreground line-clamp-1">
+                          Main title, Solari cards &amp; status messages
+                        </p>
+                        <Select
+                          value={activeCustomFont}
+                          onValueChange={(val) => {
+                            if (!val) return;
+                            setActiveCustomFont(val);
                           }}
                         >
-                          {combo.sansText}
-                        </span>
-                        <wbr />
-                        <span
-                          className={cn("text-[26px] leading-none", combo.serifClass)}
-                          style={{
-                            fontFamily:
-                              combo.typography?.specimenFont ??
-                              (combo.headingFont !== "custom" ? combo.headingFont : undefined),
-                            fontWeight: combo.typography?.specimenWeight,
-                            fontStyle: combo.typography?.specimenStyle,
-                          }}
-                        >
-                          {combo.serifText}
-                        </span>
-                        {"sansText2" in combo && combo.sansText2 ? (
-                          <span
-                            className={cn("text-[26px] leading-none block", combo.sansClass)}
-                            style={{
-                              fontFamily: combo.headingOnly
-                                ? combo.headingFont
-                                : combo.uiFont !== "custom"
-                                  ? combo.uiFont
-                                  : undefined,
-                              fontWeight: combo.typography?.headingWeight,
-                            }}
-                          >
-                            {combo.sansText2}
-                          </span>
-                        ) : null}
+                          <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
+                            <SelectValue placeholder="Select Display Font" />
+                          </SelectTrigger>
+                          <SelectPopup align="start">
+                            {UI_FONT_OPTIONS.map((f) => (
+                              <SelectItem key={f.value} value={f.value} className="text-xs">
+                                {f.label}
+                              </SelectItem>
+                            ))}
+                          </SelectPopup>
+                        </Select>
                       </div>
 
-                      <div className="font-specimen-meta mt-auto w-full pt-4 border-t border-border/30 flex items-center justify-between gap-3">
-                        <div>
-                          <div
-                            className={cn(
-                              "text-xs font-bold leading-tight",
-                              isActive ? "text-foreground" : "text-foreground",
-                            )}
-                          >
-                            {combo.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground leading-relaxed">
-                            {combo.desc}
-                          </div>
+                      <div className="space-y-1.5 rounded-lg border border-border/60 bg-card p-3">
+                        <label className="text-xs font-semibold text-foreground block">
+                          Quick Display Picks
+                        </label>
+                        <p className="text-[10px] text-muted-foreground line-clamp-1">
+                          One-click font presets for splash loader
+                        </p>
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {[
+                            {
+                              name: "Syne",
+                              font: "'Syne', sans-serif",
+                            },
+                            {
+                              name: "Unbounded",
+                              font: "'Unbounded', sans-serif",
+                            },
+                            {
+                              name: "Outfit",
+                              font: "'Outfit', sans-serif",
+                            },
+                            {
+                              name: "Space Grotesk",
+                              font: "'Space Grotesk', sans-serif",
+                            },
+                            {
+                              name: "JetBrains Mono",
+                              font: "'JetBrains Mono', monospace",
+                            },
+                          ].map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                setActiveCustomFont(preset.font);
+                              }}
+                              className={cn(
+                                "px-2 py-1 text-[10px] font-semibold rounded border transition-all cursor-pointer",
+                                activeCustomFont === preset.font
+                                  ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                                  : "border-border/60 bg-background text-muted-foreground hover:text-foreground hover:border-border",
+                              )}
+                              style={{ fontFamily: preset.font }}
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
                         </div>
-                        <span
-                          className={cn(
-                            "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ml-1",
-                            isActive
-                              ? "border-primary/40 bg-primary/10 text-foreground"
-                              : "border-border/60 bg-muted/40 text-muted-foreground",
-                          )}
-                        >
-                          {combo.tag}
-                        </span>
                       </div>
-                    </button>
-                  );
-                })}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : null}
           </div>
 
           {isAnimationsDirty && (

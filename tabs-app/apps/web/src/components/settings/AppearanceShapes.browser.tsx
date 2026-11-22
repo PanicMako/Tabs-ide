@@ -25,18 +25,21 @@ it("keeps theme, font and animation specimens rectangular with gentle corners", 
     const view = await render(component);
     try {
       const cards = view.container.querySelectorAll('[data-shape="preview"]');
-      expect(cards.length).toBeGreaterThan(0);
+      // Themes keeps preview cards; the Animations list is a plain type list with no cards.
+      if (component.type === ThemesSettings) expect(cards.length).toBeGreaterThan(0);
       for (const card of cards) expect(getComputedStyle(card).borderRadius).toBe("28px");
       for (const thumbnail of view.container.querySelectorAll('[data-shape="thumbnail"]')) {
         expect(getComputedStyle(thumbnail).borderRadius).toBe("24px");
       }
       await document.fonts.ready;
       previewTheme("true-black");
-      await page.screenshot({
-        element:
-          cards[0]!.closest('[data-slot="settings-section-panel"]') ?? cards[0]!.parentElement!,
-        path: `__screenshots__/appearance-shapes/${component.type === ThemesSettings ? "themes" : "animation-fonts"}.png`,
-      });
+      if (cards[0]) {
+        await page.screenshot({
+          element:
+            cards[0].closest('[data-slot="settings-section-panel"]') ?? cards[0].parentElement!,
+          path: `__screenshots__/appearance-shapes/${component.type === ThemesSettings ? "themes" : "animation-fonts"}.png`,
+        });
+      }
       const font = view.container.querySelector('[data-shape="preview"][aria-label^="Select "]');
       if (font) {
         await page.screenshot({

@@ -2,8 +2,11 @@ import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 
 /** A long, soft lift: quick to start moving, gentle as it clears the top edge. */
 const LIFT_EASING = "cubic-bezier(0.65, 0, 0.35, 1)";
-/** The workspace arrives fast and settles gently against the top edge. */
-const RISE_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+/**
+ * The workspace eases off the bottom edge, travels the whole screen in view,
+ * and settles gently at the top: a full sweep, not a snap.
+ */
+const RISE_EASING = "cubic-bezier(0.76, 0, 0.24, 1)";
 
 /** Extra time past the planned exit before the splash is removed regardless. */
 export const STARTUP_EXIT_GRACE_MS = 1_500;

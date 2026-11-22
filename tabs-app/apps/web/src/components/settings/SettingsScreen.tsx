@@ -133,12 +133,16 @@ const AgentPluginsSettings = lazySection(() =>
 const QuickActionsSettings = lazySection(
   () => import("~/components/settings/QuickActionsSettings"),
 );
+const TerminalCommandsSettings = lazySection(
+  () => import("~/components/settings/TerminalCommandsSettings"),
+);
 const WorkspaceMaintenanceSettings = lazySection(
   () => import("~/components/settings/WorkspaceMaintenanceSettings"),
 );
 const GeneralSettings = lazySection(() => import("~/components/settings/GeneralSettings"));
 const DeviceSettings = lazySection(() => import("~/components/settings/DeviceSettings"));
 const LabsSettings = lazySection(() => import("~/components/settings/LabsSettings"));
+const TeammatesSettings = lazySection(() => import("~/components/settings/TeammatesSettings"));
 const ThemesSettings = lazySection(() => import("~/components/settings/ThemesSettings"));
 const AnimationsSettings = lazySection(() => import("~/components/settings/AnimationsSettings"));
 const ProvidersSettings = lazySection(() => import("~/components/settings/ProvidersSettings"));
@@ -762,6 +766,9 @@ export function SettingsScreen({ layer = false }: { layer?: boolean } = {}) {
                   <SettingsSurface key={activeSettingsSection} animate={hasSwitchedSection}>
                     {activeSettingsSection === "general" ? <GeneralSettings /> : null}
                     {activeSettingsSection === "quick-actions" ? <QuickActionsSettings /> : null}
+                    {activeSettingsSection === "terminal-commands" ? (
+                      <TerminalCommandsSettings />
+                    ) : null}
                     {activeSettingsSection === "maintenance" ? (
                       <WorkspaceMaintenanceSettings />
                     ) : null}
@@ -824,6 +831,7 @@ export function SettingsScreen({ layer = false }: { layer?: boolean } = {}) {
                     {activeSettingsSection === "about" ? <AboutSettings /> : null}
                     {activeSettingsSection === "devices" ? <DeviceSettings /> : null}
                     {activeSettingsSection === "labs" ? <LabsSettings /> : null}
+                    {activeSettingsSection === "teammates" ? <TeammatesSettings /> : null}
                   </SettingsSurface>
                 </Suspense>
                 <footer data-slot="settings-footer">

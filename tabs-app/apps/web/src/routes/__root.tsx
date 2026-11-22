@@ -16,6 +16,8 @@ import { useAtomValue } from "@effect/atom-react";
 import { APP_DISPLAY_NAME } from "../branding";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
+import { ContextMenuHost } from "../components/ui/ContextMenuHost";
+import { TitleTooltipHost } from "../components/ui/TitleTooltipHost";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
 import { readNativeApi } from "../nativeApi";
@@ -75,6 +77,7 @@ import {
   environmentConfig,
   onEnvironmentApiRegistryEvent,
 } from "../connection/environmentApiRegistry";
+import { Details, Summary } from "../components/ui/disclosure";
 
 const DiagnosticsSettings = lazy(() =>
   import("../components/settings/DiagnosticsSettings").then((module) => ({
@@ -112,6 +115,8 @@ function PopoutRootView() {
           </div>
         </CommandPalette>
         <GlobalConfirmDialog />
+        <TitleTooltipHost />
+        <ContextMenuHost />
       </AnchoredToastProvider>
     </ToastProvider>
   );
@@ -253,6 +258,8 @@ function FullAppRootView() {
             </CommandPalette>
           </FirstRunGate>
           <GlobalConfirmDialog />
+          <TitleTooltipHost />
+          <ContextMenuHost />
         </AnchoredToastProvider>
       </ToastProvider>
     </>
@@ -301,15 +308,15 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
           </Button>
         </div>
 
-        <details className="group mt-5 overflow-hidden rounded-lg border border-border/70 bg-background/55">
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-muted-foreground">
+        <Details className="group mt-5 overflow-hidden rounded-lg border border-border/70 bg-background/55">
+          <Summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-muted-foreground">
             <span className="group-open:hidden">Show error details</span>
             <span className="hidden group-open:inline">Hide error details</span>
-          </summary>
+          </Summary>
           <pre className="max-h-56 overflow-auto border-t border-border/70 bg-background/80 px-3 py-2 text-xs text-foreground/85">
             {details}
           </pre>
-        </details>
+        </Details>
       </section>
     </div>
   );

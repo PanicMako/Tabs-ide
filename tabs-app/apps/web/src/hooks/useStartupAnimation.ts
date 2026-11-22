@@ -23,7 +23,7 @@ export function useReducedStartupMotion(): boolean {
 
 /**
  * Whether the loader's intro has finished: the moment it reports so for
- * signalled loaders (the board's last tile), or its fixed hold for the mascot.
+ * signalled loaders, or its fixed hold for the classic mascot gag.
  */
 export function useStartupIntroDone(loader: string, introSignalled: boolean): boolean {
   const signalled = startupIntroIsSignalled(loader);

@@ -70,6 +70,9 @@ function mergeServerSettingsPatch(
   // The server replaces the user theme whole; merging would keep colors the user removed.
   if (patch.userTheme) next = { ...next, userTheme: patch.userTheme };
   if (patch.subagentModels) next = { ...next, subagentModels: patch.subagentModels };
+  // Arrays replace whole: deepMerge would keep a deleted command's tail.
+  if (patch.terminalQuickCommands)
+    next = { ...next, terminalQuickCommands: patch.terminalQuickCommands };
 
   if (usageLimitSourcesPatch) {
     const updatedSources = { ...next.usageLimitSources };

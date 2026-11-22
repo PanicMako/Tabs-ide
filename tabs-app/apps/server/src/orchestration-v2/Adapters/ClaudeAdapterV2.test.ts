@@ -1,3 +1,4 @@
+import { TeammateToolkit } from "../../mcp/toolkits/teammate/tools.ts";
 import * as NodeOS from "node:os";
 
 import type {
@@ -657,6 +658,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
       ...Object.values(EnvironmentToolkit.tools),
       ...Object.values(PreviewControlsToolkit.tools),
       ...Object.values(HtmlToolkit.tools),
+      ...Object.values(TeammateToolkit.tools),
     ]
       .filter((tool) => Context.get(tool.annotations, Tool.Readonly))
       .map((tool) => `mcp__t3-code__${tool.name}`)

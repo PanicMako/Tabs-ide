@@ -624,3 +624,22 @@ export function getDefaultEffort(caps: ModelCapabilities): string | null {
   }
   return null;
 }
+
+/**
+ * The select that drives the inline level dots: an agent-marked reasoning control (ACP
+ * `thought_level`), or a conventionally named effort / reasoning / variant / thought / thinking option, so a snapshot saved before agents marked their level control still resolves.
+ */
+export function isReasoningSelectDescriptor(
+  descriptor: ProviderOptionDescriptor,
+): descriptor is Extract<ProviderOptionDescriptor, { type: "select" }> {
+  if (descriptor.type !== "select") return false;
+  if (descriptor.role === "reasoning") return true;
+  const id = descriptor.id.toLowerCase();
+  return (
+    id.includes("effort") ||
+    id.includes("reasoning") ||
+    id.includes("variant") ||
+    id.includes("thought") ||
+    id.includes("thinking")
+  );
+}

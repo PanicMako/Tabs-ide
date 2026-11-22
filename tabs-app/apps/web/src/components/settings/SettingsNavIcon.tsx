@@ -3,6 +3,7 @@ import "./SettingsNavIcon.css";
 
 export type SettingsNavIconKind =
   | "quick-actions"
+  | "terminal-commands"
   | "maintenance"
   | "general"
   | "notifications"
@@ -20,6 +21,7 @@ export type SettingsNavIconKind =
   | "keybindings"
   | "about"
   | "labs"
+  | "teammates"
   | "devices";
 
 type Props = SVGProps<SVGSVGElement> & { kind: SettingsNavIconKind };
@@ -46,6 +48,12 @@ export function SettingsNavIcon({ kind, className = "", ...props }: Props) {
         <>
           <circle cx="16" cy="16" r="11" />
           <path d="m21 11-3 7-7 3 3-7Z" />
+        </>
+      )}
+      {kind === "terminal-commands" && (
+        <>
+          <path d="M4 7h24v18H4z" />
+          <path d="m9 13 4 3-4 3M16 20h6" />
         </>
       )}
       {kind === "maintenance" && (
@@ -124,6 +132,14 @@ export function SettingsNavIcon({ kind, className = "", ...props }: Props) {
           <circle cx="16" cy="16" r="12" />
           <path d="M16 14v7m-2 0h4" />
           <circle cx="16" cy="10" r="0.8" fill="currentColor" stroke="none" />
+        </>
+      )}
+      {kind === "teammates" && (
+        <>
+          <circle cx="12" cy="11" r="4.5" />
+          <path d="M4 26v-1.5A6.5 6.5 0 0 1 10.5 18h3a6.5 6.5 0 0 1 6.5 6.5V26" />
+          <circle cx="23" cy="12.5" r="3.5" />
+          <path d="M22 18.2a5.5 5.5 0 0 1 6 5.3V26h-5" />
         </>
       )}
       {kind === "labs" && (

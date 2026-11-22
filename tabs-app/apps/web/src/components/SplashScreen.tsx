@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { cn } from "../lib/cn";
-import { TabsStroll } from "./TabsMascot";
+import { MascotMotion } from "./mascot-motion/MascotMotion";
 import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
@@ -93,13 +93,16 @@ function RotatingLabel({
   );
 }
 
+/** The Halftone lockup; it reports its own landing, so the app reveals right after. */
 function MascotLoader({
   palette,
   isDark,
   fonts,
+  onIntroComplete,
 }: {
   palette: "block" | "mono";
   isDark: boolean;
+  onIntroComplete?: (() => void) | undefined;
   fonts?:
     | {
         headingFont?: string | undefined;
@@ -109,21 +112,25 @@ function MascotLoader({
     | undefined;
 }) {
   const isBlock = palette === "block";
+  const ink = isBlock ? "#ffffff" : isDark ? "#ffffff" : "#0a0a0a";
+  const paper = isBlock ? "#2563eb" : isDark ? "#09090b" : "#ffffff";
+  const muted = isBlock ? "text-white/75" : isDark ? "text-[#a1a1aa]" : "text-[#71717a]";
   return (
-    <div className="relative z-10 flex min-h-[300px] w-full items-center justify-center p-6 loader-respect-motion">
-      <div className="relative flex w-full flex-col items-center justify-center gap-[18px]">
-        <TabsStroll
-          ink={isBlock ? "#ffffff" : isDark ? "#ffffff" : "#0a0a0a"}
-          paper={isBlock ? "#2563eb" : isDark ? "#09090b" : "#ffffff"}
+    <div className="relative z-10 flex min-h-[300px] w-full items-center justify-center p-6">
+      <div className="relative flex w-full flex-col items-center justify-center gap-7">
+        <MascotMotion
+          mode="intro"
+          ink={ink}
+          paper={paper}
+          meta
+          metaFont={fonts?.uiFont}
+          onDone={onIntroComplete}
         />
         <RotatingLabel
-          // Held back until the gag ends, so only slow loads see it (see tabs-mascot.css).
+          // Held back so only slow loads see it (see mascot-motion.css).
           messages={MASCOT_MESSAGES}
           uiFont={fonts?.uiFont}
-          className={cn(
-            "mascot-status",
-            isBlock ? "text-white/75" : isDark ? "text-[#a1a1aa]" : "text-[#71717a]",
-          )}
+          className={cn("mm-status", muted)}
         />
       </div>
     </div>
@@ -332,7 +339,12 @@ export function SplashScreen({
           onSettled={onIntroComplete}
         />
       ) : (
-        <MascotLoader palette={palette as any} isDark={isDark} fonts={fonts} />
+        <MascotLoader
+          palette={palette as any}
+          isDark={isDark}
+          fonts={fonts}
+          onIntroComplete={onIntroComplete}
+        />
       )}
     </div>
   );

@@ -60,6 +60,7 @@ import {
   ResourceMonitorHeaderSection,
   safeIsoString,
 } from "./ResourceTelemetryDiagnostics";
+import { Details, Summary } from "../ui/disclosure";
 
 export type DiagnosticsTabId =
   | "overview"
@@ -1259,14 +1260,14 @@ export function DiagnosticsSettings() {
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
                     {resourceAssessment.summary}
                   </p>
-                  <details className="mt-2 text-xs">
-                    <summary className="cursor-pointer">Details</summary>
+                  <Details className="mt-2 text-xs">
+                    <Summary className="cursor-pointer">Details</Summary>
                     <ul className="mt-2 space-y-1 text-[11.5px] opacity-80 list-disc list-inside">
                       {resourceAssessment.details.map((detail, idx) => (
                         <li key={idx}>{detail}</li>
                       ))}
                     </ul>
-                  </details>
+                  </Details>
                 </div>
               </div>
               <button
@@ -1301,10 +1302,10 @@ export function DiagnosticsSettings() {
               onQuickCheck={handleQuickResourceCheck}
             />
 
-            <details className="diagnostics-details">
-              <summary>
+            <Details className="diagnostics-details">
+              <Summary>
                 Collector & host details <span>Sampling, power & monitor status</span>
-              </summary>
+              </Summary>
               {/* Section 1: Resource monitor header section */}
               <ResourceMonitorHeaderSection
                 snapshot={telemetry}
@@ -1318,23 +1319,23 @@ export function DiagnosticsSettings() {
                 isRetrying={loading}
                 onRetry={() => void handleRetrySidecar()}
               />
-            </details>
-            <details className="diagnostics-details">
-              <summary>
+            </Details>
+            <Details className="diagnostics-details">
+              <Summary>
                 Slow interactions <span>Renderer responsiveness</span>
-              </summary>
+              </Summary>
               <RendererResponsivenessDiagnostics />
-            </details>
-            <details className="diagnostics-details">
-              <summary>
+            </Details>
+            <Details className="diagnostics-details">
+              <Summary>
                 Export <span>Send traces, metrics and logs to a collector</span>
-              </summary>
+              </Summary>
               <ObservabilityExportSettings />
-            </details>
-            <details className="diagnostics-details">
-              <summary>
+            </Details>
+            <Details className="diagnostics-details">
+              <Summary>
                 Background activity <span>Power & polling preferences</span>
-              </summary>
+              </Summary>
               {/* Background Activity Profile Settings */}
               <SettingsSection
                 title="Background activity"
@@ -1363,7 +1364,7 @@ export function DiagnosticsSettings() {
                   }
                 />
               </SettingsSection>
-            </details>
+            </Details>
           </div>
         ) : null}
 
@@ -1620,8 +1621,8 @@ export function DiagnosticsSettings() {
             </SettingsSection>
 
             {/* Latest Failures Table with Expandable Full Error Stack */}
-            <details className="diagnostics-details">
-              <summary>Latest Failures</summary>
+            <Details className="diagnostics-details">
+              <Summary>Latest Failures</Summary>
               <SettingsSection title="Latest Failures">
                 {traces && traces.latestFailures.length > 0 ? (
                   <DiagnosticsTable headers={["Span", "Cause", "Duration", "Ended"]}>
@@ -1646,11 +1647,11 @@ export function DiagnosticsSettings() {
                   <EmptyRows label={loading ? "Loading failures..." : "No failed spans found."} />
                 )}
               </SettingsSection>
-            </details>
+            </Details>
 
             {/* Most Common Failures */}
-            <details className="diagnostics-details">
-              <summary>Most Common Failures</summary>
+            <Details className="diagnostics-details">
+              <Summary>Most Common Failures</Summary>
               <SettingsSection title="Most Common Failures">
                 {traces && traces.commonFailures.length > 0 ? (
                   <DiagnosticsTable
@@ -1680,11 +1681,11 @@ export function DiagnosticsSettings() {
                   />
                 )}
               </SettingsSection>
-            </details>
+            </Details>
 
             {/* Slowest Spans */}
-            <details className="diagnostics-details">
-              <summary>Slowest Spans</summary>
+            <Details className="diagnostics-details">
+              <Summary>Slowest Spans</Summary>
               <SettingsSection title="Slowest Spans">
                 {traces && traces.slowestSpans.length > 0 ? (
                   <DiagnosticsTable
@@ -1713,11 +1714,11 @@ export function DiagnosticsSettings() {
                   <EmptyRows label={loading ? "Loading slow spans..." : "No slow spans found."} />
                 )}
               </SettingsSection>
-            </details>
+            </Details>
 
             {/* Top Span Names */}
-            <details className="diagnostics-details">
-              <summary>Top Span Names</summary>
+            <Details className="diagnostics-details">
+              <Summary>Top Span Names</Summary>
               <SettingsSection title="Top Span Names">
                 {traces && traces.topSpansByCount.length > 0 ? (
                   <DiagnosticsTable headers={["Span", "Count", "Failures", "Average Duration"]}>
@@ -1747,7 +1748,7 @@ export function DiagnosticsSettings() {
                   <EmptyRows label={loading ? "Loading span counts..." : "No spans recorded."} />
                 )}
               </SettingsSection>
-            </details>
+            </Details>
           </div>
         ) : null}
       </div>

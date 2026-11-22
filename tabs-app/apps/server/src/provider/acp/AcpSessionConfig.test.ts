@@ -50,6 +50,7 @@ describe("acpProviderOptionDescriptors", () => {
           { id: "medium", label: "Medium", description: "Balanced" },
         ],
         currentValue: "medium",
+        role: "reasoning",
       },
     ]);
   });
@@ -259,5 +260,31 @@ describe("acpProviderOptionDescriptors", () => {
     });
 
     expect(descriptors.map((descriptor) => descriptor.id)).toEqual(["mode"]);
+  });
+});
+
+describe("acpProviderOptionDescriptors reasoning role", () => {
+  const select = (id: string, category: string) =>
+    ({
+      id,
+      name: id,
+      category,
+      type: "select",
+      currentValue: "high",
+      options: [
+        { value: "low", name: "Low" },
+        { value: "high", name: "High" },
+      ],
+    }) as const;
+
+  it("marks only thought_level options as the reasoning control, whatever their id", () => {
+    const descriptors = acpProviderOptionDescriptors({
+      configOptions: [select("thought_level", "thought_level"), select("tone", "other")],
+      modeState: undefined,
+    });
+    expect(descriptors.map((d) => [d.id, d.type === "select" ? d.role : undefined])).toEqual([
+      ["thought_level", "reasoning"],
+      ["tone", undefined],
+    ]);
   });
 });

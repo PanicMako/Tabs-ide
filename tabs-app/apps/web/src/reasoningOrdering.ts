@@ -1,4 +1,5 @@
 import type { ProviderOptionChoice, ProviderOptionDescriptor } from "@tabs/contracts";
+import { isReasoningSelectDescriptor } from "@tabs/shared/model";
 
 export const REASONING_LEVEL_RANKS: Readonly<Record<string, number>> = {
   none: 0,
@@ -73,16 +74,7 @@ export function collectReasoningChoices(
   let hasAnyReasoningDescriptor = false;
 
   for (const descriptors of descriptorSets) {
-    const primary = descriptors.find(
-      (d) =>
-        d.id === "reasoningEffort" ||
-        d.id === "effort" ||
-        d.id === "reasoning" ||
-        d.id === "variant" ||
-        d.id.toLowerCase().includes("effort") ||
-        d.id.toLowerCase().includes("reasoning") ||
-        d.id.toLowerCase().includes("variant"),
-    );
+    const primary = descriptors.find(isReasoningSelectDescriptor);
 
     if (
       primary &&

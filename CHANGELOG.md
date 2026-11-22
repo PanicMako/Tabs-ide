@@ -2,6 +2,33 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.9.0] - 2026-11-22
+
+### Meet Notch, your AI teammate, plus session search, worktree cleanup and computer use
+
+Tabs 2.9.0 adds Notch, an optional AI teammate that hands code work to normal Tabs threads and tracks it for you. It also adds search across your past agent sessions, evidence-based worktree cleanup, terminal quick commands, optional computer use for agents, and a new set of themed menus, dropdowns and scrollbars.
+
+### What changed
+
+- **Notch, your AI teammate**: Turn on Settings → Labs → Teammates and a teammate named Notch is created. Rename it, or add more teammates, each with its own personality, memory, model and schedule. Manage them in Settings → Teammates.
+- **Workers and a Teammates space**: Ask a teammate for code work and it starts a worker, a normal Tabs thread in its own worktree, then tracks it as to do, working, needs you, done or dropped. The Teammates space holds the chat and the item list.
+- **Up next suggestions**: A teammate can look around your projects on a schedule, read-only, and post suggestions. Start one to turn it into a worker, or dismiss it. Look around now runs it on demand.
+- **Memory and soul**: Each teammate keeps a SOUL.md and a MEMORY.md that you can read and edit, and you can forget individual memories. Everything stays on your machine and uses your own agent subscriptions.
+- **Notch avatar**: The teammate appears as the Tabs mascot that you can drag anywhere in the window. It shows idle, thinking, working, waiting for you, happy, upset or asleep, and you can hide it.
+- **Session search**: Search past Claude Code, Codex, Gemini and OpenCode sessions on this machine from the Command Palette or Quick Actions, filtered by agent, folder or date. Enter resumes the session in a terminal, and Cmd/Ctrl Enter copies the resume command. It is off until you turn on Settings → Labs → Session search, and nothing is uploaded.
+- **Worktree cleanup**: In Settings → Workspace Maintenance, see each old agent worktree with its last activity, size, uncommitted files, unpushed commits and pull request state. Tabs removes only what you select, after a confirmation, and keeps worktrees with unsaved or unpushed work unless you relax the rules.
+- **Terminal quick commands**: Save commands in Settings → Terminal Commands, optionally per project and with or without a trailing Enter, then run them in your active terminal from the terminal toolbar, the Command Palette or Quick Actions.
+- **Computer use for agents**: Let an agent read and control native desktop apps through accessibility, with snapshots, clicks, typing, scrolling, drags and window screenshots. It is off by default, only full-access threads can use it, and agents cannot type into password fields. Turn it on in Settings → Labs → Computer use and use Check permissions to see what is missing.
+- **Themed controls**: Dropdowns, menus and scrollbars now follow your theme instead of using the system look, including the right-click and spellcheck menus.
+- **Settings navigation**: The Settings sidebar is regrouped so every page fits without scrolling.
+- **Antigravity Gemini 3.8 Flash**: The thinking level you pick now takes effect and shows as level dots in the model picker.
+- **Startup and close animation**: The splash and close screens now show the Tabs mascot and wordmark drawn as a dot pattern that prints in on startup and breaks apart on close, replacing the previous walking and bedtime animations. Animations settings now list the animation typeface as a simple list.
+
+### Upgrade notes
+
+- Notch, Session search and Computer use are Labs features and stay off until you turn them on.
+- On macOS, computer use needs Tabs allowed under System Settings → Privacy & Security → Accessibility, plus Screen Recording for screenshots. On Windows it needs PowerShell, and on Linux it needs python3 with AT-SPI and xdotool.
+
 ## [v2.8.1] - 2026-11-20
 
 ### Tabs opens in seconds again, and you can arrange providers and favorite models

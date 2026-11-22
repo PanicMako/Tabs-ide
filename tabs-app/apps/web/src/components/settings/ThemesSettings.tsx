@@ -62,6 +62,7 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Slider } from "../ui/slider";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
 import { CustomThemeStudioModal } from "../CustomThemeStudioModal";
@@ -1125,8 +1126,7 @@ export function ThemesSettings() {
                         px
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <Slider
                       min={MIN_INTERFACE_FONT_SIZE}
                       max={MAX_INTERFACE_FONT_SIZE}
                       step={1}
@@ -1135,19 +1135,17 @@ export function ThemesSettings() {
                         settings.fontSizeInterface ??
                         DEFAULT_INTERFACE_FONT_SIZE
                       }
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                      onValueChange={(val) => {
                         setFontPreferences((prev) => ({
                           ...prev,
                           fontSizeInterface: val,
                         }));
                         debouncedSettings.updateSettings({ fontSizeInterface: val });
                       }}
-                      onBlur={() => {
+                      onValueCommitted={() => {
                         void debouncedSettings.flush();
                       }}
                       aria-label="Interface font size slider"
-                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
                       <span>{MIN_INTERFACE_FONT_SIZE}px</span>
@@ -1173,8 +1171,7 @@ export function ThemesSettings() {
                         px
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <Slider
                       min={MIN_CODE_FONT_SIZE}
                       max={MAX_CODE_FONT_SIZE}
                       step={1}
@@ -1183,19 +1180,17 @@ export function ThemesSettings() {
                         settings.fontSizeCode ??
                         DEFAULT_CODE_FONT_SIZE
                       }
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                      onValueChange={(val) => {
                         setFontPreferences((prev) => ({
                           ...prev,
                           fontSizeCode: val,
                         }));
                         debouncedSettings.updateSettings({ fontSizeCode: val });
                       }}
-                      onBlur={() => {
+                      onValueCommitted={() => {
                         void debouncedSettings.flush();
                       }}
                       aria-label="Code font size slider"
-                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
                       <span>{MIN_CODE_FONT_SIZE}px</span>
@@ -1219,8 +1214,7 @@ export function ThemesSettings() {
                         px
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <Slider
                       min={MIN_PROMPT_FONT_SIZE}
                       max={MAX_PROMPT_FONT_SIZE}
                       step={1}
@@ -1229,19 +1223,17 @@ export function ThemesSettings() {
                         settings.fontSizePrompt ??
                         DEFAULT_PROMPT_FONT_SIZE
                       }
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                      onValueChange={(val) => {
                         setFontPreferences((prev) => ({
                           ...prev,
                           fontSizePrompt: val,
                         }));
                         debouncedSettings.updateSettings({ fontSizePrompt: val });
                       }}
-                      onBlur={() => {
+                      onValueCommitted={() => {
                         void debouncedSettings.flush();
                       }}
                       aria-label="Prompt font size slider"
-                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
                       <span>{MIN_PROMPT_FONT_SIZE}px</span>
