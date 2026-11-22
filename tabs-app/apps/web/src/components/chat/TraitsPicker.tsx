@@ -50,7 +50,7 @@ type TraitsPersistence =
 
 const ULTRATHINK_PROMPT_PREFIX = "Ultrathink:\n";
 
-function replaceDescriptorCurrentValue(
+export function replaceDescriptorCurrentValue(
   descriptors: ReadonlyArray<ProviderOptionDescriptor>,
   descriptorId: string,
   currentValue: string | boolean | undefined,
@@ -83,7 +83,7 @@ function getDescriptorStringValue(
 // Capability/descriptor-driven trait derivation. Works for any provider/driver
 // because it reads generic `optionDescriptors` (select + boolean) rather than
 // provider-specific typed option keys.
-function deriveDescriptorTraits(
+export function deriveDescriptorTraits(
   provider: ProviderKind,
   models: ReadonlyArray<ServerProviderModel>,
   model: string | null | undefined,

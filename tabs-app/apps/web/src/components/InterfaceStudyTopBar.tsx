@@ -1,4 +1,5 @@
 import { WorkspaceToolActions } from "./WorkspaceToolActions";
+import { TeammateDock } from "./teammates/TeammateDock";
 import { TabsBrandMark } from "./TabsBrandMark";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -573,6 +574,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
           <SearchIcon className="size-4" />
         </button>
 
+        <TeammateDock />
         {/* Settings gear */}
         <button
           type="button"

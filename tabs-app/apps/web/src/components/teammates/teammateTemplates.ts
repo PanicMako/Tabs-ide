@@ -9,6 +9,8 @@ export interface TeammateTemplate {
   /** The name it starts with. The user can change it. */
   readonly name: string;
   readonly finish: TeammateFinish;
+  /** Which scene the card draws: a backdrop and something the mascot wears or carries. */
+  readonly art: string;
   /** SOUL.md it is created with. */
   readonly soul: string;
   /** Things worth asking it on day one. */
@@ -17,7 +19,12 @@ export interface TeammateTemplate {
   readonly needsProject: boolean;
 }
 
-function soul(name: string, role: string, rules: ReadonlyArray<string>, voice: string): string {
+export function soul(
+  name: string,
+  role: string,
+  rules: ReadonlyArray<string>,
+  voice: string,
+): string {
   return [
     `# ${name}`,
     "",
@@ -44,7 +51,8 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
     title: "Generalist",
     line: "Does small things itself and hands real code work to workers.",
     name: "Notch",
-    finish: "signature",
+    finish: "blue-ink",
+    art: "generalist",
     needsProject: false,
     soul: soul(
       "Notch",
@@ -67,7 +75,8 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
     title: "PR reviewer",
     line: "Reads open pull requests and tells you what is risky before you do.",
     name: "Reviewer",
-    finish: "ivory-ink",
+    finish: "orchid",
+    art: "reviewer",
     needsProject: true,
     soul: soul(
       "Reviewer",
@@ -91,7 +100,8 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
     title: "Bug triager",
     line: "Reproduces reports, finds where a bug starts, and proposes a fix.",
     name: "Triage",
-    finish: "blue-white",
+    finish: "ember",
+    art: "triager",
     needsProject: true,
     soul: soul(
       "Triage",
@@ -114,7 +124,8 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
     title: "Release captain",
     line: "Keeps a release moving: what is in, what is blocked, what to say.",
     name: "Captain",
-    finish: "blue-ink",
+    finish: "brass",
+    art: "captain",
     needsProject: true,
     soul: soul(
       "Captain",
@@ -138,7 +149,8 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
     title: "Docs keeper",
     line: "Notices when docs drift from the code and keeps them honest.",
     name: "Keeper",
-    finish: "mono",
+    finish: "tide",
+    art: "docs",
     needsProject: true,
     soul: soul(
       "Keeper",
@@ -158,8 +170,56 @@ export const TEAMMATE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
   },
 ];
 
+export const CUSTOM_TEMPLATE_ID = "custom";
+
+/** The blank card at the end: its emblem and purpose are chosen in the form. */
+export const CUSTOM_TEMPLATE: TeammateTemplate = {
+  id: CUSTOM_TEMPLATE_ID,
+  title: "Custom",
+  line: "Start blank. Choose an emblem and say what it is for.",
+  name: "Sidekick",
+  finish: "graphite",
+  art: "custom",
+  needsProject: false,
+  soul: soul(
+    "Sidekick",
+    "You are a capable teammate who helps the owner with whatever they ask.",
+    [
+      "Answer small questions yourself. Hand real code work to a worker and track it as an item.",
+      "Say plainly what you are doing and what is waiting on the owner.",
+    ],
+    "Short, warm, specific. Lead with the answer, then the detail.",
+  ),
+  asks: [
+    "What can you help me with?",
+    "What should I be working on today?",
+    "Summarise what changed in my projects this week.",
+  ],
+};
+
+/** Every card on the stage, in order: the starters, then the blank one. */
+export const STAGE_TEMPLATES: ReadonlyArray<TeammateTemplate> = [
+  ...TEAMMATE_TEMPLATES,
+  CUSTOM_TEMPLATE,
+];
+
 export function templateById(id: string): TeammateTemplate {
-  return TEAMMATE_TEMPLATES.find((template) => template.id === id) ?? TEAMMATE_TEMPLATES[0]!;
+  return STAGE_TEMPLATES.find((template) => template.id === id) ?? TEAMMATE_TEMPLATES[0]!;
+}
+
+/** The soul a new teammate starts with. A custom one is built around what the owner says it is for. */
+export function startingSoul(template: TeammateTemplate, name: string, purpose: string): string {
+  if (template.id !== CUSTOM_TEMPLATE_ID || purpose.trim() === "")
+    return template.soul.replace(/^# .*/m, `# ${name}`);
+  return soul(
+    name,
+    `You are ${name}. Your job: ${purpose.trim().replace(/\.$/, "")}.`,
+    [
+      "Stay on that job. Answer small questions yourself and hand real code work to a worker.",
+      "Say plainly what you are doing and what is waiting on the owner.",
+    ],
+    "Short, warm, specific. Lead with the answer, then the detail.",
+  );
 }
 
 const NAME_POOL = [

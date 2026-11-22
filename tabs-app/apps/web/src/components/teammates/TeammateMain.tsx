@@ -190,7 +190,7 @@ export function TeammateMain({ teammate }: { teammate: Teammate }) {
           onOpenChat={() => void openChat()}
         />
       </div>
-      <div role="tablist" aria-label={`${teammate.name} sections`} className="flex gap-1 px-7 pb-2">
+      <div role="tablist" aria-label={`${teammate.name} sections`} className="tm-tabs">
         {SECTIONS.map((item) => (
           <button
             key={item.id}
@@ -207,7 +207,7 @@ export function TeammateMain({ teammate }: { teammate: Teammate }) {
           </button>
         ))}
       </div>
-      <ScrollArea scrollFade className="min-h-0 flex-1 border-t border-border/60">
+      <ScrollArea scrollFade className="min-h-0 flex-1">
         <MotionEnter key={section} className="flex flex-col gap-6 px-8 py-6">
           {section === "now" ? (
             <>

@@ -378,6 +378,8 @@ import {
   TeammatesOpenHomeInput,
   TeammatesOpenHomeResult,
   TeammatesSnapshot,
+  TeammatesProfileGenerateInput,
+  TeammatesProfileGenerateResult,
   TeammatesSoulGetInput,
   TeammatesSoulGetResult,
   TeammatesSoulSetInput,
@@ -589,6 +591,7 @@ export const WS_METHODS = {
   teammatesLookAroundNow: "teammates.lookAroundNow",
   teammatesSoulGet: "teammates.soul.get",
   teammatesSoulSet: "teammates.soul.set",
+  teammatesProfileGenerate: "teammates.profile.generate",
 
   // Cross-agent session search
   sessionSearchQuery: "sessionSearch.query",
@@ -2093,6 +2096,12 @@ const WsTeammatesSoulSetRpc = Rpc.make(WS_METHODS.teammatesSoulSet, {
   error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
 });
 
+const WsTeammatesProfileGenerateRpc = Rpc.make(WS_METHODS.teammatesProfileGenerate, {
+  payload: TeammatesProfileGenerateInput,
+  success: TeammatesProfileGenerateResult,
+  error: Schema.Union([TeammateError, EnvironmentAuthorizationError]),
+});
+
 const WsSecretsAnswerRequestRpc = Rpc.make(WS_METHODS.secretsAnswerRequest, {
   payload: SecretRequestAnswerInput,
   error: Schema.Union([SecretRequestError, EnvironmentAuthorizationError]),
@@ -2378,6 +2387,7 @@ export const TeammatesRpcGroup = RpcGroup.make(
   WsTeammatesMemoryForgetRpc,
   WsTeammatesLookAroundNowRpc,
   WsTeammatesSoulGetRpc,
+  WsTeammatesProfileGenerateRpc,
   WsTeammatesSoulSetRpc,
 ).middleware(RpcScopeAuthorization);
 export const WsRpcGroup = CoreWsRpcGroup.merge(

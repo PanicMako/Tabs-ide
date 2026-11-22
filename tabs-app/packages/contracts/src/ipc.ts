@@ -91,6 +91,8 @@ import type {
   TeammatesOpenHomeInput,
   TeammatesOpenHomeResult,
   TeammatesSnapshot,
+  TeammatesProfileGenerateInput,
+  TeammatesProfileGenerateResult,
   TeammatesSoulGetInput,
   TeammatesSoulGetResult,
   TeammatesSoulSetInput,
@@ -1952,6 +1954,9 @@ export interface EnvironmentApi {
     lookAroundNow: (input: TeammatesLookAroundNowInput) => Promise<TeammatesLookAroundNowResult>;
     getSoul: (input: TeammatesSoulGetInput) => Promise<TeammatesSoulGetResult>;
     setSoul: (input: TeammatesSoulSetInput) => Promise<TeammatesSoulSetResult>;
+    generateProfile: (
+      input: TeammatesProfileGenerateInput,
+    ) => Promise<TeammatesProfileGenerateResult>;
   };
   terminal: {
     open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;

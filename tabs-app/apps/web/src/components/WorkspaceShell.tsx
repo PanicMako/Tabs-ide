@@ -1,4 +1,5 @@
 import { resolveToolbarStyle } from "../lib/toolbarStyles";
+import { TeammateDock } from "./teammates/TeammateDock";
 import { overmindDisplayTitle } from "@tabs/shared/overmind";
 import { buildThreadTree, markActiveThreadPath, splitSidebarHelpers } from "../lib/threadTree";
 import {
@@ -1360,6 +1361,7 @@ function ProjectTabs(props: {
       {props.showSettings ? (
         <div className="no-drag mb-1 flex shrink-0 items-center gap-1">
           <div id="project-toolbar-extra-controls" className="flex items-center empty:hidden" />
+          <TeammateDock />
           <TitlebarNotificationBell
             {...(props.onOpenSettings ? { onOpenSettings: props.onOpenSettings } : {})}
           />
@@ -1520,6 +1522,7 @@ function ProjectToolBar(props: {
       </div>
       <div className="flex items-center gap-2">
         <div id="project-toolbar-extra-controls" className="flex items-center empty:hidden" />
+        <TeammateDock />
         <Button
           type="button"
           variant="ghost"

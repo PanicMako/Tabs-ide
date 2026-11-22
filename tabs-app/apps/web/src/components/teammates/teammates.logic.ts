@@ -224,7 +224,20 @@ export const FINISH_OPTIONS: ReadonlyArray<{ id: TeammateFinish; name: string }>
   { id: "mono", name: "Carbon Copy" },
   { id: "ivory-ink", name: "Moonstone" },
   { id: "blue-ink", name: "Afterglow" },
+  { id: "ember", name: "Ember" },
+  { id: "brass", name: "Brass" },
+  { id: "moss", name: "Moss" },
+  { id: "tide", name: "Tide" },
+  { id: "orchid", name: "Orchid" },
+  { id: "rose", name: "Rosewood" },
+  { id: "graphite", name: "Graphite" },
+  { id: "sand", name: "Dune" },
 ];
+
+/** The name of a finish; a colour picked on the dial is just "Custom". */
+export function finishName(finish: TeammateFinish): string {
+  return FINISH_OPTIONS.find((option) => option.id === finish)?.name ?? "Custom";
+}
 
 export const LOOK_AROUND_PRESET_LABELS: Record<TeammateLookAroundPreset, string> = {
   every4h: "Every 4 hours",
@@ -338,4 +351,56 @@ export function uniqueTeammateName(
     const candidate = `${base} ${n}`;
     if (!taken.has(candidate.toLowerCase())) return candidate;
   }
+}
+
+/** Plain words for where a remembered fact came from. */
+export function memorySourceLabel(source: string): string {
+  switch (source) {
+    case "owner":
+      return "You told it";
+    case "teammate":
+      return "It noticed";
+    case "look-around":
+      return "From looking around";
+    default:
+      return source;
+  }
+}
+
+interface MemoryFactLike {
+  readonly text: string;
+  readonly topic: string | null;
+  readonly source: string;
+}
+
+/** Facts whose text, topic or source contain the query (case-insensitive). Empty query keeps all. */
+export function filterMemoryFacts<T extends MemoryFactLike>(
+  facts: ReadonlyArray<T>,
+  query: string,
+): ReadonlyArray<T> {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return facts;
+  return facts.filter((fact) =>
+    [fact.text, fact.topic ?? "", memorySourceLabel(fact.source)].some((part) =>
+      part.toLowerCase().includes(needle),
+    ),
+  );
+}
+
+/** Facts grouped by topic in first-seen order, with topic-less facts last under a null topic. */
+export function groupMemoryFacts<T extends MemoryFactLike>(
+  facts: ReadonlyArray<T>,
+): ReadonlyArray<{ topic: string | null; facts: ReadonlyArray<T> }> {
+  const byTopic = new Map<string, T[]>();
+  const loose: T[] = [];
+  for (const fact of facts) {
+    const topic = fact.topic?.trim();
+    if (!topic) loose.push(fact);
+    else byTopic.set(topic, [...(byTopic.get(topic) ?? []), fact]);
+  }
+  const groups: Array<{ topic: string | null; facts: ReadonlyArray<T> }> = [...byTopic].map(
+    ([topic, grouped]) => ({ topic, facts: grouped }),
+  );
+  if (loose.length > 0) groups.push({ topic: null, facts: loose });
+  return groups;
 }

@@ -887,6 +887,7 @@ export function createWsNativeApi(options?: {
       lookAroundNow: (input) => transport.request(WS_METHODS.teammatesLookAroundNow, input),
       getSoul: (input) => transport.request(WS_METHODS.teammatesSoulGet, input),
       setSoul: (input) => transport.request(WS_METHODS.teammatesSoulSet, input),
+      generateProfile: (input) => transport.request(WS_METHODS.teammatesProfileGenerate, input),
     },
     scheduledTasks: {
       list: () => transport.request(WS_METHODS.scheduledTasksList, {}),

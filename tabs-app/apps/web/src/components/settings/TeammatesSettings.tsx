@@ -67,11 +67,11 @@ export default function TeammatesSettings() {
         {enabled ? (
           <>
             <SettingsRow
-              title="Show the corner avatar"
-              description="A small avatar you can drag anywhere in the window. Hover it for a quick ask, click it to open Teammates."
+              title="Show the floating avatar"
+              description="Off by default: your teammate sits in the top bar beside Settings as a pair of eyes. Turn this on for a small avatar you can drag anywhere in the window."
               control={
                 <Switch
-                  aria-label="Show the corner avatar"
+                  aria-label="Show the floating avatar"
                   checked={!cornerHidden}
                   onCheckedChange={(checked) => setCornerHidden(!checked)}
                 />

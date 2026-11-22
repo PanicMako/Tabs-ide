@@ -33,14 +33,29 @@ export const TEAMMATE_DEFAULT_NAME = "Notch";
 
 const TeammateName = TrimmedNonEmptyString.check(Schema.isMaxLength(TEAMMATE_NAME_MAX_LENGTH));
 
-/** The brand logo variant ids (`TabsLogoVariant` in `@tabs/shared/tabsBrand`). */
-export const TeammateFinish = Schema.Literals([
+/**
+ * A teammate's colour treatment of the mascot. The first five are the brand logo variants
+ * (`TabsLogoVariant` in `@tabs/shared/tabsBrand`); the rest are teammate-only finishes.
+ */
+export const TeammatePresetFinish = Schema.Literals([
   "signature",
   "blue-white",
   "mono",
   "ivory-ink",
   "blue-ink",
+  "ember",
+  "brass",
+  "moss",
+  "tide",
+  "orchid",
+  "rose",
+  "graphite",
+  "sand",
 ]);
+/** A finish picked on the colour dial: `hue-` and the hue in degrees, e.g. `hue-212`. */
+export const TeammateCustomFinish = Schema.TemplateLiteral(["hue-", Schema.Number]);
+export type TeammateCustomFinish = typeof TeammateCustomFinish.Type;
+export const TeammateFinish = Schema.Union([TeammatePresetFinish, TeammateCustomFinish]);
 export type TeammateFinish = typeof TeammateFinish.Type;
 export const DEFAULT_TEAMMATE_FINISH: TeammateFinish = "signature";
 
@@ -347,5 +362,19 @@ export const TeammatesSoulSetInput = Schema.Struct({
   soul: Schema.String.check(Schema.isMaxLength(TEAMMATE_SOUL_MAX_LENGTH)),
 });
 export type TeammatesSoulSetInput = typeof TeammatesSoulSetInput.Type;
+/** Ask the writing model to draft a new teammate from what the owner says it is for. */
+export const TeammatesProfileGenerateInput = Schema.Struct({
+  name: TeammateName,
+  purpose: TrimmedNonEmptyString.check(Schema.isMaxLength(500)),
+  /** The model to write with; the server's writing model when omitted. */
+  modelSelection: Schema.optional(Schema.NullOr(ModelSelection)),
+});
+export type TeammatesProfileGenerateInput = typeof TeammatesProfileGenerateInput.Type;
+export const TeammatesProfileGenerateResult = Schema.Struct({
+  soul: Schema.String.check(Schema.isMaxLength(TEAMMATE_SOUL_MAX_LENGTH)),
+  /** What it should pay attention to when it looks around; fills the look-around focus. */
+  focus: Schema.String.check(Schema.isMaxLength(2_000)),
+});
+export type TeammatesProfileGenerateResult = typeof TeammatesProfileGenerateResult.Type;
 export const TeammatesSoulSetResult = TeammatesSoulGetResult;
 export type TeammatesSoulSetResult = typeof TeammatesSoulSetResult.Type;

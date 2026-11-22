@@ -301,6 +301,7 @@ describe("the Teammates space", () => {
     openSpace();
     const view = await mount(<TeammatesPanel />);
     await page.getByRole("tab", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Change finish" }).click();
     await page.getByRole("radio", { name: "Moonstone" }).click();
     await expect.poll(() => fake.api.update.mock.calls.length).toBe(1);
     expect(fake.api.update).toHaveBeenLastCalledWith({
@@ -317,6 +318,51 @@ describe("the Teammates space", () => {
     await page.getByRole("button", { name: "Delete…" }).click();
     await page.getByRole("button", { name: "Confirm" }).click();
     await expect.poll(() => fake.api.delete.mock.calls.length).toBe(1);
+    await view.unmount();
+  });
+
+  it("writes a custom teammate from what it is for, then creates it", async () => {
+    const fake = seed();
+    openSpace();
+    const view = await mount(<TeammatesPanel />);
+    await page.getByRole("button", { name: "New teammate", exact: true }).first().click();
+    for (let step = 0; step < 5; step += 1)
+      await page.getByRole("button", { name: "Next starting point" }).click();
+    await expect
+      .element(page.getByRole("radio", { name: /^Custom\. Start blank/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await page.getByRole("textbox", { name: "What is it for?" }).fill("keeps our changelog honest");
+    await page.getByRole("button", { name: /Write and create/ }).click();
+    await expect.poll(() => fake.api.generateProfile.mock.calls.length).toBe(1);
+    expect(fake.api.generateProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purpose: "keeps our changelog honest" }),
+    );
+    await expect.poll(() => fake.api.create.mock.calls.length).toBe(1);
+    expect(fake.api.create.mock.calls[0]![0]).toMatchObject({
+      soul: expect.stringContaining("keeps our changelog honest"),
+    });
+    await expect.poll(() => fake.api.update.mock.calls.length).toBe(1);
+    expect(fake.api.update).toHaveBeenLastCalledWith({
+      id: expect.any(String),
+      patch: { lookAround: { focus: "Anything about keeps our changelog honest." } },
+    });
+    await view.unmount();
+  });
+
+  it("renames a teammate from its Settings", async () => {
+    const fake = seed();
+    openSpace();
+    const view = await mount(<TeammatesPanel />);
+    await page.getByRole("tab", { name: "Settings" }).click();
+    const field = page.getByRole("textbox", { name: "Rename teammate" });
+    await expect.element(field).toHaveValue("Notch");
+    await field.fill("Juno");
+    await field.element().blur();
+    await expect.poll(() => fake.api.update.mock.calls.length).toBe(1);
+    expect(fake.api.update).toHaveBeenLastCalledWith({
+      id: "tm-notch",
+      patch: { name: "Juno" },
+    });
     await view.unmount();
   });
 

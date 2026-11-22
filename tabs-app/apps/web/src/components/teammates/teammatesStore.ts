@@ -48,7 +48,9 @@ export const useTeammatesUiStore = create<TeammatesUiState>()(
     (set) => ({
       activeTeammateId: null,
       pinnedTeammateId: null,
-      cornerHidden: false,
+      // Minimised by default: the teammate lives in the top bar as a pair of eyes until you bring
+      // its floating avatar out.
+      cornerHidden: true,
       introSeen: false,
       panelOpen: false,
       spaceMode: "teammate",
@@ -67,6 +69,10 @@ export const useTeammatesUiStore = create<TeammatesUiState>()(
     }),
     {
       name: "tabs_teammates_ui_v1",
+      // v2: everyone starts minimised in the top bar, including those who had the avatar floating.
+      version: 2,
+      migrate: (persisted, version) =>
+        version < 2 ? { ...(persisted as object), cornerHidden: true } : persisted,
       storage: createJSONStorage(() => safeStorage),
       partialize: ({ activeTeammateId, pinnedTeammateId, cornerHidden, introSeen }) => ({
         activeTeammateId,
@@ -92,3 +98,9 @@ export function openNewTeammate() {
   state.setSpaceMode("new");
   state.setPanelOpen(true);
 }
+
+/**
+ * Where the docked icon was when it was clicked, so the avatar can fly out from there. A plain
+ * value, not state: the avatar reads it once as it mounts and clears it.
+ */
+export const dockFlight: { from: { x: number; y: number } | null } = { from: null };

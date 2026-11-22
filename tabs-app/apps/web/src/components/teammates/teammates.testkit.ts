@@ -215,6 +215,10 @@ export function createFakeTeammatesApi(initial: Partial<TeammatesSnapshot> = {})
       souls.set(input.id, input.soul);
       return input;
     }),
+    generateProfile: vi.fn(async (input: { name: string; purpose: string }) => ({
+      soul: `# ${input.name}\n\nYou keep this honest: ${input.purpose}.\n`,
+      focus: `Anything about ${input.purpose}.`,
+    })),
   };
   const dispatchCommand = vi.fn(async (_command: Record<string, unknown>) => ({}));
   const fake = {

@@ -25,21 +25,25 @@ function Lane({
   title,
   count,
   hint,
+  emphasis = false,
   children,
 }: {
   title: string;
   count?: number;
   hint?: string;
+  emphasis?: boolean;
   children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-2.5" aria-label={title}>
-      <div className="flex items-baseline gap-2">
+      <div className="tm-lane-head">
         <h3 className="tm-section-title">{title}</h3>
         {count !== undefined ? <span className="tm-meta">{count}</span> : null}
         {hint ? <span className="tm-meta">{hint}</span> : null}
       </div>
-      <ul className="flex flex-col gap-2">{children}</ul>
+      <ul className="tm-group" data-emphasis={emphasis}>
+        {children}
+      </ul>
     </section>
   );
 }
@@ -54,10 +58,12 @@ function NeedsYouRow({ item, onOpenChat }: { item: TeammateItem; onOpenChat: () 
   const navigate = useNavigate();
   const worker = item.workerThreadIds.at(-1);
   return (
-    <li className="tm-card flex flex-col gap-2">
-      <div className="tm-row-title">{item.title}</div>
-      <div className="tm-supporting text-foreground">
-        {item.question ?? item.detail ?? "It is waiting on you."}
+    <li className="tm-line flex-col !items-stretch gap-3">
+      <div className="tm-line-body">
+        <div className="tm-line-title">{item.title}</div>
+        <div className="tm-supporting text-foreground">
+          {item.question ?? item.detail ?? "It is waiting on you."}
+        </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
         <Button
@@ -84,16 +90,16 @@ function WorkingRow({ item }: { item: TeammateItem }) {
   const latestId = ids.at(-1);
   const latest = latestId ? (states.get(latestId) ?? null) : null;
   return (
-    <li className="tm-card flex items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="tm-row-title">{item.title}</div>
+    <li className="tm-line">
+      <div className="tm-line-body">
+        <div className="tm-line-title">{item.title}</div>
         <div className="tm-supporting flex items-center gap-1.5">
           {latest?.running ? <Spinner className="size-3.5" /> : null}
           {workerStatusLine(latest, ids.length)}
         </div>
         {item.detail ? <div className="tm-supporting line-clamp-2">{item.detail}</div> : null}
       </div>
-      <div className="flex shrink-0 gap-1">
+      <div className="tm-line-actions">
         {latestId ? (
           <Button size="xs" variant="outline" onClick={() => void openThread(latestId, navigate)}>
             Open
@@ -109,12 +115,12 @@ function WorkingRow({ item }: { item: TeammateItem }) {
 
 function TodoRow({ item }: { item: TeammateItem }) {
   return (
-    <li className="tm-card flex items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="tm-row-title">{item.title}</div>
+    <li className="tm-line">
+      <div className="tm-line-body">
+        <div className="tm-line-title">{item.title}</div>
         {item.detail ? <div className="tm-supporting line-clamp-2">{item.detail}</div> : null}
       </div>
-      <div className="flex shrink-0 gap-1">
+      <div className="tm-line-actions">
         <Button size="xs" variant="ghost" onClick={() => void setStatus(item, "done")}>
           Done
         </Button>
@@ -139,15 +145,15 @@ function SuggestionRow({
   const navigate = useNavigate();
   const started = suggestion.status !== "open";
   return (
-    <li className="tm-card flex items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="tm-row-title">{suggestion.title}</div>
+    <li className="tm-line">
+      <div className="tm-line-body">
+        <div className="tm-line-title">{suggestion.title}</div>
         {suggestion.why ? <div className="tm-supporting">{suggestion.why}</div> : null}
       </div>
       {started ? (
         <span className="tm-meta shrink-0 pt-0.5">Started</span>
       ) : (
-        <div className="flex shrink-0 gap-1">
+        <div className="tm-line-actions">
           <Button
             size="xs"
             disabled={busy}
@@ -247,8 +253,22 @@ export function TeammateOverview({
 
   return (
     <>
+      <div className="tm-stats" aria-label="At a glance">
+        <div className="tm-stat" data-quiet={needsYou.length === 0}>
+          <span className="tm-stat-value">{needsYou.length}</span>
+          <span className="tm-meta">Waiting on you</span>
+        </div>
+        <div className="tm-stat" data-quiet={working.length + todo.length === 0}>
+          <span className="tm-stat-value">{working.length + todo.length}</span>
+          <span className="tm-meta">In progress</span>
+        </div>
+        <div className="tm-stat" data-quiet={suggestions.length === 0}>
+          <span className="tm-stat-value">{suggestions.length}</span>
+          <span className="tm-meta">Ideas to review</span>
+        </div>
+      </div>
       {needsYou.length > 0 ? (
-        <Lane title="Needs you" count={needsYou.length}>
+        <Lane title="Needs you" count={needsYou.length} emphasis>
           {needsYou.map((item) => (
             <NeedsYouRow key={item.id} item={item} onOpenChat={onOpenChat} />
           ))}
@@ -267,7 +287,7 @@ export function TeammateOverview({
       {suggestions.length > 0 ? (
         <Lane title="Up next" count={suggestions.length}>
           {projectNotice ? (
-            <li className="tm-supporting flex items-center gap-2" role="alert">
+            <li className="tm-line tm-supporting" data-center="true" role="alert">
               <span>{teammate.name} needs a project to start workers in.</span>
               <Button size="xs" variant="outline" onClick={onGoToSettings}>
                 Choose a project
@@ -330,13 +350,10 @@ export function TeammateOverview({
             <span className="tm-meta ms-1">{finished.length}</span>
           </CollapsibleTrigger>
           <CollapsiblePanel>
-            <ul className="flex flex-col gap-1.5 pt-2.5">
+            <ul className="tm-group mt-2.5">
               {finished.map((item) => (
-                <li
-                  key={item.id}
-                  className="tm-supporting flex items-center justify-between gap-3 px-1"
-                >
-                  <span className="truncate">{item.title}</span>
+                <li key={item.id} className="tm-line" data-center="true">
+                  <span className="tm-supporting truncate">{item.title}</span>
                   <Button
                     size="xs"
                     variant="ghost"

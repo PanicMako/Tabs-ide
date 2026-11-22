@@ -322,7 +322,9 @@ import {
 } from "./chat/ContextWindowMeter.logic";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
-import { AVAILABLE_PROVIDER_OPTIONS, ProviderModelPicker } from "./chat/ProviderModelPicker";
+import { AVAILABLE_PROVIDER_OPTIONS } from "./chat/ProviderModelPicker";
+import { CompactModelPicker } from "./chat/CompactModelPicker";
+import { ModeAccessPicker } from "./chat/ModeAccessPicker";
 import { FusedModelPicker } from "./chat/FusedModelPicker";
 import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
 import { OvermindComposerChip } from "./chat/OvermindComposerChip";
@@ -6115,17 +6117,20 @@ export default function ChatView({
   );
   // A narrow composer (side chat, split panes) takes the compact picker; otherwise the full one.
   const composerModelSlot = isComposerFooterCompact ? (
-    <ProviderModelPicker
-      compact
+    <CompactModelPicker
       provider={selectedProvider}
       model={selectedModelForPickerWithCustomFallback}
       lockedProvider={lockedProvider}
       providers={providerStatuses}
       modelOptionsByProvider={modelOptionsByProvider}
+      modelOptions={composerModelOptions?.[selectedProvider]}
+      prompt={prompt}
+      onPromptChange={setPromptFromTraits}
       {...(composerProviderState.modelPickerIconClassName
         ? { activeProviderIconClassName: composerProviderState.modelPickerIconClassName }
         : {})}
       onProviderModelChange={onProviderModelSelect}
+      onModelOptionsChange={onFusedModelOptionsChange}
     />
   ) : (
     <FusedModelPicker
@@ -6146,6 +6151,15 @@ export default function ChatView({
       runtimeMode={runtimeMode}
       supportedRuntimeModes={activeProviderStatus?.supportedRuntimeModes}
       onChange={(mode) => void handleRuntimeModeChange(mode)}
+    />
+  );
+  const composerModeAccessSlot = (
+    <ModeAccessPicker
+      interactionMode={interactionMode === "plan" ? "plan" : "default"}
+      onToggleInteractionMode={toggleInteractionMode}
+      runtimeMode={runtimeMode}
+      supportedRuntimeModes={activeProviderStatus?.supportedRuntimeModes}
+      onRuntimeModeChange={(mode) => void handleRuntimeModeChange(mode)}
     />
   );
   const claudeAutoCompactTokens = Number(settings.providers?.claudeAgent?.autoCompactWindow);
@@ -6787,6 +6801,7 @@ export default function ChatView({
             </MotionEnter>
           )}
           <ComposerLayout
+            compact={isComposerFooterCompact}
             cardRef={composerCardRef}
             controlsRef={composerFooterRef}
             isDragOver={isDragOverComposer}
@@ -6857,6 +6872,7 @@ export default function ChatView({
               banner: composerBannerSlot,
               model: composerModelSlot,
               runtime: composerRuntimeSlot,
+              modeAccess: composerModeAccessSlot,
               planSidebar: composerPlanSidebarSlot,
               contextMeter: composerContextMeterSlot,
               pendingPanels: composerPendingPanelsSlot,

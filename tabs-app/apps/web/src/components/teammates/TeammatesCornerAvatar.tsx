@@ -1,6 +1,8 @@
 import "./teammates.css";
 import type { Teammate, TeammateFinish, TeammateItem, TeammateMood } from "@tabs/contracts";
 import {
+  Maximize2Icon,
+  MinusIcon,
   EyeOffIcon,
   LayoutGridIcon,
   MessageSquareIcon,
@@ -42,6 +44,8 @@ import {
 } from "../ui/menu";
 import { Popover, PopoverPopup } from "../ui/popover";
 import { NotchAvatar } from "./NotchAvatar";
+import { NotchPlate } from "./NotchPlate";
+import { dockFlight } from "./teammatesStore";
 import { formatBadge, moodLabel } from "./teammates.logic";
 
 export const POSITION_KEY = "tabs:notch-corner-position:v1";
@@ -50,8 +54,8 @@ const SIZE = 56;
 const INSETS: WindowInsets = { left: 16, right: 16, top: 52, bottom: 16 };
 const NUDGE = 16;
 const NUDGE_FAST = 64;
-const HOVER_OPEN_MS = 350;
-const HOVER_CLOSE_MS = 220;
+export const HOVER_OPEN_MS = 350;
+export const HOVER_CLOSE_MS = 220;
 /** The corner avatar that is there as the app loads appears without an entrance. */
 const APP_LOAD_GRACE_MS = 4000;
 
@@ -159,13 +163,52 @@ export function TeammatesCornerAvatar({
     const node = shell.current;
     if (!node) return;
     const spec = getSurfacePreset("popover");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const here = place(position.current);
+    const centre = { x: here.x + SIZE / 2, y: here.y + SIZE / 2 };
     if (visible) {
+      // Brought back from the top bar: fly out from the docked icon.
+      const from = dockFlight.from;
+      dockFlight.from = null;
+      if (from && active && !reduced) {
+        gsap.set(node, { transformOrigin: `${centre.x}px ${centre.y}px` });
+        const tween = gsap.fromTo(
+          node,
+          { x: from.x - centre.x, y: from.y - centre.y, scale: 0.3, opacity: 0 },
+          {
+            x: 0,
+            y: 0,
+            scale: 1,
+            opacity: 1,
+            duration: 0.55,
+            ease: "tabs-glide",
+            clearProps: "transform,opacity,transformOrigin",
+          },
+        );
+        return () => void tween.kill();
+      }
       if (!active || performance.now() < APP_LOAD_GRACE_MS) {
         clearSurfaceMotion(node);
         return;
       }
       const tween = playSurfaceEnter(node, spec, motion, false);
       return () => void tween.kill();
+    }
+    // Minimised: shrink toward the docked icon in the top bar.
+    const dock = document.querySelector<HTMLElement>("[data-teammate-dock]");
+    if (dock && active && !reduced) {
+      const box = dock.getBoundingClientRect();
+      gsap.set(node, { transformOrigin: `${centre.x}px ${centre.y}px` });
+      const flight = gsap.to(node, {
+        x: box.left + box.width / 2 - centre.x,
+        y: box.top + box.height / 2 - centre.y,
+        scale: 0.3,
+        opacity: 0,
+        duration: 0.45,
+        ease: "tabs-glide",
+        onComplete: () => onExited?.(),
+      });
+      return () => void flight.kill();
     }
     const exit = active ? playSurfaceExit(node, spec, motion) : null;
     if (!exit) {
@@ -321,7 +364,27 @@ export function TeammatesCornerAvatar({
           onToggle();
         }}
       >
-        <NotchAvatar mood={mood} finish={finish} className="pointer-events-none size-10" />
+        <span
+          role="button"
+          tabIndex={-1}
+          aria-label={`Minimise ${teammate.name} to the top bar`}
+          title="Minimise to the top bar"
+          className="notch-corner-min no-drag"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            setCardOpen(false);
+            onHide();
+          }}
+        >
+          <MinusIcon className="size-3" aria-hidden="true" />
+        </span>
+        <NotchPlate
+          mood={mood}
+          finish={finish}
+          className="notch-corner-plate pointer-events-none"
+          avatarClassName="size-9"
+        />
         {badge > 0 ? <span className="notch-badge">{formatBadge(badge)}</span> : null}
       </button>
       <Popover
@@ -386,7 +449,7 @@ export function TeammatesCornerAvatar({
   );
 }
 
-function HoverCardBody({
+export function HoverCardBody({
   teammate,
   mood,
   finish,
@@ -399,6 +462,7 @@ function HoverCardBody({
   onOpenSpace,
   onPin,
   onHide,
+  onRestore,
 }: {
   teammate: Pick<Teammate, "id" | "name">;
   mood: TeammateMood;
@@ -412,6 +476,8 @@ function HoverCardBody({
   onOpenSpace: () => void;
   onPin: (id: string) => void;
   onHide: () => void;
+  /** Given when the teammate is minimised: brings the floating avatar back to the screen. */
+  onRestore?: (() => void) | undefined;
 }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -470,9 +536,15 @@ function HoverCardBody({
               </>
             ) : null}
             <MenuSeparator />
-            <MenuItem onClick={onHide}>
-              <EyeOffIcon /> Hide this avatar
-            </MenuItem>
+            {onRestore ? (
+              <MenuItem onClick={onRestore}>
+                <Maximize2Icon /> Bring {teammate.name} back to the screen
+              </MenuItem>
+            ) : (
+              <MenuItem onClick={onHide}>
+                <EyeOffIcon /> Minimise to the top bar
+              </MenuItem>
+            )}
           </MenuPopup>
         </Menu>
       </div>

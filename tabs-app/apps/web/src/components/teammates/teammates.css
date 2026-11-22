@@ -18,15 +18,25 @@
   touch-action: none;
   user-select: none;
   cursor: grab;
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  border-radius: var(--radius-surface);
-  background: color-mix(in srgb, var(--background) 70%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: transparent;
   outline: none;
 }
+.notch-corner-plate {
+  /* The plate is the logo's own background: the finish's colour as a small app icon. */
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-preview);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    0 6px 18px -6px rgb(0 0 0 / 0.55);
+  transition: transform 120ms ease-out;
+}
+.notch-corner:hover > .notch-corner-plate {
+  transform: scale(1.05);
+}
 .notch-corner:focus-visible {
-  box-shadow: 0 0 0 2px var(--ring);
+  outline: 2px solid color-mix(in srgb, var(--foreground) 70%, transparent);
+  outline-offset: 3px;
 }
 .notch-corner-dragging {
   cursor: grabbing;
@@ -76,7 +86,6 @@
 .tm-rail-row:focus-visible,
 .tm-tab:focus-visible,
 .tm-chip:focus-visible,
-.tm-finish:focus-visible,
 .tm-template:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
@@ -166,8 +175,19 @@
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
+.tm-tabs {
+  display: flex;
+  width: fit-content;
+  gap: 2px;
+  margin: 0 32px 14px;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
 .tm-tab {
-  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 16px;
   font-family: var(--font-ui-meta, var(--font-sans));
   font-size: 13px;
   color: var(--muted-foreground);
@@ -179,7 +199,7 @@
   color: var(--foreground);
 }
 .tm-tab[aria-selected="true"] {
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  background: color-mix(in srgb, var(--foreground) 13%, transparent);
   color: var(--foreground);
 }
 .tm-intro {
@@ -205,55 +225,41 @@
   border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: var(--radius-joined);
 }
-.tm-finish {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 10px 6px;
-  border: 1px solid transparent;
-  transition: background-color 120ms ease-out;
+.tm-swatch-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-control);
 }
-.tm-finish:hover {
-  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+.tm-template-check {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--background) 70%, transparent);
+  color: var(--background);
 }
-.tm-finish[data-selected="true"] {
-  border-color: color-mix(in srgb, var(--foreground) 45%, transparent);
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
-}
-.tm-template {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 10px 16px;
-  text-align: left;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  transition: background-color 120ms ease-out;
-}
-.tm-template:hover {
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
-}
-.tm-template[data-selected="true"] {
-  border-color: color-mix(in srgb, var(--foreground) 45%, transparent);
-  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+.tm-template[data-selected="true"] .tm-template-check {
+  border-color: var(--foreground);
+  background: var(--foreground);
 }
 .tm-soul {
+  display: block;
   width: 100%;
-  min-height: 280px;
+  min-height: 300px;
   resize: vertical;
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  border-radius: var(--radius-joined);
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  padding: 16px 18px;
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--foreground);
   outline: none;
-}
-.tm-soul:focus-visible {
-  border-color: color-mix(in srgb, var(--foreground) 40%, transparent);
 }
 
 /* Avatar hover card */
@@ -294,4 +300,661 @@
   border-radius: var(--radius-joined);
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
   padding: 12px 14px;
+}
+
+/* Summary strip: three quiet figures at the top of Now */
+.tm-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-joined);
+  overflow: hidden;
+}
+.tm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+}
+.tm-stat + .tm-stat {
+  border-inline-start: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.tm-stat-value {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.tm-stat[data-quiet="true"] .tm-stat-value {
+  color: var(--muted-foreground);
+}
+
+/* Grouped lists: one rounded container, hairline dividers between rows */
+.tm-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+.tm-group[data-emphasis="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 28%, transparent);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.tm-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  transition: background-color 120ms ease-out;
+}
+.tm-line + .tm-line {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.tm-line[data-center="true"] {
+  align-items: center;
+}
+.tm-line-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.tm-line-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+.tm-line-title {
+  font-family: var(--font-row, var(--font-sans));
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+.tm-lane-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Pages: a heading block shared by Memory, Soul and Settings */
+.tm-page {
+  display: flex;
+  max-width: 44rem;
+  flex-direction: column;
+  gap: 20px;
+}
+.tm-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tm-page-title {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+.tm-page-lede {
+  max-width: 56ch;
+  margin-top: 4px;
+  font-family: var(--font-supporting, var(--font-sans));
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+/* Memory */
+.tm-fact {
+  position: relative;
+}
+.tm-fact[data-forgotten="true"] {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.tm-fact-text {
+  white-space: pre-wrap;
+  font-family: var(--font-row, var(--font-sans));
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.tm-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-control);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.tm-undo-timer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  transform-origin: left center;
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  animation: tm-undo-drain var(--tm-undo-ms, 5000ms) linear forwards;
+}
+@keyframes tm-undo-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-undo-timer {
+    animation: none;
+    display: none;
+  }
+}
+
+/* Soul: a document, not a form field */
+.tm-doc {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  transition: border-color 120ms ease-out;
+}
+.tm-doc:focus-within {
+  border-color: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+.tm-doc-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.tm-meter {
+  width: 72px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.tm-meter > span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--foreground) 55%, transparent);
+  transition: width 120ms ease-out;
+}
+.tm-savebar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-joined);
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Settings */
+.tm-setting-head {
+  padding: 0 2px 8px;
+}
+
+/* New teammate */
+.tm-step {
+  min-width: 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tm-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tm-step-num {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: var(--radius-control);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+.tm-create-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* Starting points: a fan of scene cards on a stage. TemplateCarousel positions them with GSAP. */
+.tm-flow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+.tm-flow-stage {
+  --tilt-x: 0;
+  --tilt-y: 0;
+  position: relative;
+  height: 286px;
+  perspective: 1100px;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  /* Cards ease out at the edges instead of being cut off. */
+  mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+}
+.tm-flow-stage:active {
+  cursor: grabbing;
+}
+.tm-flow-card {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  margin-left: -100px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px 8px 14px;
+  text-align: left;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+.tm-flow-card[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  background: color-mix(in srgb, var(--foreground) 9%, var(--background));
+}
+.tm-flow-card[style*="opacity: 0;"] {
+  pointer-events: none;
+}
+.tm-flow-art {
+  position: relative;
+  width: 100%;
+  height: 196px;
+  overflow: hidden;
+  /* The chosen card leans toward the pointer. */
+  transition: transform 180ms ease-out;
+}
+.tm-flow-card[data-selected="true"] .tm-flow-art {
+  transform: rotateX(calc(var(--tilt-y, 0) * -6deg)) rotateY(calc(var(--tilt-x, 0) * 7deg));
+}
+.tm-art-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--notch-body);
+}
+.tm-flow-mascot {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+.tm-flow-index {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: rgb(255 255 255 / 0.55);
+}
+.tm-flow-check {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  z-index: 1;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: var(--radius-control);
+  color: rgb(255 255 255 / 0.7);
+}
+.tm-flow-card[data-selected="true"] .tm-flow-check {
+  border-color: #f3efe9;
+  background: #f3efe9;
+  color: #111318;
+}
+.tm-flow-title {
+  padding-inline: 6px;
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+.tm-flow-caption {
+  display: flex;
+  min-height: 74px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.tm-flow-caption-title {
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 19px;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+.tm-flow-caption .tm-supporting {
+  max-width: 46ch;
+  font-size: 13px;
+}
+.tm-flow-emblems {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tm-emblem {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    border-color 120ms ease-out;
+}
+.tm-emblem:hover {
+  color: var(--foreground);
+}
+.tm-emblem[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  color: var(--foreground);
+}
+.tm-carousel-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.tm-carousel-dots {
+  display: flex;
+  gap: 6px;
+}
+.tm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+  transition:
+    width 120ms ease-out,
+    background-color 120ms ease-out;
+}
+.tm-dot[data-active="true"] {
+  width: 18px;
+  background: var(--foreground);
+}
+
+/* The finish dial: finishes on an orbit around the mascot, and a hue ring that opens for Custom. */
+.tm-orbit {
+  --orbit: 316px;
+  --r: 132px;
+  position: relative;
+  width: var(--orbit);
+  height: var(--orbit);
+  max-width: 100%;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.tm-orbit[data-spinning="true"] {
+  cursor: grabbing;
+}
+.tm-orbit-track {
+  position: absolute;
+  inset: calc(50% - var(--r));
+  border: 1px dashed color-mix(in srgb, var(--foreground) 16%, transparent);
+  border-radius: 50%;
+}
+.tm-orbit-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(calc(var(--ring) * 1deg));
+}
+.tm-orbit-stop {
+  position: absolute;
+  top: calc(50% - 17px);
+  left: calc(50% - 17px);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  /* Out to its place on the orbit, then turned back upright whatever the ring's angle. */
+  transform: rotate(calc(var(--i) * var(--step) * 1deg)) translateY(calc(var(--r) * -1))
+    rotate(calc((var(--i) * var(--step) + var(--ring)) * -1deg));
+  transition:
+    box-shadow 120ms ease-out,
+    width 120ms ease-out,
+    height 120ms ease-out;
+}
+.tm-orbit-stop[data-selected="true"] {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 3.5px color-mix(in srgb, var(--foreground) 85%, transparent);
+}
+.tm-swatch-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-control);
+}
+.tm-orbit-core {
+  position: absolute;
+  inset: calc(50% - 62px);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    0 10px 30px -12px rgb(0 0 0 / 0.6);
+  pointer-events: none;
+}
+.tm-orbit-mascot {
+  width: 78px;
+  height: 78px;
+}
+.tm-hue {
+  position: absolute;
+  inset: calc(50% - 96px);
+  opacity: 0;
+  transform: scale(0.86);
+  pointer-events: none;
+  transition:
+    opacity 160ms ease-out,
+    transform 220ms ease-out;
+}
+.tm-hue[data-open="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+.tm-hue-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    hsl(0 90% 60%),
+    hsl(30 90% 60%),
+    hsl(60 90% 60%),
+    hsl(90 90% 60%),
+    hsl(120 90% 60%),
+    hsl(150 90% 60%),
+    hsl(180 90% 60%),
+    hsl(210 90% 60%),
+    hsl(240 90% 60%),
+    hsl(270 90% 60%),
+    hsl(300 90% 60%),
+    hsl(330 90% 60%),
+    hsl(360 90% 60%)
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 13px),
+    #000 calc(100% - 12px)
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+  cursor: pointer;
+}
+.tm-hue[data-open="true"] .tm-hue-ring {
+  pointer-events: auto;
+}
+.tm-hue-knob {
+  position: absolute;
+  top: calc(50% - 10px);
+  left: calc(50% - 10px);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: hsl(var(--hue) 90% 58%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
+  transform: rotate(calc(var(--hue) * 1deg)) translateY(-90px);
+  pointer-events: none;
+}
+.tm-hue[data-open="true"] .tm-hue-knob {
+  pointer-events: auto;
+}
+
+.tm-orbit-name {
+  min-height: 22px;
+  font-family: var(--font-section, var(--font-sans));
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+.tm-orbit-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 3;
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--popover);
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--foreground);
+  opacity: 0;
+  transform: translate(-50%, 3px);
+  pointer-events: none;
+  transition:
+    opacity 100ms ease-out,
+    transform 120ms ease-out;
+}
+.tm-orbit-stop:hover .tm-orbit-tip,
+.tm-orbit-stop:focus-visible .tm-orbit-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The minimised teammate in the top bar: its eyes, and a few ways to share the spot. */
+.tm-dock {
+  position: relative;
+  display: inline-flex;
+  height: 28px;
+  min-width: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-family: var(--font-ui-meta, var(--font-sans));
+  font-size: 11px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.tm-dock:hover,
+.tm-dock[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+.tm-dock-eyes {
+  display: flex;
+  gap: 5px;
+  color: var(--foreground);
+  /* useEyeGaze moves, tilts and blinks the pair with the translate, rotate and scale properties. */
+  transition: scale 140ms ease-out;
+}
+.tm-dock:hover .tm-dock-eyes {
+  scale: 1.1;
+}
+.tm-dock-eyes > i {
+  display: block;
+  width: 3.5px;
+  height: 11px;
+  border-radius: var(--radius-control);
+  background: currentColor;
+  transform-origin: center;
+}
+.tm-dock-eyes[data-attention="true"] > i {
+  height: 13px;
+}
+/* Several teammates. */
+.tm-dock-text {
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.notch-corner-min {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 2;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--popover);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out,
+    color 120ms ease-out;
+}
+.notch-corner:hover > .notch-corner-min,
+.notch-corner:focus-visible > .notch-corner-min,
+.notch-corner-min:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+.notch-corner-min:hover {
+  color: var(--foreground);
 }

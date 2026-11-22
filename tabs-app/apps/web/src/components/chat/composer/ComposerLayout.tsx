@@ -31,6 +31,8 @@ export interface ComposerSlots {
   readonly banner: ReactNode;
   readonly model: ReactNode;
   readonly runtime: ReactNode;
+  /** Build or plan and access in one control, used instead of the sentence when compact. */
+  readonly modeAccess?: ReactNode;
   readonly planSidebar: ReactNode;
   readonly contextMeter: ReactNode;
   readonly pendingPanels: ReactNode;
@@ -49,6 +51,8 @@ export interface ComposerLayoutProps {
   readonly cardRef: RefObject<HTMLDivElement | null>;
   readonly controlsRef: RefObject<HTMLDivElement | null>;
   readonly isDragOver: boolean;
+  /** A narrow composer: the setup sentence and the workspace row drop their filler words. */
+  readonly compact?: boolean;
   /** Provider/Overmind frame classes for the card. */
   readonly frameClassName?: string | undefined;
   readonly interactionMode: "default" | "plan";
@@ -283,6 +287,7 @@ export function ComposerLayout(props: ComposerLayoutProps) {
         ref={props.cardRef}
         data-chat-composer-card="true"
         data-shape="preview"
+        data-compact={props.compact ? "true" : undefined}
         className={cn(
           "composer-card",
           props.isDragOver && "composer-card-drop",
@@ -298,16 +303,22 @@ export function ComposerLayout(props: ComposerLayoutProps) {
         <div ref={props.controlsRef} data-chat-composer-footer="true" className="composer-row">
           <div className="composer-essentials">
             <span data-composer-stagger>{slots.model}</span>
-            <span data-composer-stagger>
-              <ModeWord
-                interactionMode={props.interactionMode}
-                onToggle={props.onToggleInteractionMode}
-              />
-            </span>
-            <span className="composer-joiner" data-composer-stagger>
-              with
-            </span>
-            <span data-composer-stagger>{slots.runtime}</span>
+            {props.compact && slots.modeAccess ? (
+              <span data-composer-stagger>{slots.modeAccess}</span>
+            ) : (
+              <>
+                <span data-composer-stagger>
+                  <ModeWord
+                    interactionMode={props.interactionMode}
+                    onToggle={props.onToggleInteractionMode}
+                  />
+                </span>
+                <span className="composer-joiner" data-composer-stagger>
+                  with
+                </span>
+                <span data-composer-stagger>{slots.runtime}</span>
+              </>
+            )}
             {slots.planSidebar}
           </div>
           <div className="composer-tools" data-composer-stagger>

@@ -63,13 +63,19 @@ export function TeammateSoul({ teammate }: { teammate: Pick<Teammate, "id" | "na
   }, [draft, teammate.id]);
 
   if (saved === null) return <p className="tm-supporting">Loading…</p>;
+  const used = Math.min(1, draft.length / TEAMMATE_SOUL_MAX_LENGTH);
   return (
-    <div className="flex flex-col gap-4">
-      <p className="tm-supporting max-w-prose leading-relaxed">
-        The soul is {teammate.name}’s personality and standing orders, in plain words. It reads it
-        at the start of every chat. Say how it should talk, what it should care about, and what it
-        must never do.
-      </p>
+    <div className="tm-page">
+      <div className="tm-page-head">
+        <div>
+          <h2 className="tm-page-title">Soul</h2>
+          <p className="tm-page-lede">
+            {teammate.name}’s personality and standing orders, in plain words. It reads this at the
+            start of every chat. Say how it should talk, what it should care about, and what it must
+            never do.
+          </p>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="tm-meta me-1">Add a line</span>
         {SOUL_EXAMPLES.map((example) => (
@@ -86,29 +92,44 @@ export function TeammateSoul({ teammate }: { teammate: Pick<Teammate, "id" | "na
           </button>
         ))}
       </div>
-      <textarea
-        className="tm-soul no-drag"
-        value={draft}
-        rows={14}
-        maxLength={TEAMMATE_SOUL_MAX_LENGTH}
-        aria-label={`${teammate.name}'s soul`}
-        spellCheck={false}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setJustSaved(false);
-        }}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "s") {
-            event.preventDefault();
-            if (dirty && !saving) void save();
-          }
-        }}
-      />
-      <div className="flex items-center justify-between gap-3">
+      <div className="tm-doc">
+        <div className="tm-doc-bar">
+          <span className="tm-mono tm-supporting">SOUL.md</span>
+          <span className="flex items-center gap-2">
+            <span className="tm-meta">
+              {draft.length.toLocaleString()} / {TEAMMATE_SOUL_MAX_LENGTH.toLocaleString()}
+            </span>
+            <span className="tm-meter" aria-hidden="true">
+              <span style={{ width: `${used * 100}%` }} />
+            </span>
+          </span>
+        </div>
+        <textarea
+          className="tm-soul no-drag"
+          value={draft}
+          rows={14}
+          maxLength={TEAMMATE_SOUL_MAX_LENGTH}
+          aria-label={`${teammate.name}'s soul`}
+          spellCheck={false}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setJustSaved(false);
+          }}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+              event.preventDefault();
+              if (dirty && !saving) void save();
+            }
+          }}
+        />
+      </div>
+      <div className="tm-savebar">
         <span className="tm-meta" role="status">
           {justSaved && !dirty
             ? "Saved. A running chat picks it up on its next turn."
-            : `${draft.length.toLocaleString()} / ${TEAMMATE_SOUL_MAX_LENGTH.toLocaleString()}`}
+            : dirty
+              ? "Unsaved changes"
+              : "Up to date"}
         </span>
         <div className="flex gap-2">
           <Button

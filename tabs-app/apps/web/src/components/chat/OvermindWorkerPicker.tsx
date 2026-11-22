@@ -1,8 +1,5 @@
 import type {
   ModelSelection,
-  ModelSlug,
-  ProviderInstanceId,
-  ProviderOptionSelection,
   ServerProvider,
   SubagentModelSettings,
   SubagentRole,
@@ -12,7 +9,6 @@ import { RotateCcwIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { setSubagentModels, useSubagentModels } from "../../state/overmindSettings";
-import type { ProviderPickerKind } from "../../session-logic";
 import { cn } from "~/lib/utils";
 import { resolveProviderIcon } from "../providerIcons";
 import { Button } from "../ui/button";
@@ -26,7 +22,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Switch } from "../ui/switch";
-import { FusedModelPicker } from "./FusedModelPicker";
+import { InstanceModelPicker } from "./InstanceModelPicker";
 
 export const SUBAGENT_ROLE_LABELS: Record<SubagentRole, string> = {
   implementation: "Implementation",
@@ -82,30 +78,6 @@ export function selectableSubagentProviders(
   );
 }
 
-function instanceForKind(
-  providers: ReadonlyArray<ServerProvider>,
-  kind: string,
-): ServerProvider | undefined {
-  return (
-    providers.find((provider) => provider.instanceId === kind) ??
-    providers.find((provider) => provider.driver === kind)
-  );
-}
-
-function selection(
-  instanceId: ProviderInstanceId,
-  model: string,
-  options: ReadonlyArray<ProviderOptionSelection> | undefined,
-): ModelSelection {
-  return {
-    instanceId,
-    model,
-    ...(options && options.length > 0
-      ? { options: options.map(({ id, value }) => ({ id, value })) }
-      : {}),
-  };
-}
-
 /** Provider logo and model name, read-only. */
 function ModelLabel(props: {
   readonly value: TeamModel | null;
@@ -134,35 +106,7 @@ function ModelSlot(props: {
   readonly ariaLabel: string;
   readonly onChange: (value: ModelSelection) => void;
 }) {
-  const instance =
-    props.providers.find((provider) => provider.instanceId === props.value?.instanceId) ??
-    props.providers[0];
-  if (!instance) return null;
-  const kind = instance.driver as ProviderPickerKind;
-  const model = (props.value?.model ?? instance.models[0]?.slug ?? "") as ModelSlug;
-  return (
-    <FusedModelPicker
-      provider={kind}
-      model={model}
-      lockedProvider={null}
-      providers={props.providers}
-      prompt=""
-      onPromptChange={() => {}}
-      modelOptions={props.value?.options as ReadonlyArray<ProviderOptionSelection> | undefined}
-      ariaLabel={props.ariaLabel}
-      triggerClassName="max-w-full"
-      align="end"
-      onProviderModelChange={(nextKind, nextModel, options) => {
-        const next = instanceForKind(props.providers, nextKind);
-        if (next) props.onChange(selection(next.instanceId, nextModel, options));
-      }}
-      onModelOptionsChange={(options) => {
-        if (props.value) {
-          props.onChange(selection(props.value.instanceId, props.value.model, options));
-        }
-      }}
-    />
-  );
+  return <InstanceModelPicker {...props} align="end" />;
 }
 
 /** A labelled row of the team table: who, what they do, and the model. */

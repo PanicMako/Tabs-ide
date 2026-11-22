@@ -582,3 +582,21 @@
     transition: none;
   }
 }
+
+/* A narrow composer (a side panel, a split pane): only the controls, none of the filler. The
+ * setup sentence becomes [model] [mode] [access], and the workspace row loses its label. */
+.composer-card[data-compact="true"] .composer-joiner,
+.composer-card[data-compact="true"] .composer-eyebrow,
+.composer-card[data-compact="true"] .composer-runtime-label {
+  display: none;
+}
+.composer-card[data-compact="true"] .composer-row {
+  padding: 2px 6px 6px 6px;
+}
+.composer-card[data-compact="true"] .composer-essentials {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.composer-card[data-compact="true"] .composer-workspace {
+  padding-left: 8px;
+}

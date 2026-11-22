@@ -44,6 +44,17 @@ describe("the Notch avatar", () => {
     await view.unmount();
   });
 
+  it("minimises with its minus without opening Teammates or starting a drag", async () => {
+    const p = props();
+    const view = await render(<TeammatesCornerAvatar {...p} />);
+    await page
+      .getByRole("button", { name: "Minimise Notch to the top bar" })
+      .click({ force: true });
+    expect(p.onHide).toHaveBeenCalledTimes(1);
+    expect(p.onToggle).not.toHaveBeenCalled();
+    await view.unmount();
+  });
+
   it("drags anywhere, persists normalized x/y, and a tiny wobble still clicks", async () => {
     const p = props();
     const view = await render(
@@ -137,7 +148,7 @@ describe("the Notch avatar", () => {
     await expect.element(ask).not.toBeInTheDocument();
     await avatar().hover();
     await page.getByRole("button", { name: "Notch menu" }).click();
-    await page.getByRole("menuitem", { name: /Hide this avatar/ }).click();
+    await page.getByRole("menuitem", { name: /Minimise to the top bar/ }).click();
     expect(p.onHide).toHaveBeenCalled();
     await view.unmount();
   });

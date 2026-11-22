@@ -106,7 +106,7 @@ export function RuntimeModePicker(props: {
       <span
         aria-live="polite"
         className={cn(
-          "hidden overflow-hidden whitespace-nowrap text-xs font-medium text-muted-foreground/80 transition-[max-width,color] duration-200 sm:block",
+          "composer-runtime-label hidden overflow-hidden whitespace-nowrap text-xs font-medium text-muted-foreground/80 transition-[max-width,color] duration-200 sm:block",
           open ? "max-w-32 text-foreground" : "max-w-32",
         )}
       >

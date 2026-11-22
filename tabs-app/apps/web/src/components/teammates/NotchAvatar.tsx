@@ -1,6 +1,8 @@
 import type { TeammateFinish, TeammateMood } from "@tabs/contracts";
+import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { TabsMascot } from "../TabsMascot";
+import { finishStyle, materialFor } from "./notchFinish";
 import { moodLook } from "./notchMood";
 import "./notch-avatar.css";
 
@@ -13,11 +15,16 @@ export function NotchAvatar({
   finish = "signature",
   className,
   title,
+  look,
+  overlay,
 }: {
   mood?: TeammateMood;
   finish?: TeammateFinish;
   className?: string;
   title?: string;
+  /** Where the eyes point, overriding the mood's own look. */
+  look?: { x: number; y: number } | undefined;
+  overlay?: ReactNode;
 }) {
   return (
     <span
@@ -25,8 +32,15 @@ export function NotchAvatar({
       data-mood={mood}
       data-finish={finish}
       title={title}
+      style={finishStyle(finish)}
     >
-      <TabsMascot mode="still" eyeColor="currentColor" look={moodLook(mood)} />
+      <TabsMascot
+        mode="still"
+        eyeColor="currentColor"
+        look={look ?? moodLook(mood)}
+        material={materialFor(finish)}
+        overlay={overlay}
+      />
     </span>
   );
 }

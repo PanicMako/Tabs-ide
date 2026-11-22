@@ -1,8 +1,7 @@
 import type { TeammateFinish } from "@tabs/contracts";
-import { NotchAvatar } from "./NotchAvatar";
-import { FINISH_OPTIONS } from "./teammates.logic";
+import { FinishOrbit } from "./FinishOrbit";
 
-/** Pick a finish by looking at it: each option is the mascot in that finish. */
+/** Pick a finish on the orbit dial; the dial's middle shows the mascot wearing it. */
 export function FinishPicker({
   value,
   onChange,
@@ -10,23 +9,5 @@ export function FinishPicker({
   value: TeammateFinish;
   onChange: (finish: TeammateFinish) => void;
 }) {
-  return (
-    <div role="radiogroup" aria-label="Finish" className="flex flex-wrap gap-2">
-      {FINISH_OPTIONS.map((finish) => (
-        <button
-          key={finish.id}
-          type="button"
-          role="radio"
-          aria-checked={value === finish.id}
-          aria-label={finish.name}
-          className="tm-finish no-drag"
-          data-selected={value === finish.id}
-          onClick={() => onChange(finish.id)}
-        >
-          <NotchAvatar finish={finish.id} className="size-9" />
-          <span className="tm-meta">{finish.name}</span>
-        </button>
-      ))}
-    </div>
-  );
+  return <FinishOrbit value={value} onChange={onChange} />;
 }

@@ -2,23 +2,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import type { ThreadId } from "@tabs/contracts";
 import { toastManager } from "../ui/toast";
-import { needsFromItems, TeammatesCornerAvatar } from "./TeammatesCornerAvatar";
+import { TeammatesCornerAvatar } from "./TeammatesCornerAvatar";
 import { TeammatesPanel } from "./TeammatesPanel";
-import {
-  askTeammate,
-  openHomeChat,
-  openThread,
-  teammatesApi,
-  errorMessage,
-} from "./teammatesActions";
-import {
-  activityFor,
-  badgeCount,
-  createNoticeTracker,
-  noticeToToast,
-  openSuggestionCount,
-} from "./teammates.logic";
+import { openHomeChat, openThread, teammatesApi, errorMessage } from "./teammatesActions";
+import { createNoticeTracker, noticeToToast } from "./teammates.logic";
 import { useTeammatesStore, useTeammatesUiStore } from "./teammatesStore";
+import { useAvatarProps } from "./useAvatarProps";
 import { useTeammatesData, useTeammatesEnabled } from "./useTeammates";
 
 /**
@@ -97,54 +86,7 @@ function EnabledHost() {
     if (target) void openHomeChat(target.id, navigateRef.current);
   }, [homeRequest, active, pinned]);
 
-  const activity = pinned && snapshot ? activityFor(snapshot.activity, pinned.id) : null;
-  const avatarProps =
-    pinned && activity && snapshot
-      ? {
-          teammate: pinned,
-          mood: activity.mood,
-          label: activity.label,
-          finish: pinned.finish,
-          badge: badgeCount(activity, openSuggestionCount(snapshot.suggestions, pinned.id)),
-          needs: needsFromItems(snapshot.items, pinned.id),
-          teammates,
-          open: panelOpen,
-          onToggle: () => {
-            const state = useTeammatesUiStore.getState();
-            if (!state.panelOpen) state.setActiveTeammateId(pinned.id);
-            setPanelOpen(!state.panelOpen);
-          },
-          onAsk: async (text: string) => {
-            const threadId = await askTeammate(pinned.id, text, {
-              busy: activity.mood === "thinking",
-            });
-            if (!threadId) return false;
-            toastManager.add({
-              type: "success",
-              title: `Sent to ${pinned.name}`,
-              actionProps: {
-                children: "Open chat",
-                onClick: () => void openThread(threadId, navigateRef.current),
-              },
-            });
-            return true;
-          },
-          onOpenChat: () => void openHomeChat(pinned.id, navigateRef.current),
-          onOpenSpace: () => {
-            useTeammatesUiStore.getState().setActiveTeammateId(pinned.id);
-            setPanelOpen(true);
-          },
-          onPin: setPinned,
-          onHide: () => {
-            setCornerHidden(true);
-            toastManager.add({
-              type: "info",
-              title: `${pinned.name}’s avatar is hidden`,
-              description: "Bring it back from Settings, Teammates, or the command palette.",
-            });
-          },
-        }
-      : null;
+  const avatarProps = useAvatarProps();
   return (
     <>
       <AvatarPresence props={avatarProps} show={!cornerHidden} />

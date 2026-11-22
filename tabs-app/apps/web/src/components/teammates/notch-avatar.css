@@ -37,7 +37,98 @@
 }
 .notch-avatar[data-finish="blue-ink"] {
   --notch-body: #1529e9;
-  --notch-eye: #111318;
+  --notch-eye: #f3efe9;
+}
+
+/* Teammate-only finishes: body, eyes, and the plate the mascot sits on in swatches. */
+.notch-avatar[data-finish="ember"] {
+  --notch-body: #ff6a3d;
+  --notch-eye: #2a0d06;
+}
+.notch-avatar[data-finish="brass"] {
+  --notch-body: #e3b341;
+  --notch-eye: #1f1707;
+}
+.notch-avatar[data-finish="moss"] {
+  --notch-body: #4ade80;
+  --notch-eye: #04160b;
+}
+.notch-avatar[data-finish="tide"] {
+  --notch-body: #2dd4bf;
+  --notch-eye: #021a1f;
+}
+.notch-avatar[data-finish="orchid"] {
+  --notch-body: #b794f6;
+  --notch-eye: #1a1226;
+}
+.notch-avatar[data-finish="rose"] {
+  --notch-body: #fb7185;
+  --notch-eye: #230b10;
+}
+.notch-avatar[data-finish="graphite"] {
+  --notch-body: #cbd5e1;
+  --notch-eye: #1e293b;
+}
+.notch-avatar[data-finish="sand"] {
+  --notch-body: #e6c081;
+  --notch-eye: #3a2410;
+}
+
+/* A swatch: the mascot on its own plate, so every finish reads as a small logo. The plate colours
+   are fixed, so the mascot inside never flips with the theme. */
+.notch-plate {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-joined);
+  background: var(--notch-plate, #f3efe9);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+.notch-plate[data-finish="signature"] {
+  --notch-plate: #f3efe9;
+}
+.notch-plate[data-finish="blue-white"] {
+  --notch-plate: #ffffff;
+}
+.notch-plate[data-finish="mono"] {
+  --notch-plate: #ffffff;
+}
+.notch-plate[data-finish="ivory-ink"] {
+  --notch-plate: #e4dfd5;
+}
+.notch-plate[data-finish="blue-ink"] {
+  --notch-plate: #070b1f;
+}
+.notch-plate[data-finish="ember"] {
+  --notch-plate: #1a0f0b;
+}
+.notch-plate[data-finish="brass"] {
+  --notch-plate: #1f1707;
+}
+.notch-plate[data-finish="moss"] {
+  --notch-plate: #0b1a10;
+}
+.notch-plate[data-finish="tide"] {
+  --notch-plate: #08201d;
+}
+.notch-plate[data-finish="orchid"] {
+  --notch-plate: #1a1226;
+}
+.notch-plate[data-finish="rose"] {
+  --notch-plate: #230b10;
+}
+.notch-plate[data-finish="graphite"] {
+  --notch-plate: #1e293b;
+}
+.notch-plate[data-finish="sand"] {
+  --notch-plate: #1c130b;
+}
+.dark .notch-plate .notch-avatar[data-finish="mono"] {
+  --notch-body: #000000;
+  --notch-eye: #ffffff;
+}
+.dark .notch-plate .notch-avatar[data-finish="ivory-ink"] {
+  --notch-body: #111318;
+  --notch-eye: #f3efe9;
 }
 
 /* idle: the mascot's resting pose with a slow blink */

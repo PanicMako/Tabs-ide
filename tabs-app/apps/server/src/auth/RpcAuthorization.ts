@@ -244,6 +244,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.teammatesLookAroundNow]: AuthOrchestrationOperateScope,
   [WS_METHODS.teammatesSoulGet]: AuthOrchestrationReadScope,
   [WS_METHODS.teammatesSoulSet]: AuthOrchestrationOperateScope,
+  [WS_METHODS.teammatesProfileGenerate]: AuthOrchestrationOperateScope,
   [WS_METHODS.cloudGetRelayClientStatus]: AuthRelayReadScope,
   [WS_METHODS.cloudInstallRelayClient]: AuthRelayWriteScope,
   [WS_METHODS.pullRequestsList]: AuthOrchestrationReadScope,

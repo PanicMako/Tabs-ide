@@ -24,6 +24,7 @@ import {
   buildCommitMessagePrompt,
   buildPrContentPrompt,
   buildReviewGuidePrompt,
+  buildTeammateProfilePrompt,
   buildThreadTitlePrompt,
 } from "./TextGenerationPrompts.ts";
 import {
@@ -179,6 +180,19 @@ export function fromRunner(name: string, run: Runner): TextGeneration.TextGenera
     return { stops: generated.stops };
   });
 
+  const generateTeammateProfile: NonNullable<
+    TextGeneration.TextGeneration["Service"]["generateTeammateProfile"]
+  > = Effect.fn(`${name}.generateTeammateProfile`)(function* (input) {
+    const generated = yield* run({
+      operation: "generateTeammateProfile",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt: buildTeammateProfilePrompt(input),
+      outputSchema: Schema.Struct({ soul: Schema.String, focus: Schema.String }),
+    });
+    return { soul: generated.soul.trim(), focus: generated.focus.trim() };
+  });
+
   const unsupported = (operation: string) =>
     Effect.fail(
       new TextGenerationError({
@@ -194,6 +208,7 @@ export function fromRunner(name: string, run: Runner): TextGeneration.TextGenera
     generateThreadTitle,
     generateTranscriptionPostProcessing,
     generateReviewGuide,
+    generateTeammateProfile,
     generateDiffSummary: () => unsupported("generateDiffSummary"),
     generateStructuredTesting: () => unsupported("generateStructuredTesting"),
   } satisfies TextGeneration.TextGeneration["Service"];

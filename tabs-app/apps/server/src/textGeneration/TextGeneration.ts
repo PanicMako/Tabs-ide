@@ -119,6 +119,21 @@ export interface ReviewGuideGenerationResult {
   readonly stops: ReadonlyArray<PullRequestReviewGuideStop>;
 }
 
+export interface TeammateProfileGenerationInput {
+  readonly cwd: string;
+  readonly name: string;
+  /** What the owner says the teammate is for, in their own words. */
+  readonly purpose: string;
+  readonly modelSelection: ModelSelection;
+}
+
+export interface TeammateProfileGenerationResult {
+  /** SOUL.md: who the teammate is and how it works. */
+  readonly soul: string;
+  /** What it pays attention to when it looks around a project. */
+  readonly focus: string;
+}
+
 export interface TranscriptionPostProcessingResult {
   readonly transcription: string;
 }
@@ -241,6 +256,11 @@ export interface TextGenerationShape {
     input: ReviewGuideGenerationInput,
   ) => Effect.Effect<ReviewGuideGenerationResult, TextGenerationError>;
 
+  /** Drafts a teammate's soul and look-around focus from its purpose. Optional per provider. */
+  readonly generateTeammateProfile?: (
+    input: TeammateProfileGenerationInput,
+  ) => Effect.Effect<TeammateProfileGenerationResult, TextGenerationError>;
+
   readonly generateStructuredTesting: <S extends Schema.Top>(
     input: StructuredTestingGenerationInput<S>,
   ) => Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"]>;
@@ -261,6 +281,7 @@ type TextGenerationOp =
   | "generateDiffSummary"
   | "generateTranscriptionPostProcessing"
   | "generateReviewGuide"
+  | "generateTeammateProfile"
   | "generateStructuredTesting";
 
 const resolveInstance = (
@@ -334,6 +355,19 @@ const makeUngatedTextGenerationFromRegistry = (
             ),
       ),
     ),
+  generateTeammateProfile: (input) =>
+    resolveInstance(registry, "generateTeammateProfile", input.modelSelection.instanceId).pipe(
+      Effect.flatMap((textGeneration) =>
+        textGeneration.generateTeammateProfile
+          ? textGeneration.generateTeammateProfile(input)
+          : Effect.fail(
+              new TextGenerationError({
+                operation: "generateTeammateProfile",
+                detail: "The writing model's provider cannot draft teammates.",
+              }),
+            ),
+      ),
+    ),
   generateStructuredTesting: (input) =>
     registry.getInstance(input.modelSelection.instanceId).pipe(
       Effect.flatMap((instance) => {
@@ -383,6 +417,8 @@ export const makeTextGenerationFromRegistry = (
       ),
     generateReviewGuide: (input) =>
       executeWhenGated(input.modelSelection.instanceId, base.generateReviewGuide!(input)),
+    generateTeammateProfile: (input) =>
+      executeWhenGated(input.modelSelection.instanceId, base.generateTeammateProfile!(input)),
     generateStructuredTesting: (input) =>
       executeWhenGated(input.modelSelection.instanceId, base.generateStructuredTesting(input)),
   };
