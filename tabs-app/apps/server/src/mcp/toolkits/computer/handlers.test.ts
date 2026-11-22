@@ -130,9 +130,16 @@ it.effect("rejects bad arguments and blocked shortcuts before touching the deskt
         y: 2,
       });
       expect(both).toMatchObject({ code: "invalid_request" });
-      const quit: any = yield* handle("computer_key", { app: "Notes", key: "Cmd+Q" });
+      const quitKey =
+        process.platform === "darwin"
+          ? "Cmd+Q"
+          : process.platform === "win32"
+            ? "Alt+F4"
+            : "Ctrl+Q";
+      const quitEffect = process.platform === "win32" ? "close the app" : "quit the app";
+      const quit: any = yield* handle("computer_key", { app: "Notes", key: quitKey });
       expect(quit).toMatchObject({ code: "invalid_request" });
-      expect(quit.message).toContain("quit the app");
+      expect(quit.message).toContain(quitEffect);
       expect(seen).toEqual([]);
     }),
   ),
