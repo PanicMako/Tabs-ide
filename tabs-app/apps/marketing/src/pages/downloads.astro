@@ -1,10 +1,17 @@
 ---
 import SiteShell from "../components/lab/SiteShell.astro";
-import DownloadsLab from "../components/lab/DownloadsLab.astro";
+import PortalNav from "../components/lab/portal/PortalNav.astro";
+import DownloadsTickets from "../components/lab/DownloadsTickets.astro";
+import DownloadThanks from "../components/lab/DownloadThanks.astro";
+import "../styles/lab-portal.css";
 
 const title = "Download Tabs IDE Public Beta for macOS, Windows, or Linux";
 const description = "Download the Tabs IDE Public Beta desktop workspace for Apple Silicon and Intel Macs, Windows x64, or Linux AppImage.";
 ---
 <SiteShell title={title} description={description} path="/downloads">
-  <DownloadsLab />
+  <div class="v1">
+    <PortalNav current="downloads" />
+    <main id="main"><DownloadsTickets /></main>
+  </div>
+  <DownloadThanks />
 </SiteShell>

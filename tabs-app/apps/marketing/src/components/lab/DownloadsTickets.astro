@@ -1,0 +1,157 @@
+---
+import PortalEnd from "./portal/PortalEnd.astro";
+import { version, releaseDate, families, firstMinutes, trust, thanks, RELEASES_URL, releaseUrl } from "../../data/downloads";
+import { links } from "../../data/lab";
+---
+<div class="d4">
+  <section class="d4-top" data-sec="Tickets">
+    <div class="v1-wrap">
+      <header class="d4-head">
+        <p class="v1-kicker">Public beta · <b data-version>{version}</b> · <span data-date>{releaseDate}</span></p>
+        <h1>One ticket<br />per <em>machine.</em></h1>
+        <p class="d4-sub" data-sub>Free for macOS, Windows and Linux. No account, no queue. Tear off the stub to start your download.</p>
+      </header>
+
+      <div class="d4-row">
+        {families.map((f, i) => (
+          <article class="d4-ticket" data-ticket={f.id} aria-label={`Tabs for ${f.name}`}>
+            <div class="d4-main">
+              <div class="d4-meta"><span>Admit one</span><span>No. 0{i + 1}</span></div>
+              <img class="d4-ico" src={f.icon} alt="" width="44" height="44" />
+              <h2>{f.name}</h2>
+              <p class="d4-line">{f.line}</p>
+              <ul class="d4-reqs">{f.reqs.map((r) => <li>{r}</li>)}</ul>
+              <span class="d4-me" hidden>Your computer</span>
+              <span class="d4-stamp" aria-hidden="true">Checked in</span>
+            </div>
+            <div class="d4-perf" aria-hidden="true"></div>
+            <div class="d4-low">
+              <div class="d4-stub">
+                {f.builds.map((b) => (
+                  <a class="d4-build" href={b.href} data-build={b.id}>
+                    <span class="d4-build__t"><b>{b.label}</b><small>{b.sub}</small></span>
+                    <code data-file>{b.file}</code>
+                    <span class="d4-build__go">Tear off &amp; download <i aria-hidden="true">↓</i></span>
+                  </a>
+                ))}
+              </div>
+              <div class="d4-after" data-download-feedback hidden role="status" aria-live="polite">
+                <p><b>{thanks.head}</b> {thanks.body} <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">{thanks.link}</a>.</p>
+                <a class="d4-again" href={f.builds[0].href} data-again>Download again</a>
+              </div>
+            </div>
+            <ol class="d4-steps">{f.steps.map((s, k) => <li><b>{k + 1}</b><span>{s}</span></li>)}</ol>
+          </article>
+        ))}
+      </div>
+      <p class="d4-live" data-live><span data-live-text>Saved release {version}</span> · <a href={releaseUrl} data-release-link target="_blank" rel="noopener noreferrer">All releases ↗</a></p>
+    </div>
+  </section>
+
+  <section class="d4-next">
+    <div class="v1-wrap">
+      <p class="v1-kicker">After installing</p>
+      <h2>Your first <em>five minutes.</em></h2>
+      <ol class="d4-trip">{firstMinutes.map((m) => <li><i aria-hidden="true"></i><span>{m.n}</span><h3>{m.title}</h3><p>{m.body}</p></li>)}</ol>
+      <div class="d4-trust">{trust.map((t) => <div><b>{t.k}</b><p>{t.k === "Open source" ? <>Read the code, file issues and follow releases on <a class="v1-link" href={links.github}>GitHub</a>.</> : t.v}</p></div>)}</div>
+    </div>
+  </section>
+  <PortalEnd title="Make room for what's next." />
+</div>
+
+<style is:global>
+  .d4 { --paper: #fff; --bgc: var(--cream); background: var(--cream); }
+  .d4-top { padding: 136px 0 100px; background: var(--cream); }
+  .d4-head { margin-bottom: 56px; }
+  .d4-head .v1-kicker b { color: var(--ink); font-weight: 500; }
+  .d4-head h1 { margin: 0; font-size: clamp(56px, 9vw, 150px); line-height: .9; letter-spacing: -.06em; font-weight: 500; }
+  .d4-head h1 em { color: var(--cobalt); }
+  .d4-sub { max-width: 520px; margin: 26px 0 0; font-size: 19px; line-height: 1.5; color: var(--mute); }
+
+  .d4-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+  .d4-ticket { --bgc: var(--cream); position: relative; display: grid; }
+  .d4-main { position: relative; padding: 24px 26px 30px; background: var(--paper); border-radius: 26px 26px 0 0; min-height: 330px; display: flex; flex-direction: column; }
+  .d4-meta { display: flex; justify-content: space-between; font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .d4-ico { margin: 44px 0 0; width: 44px; height: 44px; }
+  .d4-ticket h2 { margin: 18px 0 0 !important; font-size: clamp(46px, 4.6vw, 70px) !important; line-height: .95; }
+  .d4-line { margin: 12px 0 0; color: var(--mute); font-size: 16px; }
+  .d4-reqs { display: flex; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding: 22px 0 0; list-style: none; }
+  .d4-reqs li { padding: 4px 10px; border-radius: 999px; background: #f1f2f7; font: 500 11.5px var(--mono); color: var(--mute); }
+  .d4-me { position: absolute; right: 22px; top: 54px; padding: 4px 11px; border-radius: 999px; background: var(--ink); color: #fff; font: 500 11px var(--mono); } .d4-me[hidden] { display: none; }
+  .d4-stamp { position: absolute; right: 22px; top: 96px; padding: 6px 14px; border-radius: 8px; color: var(--mint); box-shadow: inset 0 0 0 2.5px currentColor; font: 700 15px var(--mono); letter-spacing: .1em; text-transform: uppercase; rotate: -9deg; opacity: 0; scale: 1.6; pointer-events: none; }
+  .d4-ticket.is-done .d4-stamp { opacity: 1; scale: 1; transition: opacity .15s, scale .45s cubic-bezier(.3,1.6,.5,1); }
+
+  .d4-perf { position: relative; height: 28px; background: linear-gradient(90deg, rgba(11,13,31,.28) 50%, transparent 0) 14px 50% / 12px 2px repeat-x, var(--paper); }
+  .d4-perf::before, .d4-perf::after { content: ""; position: absolute; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--cream); }
+  .d4-perf::before { left: -14px; } .d4-perf::after { right: -14px; }
+  .d4-low { position: relative; display: grid; background: var(--paper); border-radius: 0 0 26px 26px; padding: 8px 14px 14px; }
+  .d4-stub, .d4-after { grid-area: 1 / 1; }
+  .d4-stub { display: grid; gap: 8px; transform-origin: 0 0; }
+  .d4-build { display: grid; gap: 2px; padding: 16px 18px; border-radius: 16px; background: #f1f2f7; color: var(--ink); text-decoration: none; transition: background .3s, color .3s, transform .3s cubic-bezier(.2,1,.3,1); }
+  .d4-build:hover { background: var(--cobalt); color: #fff; transform: translateY(-2px); } .d4-build:focus-visible, .d4-again:focus-visible, .d4-after a:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+  .d4-build__t b { display: block; font-size: 19px; font-weight: 600; letter-spacing: -.015em; } .d4-build small { font-size: 12.5px; color: var(--mute); transition: color .3s; } .d4-build code { font: 400 11.5px var(--mono); color: var(--mute); transition: color .3s; overflow-wrap: anywhere; }
+  .d4-build:hover small, .d4-build:hover code { color: rgba(255,255,255,.75); }
+  .d4-build__go { margin-top: 10px; font-weight: 500; font-size: 14px; } .d4-build__go i { font-style: normal; display: inline-block; margin-left: 4px; transition: transform .35s cubic-bezier(.2,1.6,.4,1); } .d4-build:hover .d4-build__go i { transform: translateY(3px); }
+  .d4-after { align-self: center; padding: 14px 12px 16px; } .d4-after[hidden] { display: none; }
+  .d4-after p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--mute); } .d4-after b { color: var(--ink); font-weight: 600; } .d4-after a { color: var(--ink); text-underline-offset: 3px; }
+  .d4-again { display: inline-block; margin-top: 12px; font: 500 12px var(--mono); }
+
+  .d4-steps { margin: 18px 4px 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+  .d4-steps li { display: flex; gap: 11px; font-size: 13.5px; line-height: 1.45; color: #4a4d62; } .d4-steps b { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #fff; font: 600 10.5px var(--mono); color: var(--cobalt); }
+
+  /* The ticket that matches this computer: inverted. */
+  .d4-ticket.me .d4-main { background: var(--cobalt); color: #fff; } .d4-ticket.me .d4-meta, .d4-ticket.me .d4-line { color: rgba(255,255,255,.72); } .d4-ticket.me .d4-ico { filter: brightness(0) invert(1); }
+  .d4-ticket.me .d4-reqs li { background: rgba(255,255,255,.16); color: #fff; } .d4-ticket.me .d4-me { background: #fff; color: var(--cobalt); }
+  .d4-ticket.me .d4-perf { background: linear-gradient(90deg, rgba(11,13,31,.28) 50%, transparent 0) 14px 50% / 12px 2px repeat-x, var(--paper); }
+  .d4-ticket.me .d4-stamp { color: #fff; }
+  .d4-live { margin: 40px 0 0; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--mute); } .d4-live.ok [data-live-text]::before { content: "● "; color: var(--mint); } .d4-live a { color: inherit; }
+
+  .d4-next { padding: 100px 0 120px; background: var(--ivory); }
+  .d4-next h2 { font-size: clamp(40px, 5vw, 80px); }
+  .d4-trip { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; margin: 64px 0 0; padding: 0; list-style: none; }
+  .d4-trip::before { content: ""; position: absolute; left: 0; right: 0; top: 9px; height: 2px; background: repeating-linear-gradient(90deg, var(--ink) 0 8px, transparent 8px 16px); opacity: .25; }
+  .d4-trip li { position: relative; } .d4-trip i { position: relative; display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--cobalt); box-shadow: 0 0 0 6px var(--ivory); }
+  .d4-trip li > span { display: block; margin-top: 22px; font: 500 12px var(--mono); color: var(--cobalt); } .d4-trip h3 { margin: 6px 0 8px; font-size: 28px; font-weight: 500; letter-spacing: -.03em; } .d4-trip p { margin: 0; color: var(--mute); font-size: 15.5px; line-height: 1.5; max-width: 34ch; }
+  .d4-trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line); } .d4-trust b { font-weight: 600; } .d4-trust p { margin: 6px 0 0; color: var(--mute); font-size: 14.5px; line-height: 1.55; }
+
+  @media (max-width: 1020px) { .d4-row { grid-template-columns: 1fr; max-width: 520px; } .d4-main { min-height: 0; } .d4-trip, .d4-trust { grid-template-columns: 1fr; } .d4-trip::before { display: none; } .d4-top { padding-top: 108px; } }
+</style>
+
+<script>
+  import { gsap, reduced } from "../../lib/lab/common";
+  import { portalPage } from "../../lib/lab/portal";
+  import { initDownloads, detect, type Fam } from "../../lib/lab/downloads-live";
+  portalPage();
+  initDownloads();
+
+  const { fam: mine, isMobile } = detect();
+  const row = document.querySelector<HTMLElement>(".d4-row")!;
+  if (mine && !isMobile) {
+    const t = document.querySelector<HTMLElement>(`[data-ticket="${mine}"]`)!;
+    t.classList.add("me");
+    t.querySelector<HTMLElement>(".d4-me")!.hidden = false;
+    if (mine === "mac") document.querySelector("[data-sub]")!.textContent = "Free for macOS, Windows and Linux. No account, no queue. Browsers can't tell Apple Silicon from Intel, so choose yours on the stub.";
+  }
+  void row;
+
+  document.addEventListener("tabs:download", (e) => {
+    const { fam, el } = (e as CustomEvent).detail as { fam: Fam; el: HTMLAnchorElement };
+    const t = document.querySelector<HTMLElement>(`[data-ticket="${fam}"]`)!;
+    const stub = t.querySelector<HTMLElement>(".d4-stub")!;
+    const after = t.querySelector<HTMLElement>(".d4-after")!;
+    t.querySelector<HTMLAnchorElement>("[data-again]")!.href = el.href;
+    t.classList.add("is-done");
+    if (reduced) { stub.hidden = true; after.hidden = false; return; }
+    gsap.to(stub, { y: 46, rotate: 4, autoAlpha: 0, duration: 0.55, ease: "power3.in", onComplete: () => {
+      stub.hidden = true;
+      after.hidden = false;
+      gsap.fromTo(after, { autoAlpha: 0, y: -12 }, { autoAlpha: 1, y: 0, duration: 0.6, ease: "expo.out" });
+    } });
+  });
+
+  if (!reduced) {
+    gsap.from(".d4-head > *", { y: 28, autoAlpha: 0, duration: 1.1, ease: "expo.out", stagger: 0.08, delay: 0.1 });
+    gsap.from(".d4-ticket", { y: 90, rotate: 2, autoAlpha: 0, duration: 1.2, ease: "expo.out", stagger: 0.12, delay: 0.3 });
+    gsap.from(".d4-trip li, .d4-trust > div", { y: 36, autoAlpha: 0, duration: 0.9, ease: "expo.out", stagger: 0.08, scrollTrigger: { trigger: ".d4-trip", start: "top 88%", once: true } });
+  }
+</script>

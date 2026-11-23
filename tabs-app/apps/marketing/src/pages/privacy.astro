@@ -1,0 +1,13 @@
+---
+import SiteShell from "../components/lab/SiteShell.astro";
+import PortalNav from "../components/lab/portal/PortalNav.astro";
+import PrivacyQuestions from "../components/lab/PrivacyQuestions.astro";
+import { title, description } from "../data/privacy";
+import "../styles/lab-portal.css";
+---
+<SiteShell title={title} description={description} path="/privacy" type="article">
+  <div class="v1">
+    <PortalNav current="privacy" />
+    <main id="main"><PrivacyQuestions /></main>
+  </div>
+</SiteShell>

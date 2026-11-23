@@ -1,0 +1,160 @@
+---
+import PortalEnd from "./portal/PortalEnd.astro";
+import { effective, email, lede, sent, notSent, notUsed, settingsPath, toggleName, analyticsParas, leavesOutParas, controlsParas, servicesParas, storageParas, contactParas, connected } from "../../data/privacy";
+
+const qa = [
+  { q: "What does Tabs send?", a: lede, more: `<dl>${sent.map((s) => `<div><dt>${s.k}</dt><dd>${s.v}</dd></div>`).join("")}</dl>` },
+  { q: "Why is analytics collected, and is it on?", a: "To understand whether installations are active and which app versions and operating systems are in use.", more: `<p>${analyticsParas[0]}</p>` },
+  { q: "Does Tabs see my code or prompts?", a: "Not through its own analytics.", more: `<p>${leavesOutParas[0]}</p><p>${leavesOutParas[1]}</p>` },
+  { q: "Who am I to Tabs?", a: "A random ID, and nothing else.", more: `<p>${analyticsParas[1]}</p>` },
+  { q: "How do I turn it off?", a: `In Tabs, open <strong>${settingsPath}</strong> and switch off <strong>${toggleName}</strong>.`, more: `<p>${controlsParas[0]}</p><p>${controlsParas[1]}</p><p>${controlsParas[2]}</p>` },
+  { q: "What happens to data already sent?", a: "Turning analytics off does not delete events already delivered to PostHog.", more: `<p>${storageParas[1]}</p>` },
+  { q: "What about my AI providers and extensions?", a: "They are separate. Tabs’ analytics setting does not control them.", more: `<p>${servicesParas[0]}</p><p>${servicesParas[1]}</p><dl>${connected.map((s) => `<div><dt>${s.k}</dt><dd>${s.v}</dd></div>`).join("")}</dl>` },
+  { q: "Where is anything stored on my computer?", a: "The random analytics ID is stored locally while analytics is enabled.", more: `<p>${storageParas[0]}</p>` },
+  { q: "How do I ask about, access or delete my data?", a: contactParas[0], more: `<p>Write to <a href="mailto:${email}">${email}</a>.</p>` },
+];
+const text = (s: string) => s.replace(/<[^>]+>/g, " ");
+---
+<div class="p3">
+  <section class="p3-hero" data-sec="Questions intro">
+    <div class="v1-wrap">
+      <p class="v1-kicker">Desktop app privacy · Effective {effective}</p>
+      <h1>Ask us <em>anything.</em><br />We answered first.</h1>
+      <div class="p3-tools">
+        <label class="p3-search"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="p3-q" type="search" placeholder="Search: code, off, IP, delete…" autocomplete="off" aria-label="Search the privacy policy" /></label>
+        <button type="button" class="p3-all" data-all aria-pressed="false">Expand all</button>
+      </div>
+      <p class="p3-count" aria-live="polite" data-count>{qa.length} questions</p>
+    </div>
+  </section>
+
+  <section class="p3-list-wrap">
+    <div class="v1-wrap">
+      <ol class="p3-list">
+        {qa.map((it, i) => (
+          <li class="p3-item" data-text={text(it.q + " " + it.a + " " + it.more).toLowerCase()}>
+            <h2>
+              <button type="button" class="p3-q" aria-expanded="false" aria-controls={`p3-a-${i}`} id={`p3-t-${i}`}>
+                <span class="p3-n">{String(i + 1).padStart(2, "0")}</span>
+                <span class="p3-qt">{it.q}</span>
+                <span class="p3-plus" aria-hidden="true"><i></i><i></i></span>
+              </button>
+            </h2>
+            <div class="p3-a" id={`p3-a-${i}`} role="region" aria-labelledby={`p3-t-${i}`} hidden>
+              <div class="p3-a__in">
+                <p class="p3-short" set:html={it.a} />
+                <div class="p3-more" set:html={it.more} />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p class="p3-none" hidden>Nothing matches that. Email <a href={`mailto:${email}`}>{email}</a> and we’ll answer.</p>
+      <div class="p3-no">
+        <p class="v1-kicker">Never sent by Tabs’ analytics</p>
+        <ul>{notSent.map((n) => <li>{n}</li>)}</ul>
+        <p class="p3-no__note">{notUsed}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="p3-end" data-sec="Contact">
+    <div class="v1-wrap">
+      <p>Still have a question?</p>
+      <a href={`mailto:${email}`}>{email}</a>
+      <small>Please do not email passwords, API keys, or other secrets.</small>
+    </div>
+  </section>
+  <PortalEnd title="Make room for what's next." />
+  <div class="p3-bar" aria-hidden="true"><i></i></div>
+</div>
+
+<style is:global>
+  .p3-hero { padding: 150px 0 50px; }
+  .p3-hero h1 { margin: 0; font-size: clamp(52px, 8.6vw, 140px); line-height: .9; letter-spacing: -.058em; font-weight: 500; } .p3-hero h1 em { color: var(--cobalt); }
+  .p3-tools { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 52px; }
+  .p3-search { flex: 1 1 360px; max-width: 620px; display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 24px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line); color: var(--mute); transition: box-shadow .3s; } .p3-search:focus-within { box-shadow: 0 0 0 2px var(--ink); }
+  .p3-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--ink); font: 400 18px var(--sans); }
+  .p3-all { height: 64px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font: 500 16px var(--sans); cursor: pointer; transition: background .3s; } .p3-all:hover { background: var(--cobalt); } .p3-all:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+  .p3-count { margin: 18px 0 0 6px; font: 500 12px var(--mono); color: var(--mute); }
+
+  .p3-list-wrap { padding: 30px 0 110px; }
+  .p3-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+  .p3-item { border-bottom: 1px solid var(--line); } .p3-item[hidden] { display: none; }
+  .p3-item h2 { margin: 0; font-size: inherit; letter-spacing: 0; line-height: 1; }
+  .p3-q { display: grid; grid-template-columns: 56px 1fr 48px; align-items: center; gap: 12px; width: 100%; padding: 30px 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  .p3-q:focus-visible { outline: 2px solid var(--cobalt); outline-offset: -2px; }
+  .p3-n { font: 500 12px var(--mono); color: var(--mute); }
+  .p3-qt { font-size: clamp(28px, 4.2vw, 62px); line-height: 1; letter-spacing: -.045em; font-weight: 500; transition: transform .6s cubic-bezier(.2,1,.3,1), color .3s; }
+  .p3-q:hover .p3-qt, .p3-item.open .p3-qt { color: var(--cobalt); transform: translateX(14px); }
+  .p3-plus { position: relative; justify-self: end; width: 44px; height: 44px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(11,13,31,.25); transition: background .3s, rotate .5s cubic-bezier(.2,1,.3,1); } .p3-plus i { position: absolute; left: 14px; top: 21px; width: 16px; height: 2px; background: var(--ink); transition: background .3s; } .p3-plus i + i { rotate: 90deg; }
+  .p3-q:hover .p3-plus { background: var(--ink); } .p3-q:hover .p3-plus i { background: #fff; } .p3-item.open .p3-plus { rotate: 135deg; }
+  .p3-a { overflow: hidden; } .p3-a[hidden] { display: none; }
+  .p3-a__in { display: grid; grid-template-columns: 56px minmax(0, 5fr) minmax(0, 6fr); gap: 12px clamp(24px, 5vw, 80px); padding: 0 0 48px; }
+  .p3-short { grid-column: 2; margin: 0; font: italic 400 clamp(26px, 2.8vw, 38px) / 1.15 var(--serif); letter-spacing: -.01em; } .p3-short strong { font-weight: 400; color: var(--cobalt); }
+  .p3-more { grid-column: 3; font-size: 16.5px; line-height: 1.65; color: #33364a; } .p3-more p { margin: 0 0 14px; } .p3-more strong { color: var(--ink); } .p3-more code { padding: 1px 5px; background: #eef1ff; font: 500 .86em var(--mono); } .p3-more a { color: var(--cobalt); }
+  .p3-more dl { margin: 0; } .p3-more dl > div { display: grid; grid-template-columns: 130px 1fr; gap: 4px 16px; padding: 12px 0; border-top: 1px solid var(--line); } .p3-more dt { font-weight: 600; font-size: 15px; } .p3-more dd { margin: 0; font-size: 15px; }
+  .p3-none { margin: 40px 0; font-size: 20px; color: var(--mute); } .p3-none[hidden] { display: none; } .p3-none a { color: var(--cobalt); }
+  .p3-no { margin-top: 80px; } .p3-no ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; } .p3-no li { padding: 7px 14px; border-radius: 999px; background: #f0f1f5; color: var(--mute); font-size: 15px; text-decoration: line-through; text-decoration-color: var(--coral); text-decoration-thickness: 1.5px; } .p3-no__note { max-width: 640px; margin: 22px 0 0; color: var(--mute); font-size: 16px; line-height: 1.55; }
+
+  .p3-end { padding: 120px 0 100px; background: var(--ink); color: var(--ivory); } .p3-end p { margin: 0 0 30px; font-size: 20px; }
+  .p3-end a { display: inline-block; color: var(--ivory); font-size: clamp(34px, 7.6vw, 112px); line-height: .95; letter-spacing: -.055em; text-decoration: none; overflow-wrap: anywhere; transition: color .25s; } .p3-end a:hover { color: var(--periwinkle); } .p3-end a:focus-visible { outline: 2px solid #fff; outline-offset: 6px; }
+  .p3-end small { display: block; margin-top: 44px; font: 500 12px var(--mono); color: rgba(251,252,254,.6); }
+  .p3-bar { position: fixed; z-index: 1400; left: 0; right: 0; top: 0; height: 3px; pointer-events: none; } .p3-bar i { display: block; height: 100%; background: var(--cobalt); transform: scaleX(0); transform-origin: 0 50%; }
+
+  @media (max-width: 860px) { .p3-a__in { grid-template-columns: 1fr; } .p3-short, .p3-more { grid-column: 1; } .p3-q { grid-template-columns: 1fr 44px; grid-template-areas: "n plus" "q plus"; gap: 6px 12px; padding: 22px 0; } .p3-n { grid-area: n; } .p3-qt { grid-area: q; } .p3-plus { grid-area: plus; } .p3-more dl > div { grid-template-columns: 1fr; } .p3-hero { padding-top: 116px; } .p3-all { flex: 1; } }
+</style>
+
+<script>
+  import { gsap, ScrollTrigger, reduced } from "../../lib/lab/common";
+  import { portalPage } from "../../lib/lab/portal";
+  portalPage([[".p3-end"]]);
+
+  const items = [...document.querySelectorAll<HTMLElement>(".p3-item")];
+  const input = document.querySelector<HTMLInputElement>("#p3-q")!;
+  const count = document.querySelector<HTMLElement>("[data-count]")!;
+  const none = document.querySelector<HTMLElement>(".p3-none")!;
+  const allBtn = document.querySelector<HTMLButtonElement>("[data-all]")!;
+
+  const toggle = (it: HTMLElement, open: boolean, instant = false) => {
+    if (it.classList.contains("open") === open) return;
+    const p = it.querySelector<HTMLElement>(".p3-a")!;
+    it.classList.toggle("open", open);
+    it.querySelector(".p3-q")!.setAttribute("aria-expanded", String(open));
+    gsap.killTweensOf(p);
+    if (open) { p.hidden = false; if (!instant && !reduced) gsap.from(p, { height: 0, duration: 0.7, ease: "expo.out", clearProps: "height" }); }
+    else if (instant || reduced) p.hidden = true;
+    else gsap.to(p, { height: 0, duration: 0.4, ease: "expo.inOut", onComplete: () => { p.hidden = true; gsap.set(p, { clearProps: "height" }); } });
+  };
+  items.forEach((it) => it.querySelector(".p3-q")!.addEventListener("click", () => {
+    const open = !it.classList.contains("open");
+    toggle(it, open);
+  }));
+
+  const filter = () => {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let n = 0;
+    items.forEach((it) => {
+      const hit = words.every((w) => it.dataset.text!.includes(w));
+      it.hidden = !hit;
+      if (hit) n++;
+      if (words.length && hit) toggle(it, true, true); else if (!words.length) toggle(it, false, true);
+    });
+    count.textContent = `${n} ${n === 1 ? "question" : "questions"}`;
+    none.hidden = n > 0;
+  };
+  input.addEventListener("input", filter);
+  allBtn.addEventListener("click", () => {
+    const open = allBtn.getAttribute("aria-pressed") !== "true";
+    allBtn.setAttribute("aria-pressed", String(open));
+    allBtn.textContent = open ? "Collapse all" : "Expand all";
+    items.filter((i) => !i.hidden).forEach((it) => toggle(it, open));
+  });
+  toggle(items[0], true, true);
+  ScrollTrigger.create({ start: 0, end: "max", onUpdate: (s) => gsap.set(".p3-bar i", { scaleX: s.progress }) });
+
+  if (!reduced) {
+    gsap.from(".p3-hero .v1-kicker, .p3-hero h1, .p3-tools, .p3-count", { y: 30, autoAlpha: 0, duration: 1.1, ease: "expo.out", stagger: 0.08, delay: 0.1 });
+    gsap.from(".p3-item", { y: 40, autoAlpha: 0, duration: 0.9, ease: "expo.out", stagger: 0.06, delay: 0.4 });
+  }
+</script>

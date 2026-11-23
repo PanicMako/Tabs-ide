@@ -1,0 +1,109 @@
+---
+import Mark from "./Mark.astro";
+import { families, RELEASES_URL, version } from "../../data/downloads";
+---
+<div class="dt v1" role="dialog" aria-modal="true" aria-labelledby="dt-title" hidden>
+  <div class="dt__bg" aria-hidden="true"></div>
+  <button type="button" class="dt__close" data-dt-close aria-label="Close and go back to downloads">Close <kbd>esc</kbd></button>
+  <div class="dt__in">
+    <Mark size={120} color="#FBFCFE" eyes="#0E2AF3" class="dt__mark" data-alive />
+    <p class="dt__kick" data-dt-kick>Tabs <span data-version>{version}</span> · <span data-dt-os></span></p>
+    <h2 id="dt-title" class="dt__title"><span class="dt__ln"><span>Thank you.</span></span><span class="dt__ln"><span><em>Tabs is on its way.</em></span></span></h2>
+    <p class="dt__sub">Your download should start in a moment. <code data-dt-file></code></p>
+
+    <div class="dt__grid">
+      <div class="dt__card">
+        <p class="dt__h">Install in three steps</p>
+        {families.map((f) => <ol class="dt__steps" data-dt-steps={f.id} hidden>{f.steps.map((s, k) => <li><b>{k + 1}</b><span>{s}</span></li>)}</ol>)}
+      </div>
+      <div class="dt__card dt__card--help" data-dt-help>
+        <p class="dt__h">Nothing downloading?</p>
+        <p class="dt__help">Some browsers block the first download. Try again, or grab it straight from GitHub.</p>
+        <div class="dt__btns">
+          <a class="dt__btn" data-dt-again href="#">Try the download again</a>
+          <a class="dt__btn dt__btn--line" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">Open the latest release on GitHub ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  .dt.v1 { background: var(--cobalt); color: #fff; font-family: var(--sans); overflow-x: hidden; }
+  .dt { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; overflow-y: auto; color: #fff; }
+  .dt[hidden] { display: none; }
+  .dt__bg { position: fixed; inset: 0; background: var(--cobalt); }
+  .dt__bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(900px 500px at 50% 110%, rgba(255,255,255,.14), transparent 70%); }
+  .dt__close { position: fixed; z-index: 2; top: 18px; right: 18px; display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px 0 20px; border: 0; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font: 500 15px var(--sans); cursor: pointer; transition: background .25s; } .dt__close:hover { background: rgba(255,255,255,.26); } .dt__close:focus-visible, .dt__btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .dt__close kbd { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.16); font: 500 11px var(--mono); }
+  .dt__in { position: relative; z-index: 1; width: min(980px, calc(100% - 40px)); padding: 96px 0 64px; text-align: center; }
+  .dt__mark { margin: 0 auto 28px; }
+  .dt__kick { margin: 0 0 18px; font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.7); }
+  .dt .dt__title { margin: 0; font-size: clamp(54px, 10vw, 150px); line-height: .92; letter-spacing: -.06em; font-weight: 500; }
+  .dt .dt__title em { color: var(--periwinkle); }
+  .dt__ln { display: block; overflow: hidden; padding: .02em .1em .26em; margin: 0 -.1em -.26em; } .dt__ln > span { display: block; }
+  .dt__sub { margin: 30px 0 0; font-size: 19px; color: rgba(255,255,255,.82); } .dt__sub code { display: block; margin-top: 8px; font: 400 13px var(--mono); color: var(--periwinkle); overflow-wrap: anywhere; }
+  .dt__grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; margin-top: 52px; text-align: left; }
+  .dt__card { padding: 26px 28px; border-radius: 26px; background: rgba(255,255,255,.1); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+  .dt__h { margin: 0 0 16px; font: 500 12px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: rgba(255,255,255,.65); }
+  .dt__steps { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; } .dt__steps[hidden] { display: none; }
+  .dt__steps li { display: flex; gap: 14px; font-size: 16px; line-height: 1.45; } .dt__steps b { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--cobalt); font: 600 12px var(--mono); }
+  .dt__help { margin: 0 0 20px; font-size: 16px; line-height: 1.5; color: rgba(255,255,255,.85); }
+  .dt__btns { display: grid; gap: 10px; }
+  .dt__btn { display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 22px; border-radius: 999px; background: #fff; color: var(--cobalt); font: 500 15.5px var(--sans); text-decoration: none; text-align: center; transition: background .25s, color .25s, transform .3s cubic-bezier(.2,1,.3,1); } .dt__btn:hover { background: var(--ink); color: #fff; transform: translateY(-2px); }
+  .dt__btn--line { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5); } .dt__btn--line:hover { background: #fff; color: var(--cobalt); }
+  .dt__card--help { transition: box-shadow .5s; } .dt__card--help.nudge { box-shadow: 0 0 0 2px #fff; }
+  @media (max-width: 760px) { .dt__grid { grid-template-columns: 1fr; } .dt__in { padding-top: 84px; } .dt__close kbd { display: none; } .dt__close { padding-right: 20px; } }
+</style>
+
+<script>
+  import { gsap, reduced, smoothScroll } from "../../lib/lab/common";
+  const root = document.querySelector<HTMLElement>(".dt");
+  if (root) {
+    const names: Record<string, string> = { mac: "macOS", win: "Windows", linux: "Linux" };
+    const close = root.querySelector<HTMLButtonElement>("[data-dt-close]")!;
+    const help = root.querySelector<HTMLElement>("[data-dt-help]")!;
+    const again = root.querySelector<HTMLAnchorElement>("[data-dt-again]")!;
+    const inert: HTMLElement[] = [];
+    let opener: HTMLElement | null = null, timer = 0, isOpen = false;
+
+    const open = (fam: string, file: string, href: string, from: HTMLElement) => {
+      opener = from; isOpen = true;
+      root.querySelector("[data-dt-os]")!.textContent = names[fam];
+      root.querySelector("[data-dt-file]")!.textContent = file;
+      again.href = href;
+      root.querySelectorAll<HTMLElement>("[data-dt-steps]").forEach((s) => (s.hidden = s.dataset.dtSteps !== fam));
+      for (const el of document.body.children) if (el instanceof HTMLElement && el !== root && !["SCRIPT", "STYLE", "LINK"].includes(el.tagName) && !el.inert) { el.inert = true; inert.push(el); }
+      smoothScroll()?.stop();
+      document.documentElement.style.overflow = "hidden";
+      root.hidden = false;
+      help.classList.remove("nudge");
+      const r = from.getBoundingClientRect();
+      const at = `${r.left + r.width / 2}px ${r.top + r.height / 2}px`;
+      if (reduced) gsap.set(root, { clipPath: "none" });
+      else {
+        gsap.fromTo(root, { clipPath: `circle(0px at ${at})` }, { clipPath: `circle(${Math.hypot(innerWidth, innerHeight)}px at ${at})`, duration: 0.85, ease: "expo.inOut" });
+        gsap.fromTo(".dt__mark", { y: 60, rotate: -14, scale: 0.6, autoAlpha: 0 }, { y: 0, rotate: 0, scale: 1, autoAlpha: 1, duration: 1.1, ease: "back.out(1.8)", delay: 0.45 });
+        gsap.fromTo(".dt__ln > span", { yPercent: 110 }, { yPercent: 0, duration: 1.1, ease: "expo.out", stagger: 0.1, delay: 0.55 });
+        gsap.fromTo(".dt__kick, .dt__sub, .dt__card, .dt__close", { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.9, ease: "expo.out", stagger: 0.07, delay: 0.75 });
+      }
+      close.focus({ preventScroll: true });
+      // If nothing seems to happen, draw the eye to the GitHub fallback.
+      clearTimeout(timer);
+      timer = window.setTimeout(() => help.classList.add("nudge"), 7000);
+    };
+    const shut = () => {
+      if (!isOpen) return;
+      isOpen = false; clearTimeout(timer);
+      const done = () => { root.hidden = true; gsap.set(root, { clearProps: "all" }); inert.splice(0).forEach((e) => (e.inert = false)); document.documentElement.style.overflow = ""; smoothScroll()?.start(); opener?.focus({ preventScroll: true }); };
+      if (reduced) done(); else gsap.to(root, { autoAlpha: 0, scale: 1.02, duration: 0.35, ease: "power2.in", onComplete: done });
+    };
+    close.addEventListener("click", shut);
+    addEventListener("keydown", (e) => { if (e.key === "Escape") shut(); if (e.key === "Tab" && isOpen) { const f = [...root.querySelectorAll<HTMLElement>("a[href], button")].filter((x) => !x.closest("[hidden]")); const a = document.activeElement; if (e.shiftKey && a === f[0]) { e.preventDefault(); f.at(-1)!.focus(); } else if (!e.shiftKey && a === f.at(-1)) { e.preventDefault(); f[0].focus(); } } });
+    document.addEventListener("tabs:download", (e) => {
+      const { fam, el } = (e as CustomEvent).detail as { fam: string; el: HTMLAnchorElement };
+      const file = el.querySelector("[data-file]")?.textContent ?? "";
+      open(fam, file, el.href, el);
+    });
+  }
+</script>
