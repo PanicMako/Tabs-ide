@@ -97,9 +97,9 @@ const text = (s: string) => s.replace(/<[^>]+>/g, " ");
   .p3-none { margin: 40px 0; font-size: 20px; color: var(--mute); } .p3-none[hidden] { display: none; } .p3-none a { color: var(--cobalt); }
   .p3-no { margin-top: 80px; } .p3-no ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; } .p3-no li { padding: 7px 14px; border-radius: 999px; background: #f0f1f5; color: var(--mute); font-size: 15px; text-decoration: line-through; text-decoration-color: var(--coral); text-decoration-thickness: 1.5px; } .p3-no__note { max-width: 640px; margin: 22px 0 0; color: var(--mute); font-size: 16px; line-height: 1.55; }
 
-  .p3-end { padding: 120px 0 100px; background: var(--ink); color: var(--ivory); } .p3-end p { margin: 0 0 30px; font-size: 20px; }
-  .p3-end a { display: inline-block; color: var(--ivory); font-size: clamp(34px, 7.6vw, 112px); line-height: .95; letter-spacing: -.055em; text-decoration: none; overflow-wrap: anywhere; transition: color .25s; } .p3-end a:hover { color: var(--periwinkle); } .p3-end a:focus-visible { outline: 2px solid #fff; outline-offset: 6px; }
-  .p3-end small { display: block; margin-top: 44px; font: 500 12px var(--mono); color: rgba(251,252,254,.6); }
+  .p3-end { padding: 120px 0 110px; background: var(--ivory); color: var(--ink); } .p3-end p { margin: 0 0 30px; font-size: 20px; }
+  .p3-end a { display: inline-block; color: var(--cobalt); font-size: clamp(34px, 7.6vw, 112px); line-height: .95; letter-spacing: -.055em; text-decoration: none; overflow-wrap: anywhere; transition: color .25s; } .p3-end a:hover { color: var(--ink); } .p3-end a:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 6px; }
+  .p3-end small { display: block; margin-top: 44px; font: 500 12px var(--mono); color: var(--mute); }
   .p3-bar { position: fixed; z-index: 1400; left: 0; right: 0; top: 0; height: 3px; pointer-events: none; } .p3-bar i { display: block; height: 100%; background: var(--cobalt); transform: scaleX(0); transform-origin: 0 50%; }
 
   @media (max-width: 860px) { .p3-a__in { grid-template-columns: 1fr; } .p3-short, .p3-more { grid-column: 1; } .p3-q { grid-template-columns: 1fr 44px; grid-template-areas: "n plus" "q plus"; gap: 6px 12px; padding: 22px 0; } .p3-n { grid-area: n; } .p3-qt { grid-area: q; } .p3-plus { grid-area: plus; } .p3-more dl > div { grid-template-columns: 1fr; } .p3-hero { padding-top: 116px; } .p3-all { flex: 1; } }
@@ -108,7 +108,7 @@ const text = (s: string) => s.replace(/<[^>]+>/g, " ");
 <script>
   import { gsap, ScrollTrigger, reduced } from "../../lib/lab/common";
   import { portalPage } from "../../lib/lab/portal";
-  portalPage([[".p3-end"]]);
+  portalPage();
 
   const items = [...document.querySelectorAll<HTMLElement>(".p3-item")];
   const input = document.querySelector<HTMLInputElement>("#p3-q")!;
