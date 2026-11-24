@@ -331,7 +331,8 @@ jobs:
           - label: Linux x64
             runner: ubuntu-24.04
             platform: linux
-            target: AppImage
+            # One electron-builder pass packs both from the same staged payload.
+            target: AppImage,deb
             arch: x64
           - label: Windows x64
             runner: windows-2022
@@ -647,6 +648,17 @@ jobs:
           bun tabs-app/scripts/verify-code-oss-media.ts "$extract_root/squashfs-root/resources/tabs-code-oss/extensions"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
+      - name: Verify Debian package
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb="tabs-app/release/Tabs-${{ needs.preflight.outputs.version }}-amd64.deb"
+          [[ -s "$deb" ]] || { echo "::error::Debian package was not generated: $deb"; exit 1; }
+          node --experimental-strip-types tabs-app/scripts/verify-deb-package.ts "$deb" "${{ needs.preflight.outputs.version }}" x64
+          # A .deb is never an auto-update source: latest-linux.yml must still resolve to the AppImage.
+          node --experimental-strip-types tabs-app/scripts/verify-desktop-update-artifact.ts tabs-app/release linux "${{ needs.preflight.outputs.version }}"
+
       - name: Inspect Windows NSIS update payload
         if: matrix.platform == 'win'
         shell: pwsh
@@ -702,6 +714,7 @@ jobs:
             "tabs-app/release/*.zip" \
             "tabs-app/release/*.AppImage" \
             "tabs-app/release/*.AppImage.blockmap" \
+            "tabs-app/release/*.deb" \
             "tabs-app/release/*.exe" \
             "tabs-app/release/*.exe.blockmap" \
             "tabs-app/release/beta*.yml" \
@@ -834,9 +847,10 @@ jobs:
           dmgs=(release-assets/*.dmg)
           appimages=(release-assets/*.AppImage)
           installers=(release-assets/*.exe)
+          debs=(release-assets/*.deb)
           mac_zips=(release-assets/*.zip)
-          if (( ${#dmgs[@]} != 2 || ${#mac_zips[@]} != 2 || ${#appimages[@]} != 1 || ${#installers[@]} != 1 )); then
-            echo "::error::Expected 2 DMGs, 2 macOS ZIPs, 1 AppImage, and 1 Windows installer; found ${#dmgs[@]}, ${#mac_zips[@]}, ${#appimages[@]}, and ${#installers[@]}."
+          if (( ${#dmgs[@]} != 2 || ${#mac_zips[@]} != 2 || ${#appimages[@]} != 1 || ${#debs[@]} != 1 || ${#installers[@]} != 1 )); then
+            echo "::error::Expected 2 DMGs, 2 macOS ZIPs, 1 AppImage, 1 Debian package, and 1 Windows installer; found ${#dmgs[@]}, ${#mac_zips[@]}, ${#appimages[@]}, ${#debs[@]}, and ${#installers[@]}."
             exit 1
           fi
           for asset in \
@@ -845,7 +859,8 @@ jobs:
             "Tabs-$RELEASE_VERSION-x64.dmg" \
             "Tabs-$RELEASE_VERSION-x64.zip" \
             "Tabs-$RELEASE_VERSION-x64.exe" \
-            "Tabs-$RELEASE_VERSION-x86_64.AppImage"; do
+            "Tabs-$RELEASE_VERSION-x86_64.AppImage" \
+            "Tabs-$RELEASE_VERSION-amd64.deb"; do
             if [ ! -s "release-assets/$asset" ]; then
               echo "::error::Missing or empty release asset: $asset"
               exit 1
@@ -912,6 +927,7 @@ jobs:
             release-assets/*.zip
             release-assets/*.AppImage
             release-assets/*.AppImage.blockmap
+            release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
             release-assets/latest.yml
@@ -943,6 +959,7 @@ jobs:
             release-assets/*.zip
             release-assets/*.AppImage
             release-assets/*.AppImage.blockmap
+            release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
             release-assets/latest.yml

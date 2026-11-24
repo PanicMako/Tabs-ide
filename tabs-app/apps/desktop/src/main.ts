@@ -1496,6 +1496,7 @@ function handleCheckForUpdatesMenuClick(): void {
     isPackaged: app.isPackaged,
     platform: process.platform,
     appImage: process.env.APPIMAGE,
+    windowsStore: process.windowsStore === true,
     disabledByEnv: process.env.TABS_DISABLE_AUTO_UPDATE === "1",
   });
   if (disabledReason) {
@@ -2028,6 +2029,7 @@ function shouldEnableAutoUpdates(): boolean {
       isPackaged: app.isPackaged,
       platform: process.platform,
       appImage: process.env.APPIMAGE,
+      windowsStore: process.windowsStore === true,
       disabledByEnv: process.env.TABS_DISABLE_AUTO_UPDATE === "1",
     }) === null
   );

@@ -63,6 +63,30 @@ describe("shouldBroadcastDownloadProgress", () => {
 });
 
 describe("getAutoUpdateDisabledReason", () => {
+  it("leaves Microsoft Store packages to the Store and keeps NSIS updates enabled", () => {
+    const base = {
+      isDevelopment: false,
+      isPackaged: true,
+      platform: "win32" as const,
+      disabledByEnv: false,
+    };
+    expect(getAutoUpdateDisabledReason({ ...base, windowsStore: true })).toContain(
+      "Microsoft Store",
+    );
+    expect(getAutoUpdateDisabledReason({ ...base, windowsStore: false })).toBeNull();
+  });
+
+  it("keeps a .deb install out of the AppImage updater", () => {
+    const reason = getAutoUpdateDisabledReason({
+      isDevelopment: false,
+      isPackaged: true,
+      platform: "linux",
+      appImage: undefined,
+      disabledByEnv: false,
+    });
+    expect(reason).toContain(".deb");
+  });
+
   it("reports development builds as disabled", () => {
     expect(
       getAutoUpdateDisabledReason({

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: "Platforms to build (comma-separated: mac-arm64, mac-x64, linux-x64, win-x64)"
+        description: "Platforms to build (comma-separated: mac-arm64, mac-x64, linux-x64, win-x64; opt-in: win-x64-appx for the Microsoft Store package)"
         required: false
         default: "mac-arm64,mac-x64,linux-x64,win-x64"
         type: string
@@ -95,14 +95,17 @@ jobs:
               }
             }
             const allTargets = {
-              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'arm64' },
-              'mac-x64':    { label: 'macOS x64',    runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'x64'   },
-              'linux-x64':  { label: 'Linux x64',    runner: 'ubuntu-24.04',   platform: 'linux', target: 'AppImage', arch: 'x64'   },
-              'win-x64':    { label: 'Windows x64',  runner: 'windows-2022',   platform: 'win',   target: 'nsis',     arch: 'x64'   },
+              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'arm64', artifact: 'desktop-mac-arm64' },
+              'mac-x64':    { label: 'macOS x64',    runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'x64', artifact: 'desktop-mac-x64' },
+              'linux-x64':  { label: 'Linux x64',    runner: 'ubuntu-24.04',   platform: 'linux', target: 'AppImage,deb', arch: 'x64', artifact: 'desktop-linux-x64' },
+              'win-x64':    { label: 'Windows x64',  runner: 'windows-2022',   platform: 'win',   target: 'nsis',     arch: 'x64', artifact: 'desktop-win-x64' },
+              // Opt-in only: needs the Partner Center identity (repository variables
+              // TABS_APPX_*). The Store signs it, so it is never a GitHub release asset.
+              'win-x64-appx': { label: 'Windows x64 Store AppX', runner: 'windows-2022', platform: 'win', target: 'appx', arch: 'x64', artifact: 'desktop-win-x64-appx', optIn: true },
             };
 
             const input = (process.env.REQUESTED_PLATFORMS || '').trim();
-            const keys = input ? input.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(allTargets);
+            const keys = input ? input.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(allTargets).filter(k => !allTargets[k].optIn);
 
             const include = [];
             for (const key of keys) {
@@ -213,7 +216,7 @@ jobs:
           node-version: "24"
 
       - name: Check Windows installer process closer
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: ./tabs-app/scripts/test-windows-install-processes.ps1
 
@@ -393,6 +396,10 @@ jobs:
         shell: bash
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          # Partner Center → Product identity. Only read by the appx target.
+          TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
+          TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
+          TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
         run: |
           args=(
             --platform "${{ matrix.platform }}"
@@ -410,7 +417,7 @@ jobs:
           bun run dist:desktop:artifact -- "${args[@]}"
 
       - name: Verify native update artifact and metadata
-        if: matrix.platform == 'linux' || matrix.platform == 'win'
+        if: matrix.platform == 'linux' || (matrix.platform == 'win' && matrix.target == 'nsis')
         shell: bash
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
@@ -446,7 +453,7 @@ jobs:
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
       - name: Inspect Windows NSIS update payload
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -480,6 +487,51 @@ jobs:
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne "NotSigned" -and $signature.Status -ne "Valid") { throw "Invalid installer signature: $($signature.Status)" }
 
+      - name: Verify Debian package
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="$REQUESTED_VERSION"
+          if [[ -z "$version" ]]; then
+            version="$(node -p "require('./tabs-app/apps/desktop/package.json').version")"
+          fi
+          version="${version#v}"
+          node --experimental-strip-types tabs-app/scripts/verify-deb-package.ts "tabs-app/release/Tabs-$version-amd64.deb" "$version" x64
+
+      - name: Inspect Store AppX package
+        if: matrix.platform == 'win' && matrix.target == 'appx'
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
+          TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
+          TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:REQUESTED_VERSION
+          if (-not $version) { $version = node -p "require('./tabs-app/apps/desktop/package.json').version" }
+          $version = $version.TrimStart("v")
+          $appx = Join-Path tabs-app/release "Tabs-$version-x64.appx"
+          if (-not (Test-Path $appx -PathType Leaf)) { throw "Store package was not generated: $appx" }
+          # An .appx is a zip container; Expand-Archive only accepts the .zip extension.
+          $zip = Join-Path $env:RUNNER_TEMP "tabs-appx.zip"
+          Copy-Item $appx $zip -Force
+          $root = Join-Path $env:RUNNER_TEMP "tabs-appx"
+          Expand-Archive $zip -DestinationPath $root -Force
+          & node --experimental-strip-types tabs-app/scripts/verify-appx-package.ts (Join-Path $root "AppxManifest.xml") $version x64
+          if ($LASTEXITCODE -ne 0) { throw "AppX manifest identity check failed." }
+          $app = Join-Path $root "app"
+          foreach ($required in @("Tabs.exe", "resources/app.asar", "resources/tabs-code-oss/out-build/nls.messages.json", "resources/tabs-code-oss/node_modules/minimist/index.js")) {
+            if (-not (Test-Path (Join-Path $app $required) -PathType Leaf)) { throw "Store package is missing app/$required." }
+          }
+          # Store builds are updated by the Store: no NSIS updater config may be shipped as a feed.
+          if (Test-Path (Join-Path $root "app/resources/app-update.yml")) { Write-Host "::notice::app-update.yml is present; the app disables its updater when process.windowsStore is true." }
+          & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $app "resources/tabs-code-oss") (Join-Path $app "Tabs.exe")
+          if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
+
       - name: Collect artifacts
         shell: bash
         run: |
@@ -491,6 +543,8 @@ jobs:
             "tabs-app/release/*.dmg" \
             "tabs-app/release/*.zip" \
             "tabs-app/release/*.AppImage" \
+            "tabs-app/release/*.deb" \
+            "tabs-app/release/*.appx" \
             "tabs-app/release/*.exe" \
             "tabs-app/release/*.blockmap" \
             "tabs-app/release/latest*.yml" \
@@ -504,13 +558,13 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          name: ${{ matrix.artifact }}
           path: artifacts/*
           if-no-files-found: error
           retention-days: 14
 
       - name: Smoke-test Windows install and locked-process upgrade
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         timeout-minutes: 50
         env:
@@ -519,7 +573,7 @@ jobs:
         run: ./tabs-app/scripts/smoke-windows-installer.ps1
 
       - name: Upload Windows installation timings
-        if: always() && matrix.platform == 'win'
+        if: always() && matrix.platform == 'win' && matrix.target == 'nsis'
         uses: actions/upload-artifact@v7
         with:
           name: windows-installer-timings
@@ -528,7 +582,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Windows installer process log on failure
-        if: failure() && matrix.platform == 'win'
+        if: failure() && matrix.platform == 'win' && matrix.target == 'nsis'
         uses: actions/upload-artifact@v7
         with:
           name: windows-installer-process-log

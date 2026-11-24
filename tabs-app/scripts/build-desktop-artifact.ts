@@ -17,6 +17,8 @@ import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
+import { splitTargets, validateBuildTarget } from "./lib/desktop-targets.ts";
+import { resolveAppxIdentity } from "./lib/windows-appx.ts";
 import { writeWindowsNsisScripts } from "./lib/windows-nsis.ts";
 import { WINDOWS_APP_FILE_EXCLUSIONS } from "./lib/windows-app-payload.ts";
 import {
@@ -79,6 +81,16 @@ const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
     archChoices: ["x64", "arm64"],
   },
 };
+
+/** Debian requires a maintainer; defaults to the public contact on the privacy page. */
+const DEB_MAINTAINER = process.env.TABS_DEB_MAINTAINER?.trim() || "Tabs <tabsappinbox@gmail.com>";
+
+/** Store logo and tile sizes electron-builder maps into the AppX `assets` folder. */
+const APPX_SQUARE_ASSETS = [
+  ["StoreLogo.png", 50],
+  ["Square44x44Logo.png", 44],
+  ["Square150x150Logo.png", 150],
+] as const;
 
 interface BuildCliInput {
   readonly platform: Option.Option<typeof BuildPlatform.Type>;
@@ -262,6 +274,17 @@ const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (input: B
   const verbose = resolveBooleanFlag(input.verbose, env.verbose);
   const thin = resolveBooleanFlag(input.thin, env.thin);
 
+  const targetProblem = validateBuildTarget({
+    platform,
+    target,
+    arch,
+    hostArch: process.arch,
+    allowUnverifiedArch: process.env.TABS_ALLOW_UNVERIFIED_ARCH === "1",
+  });
+  if (targetProblem) {
+    return yield* new BuildScriptError({ message: targetProblem });
+  }
+
   if (platform === "win" && thin) {
     return yield* new BuildScriptError({
       message:
@@ -407,12 +430,22 @@ function stageLinuxIcons(stageResourcesDir: string) {
   });
 }
 
-function stageWindowsIcons(stageResourcesDir: string) {
+function stageWindowsIcons(stageResourcesDir: string, includeStoreAssets: boolean) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
+    const fs = yield* FileSystem.FileSystem;
     const iconSource = yield* ProductionBrandLogoSource;
     const iconPath = path.join(stageResourcesDir, "icon.ico");
     yield* renderSvgToIcoFile(iconSource, iconPath, "win");
+    if (includeStoreAssets) {
+      // electron-builder falls back to its sample Electron tiles when
+      // `<buildResources>/appx` is empty, which Store review would reject.
+      const appxDir = path.join(stageResourcesDir, "appx");
+      yield* fs.makeDirectory(appxDir, { recursive: true });
+      for (const [name, size] of APPX_SQUARE_ASSETS) {
+        yield* renderSvgToPngFile(iconSource, path.join(appxDir, name), size, "win");
+      }
+    }
   });
 }
 
@@ -989,11 +1022,18 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   }
 
   if (platform === "linux") {
+    const linuxTargets = splitTargets(target);
     buildConfig.linux = {
-      target: [target],
+      target: linuxTargets,
       icon: "icon.png",
       category: "Development",
+      ...(linuxTargets.includes("deb") ? { maintainer: DEB_MAINTAINER } : {}),
     };
+    if (linuxTargets.includes("deb")) {
+      // The AppImage keeps `Tabs-${version}-x86_64.AppImage`; the .deb is named
+      // explicitly by Debian architecture (amd64/arm64) so the two never clash.
+      buildConfig.deb = { artifactName: "Tabs-${version}-${arch}.deb" };
+    }
   }
 
   if (platform === "win") {
@@ -1002,10 +1042,27 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       target: [target],
       icon: "icon.ico",
     };
-    if (signed) {
+    // The Microsoft Store signs AppX/MSIX packages itself, so the Azure
+    // direct-download signing profile never applies to them.
+    if (signed && target !== "appx") {
       winConfig.azureSignOptions = yield* AzureTrustedSigningOptionsConfig;
     }
     buildConfig.win = winConfig;
+    if (target === "appx") {
+      // Identity comes straight from Partner Center via env; it is never defaulted.
+      const identity = resolveAppxIdentity(process.env);
+      buildConfig.appx = {
+        identityName: identity.identityName,
+        publisher: identity.publisher,
+        publisherDisplayName: identity.publisherDisplayName,
+        applicationId: "Tabs",
+        displayName: productName,
+        artifactName: "Tabs-${version}-${arch}.${ext}",
+        // Store-managed updates only: never write electron-updater metadata.
+        electronUpdaterAware: false,
+        setBuildNumber: false,
+      };
+    }
     if (target === "nsis") {
       const nsisConfig: Record<string, unknown> = {
         differentialPackage: true,
@@ -1380,6 +1437,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   platform: typeof BuildPlatform.Type,
   stageResourcesDir: string,
   verbose: boolean,
+  includeStoreAssets = false,
 ) {
   if (platform === "mac") {
     yield* stageMacIcons(stageResourcesDir, verbose);
@@ -1392,7 +1450,7 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   }
 
   if (platform === "win") {
-    yield* stageWindowsIcons(stageResourcesDir);
+    yield* stageWindowsIcons(stageResourcesDir, includeStoreAssets);
   }
 });
 
@@ -1572,7 +1630,12 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     options.platform,
     options.thin,
   );
-  yield* assertPlatformBuildResources(options.platform, stageResourcesDir, options.verbose);
+  yield* assertPlatformBuildResources(
+    options.platform,
+    stageResourcesDir,
+    options.verbose,
+    options.target === "appx",
+  );
 
   if (!options.thin && !runtimeStaged) {
     return yield* new BuildScriptError({
@@ -1900,7 +1963,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   target: Flag.string("target").pipe(
     Flag.withDescription(
-      "Artifact target, for example dmg/AppImage/nsis (env: TABS_DESKTOP_TARGET).",
+      "Artifact target: dmg, nsis, appx (Microsoft Store), or AppImage and/or deb (comma-separated, e.g. AppImage,deb) (env: TABS_DESKTOP_TARGET).",
     ),
     Flag.optional,
   ),
