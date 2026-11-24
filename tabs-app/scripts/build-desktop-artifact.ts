@@ -1057,7 +1057,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         publisher: identity.publisher,
         publisherDisplayName: identity.publisherDisplayName,
         applicationId: "Tabs",
-        displayName: productName,
+        displayName: identity.displayName,
         artifactName: "Tabs-${version}-${arch}.${ext}",
         // Store-managed updates only: never write electron-updater metadata.
         electronUpdaterAware: false,

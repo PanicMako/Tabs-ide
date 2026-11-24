@@ -400,6 +400,7 @@ jobs:
           TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
           TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
           TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
+          TABS_APPX_DISPLAY_NAME: ${{ vars.TABS_APPX_DISPLAY_NAME || 'Tabs IDE' }}
         run: |
           args=(
             --platform "${{ matrix.platform }}"
@@ -509,6 +510,7 @@ jobs:
           TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
           TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
           TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
+          TABS_APPX_DISPLAY_NAME: ${{ vars.TABS_APPX_DISPLAY_NAME || 'Tabs IDE' }}
         run: |
           $ErrorActionPreference = "Stop"
           $version = $env:REQUESTED_VERSION
@@ -521,8 +523,10 @@ jobs:
           Copy-Item $appx $zip -Force
           $root = Join-Path $env:RUNNER_TEMP "tabs-appx"
           Expand-Archive $zip -DestinationPath $root -Force
-          & node --experimental-strip-types tabs-app/scripts/verify-appx-package.ts (Join-Path $root "AppxManifest.xml") $version x64
-          if ($LASTEXITCODE -ne 0) { throw "AppX manifest identity check failed." }
+          $manifestXml = Join-Path $root "AppxManifest.xml"
+          Write-Host "Verifying AppX manifest at $manifestXml..."
+          & node --experimental-strip-types tabs-app/scripts/verify-appx-package.ts $manifestXml $version x64
+          if ($LASTEXITCODE -ne 0) { throw "AppX manifest validation failed." }
           $app = Join-Path $root "app"
           foreach ($required in @("Tabs.exe", "resources/app.asar", "resources/tabs-code-oss/out-build/nls.messages.json", "resources/tabs-code-oss/node_modules/minimist/index.js")) {
             if (-not (Test-Path (Join-Path $app $required) -PathType Leaf)) { throw "Store package is missing app/$required." }
@@ -531,6 +535,17 @@ jobs:
           if (Test-Path (Join-Path $root "app/resources/app-update.yml")) { Write-Host "::notice::app-update.yml is present; the app disables its updater when process.windowsStore is true." }
           & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $app "resources/tabs-code-oss") (Join-Path $app "Tabs.exe")
           if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
+
+          # Generate Store upload bundle (.appxupload)
+          $appxUpload = Join-Path tabs-app/release "Tabs-$version-x64.appxupload"
+          Write-Host "Creating Store upload bundle: $appxUpload"
+          $bundleZip = Join-Path $env:RUNNER_TEMP "tabs-bundle.zip"
+          if (Test-Path $bundleZip) { Remove-Item $bundleZip -Force }
+          Compress-Archive -Path $appx -DestinationPath $bundleZip -Force
+          Move-Item -Path $bundleZip -Destination $appxUpload -Force
+          if (-not (Test-Path $appxUpload -PathType Leaf)) { throw "Store upload bundle was not generated: $appxUpload" }
+          $bundleSize = (Get-Item $appxUpload).Length
+          Write-Host "Store upload bundle generated successfully: $bundleSize bytes."
 
       - name: Collect artifacts
         shell: bash
@@ -545,6 +560,7 @@ jobs:
             "tabs-app/release/*.AppImage" \
             "tabs-app/release/*.deb" \
             "tabs-app/release/*.appx" \
+            "tabs-app/release/*.appxupload" \
             "tabs-app/release/*.exe" \
             "tabs-app/release/*.blockmap" \
             "tabs-app/release/latest*.yml" \

@@ -11,12 +11,16 @@ export interface AppxIdentity {
   readonly identityName: string;
   readonly publisher: string;
   readonly publisherDisplayName: string;
+  readonly displayName: string;
 }
+
+export const DEFAULT_APPX_DISPLAY_NAME = "Tabs IDE";
 
 export const APPX_IDENTITY_ENV = {
   identityName: "TABS_APPX_IDENTITY_NAME",
   publisher: "TABS_APPX_PUBLISHER",
   publisherDisplayName: "TABS_APPX_PUBLISHER_DISPLAY_NAME",
+  displayName: "TABS_APPX_DISPLAY_NAME",
 } as const;
 
 export type AppxEnvironment = Readonly<Record<string, string | undefined>>;
@@ -31,8 +35,14 @@ export function resolveAppxIdentity(env: AppxEnvironment): AppxIdentity {
   const identityName = read(APPX_IDENTITY_ENV.identityName);
   const publisher = read(APPX_IDENTITY_ENV.publisher);
   const publisherDisplayName = read(APPX_IDENTITY_ENV.publisherDisplayName);
+  const displayName = read(APPX_IDENTITY_ENV.displayName) || DEFAULT_APPX_DISPLAY_NAME;
 
-  const missing = Object.values(APPX_IDENTITY_ENV).filter((key) => read(key) === "");
+  const requiredKeys = [
+    APPX_IDENTITY_ENV.identityName,
+    APPX_IDENTITY_ENV.publisher,
+    APPX_IDENTITY_ENV.publisherDisplayName,
+  ] as const;
+  const missing = requiredKeys.filter((key) => read(key) === "");
   if (missing.length > 0) {
     throw new Error(
       `Microsoft Store packaging needs the Partner Center product identity. Missing: ${missing.join(", ")}. ` +
@@ -49,7 +59,7 @@ export function resolveAppxIdentity(env: AppxEnvironment): AppxIdentity {
       `${APPX_IDENTITY_ENV.publisher} must be the Partner Center publisher distinguished name (for example "CN=...").`,
     );
   }
-  return { identityName, publisher, publisherDisplayName };
+  return { identityName, publisher, publisherDisplayName, displayName };
 }
 
 /** Windows package versions are four numeric parts; the Store reserves the last one. */
@@ -63,6 +73,9 @@ export interface AppxManifestFacts {
   readonly identityName: string | null;
   readonly publisher: string | null;
   readonly publisherDisplayName: string | null;
+  readonly displayName: string | null;
+  readonly visualElementsDisplayName: string | null;
+  readonly applicationId: string | null;
   readonly version: string | null;
   readonly processorArchitecture: string | null;
   readonly executable: string | null;
@@ -77,8 +90,18 @@ function attribute(tag: string, name: string): string | null {
 export function readAppxManifest(xml: string): AppxManifestFacts {
   const identityTag = xml.match(/<Identity\b[^>]*>/)?.[0] ?? "";
   const applicationTag = xml.match(/<Application\b[^>]*>/)?.[0] ?? "";
+  const propertiesTag = xml.match(/<Properties\b[^>]*>([\s\S]*?)<\/Properties>/)?.[1] ?? "";
   const publisherDisplayName =
-    xml.match(/<PublisherDisplayName>([^<]*)<\/PublisherDisplayName>/)?.[1] ?? null;
+    propertiesTag.match(/<PublisherDisplayName>([^<]*)<\/PublisherDisplayName>/)?.[1] ??
+    xml.match(/<PublisherDisplayName>([^<]*)<\/PublisherDisplayName>/)?.[1] ??
+    null;
+  const displayName =
+    propertiesTag.match(/<DisplayName>([^<]*)<\/DisplayName>/)?.[1] ??
+    xml.match(/<Properties\b[^>]*>[\s\S]*?<DisplayName>([^<]*)<\/DisplayName>/)?.[1] ??
+    xml.match(/<DisplayName>([^<]*)<\/DisplayName>/)?.[1] ??
+    null;
+  const visualElementsTag = xml.match(/<(?:uap:)?VisualElements\b[^>]*>/)?.[0] ?? "";
+  const visualElementsDisplayName = attribute(visualElementsTag, "DisplayName");
   const capabilities = [...xml.matchAll(/<(?:\w+:)?Capability\b[^>]*\sName\s*=\s*"([^"]+)"/g)].map(
     (m) => m[1] as string,
   );
@@ -86,6 +109,9 @@ export function readAppxManifest(xml: string): AppxManifestFacts {
     identityName: attribute(identityTag, "Name"),
     publisher: attribute(identityTag, "Publisher"),
     publisherDisplayName,
+    displayName,
+    visualElementsDisplayName,
+    applicationId: attribute(applicationTag, "Id"),
     version: attribute(identityTag, "Version"),
     processorArchitecture: attribute(identityTag, "ProcessorArchitecture"),
     executable: attribute(applicationTag, "Executable"),
@@ -107,6 +133,11 @@ export function verifyAppxManifest(
   check("Identity Name", facts.identityName, expected.identityName);
   check("Identity Publisher", facts.publisher, expected.publisher);
   check("PublisherDisplayName", facts.publisherDisplayName, expected.publisherDisplayName);
+  check("Package Properties DisplayName", facts.displayName, expected.displayName);
+  if (facts.visualElementsDisplayName !== null) {
+    check("VisualElements DisplayName", facts.visualElementsDisplayName, expected.displayName);
+  }
+  check("Application Id", facts.applicationId, "Tabs");
   check("Identity Version", facts.version, toAppxVersion(expected.version));
   check("ProcessorArchitecture", facts.processorArchitecture, expected.arch);
   if (!facts.executable?.endsWith("Tabs.exe")) {
