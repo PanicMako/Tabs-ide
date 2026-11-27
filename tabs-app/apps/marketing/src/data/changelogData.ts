@@ -21,15 +21,31 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 196;
+export const TOTAL_TAGS_COUNT = 197;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.11.0",
+    title: "Tabs IDE is on the Microsoft Store, and Linux gets a .deb package",
+    date: "November 27, 2026",
+    shortDate: "Nov 27",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs 2.11.0 adds two new ways to install: Tabs IDE from the Microsoft Store on Windows, and a Debian/Ubuntu .deb package on Linux. The installer and AppImage are unchanged.",
+    highlights: [
+      "Install Tabs IDE from the Microsoft Store; the Store keeps it up to date.",
+      "Each release now includes a Debian/Ubuntu .deb package. Update it by installing the newer .deb.",
+      "The downloads page links the Microsoft Store and the .deb.",
+      "Installer and AppImage users keep their automatic updates and do not need to switch.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.10.0",
     title: "A redesigned Notch, a top-bar teammate, custom teammates and a slimmer model picker",
     date: "November 22, 2026",
     shortDate: "Nov 22",
-    isLatest: true,
     type: "feature",
     summary:
       "Tabs 2.10.0 redesigns the Teammates space and the New teammate flow, tucks your teammate into the top bar as a pair of eyes, lets you describe a custom teammate and have it written for you, and adds a compact model and mode picker for narrow chat panels.",

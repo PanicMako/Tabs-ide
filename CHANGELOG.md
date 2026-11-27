@@ -2,6 +2,25 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.11.0] - 2026-11-27
+
+### Tabs IDE is on the Microsoft Store, and Linux gets a .deb package
+
+Tabs 2.11.0 adds two new ways to install: Tabs IDE from the Microsoft Store on Windows, and a Debian/Ubuntu `.deb` package on Linux. The installer and AppImage are unchanged.
+
+### What changed
+
+- **Microsoft Store**: Install Tabs IDE from the [Microsoft Store](https://apps.microsoft.com/detail/9P8P9XTGZQM9). The Store installs it and keeps it up to date, so the Store copy does not run the in-app updater.
+- **Debian and Ubuntu package**: Each release now includes a `.deb`, such as `Tabs-2.11.0-amd64.deb`. Install it with `sudo apt install ./Tabs-2.11.0-amd64.deb`.
+- **Downloads page**: The Windows and Linux download cards now link the Microsoft Store and the `.deb`. On Windows, the Store link opens the Microsoft Store app.
+
+### Upgrade notes
+
+- If you use the Windows installer or the Linux AppImage, nothing changes: they keep updating themselves, and you do not need to switch.
+- A `.deb` install does not update itself. Install the newer `.deb` from the releases page when a new version comes out.
+- New versions reach the Microsoft Store after Microsoft reviews them, which can take a few days after a release.
+- Windows installers are still not code-signed, so SmartScreen or your antivirus may warn about the `.exe`. The Microsoft Store version avoids that warning.
+
 ## [v2.10.0] - 2026-11-22
 
 ### A redesigned Notch, a top-bar teammate, custom teammates and a slimmer model picker

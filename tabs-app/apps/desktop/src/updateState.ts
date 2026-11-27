@@ -33,6 +33,8 @@ export function getAutoUpdateDisabledReason(args: {
   isPackaged: boolean;
   platform: NodeJS.Platform;
   appImage?: string | undefined;
+  /** `process.windowsStore`: true when running from a Microsoft Store AppX/MSIX package. */
+  windowsStore?: boolean | undefined;
   disabledByEnv: boolean;
 }): string | null {
   if (args.isDevelopment || !args.isPackaged) {
@@ -41,8 +43,13 @@ export function getAutoUpdateDisabledReason(args: {
   if (args.disabledByEnv) {
     return "Automatic updates are disabled by the TABS_DISABLE_AUTO_UPDATE setting.";
   }
+  // Store packages are updated by the Microsoft Store; the NSIS updater must
+  // never replace files inside the read-only package directory.
+  if (args.platform === "win32" && args.windowsStore) {
+    return "Updates for the Microsoft Store version are delivered by the Microsoft Store.";
+  }
   if (args.platform === "linux" && !args.appImage) {
-    return "Automatic updates on Linux require running the AppImage build.";
+    return "Automatic updates on Linux require running the AppImage build. Packages installed with the .deb must be updated by installing the newer .deb.";
   }
   return null;
 }

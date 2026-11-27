@@ -314,6 +314,9 @@ jobs:
     # Fail fast instead of hanging until GitHub's 6h hard limit if the VS Code
     # compile gets stuck (e.g. memory swapping on a small runner).
     timeout-minutes: 150
+    # The Microsoft Store leg never blocks the GitHub release; its failure only
+    # skips the Store submission.
+    continue-on-error: ${{ matrix.target == 'appx' }}
     strategy:
       fail-fast: false
       matrix:
@@ -331,12 +334,20 @@ jobs:
           - label: Linux x64
             runner: ubuntu-24.04
             platform: linux
-            target: AppImage
+            # One electron-builder pass packs both from the same staged payload.
+            target: AppImage,deb
             arch: x64
           - label: Windows x64
             runner: windows-2022
             platform: win
             target: nsis
+            arch: x64
+          # Microsoft Store package (product 9P8P9XTGZQM9). The Store signs it and
+          # it is never a GitHub release asset; the microsoft_store job submits it.
+          - label: Windows x64 Store AppX
+            runner: windows-2022
+            platform: win
+            target: appx
             arch: x64
     steps:
       - name: Checkout
@@ -358,7 +369,7 @@ jobs:
           node-version: "24"
 
       - name: Check Windows installer process closer
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: ./tabs-app/scripts/test-windows-install-processes.ps1
 
@@ -580,6 +591,11 @@ jobs:
           AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
           AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
+          # Partner Center → Product identity. Only read by the appx target.
+          TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
+          TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
+          TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
+          TABS_APPX_DISPLAY_NAME: ${{ vars.TABS_APPX_DISPLAY_NAME || 'Tabs IDE' }}
         run: |
           args=(
             --platform "${{ matrix.platform }}"
@@ -607,6 +623,8 @@ jobs:
             else
               echo "::warning::macOS signing disabled because one or more Apple signing secrets are missing."
             fi
+          elif [[ "${{ matrix.target }}" == "appx" ]]; then
+            echo "Microsoft Store package: Partner Center signs it on submission."
           elif [[ "${{ matrix.platform }}" == "win" ]]; then
             if has_all "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID" "$AZURE_CLIENT_SECRET" \
               "$AZURE_TRUSTED_SIGNING_ENDPOINT" "$AZURE_TRUSTED_SIGNING_ACCOUNT_NAME" \
@@ -620,7 +638,7 @@ jobs:
           bun run dist:desktop:artifact -- "${args[@]}"
 
       - name: Verify native update artifact and metadata
-        if: matrix.platform == 'linux' || matrix.platform == 'win'
+        if: matrix.platform == 'linux' || (matrix.platform == 'win' && matrix.target == 'nsis')
         run: node --experimental-strip-types tabs-app/scripts/verify-desktop-update-artifact.ts tabs-app/release "${{ matrix.platform }}" "${{ needs.preflight.outputs.version }}"
 
       - name: Inspect Linux AppImage update payload
@@ -647,8 +665,19 @@ jobs:
           bun tabs-app/scripts/verify-code-oss-media.ts "$extract_root/squashfs-root/resources/tabs-code-oss/extensions"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
+      - name: Verify Debian package
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb="tabs-app/release/Tabs-${{ needs.preflight.outputs.version }}-amd64.deb"
+          [[ -s "$deb" ]] || { echo "::error::Debian package was not generated: $deb"; exit 1; }
+          node --experimental-strip-types tabs-app/scripts/verify-deb-package.ts "$deb" "${{ needs.preflight.outputs.version }}" x64
+          # A .deb is never an auto-update source: latest-linux.yml must still resolve to the AppImage.
+          node --experimental-strip-types tabs-app/scripts/verify-desktop-update-artifact.ts tabs-app/release linux "${{ needs.preflight.outputs.version }}"
+
       - name: Inspect Windows NSIS update payload
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -682,7 +711,46 @@ jobs:
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne "NotSigned" -and $signature.Status -ne "Valid") { throw "Invalid installer signature: $($signature.Status)" }
 
+      - name: Inspect Store AppX package
+        if: matrix.target == 'appx'
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          TABS_APPX_IDENTITY_NAME: ${{ vars.TABS_APPX_IDENTITY_NAME }}
+          TABS_APPX_PUBLISHER: ${{ vars.TABS_APPX_PUBLISHER }}
+          TABS_APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.TABS_APPX_PUBLISHER_DISPLAY_NAME }}
+          TABS_APPX_DISPLAY_NAME: ${{ vars.TABS_APPX_DISPLAY_NAME || 'Tabs IDE' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:RELEASE_VERSION
+          $appx = Join-Path tabs-app/release "Tabs-$version-x64.appx"
+          if (-not (Test-Path $appx -PathType Leaf)) { throw "Store package was not generated: $appx" }
+          # An .appx is a zip container; Expand-Archive only accepts the .zip extension.
+          $zip = Join-Path $env:RUNNER_TEMP "tabs-appx.zip"
+          Copy-Item $appx $zip -Force
+          $root = Join-Path $env:RUNNER_TEMP "tabs-appx"
+          Expand-Archive $zip -DestinationPath $root -Force
+          & node --experimental-strip-types tabs-app/scripts/verify-appx-package.ts (Join-Path $root "AppxManifest.xml") $version x64
+          if ($LASTEXITCODE -ne 0) { throw "AppX manifest validation failed." }
+          $app = Join-Path $root "app"
+          foreach ($required in @("Tabs.exe", "resources/app.asar", "resources/tabs-code-oss/out-build/nls.messages.json", "resources/tabs-code-oss/node_modules/minimist/index.js")) {
+            if (-not (Test-Path (Join-Path $app $required) -PathType Leaf)) { throw "Store package is missing app/$required." }
+          }
+          & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $app "resources/tabs-code-oss") (Join-Path $app "Tabs.exe")
+          if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
+
+      - name: Upload Store package
+        if: matrix.target == 'appx'
+        uses: actions/upload-artifact@v7
+        with:
+          # Deliberately not `desktop-*`: the release job must never attach it.
+          name: store-win-x64-appx
+          path: tabs-app/release/Tabs-${{ needs.preflight.outputs.version }}-x64.appx
+          if-no-files-found: error
+          compression-level: 0
+
       - name: Collect release assets
+        if: matrix.target != 'appx'
         shell: bash
         run: |
           set -euo pipefail
@@ -702,6 +770,7 @@ jobs:
             "tabs-app/release/*.zip" \
             "tabs-app/release/*.AppImage" \
             "tabs-app/release/*.AppImage.blockmap" \
+            "tabs-app/release/*.deb" \
             "tabs-app/release/*.exe" \
             "tabs-app/release/*.exe.blockmap" \
             "tabs-app/release/beta*.yml" \
@@ -720,6 +789,7 @@ jobs:
           echo "Collected $(find release-publish -maxdepth 1 -type f | wc -l) asset(s)."
 
       - name: Upload build artifacts
+        if: matrix.target != 'appx'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
@@ -834,9 +904,10 @@ jobs:
           dmgs=(release-assets/*.dmg)
           appimages=(release-assets/*.AppImage)
           installers=(release-assets/*.exe)
+          debs=(release-assets/*.deb)
           mac_zips=(release-assets/*.zip)
-          if (( ${#dmgs[@]} != 2 || ${#mac_zips[@]} != 2 || ${#appimages[@]} != 1 || ${#installers[@]} != 1 )); then
-            echo "::error::Expected 2 DMGs, 2 macOS ZIPs, 1 AppImage, and 1 Windows installer; found ${#dmgs[@]}, ${#mac_zips[@]}, ${#appimages[@]}, and ${#installers[@]}."
+          if (( ${#dmgs[@]} != 2 || ${#mac_zips[@]} != 2 || ${#appimages[@]} != 1 || ${#debs[@]} != 1 || ${#installers[@]} != 1 )); then
+            echo "::error::Expected 2 DMGs, 2 macOS ZIPs, 1 AppImage, 1 Debian package, and 1 Windows installer; found ${#dmgs[@]}, ${#mac_zips[@]}, ${#appimages[@]}, ${#debs[@]}, and ${#installers[@]}."
             exit 1
           fi
           for asset in \
@@ -845,7 +916,8 @@ jobs:
             "Tabs-$RELEASE_VERSION-x64.dmg" \
             "Tabs-$RELEASE_VERSION-x64.zip" \
             "Tabs-$RELEASE_VERSION-x64.exe" \
-            "Tabs-$RELEASE_VERSION-x86_64.AppImage"; do
+            "Tabs-$RELEASE_VERSION-x86_64.AppImage" \
+            "Tabs-$RELEASE_VERSION-amd64.deb"; do
             if [ ! -s "release-assets/$asset" ]; then
               echo "::error::Missing or empty release asset: $asset"
               exit 1
@@ -912,6 +984,7 @@ jobs:
             release-assets/*.zip
             release-assets/*.AppImage
             release-assets/*.AppImage.blockmap
+            release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
             release-assets/latest.yml
@@ -943,6 +1016,7 @@ jobs:
             release-assets/*.zip
             release-assets/*.AppImage
             release-assets/*.AppImage.blockmap
+            release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
             release-assets/latest.yml
@@ -1001,3 +1075,92 @@ jobs:
           name: original-v2-release-recovery
           path: original-release-recovery.json
           if-no-files-found: warn
+
+  microsoft_store:
+    name: Submit to Microsoft Store
+    needs: [preflight, build, release]
+    # Runs once the GitHub release is published. Only plain x.y.z versions go to
+    # the Store: its package version is x.y.z.0, so a prerelease suffix would
+    # collide with the final release.
+    if: ${{ always() && needs.release.result == 'success' && inputs.replacement_release_id == '' }}
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      MSSTORE_PRODUCT_ID: ${{ vars.TABS_MSSTORE_PRODUCT_ID || '9P8P9XTGZQM9' }}
+    steps:
+      - id: gate
+        name: Check version and Partner Center credentials
+        shell: bash
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::$RELEASE_VERSION is a prerelease version; the Microsoft Store only receives plain x.y.z releases."
+            echo "submit=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [[ -z "$MSSTORE_TENANT_ID" || -z "$MSSTORE_SELLER_ID" || -z "$MSSTORE_CLIENT_ID" || -z "$MSSTORE_CLIENT_SECRET" ]]; then
+            echo "::warning::Microsoft Store submission skipped: set the MSSTORE_TENANT_ID, MSSTORE_SELLER_ID, MSSTORE_CLIENT_ID and MSSTORE_CLIENT_SECRET secrets. See docs/desktop-packages.md."
+            echo "submit=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "submit=true" >> "$GITHUB_OUTPUT"
+
+      - name: Download Store package from this release build
+        if: steps.gate.outputs.submit == 'true' && needs.preflight.outputs.artifact_run_id == ''
+        uses: actions/download-artifact@v8
+        with:
+          name: store-win-x64-appx
+          path: store
+
+      - name: Download Store package from artifact build run
+        if: steps.gate.outputs.submit == 'true' && needs.preflight.outputs.artifact_run_id != ''
+        uses: actions/download-artifact@v8
+        with:
+          # Build Desktop Installers names it desktop-win-x64-appx; run that
+          # workflow with win-x64-appx included to ship it to the Store.
+          name: desktop-win-x64-appx
+          path: store
+          run-id: ${{ needs.preflight.outputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: package
+        name: Locate Store package
+        if: steps.gate.outputs.submit == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $appx = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.appx"
+          if (-not (Test-Path $appx -PathType Leaf)) { throw "Store package for $env:RELEASE_VERSION is missing: $appx" }
+          # .appx and .msix share one container format; the Store CLI only takes
+          # the .msix/.msixupload extensions, so submit a .msix-named copy.
+          $msix = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.msix"
+          Copy-Item $appx $msix -Force
+          Write-Host "Submitting $msix ($((Get-Item $msix).Length) bytes) to product $env:MSSTORE_PRODUCT_ID"
+          "path=$msix" >> $env:GITHUB_OUTPUT
+
+      - name: Setup Microsoft Store Developer CLI
+        if: steps.gate.outputs.submit == 'true'
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure Partner Center credentials
+        if: steps.gate.outputs.submit == 'true'
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: msstore reconfigure --tenantId $env:MSSTORE_TENANT_ID --sellerId $env:MSSTORE_SELLER_ID --clientId $env:MSSTORE_CLIENT_ID --clientSecret $env:MSSTORE_CLIENT_SECRET
+
+      - name: Submit package for certification
+        if: steps.gate.outputs.submit == 'true'
+        shell: pwsh
+        env:
+          APPX_PATH: ${{ steps.package.outputs.path }}
+        # Creates a new submission from the last published one (listing, pricing
+        # and availability are kept; a pending draft is discarded), replaces the
+        # package and commits it. Certification then runs on Microsoft's side.
+        run: msstore publish "$env:APPX_PATH" -id $env:MSSTORE_PRODUCT_ID

@@ -6,6 +6,7 @@ import {
   RELEASES_URL,
   selectDownloadRelease,
   releaseChannel,
+  pickOptionalAsset,
 } from "./releases";
 import snapshot from "../data/releases.json";
 
@@ -144,4 +145,21 @@ it("accepts a plain v1.3.31 tag explicitly marked Pre-release", () => {
   const release = JSON.parse(JSON.stringify(stableSnapshot).replaceAll(stableVersion, "1.3.31"));
   release.prerelease = true;
   expect(releaseChannel(validateRelease(release))).toBe("beta");
+});
+
+describe("optional Debian package", () => {
+  it("is absent for releases that predate it without disqualifying them", () => {
+    expect(pickOptionalAsset(stableSnapshot, "linux-x64-deb")).toBeNull();
+    expect(selectDownloadRelease([stableSnapshot])).toBeDefined();
+  });
+
+  it("resolves the architecture-explicit .deb when published", () => {
+    const name = `Tabs-${stableVersion}-amd64.deb`;
+    const url = `${RELEASES_URL}/download/v${stableVersion}/${name}`;
+    const release = {
+      ...stableSnapshot,
+      assets: [...stableSnapshot.assets, { name, browser_download_url: url }],
+    };
+    expect(pickOptionalAsset(release, "linux-x64-deb")).toBe(url);
+  });
 });

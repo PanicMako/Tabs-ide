@@ -156,8 +156,8 @@ Connect an agent later in **Settings → Providers**.
 <br />
 
 - **Mac:** open **Apple menu → About This Mac** to see whether you have Apple Silicon or Intel.
-- **Windows:** run the `.exe` installer. If Windows warns about it, see the note below.
-- **Linux:** use the `.AppImage` and allow it to run as a program if asked.
+- **Windows:** install Tabs IDE from the [Microsoft Store](https://apps.microsoft.com/detail/9P8P9XTGZQM9), or run the `.exe` installer. If Windows warns about the installer, see the note below.
+- **Linux:** use the `.AppImage` and allow it to run as a program if asked, or on Debian and Ubuntu install the `.deb` with `sudo apt install ./Tabs-<version>-amd64.deb`. The `.deb` does not update itself.
 
 </details>
 
@@ -171,7 +171,7 @@ The Windows installer is **not code-signed yet**, and Tabs is a new app with no 
 - **"Windows protected your PC" (SmartScreen):** choose **More info**, then **Run anyway**.
 - **Microsoft Defender removed or blocked the file:** open **Windows Security → Virus & threat protection → Protection history**, select the entry, and choose **Actions → Allow on device**, then download the installer again.
 - **Report a false alarm:** send the file to Microsoft at [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/en-us/wdsi/filesubmission) as a software developer, and to your antivirus vendor.
-- **Prefer not to run it?** [Build it yourself](#build-it-yourself) from source.
+- **Prefer not to run it?** Install Tabs IDE from the [Microsoft Store](https://apps.microsoft.com/detail/9P8P9XTGZQM9) instead, or [build it yourself](#build-it-yourself) from source.
 - **Computer use** (a Labs feature, off by default) controls the mouse and keyboard through PowerShell. Some antivirus programs are wary of that, which can add to the warning.
 
 </details>
