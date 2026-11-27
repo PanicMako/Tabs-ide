@@ -38,7 +38,7 @@ export const microsoftStoreAppUrl = `ms-windows-store://pdp/?productid=${MICROSO
  * present it is a regular download card; updates are manual.
  */
 export const debDownload = pickOptionalAsset(latest, "linux-x64-deb");
-const DEB_READY_SUB = ".deb package";
+const DEB_READY_SUB = ".deb";
 
 export type FamilyId = "mac" | "win" | "linux";
 export interface Build {
@@ -130,7 +130,7 @@ export const families: Family[] = [
     chrome: "linux",
     builds: [
       build("linux-x64", "Linux x64", "AppImage"),
-      ...(debDownload ? [build("linux-x64-deb", "Debian / Ubuntu", DEB_READY_SUB)] : []),
+      ...(debDownload ? [build("linux-x64-deb", "Debian, Ubuntu", DEB_READY_SUB)] : []),
     ],
     // Only for a release that predates the .deb: the live release check turns
     // this row into a direct download once a newer release carries it.
@@ -138,7 +138,7 @@ export const families: Family[] = [
       ? undefined
       : [
           {
-            label: "Debian / Ubuntu",
+            label: "Debian, Ubuntu",
             sub: "The .deb arrives with the next release",
             readySub: DEB_READY_SUB,
             href: RELEASES_URL,
