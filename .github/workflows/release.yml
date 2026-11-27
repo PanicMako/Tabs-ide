@@ -515,16 +515,6 @@ jobs:
             echo "::error::Packaged @vscode/fs-copyfile JavaScript runtime is missing"
             exit 1
           }
-          if [[ "${{ matrix.platform }}" == "mac" ]]; then
-            electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
-            npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" \
-              --module-dir "$native_runtime_dir" --force
-            test -f "$native_runtime_dir/build/Release/vscode_fs.node" || {
-              echo "::error::Packaged @vscode/fs-copyfile macOS binding is missing"
-              find "$native_runtime_dir" -maxdepth 4 -type f -print || true
-              exit 1
-            }
-          fi
           test -f .build/extensions/copilot/package.json
 
       # Code-OSS 1.148 is one pnpm workspace (root, extensions, Copilot) that
@@ -578,6 +568,20 @@ jobs:
           electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
           echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
           npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
+          # The packaged git extension's fs-copyfile needs node-addon-api to build
+          # its macOS binding. Since 1.148 only this hoisted root layout provides it
+          # where node-gyp looks (up the tree from .build/extensions).
+          native_runtime_dir=".build/extensions/git/node_modules/@vscode/fs-copyfile"
+          if [[ "${{ matrix.platform }}" == "mac" ]]; then
+            electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+            npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" \
+              --module-dir "$native_runtime_dir" --force
+            test -f "$native_runtime_dir/build/Release/vscode_fs.node" || {
+              echo "::error::Packaged @vscode/fs-copyfile macOS binding is missing"
+              find "$native_runtime_dir" -maxdepth 4 -type f -print || true
+              exit 1
+            }
+          fi
 
       # Cache electron-builder's downloaded NSIS/7zip/winCodeSign toolchain so a
       # populated run never re-downloads it. The download host (GitHub's
