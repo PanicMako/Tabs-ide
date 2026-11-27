@@ -1,13 +1,12 @@
 import releases from "./releases.json";
 import {
-  platforms,
-  pickAsset,
+  pickDownload,
+  downloadSuffix,
   pickOptionalAsset,
-  optionalPackages,
+  type DownloadId,
   type OptionalPackage,
   selectDownloadRelease,
   RELEASES_URL,
-  type Platform,
   type Release,
 } from "../lib/releases";
 
@@ -25,9 +24,8 @@ export const releaseDate = new Date(latest.published_at).toLocaleDateString("en-
 export const releaseUrl = latest.html_url;
 export { RELEASES_URL };
 
-export const fileName = (id: Platform) =>
-  `Tabs-${version.replace(/^v/, "")}${platforms.find((p) => p.id === id)!.suffix}`;
-export const assetUrl = (id: Platform) => pickAsset(latest, id) ?? latest.html_url;
+export const fileName = (id: DownloadId) => `Tabs-${version.replace(/^v/, "")}${downloadSuffix(id)}`;
+export const assetUrl = (id: DownloadId) => pickDownload(latest, id) ?? latest.html_url;
 
 /** Microsoft Store listing (product "Tabs IDE"). The Store installs and updates its own copy. */
 export const MICROSOFT_STORE_ID = "9P8P9XTGZQM9";
@@ -35,14 +33,16 @@ export const microsoftStoreUrl = `https://apps.microsoft.com/detail/${MICROSOFT_
 /** Opens the Store app's product page directly; only meaningful on Windows. */
 export const microsoftStoreAppUrl = `ms-windows-store://pdp/?productid=${MICROSOFT_STORE_ID}`;
 
-/** Debian/Ubuntu package link; null until a published release carries the .deb. Updates are manual. */
+/**
+ * Debian/Ubuntu package link; null for a release that predates the .deb. When
+ * present it is a regular download card; updates are manual.
+ */
 export const debDownload = pickOptionalAsset(latest, "linux-x64-deb");
-const debFileName = `Tabs-${version.replace(/^v/, "")}${optionalPackages["linux-x64-deb"].suffix}`;
-const DEB_READY_SUB = ".deb package · updates are manual";
+const DEB_READY_SUB = ".deb package";
 
 export type FamilyId = "mac" | "win" | "linux";
 export interface Build {
-  id: Platform;
+  id: DownloadId;
   label: string;
   sub: string;
   file: string;
@@ -75,7 +75,7 @@ export interface Family {
   steps: string[];
 }
 
-const build = (id: Platform, label: string, sub: string): Build => ({
+const build = (id: DownloadId, label: string, sub: string): Build => ({
   id,
   label,
   sub,
@@ -128,17 +128,24 @@ export const families: Family[] = [
     reqs: ["x64", ".AppImage", ".deb"],
     shot: "/product/git-dark.png",
     chrome: "linux",
-    builds: [build("linux-x64", "Linux x64", "AppImage")],
-    alts: [
-      {
-        label: "Debian / Ubuntu",
-        sub: debDownload ? DEB_READY_SUB : "The .deb arrives with the next release",
-        readySub: DEB_READY_SUB,
-        href: debDownload ?? RELEASES_URL,
-        cta: debDownload ? `Download ${debFileName} ↓` : "See releases ↗",
-        pkg: "linux-x64-deb",
-      },
+    builds: [
+      build("linux-x64", "Linux x64", "AppImage"),
+      ...(debDownload ? [build("linux-x64-deb", "Debian / Ubuntu", DEB_READY_SUB)] : []),
     ],
+    // Only for a release that predates the .deb: the live release check turns
+    // this row into a direct download once a newer release carries it.
+    alts: debDownload
+      ? undefined
+      : [
+          {
+            label: "Debian / Ubuntu",
+            sub: "The .deb arrives with the next release",
+            readySub: DEB_READY_SUB,
+            href: RELEASES_URL,
+            cta: "See releases ↗",
+            pkg: "linux-x64-deb",
+          },
+        ],
     steps: [
       "Save the .AppImage to a folder you can write to, or install the .deb with sudo apt install ./Tabs-*-amd64.deb.",
       "For the AppImage, allow it to run as a program, or run chmod +x Tabs-*.AppImage.",

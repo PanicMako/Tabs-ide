@@ -1,4 +1,4 @@
-import { pickAsset, selectDownloadRelease, platforms, detectPlatform, type Release, type Platform } from "../releases";
+import { pickDownload, downloadSuffix, selectDownloadRelease, detectPlatform, type Release, type DownloadId } from "../releases";
 
 /**
  * Shared client behaviour for every downloads concept.
@@ -7,7 +7,7 @@ import { pickAsset, selectDownloadRelease, platforms, detectPlatform, type Relea
  * A click on a build dispatches `tabs:download` on `document` with `{ id, fam, el }`.
  */
 export type Fam = "mac" | "win" | "linux";
-export const famOf = (id: Platform): Fam => (id.startsWith("mac") ? "mac" : id.startsWith("win") ? "win" : "linux");
+export const famOf = (id: DownloadId): Fam => (id.startsWith("mac") ? "mac" : id.startsWith("win") ? "win" : "linux");
 
 export function detect() {
   const ua = navigator.userAgent;
@@ -22,7 +22,7 @@ export function initDownloads() {
   document.addEventListener("click", (e) => {
     const el = (e.target as HTMLElement).closest<HTMLAnchorElement>("[data-build]");
     if (!el) return;
-    const id = el.dataset.build as Platform;
+    const id = el.dataset.build as DownloadId;
     document.dispatchEvent(new CustomEvent("tabs:download", { detail: { id, fam: famOf(id), el } }));
   });
 
@@ -39,10 +39,10 @@ export function initDownloads() {
         if (!rel) continue;
         const v = rel.tag_name.replace(/^v/, "");
         document.querySelectorAll<HTMLAnchorElement>("[data-build]").forEach((a) => {
-          const id = a.dataset.build as Platform;
-          const href = pickAsset(rel, id);
+          const id = a.dataset.build as DownloadId;
+          const href = pickDownload(rel, id);
           if (href) a.href = href;
-          const name = `Tabs-${v}${platforms.find((p) => p.id === id)!.suffix}`;
+          const name = `Tabs-${v}${downloadSuffix(id)}`;
           a.dataset.fileName = name;
           a.querySelectorAll("[data-file]").forEach((f) => (f.textContent = name));
         });
