@@ -1,0 +1,109 @@
+name: Submit to Microsoft Store
+
+# Submits a Store package that a Build Desktop Installers run already built
+# (platforms including win-x64-appx), without re-running a GitHub release. Use
+# it to resubmit a version whose automatic submission failed.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to submit (plain x.y.z, e.g. 2.11.0)"
+        required: true
+        type: string
+      build_run_id:
+        description: "Build Desktop Installers run ID that built win-x64-appx for this version"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: tabs-microsoft-store
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit to Microsoft Store
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      MSSTORE_PRODUCT_ID: ${{ vars.TABS_MSSTORE_PRODUCT_ID || '9P8P9XTGZQM9' }}
+    steps:
+      - name: Check inputs and Partner Center credentials
+        shell: bash
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: |
+          RELEASE_VERSION="${RELEASE_VERSION#v}"
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The Microsoft Store only receives plain x.y.z versions; got $RELEASE_VERSION."; exit 1
+          fi
+          if [[ ! "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::build_run_id must be a numeric Actions run ID."; exit 1
+          fi
+          if [[ -z "$MSSTORE_TENANT_ID" || -z "$MSSTORE_SELLER_ID" || -z "$MSSTORE_CLIENT_ID" || -z "$MSSTORE_CLIENT_SECRET" ]]; then
+            echo "::error::Set the MSSTORE_TENANT_ID, MSSTORE_SELLER_ID, MSSTORE_CLIENT_ID and MSSTORE_CLIENT_SECRET secrets. See docs/desktop-packages.md."; exit 1
+          fi
+
+      - name: Download Store package from the build run
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64-appx
+          path: store
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: package
+        name: Check the package and prepare the upload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $appx = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.appx"
+          if (-not (Test-Path $appx -PathType Leaf)) { throw "Store package for $env:RELEASE_VERSION is missing from the build run: $appx" }
+          # Fail here, not after a 10-minute upload: Partner Center rejects MSIX
+          # uploads whose TargetDeviceFamily MinVersion is <= 10.0.17134.0.
+          $zip = Join-Path $env:RUNNER_TEMP "tabs-store.zip"
+          Copy-Item $appx $zip -Force
+          $root = Join-Path $env:RUNNER_TEMP "tabs-store"
+          Expand-Archive $zip -DestinationPath $root -Force
+          [xml]$manifest = Get-Content (Join-Path $root "AppxManifest.xml")
+          $identity = $manifest.Package.Identity
+          $family = $manifest.Package.Dependencies.TargetDeviceFamily | Where-Object { $_.Name -eq "Windows.Desktop" } | Select-Object -First 1
+          if (-not $family) { throw "AppxManifest.xml has no Windows.Desktop TargetDeviceFamily." }
+          if ([version]$family.MinVersion -le [version]"10.0.17134.0") { throw "Package MinVersion $($family.MinVersion) is too old for an MSIX Store upload; rebuild it with the current build scripts." }
+          if ($identity.Version -ne "$env:RELEASE_VERSION.0") { throw "Package version is $($identity.Version); expected $env:RELEASE_VERSION.0." }
+          Write-Host "Package $($identity.Name) $($identity.Version), MinVersion $($family.MinVersion), MaxVersionTested $($family.MaxVersionTested)"
+          # .appx and .msix share one container format; the Store CLI only takes
+          # the .msix/.msixupload extensions, so submit a .msix-named copy.
+          $msix = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.msix"
+          Copy-Item $appx $msix -Force
+          "path=$msix" >> $env:GITHUB_OUTPUT
+
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure Partner Center credentials
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: msstore reconfigure --tenantId $env:MSSTORE_TENANT_ID --sellerId $env:MSSTORE_SELLER_ID --clientId $env:MSSTORE_CLIENT_ID --clientSecret $env:MSSTORE_CLIENT_SECRET
+
+      - name: Submit package for certification
+        shell: pwsh
+        env:
+          APPX_PATH: ${{ steps.package.outputs.path }}
+        # Creates a new submission from the last published one (listing, pricing
+        # and availability are kept; a pending draft is discarded), replaces the
+        # package and commits it. Certification then runs on Microsoft's side.
+        run: msstore publish "$env:APPX_PATH" -id $env:MSSTORE_PRODUCT_ID

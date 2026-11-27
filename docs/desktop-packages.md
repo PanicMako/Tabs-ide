@@ -41,8 +41,16 @@ Override the product with the `TABS_MSSTORE_PRODUCT_ID` variable (defaults to `9
 - If a previous submission is still **in certification**, the CLI's behaviour is undocumented; if the job fails for that reason, wait for certification to finish (or cancel it in Partner Center) and re-run the `microsoft_store` job.
 - Certification is on Microsoft's side; the job finishing means the submission was committed, not that it is live.
 
-### Manual build (fallback)
-Run **Build Desktop Installers** with `platforms = win-x64-appx`, download the `desktop-win-x64-appx` artifact and drag `Tabs-<version>-x64.appx` into the submission's **Packages** page in Partner Center.
+### Minimum Windows version
+The package declares `TargetDeviceFamily MinVersion="10.0.17763.0"` (Windows 10 1809) and `MaxVersionTested="10.0.22621.0"` (`createAppxBuildConfig` in `scripts/lib/windows-appx.ts`). The CLI uploads the package under a `.msix` name, and Partner Center rejects any MSIX whose MinVersion is `10.0.17134.0` or lower, which is what failed the first v2.11.0 submission (electron-builder's default is `10.0.14316.0`). `verify-appx-package.ts` fails the build if the manifest drifts below that.
+
+### Resubmitting a version
+If a release's automatic submission fails, rebuild the package and submit it without touching the GitHub release:
+1. Run **Build Desktop Installers** on `main` with `platforms = win-x64-appx` and `version = <x.y.z>`.
+2. Run **Submit to Microsoft Store** (`.github/workflows/microsoft-store.yml`) with that `version` and the build's run ID as `build_run_id`. It checks the package's version and MinVersion before uploading.
+
+### Manual upload (fallback)
+Download the `desktop-win-x64-appx` artifact from step 1 and drag `Tabs-<version>-x64.appx` into the submission's **Packages** page in Partner Center.
 
 ## ARM64 (Windows and Linux)
 Not enabled for production release. `validateBuildTarget` refuses arm64 for Windows/Linux unless built on a native arm64 host and `TABS_ALLOW_UNVERIFIED_ARCH=1` is set, so x64 binaries cannot be packed into an arm64 artifact.
