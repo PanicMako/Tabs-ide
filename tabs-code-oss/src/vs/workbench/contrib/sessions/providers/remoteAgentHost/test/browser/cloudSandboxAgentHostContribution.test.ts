@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
-import { bufferToStream, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../../base/common/errors.js';
@@ -58,7 +57,9 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../..
 import { ChatAIDisabledSettingId } from '../../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../../platform/request/common/request.js';
@@ -72,7 +73,12 @@ import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../..
 import { IHostService } from '../../../../../../services/host/browser/host.js';
 import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../../services/github/common/githubService.js';
+import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
+import { AccountClient } from '../../../../../../../platform/github/common/account/accountClient.js';
+import { LocalMissionControlRequestProvider } from '../../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
+import { IGitHubCredentials } from '../../../../../../../platform/github/common/githubCredentialService.js';
+import { GitHubTransport } from '../../../../../../../platform/github/common/githubTransport.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILifecycleService } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -623,7 +629,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 		instantiationService.get(IRemoteAgentHostService),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	));
 	instantiationService.stub(IAgentHostConnectionsService, resolutionService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -694,6 +700,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		}
 	}());
 	instantiationService.stub(ILogService, options?.logService ?? new NullLogService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	const preparation = options?.draftPreparation ?? store.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
 	instantiationService.stub(ICloudSandboxDraftPreparationService, preparation);
 
@@ -3069,17 +3076,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	test('successive short-gap reconnects send since from the last successful list until full repair is due', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: { since: string | null; environment: string | null; repository: string | null; archived: string | null; limit: string | null; page: string | null }[][] = [];
 		let currentRequests: typeof requests[number] = [];
+		const transport = store.add(new GitHubTransport(async input => {
+			const query = new URL(String(input)).searchParams;
+			currentRequests.push({
+				since: query.get('since'), environment: query.get('include_environment_kinds'),
+				repository: query.get('with_repo'), archived: query.get('is_archived'), limit: query.get('per_page'), page: query.get('page'),
+			});
+			return Response.json({ tasks: [] }, { headers: { date: new Date().toUTCString() } });
+		}));
 		const api = store.add(new CloudSandboxApiService(
-			new class extends mock<IRequestService>() {
-				override async request(options: { url?: string }) {
-					const query = new URL(options.url!).searchParams;
-					currentRequests.push({
-						since: query.get('since'), environment: query.get('include_environment_kinds'),
-						repository: query.get('with_repo'), archived: query.get('is_archived'), limit: query.get('per_page'), page: query.get('page'),
-					});
-					return { res: { statusCode: 200, headers: { date: new Date().toUTCString() } }, stream: bufferToStream(VSBuffer.fromString('{"tasks":[]}')) };
-				}
-			}(),
+			new class extends mock<IRequestService>() { }(),
 			new class extends mock<IAuthenticationService>() {
 				override readonly onDidChangeSessions = Event.None;
 				override readonly onDidRegisterAuthenticationProvider = Event.None;
@@ -3091,11 +3097,30 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override reportDiscovery() { }
 				override reportRequest() { }
 			}(),
-			new class extends mock<IWorkbenchGitHubService>() { }(),
+			new class extends mock<IWorkbenchGitHubService>() {
+				override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+					assert.ok(args.length === 3);
+					const [providerId, session] = args;
+					const authorization = toGitHubAuthorizationContext(providerId, session);
+					const lifetime = new DisposableStore();
+					const controller = new CancellationTokenSource();
+					lifetime.add(toDisposable(() => controller.dispose(true)));
+					const credentials: IGitHubCredentials = {
+						onDidInvalidate: Event.None,
+						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, cancellationToken: controller.token }),
+						handleRequestError: () => { },
+					};
+					const provider = new LocalMissionControlRequestProvider({
+						apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test',
+					}, credentials, transport, new NullLogService(), controller.token);
+					return new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, lifetime);
+				}
+			}(),
 			new class extends mock<IUserDataProfileService>() {
 				override readonly currentProfile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
 				override readonly onDidChangeCurrentProfile = Event.None;
 			}(),
+			new class extends mock<IDefaultAccountService>() { }(),
 		));
 		const checkpoints: (string | null)[] = [null];
 		const checkpoint = () => new Date(Date.parse(new Date().toUTCString()) - 60_000).toISOString();
@@ -3136,7 +3161,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await harness.contribution.refreshFeed('renewal');
 			await harness.contribution.refreshFeed('renewal');
 			assert.deepStrictEqual({
-				requests: requests.map(({ diagnostics, ...options } = {}) => options),
+				requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options),
 				reasons: requests.map(options => options?.diagnostics?.fullScanReason),
 				retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
 			}, {
@@ -3173,7 +3198,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		harness.archiveProvider!.setRequested(false);
 		harness.archiveProvider!.setRequested(true);
 		await harness.contribution.refreshFeed('renewal');
-		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: false, includeArchived: true, trigger: 'manual' },
 			{ incremental: true, includeArchived: true, trigger: 'feedRenewal' },
@@ -3195,7 +3220,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await harness.contribution.refreshFeed('renewal');
 		await harness.contribution.refreshFeed('reconnect');
 
-		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
 			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
@@ -3257,7 +3282,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const removedAfterPeriodicFullScan = provider.disposed;
 		await harness.contribution.refreshFeed('reconnect');
 		assert.deepStrictEqual({
-			requests: requests.map(({ diagnostics, ...options } = {}) => options), retainedAfterRenewal, removedAfterPeriodicFullScan,
+			requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), retainedAfterRenewal, removedAfterPeriodicFullScan,
 			diagnostics: requests.map(options => options?.diagnostics),
 		}, {
 			requests: [
@@ -3307,7 +3332,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
 			await Promise.all([first, queued, queuedAgain, full]);
 			assert.deepStrictEqual({
-				requests: requests.map(({ diagnostics, ...options } = {}) => options),
+				requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options),
 				queue: requests.map(options => [options?.diagnostics?.queued, options?.diagnostics?.coalescedRequestCount, options?.diagnostics?.coalescedTrigger]),
 			}, {
 				requests: [
@@ -3336,7 +3361,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			h.setFocused(true);
 			await h.runDiscovery('automatic');
 			await h.runDiscovery();
-			assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
+			assert.deepStrictEqual(requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), [
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
 				...connected ? [] : [{ incremental: true, includeArchived: false, trigger: 'focus' }],
 				{ incremental: false, includeArchived: false, trigger: 'manual' },
@@ -3366,7 +3391,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		h.changeAccount('["github","account-1"]');
 		await listed.p;
 		await h.contribution.checkForUpdates();
-		assert.deepStrictEqual({ requests: requests.map(({ diagnostics, ...options } = {}) => options), disposed: provider.disposed, disconnects: h.disconnectedFrom, negotiations }, {
+		assert.deepStrictEqual({ requests: requests.map(({ diagnostics, ...options }: ICloudSandboxDiscoveryOptions = {}) => options), disposed: provider.disposed, disconnects: h.disconnectedFrom, negotiations }, {
 			requests: [
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
 				{ incremental: true, includeArchived: false, trigger: 'configurationChange' },

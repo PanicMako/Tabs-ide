@@ -12,7 +12,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -30,7 +30,7 @@ import { IChatAgentData, IChatAgentService } from '../common/participants/chatAg
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId, ChatViewContainerId } from './chat.js';
+import { ChatViewId, ChatViewContainerId, ChatViewOpenKeybindings } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 import { ChatUpdateRequiredView } from './viewsWelcome/chatUpdateRequiredView.js';
 import { MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../../../services/policies/common/managedSettingsUpdate.js';
@@ -61,20 +61,19 @@ const chatViewDescriptor: IViewDescriptor = {
 		id: ChatViewContainerId,
 		title: chatViewContainer.title,
 		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
-		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-			mac: {
-				primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-			}
-		},
+		keybindings: ChatViewOpenKeybindings,
 		order: 1
 	},
 	// Tabs exposes Chat beside extension-provided assistants in the native
 	// auxiliary bar. Keep its tab registered from workbench startup instead of
 	// making the entire view appear and disappear as Copilot entitlement/setup
 	// context keys settle asynchronously. An enforced update replaces the composer
-	// with the update-required view in the same container.
-	when: ManagedSettingsUpdateRequiredContext.toNegated(),
+	// with the update-required view in the same container, and the chat part of an
+	// editor window with the Agents view replaces it (upstream 1.148).
+	when: ContextKeyExpr.and(
+		ChatContextKeys.agentsViewActive.negate(),
+		ManagedSettingsUpdateRequiredContext.toNegated()
+	),
 	ctorDescriptor: new SyncDescriptor(ChatViewPane)
 };
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
@@ -87,7 +86,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	canToggleVisibility: false,
 	canMoveView: false,
 	ctorDescriptor: new SyncDescriptor(ChatUpdateRequiredView),
-	when: ManagedSettingsUpdateRequiredContext,
+	when: ContextKeyExpr.and(ChatContextKeys.agentsViewActive.negate(), ManagedSettingsUpdateRequiredContext),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.chat.showUpdateRequired',
 		title: localize2('chat.updateRequiredView', "Chat Update Requirement"),

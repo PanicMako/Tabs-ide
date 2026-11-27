@@ -1,7 +1,7 @@
 # Tabs Code-OSS fork inventory
 
 This document tracks the reviewed patch surface between Microsoft VS Code upstream and Tabs' embedded `tabs-code-oss` runtime.
-Updated for **VS Code 1.146.0** (`69047191fc427f2f92828279aae1d90d8eeda7ab`) synced from 1.145.0 (`a717861c07586a53d83b80d742cd3f59b20a6273`).
+Updated for **VS Code 1.148.0** (`661626d0e72f97806550790a98fb87116c9db825`) synced from 1.146.0 (`69047191fc427f2f92828279aae1d90d8eeda7ab`).
 
 ## Tabs-owned Code-OSS additions (13 files)
 
@@ -43,12 +43,12 @@ Updated for **VS Code 1.146.0** (`69047191fc427f2f92828279aae1d90d8eeda7ab`) syn
   - `src/vs/editor/browser/services/abstractCodeEditorService.ts`: Code editor service hooks.
   - `src/vs/workbench/browser/layout.ts`: Default Zen and layout settings fallback using nullish coalescing to prevent unintended layout resets; 240px default sidebar width.
   - `src/vs/workbench/browser/parts/activitybar/media/activityaction.css`: Activity bar item padding tuned for embedded shell integration.
-  - `src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart.ts`: Assistant container switch visibility behavior preserved in auxiliary bar.
-  - `src/vs/workbench/browser/parts/editor/breadcrumbsControl.ts`: Breadcrumb row height calculation via shared layout measurement.
+  - `src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart.ts`: Assistant container switch visibility behavior preserved in auxiliary bar. Since 1.148 the auto-hide check after the Tabs `HIDDEN` early return is plain `if (autoHide)` (upstream's `!== HIDDEN` is redundant there).
+  - `src/vs/workbench/browser/parts/editor/breadcrumbsControl.ts`: Breadcrumb row height calculation via shared layout measurement; editor-type picker sets `aria-haspopup`/`aria-expanded` and restores focus on hide, alongside upstream's 1.148 `_onDidOpenEditorTypePicker` event.
   - `src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts`: Uses Tabs branding and Agents routing in Tabs-owned windows; keeps upstream behavior in standalone windows.
   - `src/vs/workbench/browser/parts/editor/media/breadcrumbscontrol.css`: Breadcrumb styling overrides.
   - `src/vs/workbench/browser/parts/editor/media/editorgroupview.css`: Selects Tabs logo masking and high-contrast rules through branded markup, leaving the upstream letterpress styles on standalone markup.
-  - `src/vs/workbench/contrib/chat/browser/chatParticipant.contribution.ts`: Stable Chat container registration preserved without transient AI-features teardown; the regular view yields to the managed-update view while an update is required.
+  - `src/vs/workbench/contrib/chat/browser/chatParticipant.contribution.ts`: Stable Chat container registration preserved without transient AI-features teardown; the regular view yields to the managed-update view while an update is required. Since 1.148 it also adopts upstream's `agentsViewActive` negation (`ContextKeyExpr.and(agentsViewActive.negate(), ManagedSettingsUpdateRequiredContext.toNegated())`).
   - `src/vs/workbench/contrib/debug/browser/breakpointsView.ts`: Debug breakpoints row measurement.
   - `src/vs/workbench/contrib/debug/browser/callStackView.ts`: Debug call stack row measurement.
   - `src/vs/workbench/contrib/debug/browser/loadedScriptsView.ts`: Debug loaded scripts row measurement.
@@ -67,8 +67,9 @@ Updated for **VS Code 1.146.0** (`69047191fc427f2f92828279aae1d90d8eeda7ab`) syn
   - `src/vs/workbench/services/layout/browser/layoutService.ts`: Shared layout measurements and rail margins.
   - `src/vs/workbench/services/layout/test/browser/layoutService.test.ts`: Layout service tests.
 - **Build, Dependencies & Packaging (9 files):**
-  - `package.json`: Gulp memory allocation increased to 12,288 MB (`--max-old-space-size=12288`) to accommodate full monorepo compilation; version updated to 1.146.0.
+  - `package.json`: Gulp memory allocation increased to 12,288 MB (`--max-old-space-size=12288`) to accommodate full monorepo compilation; version updated to 1.148.0.
   - `extensions/copilot/package.json`: Moves runtime dependencies (`dotenv`, `source-map-support`) into production scope.
+  - `pnpm-lock.yaml`: Since 1.148 Copilot has no lockfile of its own (upstream deleted `extensions/copilot/pnpm-lock.yaml`); the root lockfile's `extensions/copilot` importer lists `dotenv` and `source-map-support` under `dependencies` to match. Regenerate with `pnpm install --lockfile-only` after any change to that manifest.
   - `build/lib/test/copilot.test.ts`: Copilot platform packaging test covering production dependency assertions and SDK exclusion guards.
   - `src/vs/platform/agentHost/test/node/codex/codexProviderConfiguration.test.ts`: Explicitly typed let declarations avoiding TypeScript circular type inference issues.
   - `build/hygiene.ts`: Scope Git discovery, staged paths and JavaScript allowlisting to the vendored checkout.
@@ -79,13 +80,25 @@ Updated for **VS Code 1.146.0** (`69047191fc427f2f92828279aae1d90d8eeda7ab`) syn
 
 ## Upstream file purges
 
-640 files deleted upstream between 1.145.0 and 1.146.0 were systematically identified, exported to `_analysis/sync-1.146.0/evidence/upstream-deletions.txt`, and purged from `tabs-code-oss`.
+225 files deleted upstream between 1.146.0 and 1.148.0 (`git diff --no-renames --diff-filter=D`) were removed from `tabs-code-oss` by the three-way merge (base 1.146.0, ours the Tabs tree, theirs 1.148.0). The 1.146.0 sync purged 640 files the same way.
 
 ## Upstream Package Manager Migration
 
 In VS Code 1.146.0, Microsoft migrated the entire build system from `npm` to `pnpm@12.16.0`. All `package-lock.json` files were removed upstream in favor of `pnpm-lock.yaml` and `pnpm-workspace.yaml`. The bootstrap lifecycle runs through `pnpm install --frozen-lockfile` and invokes `build/npm/preinstall.ts` and `build/npm/postinstall.ts`.
 
-## Native-Host contract audit (116 methods)
+In VS Code 1.148.0 the root workspace absorbed `extensions/` and `extensions/copilot` (their own workspaces and lockfiles were removed) and switched to `nodeLinker: isolated`. `build/lib/dependencies.ts` now refuses a hoisted install of that workspace, so the extension packaging tasks must run from the isolated layout. Tabs ships the root `node_modules` directly, so CI (`build-desktop.yml`, `release.yml`) compiles from the isolated install, then runs `pnpm install --frozen-lockfile --ignore-scripts --filter . --config.node-linker=hoisted` to give the runtime the flat root-only layout 1.146 shipped, and only then removes `cpu-features`, patches node-gyp and rebuilds natives for Tabs' Electron.
+
+## Native-Host contract audit (125 methods)
+
+In VS Code 1.148.0 the contract expanded from 116 to 125 callable methods. Tabs' policies in `nativeCodeHostMain.ts`:
+- `showAgentsLauncher`: opens the Tabs-hosted Agents window.
+- `showWindow`: focuses the embedded Code view. `hideWindow`, `setWindowOpacity`, `setWindowIgnoreMouseEvents`: explicit no-ops, because Tabs owns the outer window.
+- `setWindowFolderLocation`: explicit no-op; Tabs restores projects itself.
+- `getAppWindows`: lists other applications' windows through `desktopCapturer` (excluding Tabs' own windows), reporting `permissionRequired` on macOS without Screen Recording access and `systemPicker` on Wayland, as upstream does.
+- `captureAppWindow`: returns `undefined`, so Code falls back to capturing a desktop media frame; `endAppWindowCaptureFeedback`: no-op.
+- `getCursorScreenPoint` now also returns the display `workArea`.
+
+The 1.146.0 audit follows.
 
 In VS Code 1.146.0, the `ICommonNativeHostService` / `INativeHostService` contracts expanded from 115 to 116 callable methods:
 - 1 method added: `handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>`.

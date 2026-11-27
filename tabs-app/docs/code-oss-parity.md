@@ -35,11 +35,11 @@ customization.
 
 Updates are performed on a dedicated branch (`chore/sync-vscode-<version>`) in the main checkout, never in a separate git worktree (worktrees copy the whole repository and exhaust the disk):
 
-1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.146.0` at `69047191fc427f2f92828279aae1d90d8eeda7ab` synced from `1.145.0` at `a717861c07586a53d83b80d742cd3f59b20a6273`).
-2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.145.0`), excluding generated outputs, build caches, and dependencies.
+1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.148.0` at `661626d0e72f97806550790a98fb87116c9db825` synced from `1.146.0` at `69047191fc427f2f92828279aae1d90d8eeda7ab`).
+2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.146.0`), excluding generated outputs, build caches, and dependencies.
 3. **Refresh comparison snapshot:** Extract the pristine upstream source into `vscode-main/` for clean diffing.
 4. **Refresh patched runtime:** Unpack the pristine upstream source into `tabs-code-oss/`, purge files removed upstream (`git diff --no-renames --diff-filter=D`), and semantically replay the reviewed Tabs fork patches.
-5. **Toolchain boundary:** Use Node/pnpm (Node v24) strictly inside `tabs-code-oss/` (upstream 1.146.0 migrated from npm to `pnpm@12.16.0`) and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
+5. **Toolchain boundary:** Use Node/pnpm (Node v24) strictly inside `tabs-code-oss/` (upstream 1.146.0 migrated from npm to `pnpm@12.16.0`; 1.148.0 made the root, `extensions/` and `extensions/copilot` one workspace with pnpm's isolated linker, so Tabs CI reinstalls only the root project hoisted before packaging the runtime) and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
 6. **Compile and validate Code-OSS:**
    ```bash
    cd tabs-code-oss
