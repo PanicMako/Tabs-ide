@@ -434,35 +434,6 @@ jobs:
             sleep "$delay"
           done
 
-          # Remove cpu-features (optional dependency of ssh2) which fails to compile
-          # against modern Electron/V8 due to nan pointer tagging deprecation.
-          rm -rf node_modules/cpu-features
-
-          # Ensure macOS native modules (such as @vscode/policy-watcher using std::variant)
-          # target macOS 11.0+ instead of node-addon-api's default 10.7 which causes
-          # Xcode 15/16 libc++ availability errors.
-          node --experimental-strip-types build/npm/patchNativeGyp.ts
-
-          # Rebuild native modules against Electron headers (~5-10 min).
-          # @electron/rebuild handles header downloading + cross-platform
-          # compilation without triggering npm lifecycle scripts (unlike
-          # npm rebuild which fails on Windows due to preinstall.ts).
-          #
-          # IMPORTANT: target the Electron that actually RUNS these modules at
-          # runtime — Tabs' Electron (apps/desktop/package.json), NOT
-          # tabs-code-oss's development Electron. The Code-OSS server is
-          # spawned via ELECTRON_RUN_AS_NODE on Tabs' Electron binary, so
-          # @parcel/watcher / node-pty / native-keymap must match its ABI or
-          # they fail with NODE_MODULE_VERSION mismatch.
-          #
-          # `--arch` matters: macos-15 is arm64, so the mac-x64 artifact must
-          # cross-build x64 natives here, otherwise the x64 DMG ships arm64
-          # binaries that won't load on Intel Macs.
-          # `--types prod` skips dev and optional dependencies (such as cpu-features).
-          electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
-          echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
-          npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
-
       - name: Compile VS Code workbench
         working-directory: tabs-code-oss
         shell: bash
@@ -499,14 +470,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Built-in extensions are their own pnpm install root (extensions/
-          # pnpm-workspace.yaml); hoisted linking puts typescript at
-          # extensions/node_modules/typescript, which typescript-language-features
-          # compiles against. One frozen install covers every extension and nested
-          # client/ and server/ package, so their node_modules ship in the runtime.
-          # Scripts stay off for the same OOM reason as the root install.
-          pnpm --dir extensions install --frozen-lockfile --ignore-scripts
-          pnpm --dir extensions/copilot install --frozen-lockfile --ignore-scripts
+          # Since 1.148 the root install above covers every built-in extension and
+          # Copilot (one pnpm workspace, isolated linker); typescript-language-features
+          # compiles against the extensions workspace's typescript link.
           test -f extensions/node_modules/typescript/lib/typescript.js
 
           # Compile every PRODUCT built-in extension to extensions/<ext>/out (and
@@ -549,6 +515,63 @@ jobs:
             echo "::error::Packaged @vscode/fs-copyfile JavaScript runtime is missing"
             exit 1
           }
+          test -f .build/extensions/copilot/package.json
+
+      # Code-OSS 1.148 is one pnpm workspace (root, extensions, Copilot) that
+      # compiles from pnpm's isolated layout: build/lib/dependencies.ts refuses a
+      # hoisted install of it. The Tabs runtime ships the root node_modules as-is,
+      # so reinstall only the root project with the hoisted linker: the same flat,
+      # symlink-free layout 1.146 shipped, without every extension's dependencies
+      # (.build/extensions already carries those). Native modules are prepared
+      # here, after the relayout, so they are not discarded with the old layout.
+      - name: Lay out Code-OSS runtime dependencies
+        working-directory: tabs-code-oss
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=12288"
+          VSCODE_SKIP_NODE_VERSION_CHECK: "1"
+        run: |
+          set -euo pipefail
+          # pnpm will not switch the linker of an existing modules directory
+          # in a filtered install, so start the root layout from scratch.
+          rm -rf node_modules
+          pnpm install --frozen-lockfile --ignore-scripts --filter . --config.node-linker=hoisted
+          test -f node_modules/minimist/index.js && test ! -L node_modules/minimist || {
+            echo "::error::Code-OSS root node_modules is not a hoisted layout"
+            exit 1
+          }
+          # Remove cpu-features (optional dependency of ssh2) which fails to compile
+          # against modern Electron/V8 due to nan pointer tagging deprecation.
+          rm -rf node_modules/cpu-features
+
+          # Ensure macOS native modules (such as @vscode/policy-watcher using std::variant)
+          # target macOS 11.0+ instead of node-addon-api's default 10.7 which causes
+          # Xcode 15/16 libc++ availability errors.
+          node --experimental-strip-types build/npm/patchNativeGyp.ts
+
+          # Rebuild native modules against Electron headers (~5-10 min).
+          # @electron/rebuild handles header downloading + cross-platform
+          # compilation without triggering npm lifecycle scripts (unlike
+          # npm rebuild which fails on Windows due to preinstall.ts).
+          #
+          # IMPORTANT: target the Electron that actually RUNS these modules at
+          # runtime — Tabs' Electron (apps/desktop/package.json), NOT
+          # tabs-code-oss's development Electron. The Code-OSS server is
+          # spawned via ELECTRON_RUN_AS_NODE on Tabs' Electron binary, so
+          # @parcel/watcher / node-pty / native-keymap must match its ABI or
+          # they fail with NODE_MODULE_VERSION mismatch.
+          #
+          # `--arch` matters: macos-15 is arm64, so the mac-x64 artifact must
+          # cross-build x64 natives here, otherwise the x64 DMG ships arm64
+          # binaries that won't load on Intel Macs.
+          # `--types prod` skips dev and optional dependencies (such as cpu-features).
+          electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+          echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
+          npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
+          # The packaged git extension's fs-copyfile needs node-addon-api to build
+          # its macOS binding. Since 1.148 only this hoisted root layout provides it
+          # where node-gyp looks (up the tree from .build/extensions).
+          native_runtime_dir=".build/extensions/git/node_modules/@vscode/fs-copyfile"
           if [[ "${{ matrix.platform }}" == "mac" ]]; then
             electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
             npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" \
@@ -559,7 +582,6 @@ jobs:
               exit 1
             }
           fi
-          test -f .build/extensions/copilot/package.json
 
       # Cache electron-builder's downloaded NSIS/7zip/winCodeSign toolchain so a
       # populated run never re-downloads it. The download host (GitHub's
@@ -661,7 +683,7 @@ jobs:
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/node_modules/minimist/index.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@anthropic-ai/sdk/package.json"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@github/copilot/package.json"
           bun tabs-app/scripts/verify-code-oss-media.ts "$extract_root/squashfs-root/resources/tabs-code-oss/extensions"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
@@ -704,7 +726,7 @@ jobs:
           if (-not (Test-Path (Join-Path $runtimeRoot "node_modules/minimist/index.js") -PathType Leaf)) { throw "Code OSS runtime dependencies are missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "extensions/node_modules/typescript/lib/typescript.js") -PathType Leaf)) { throw "TypeScript extension runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js") -PathType Leaf)) { throw "Git extension runtime is missing from Windows installer." }
-          if (-not (Test-Path (Join-Path $runtimeRoot "extensions/copilot/node_modules/@anthropic-ai/sdk/package.json") -PathType Leaf)) { throw "Copilot extension runtime is missing from Windows installer." }
+          if (-not (Test-Path (Join-Path $runtimeRoot "extensions/copilot/node_modules/@github/copilot/package.json") -PathType Leaf)) { throw "Copilot extension runtime is missing from Windows installer." }
           $updateConfig = Join-Path $appRoot "resources/app-update.yml"
           if (-not (Test-Path $updateConfig -PathType Leaf)) { throw "Packaged app-update.yml is missing." }
           if (-not (Select-String $updateConfig -Pattern '^provider:\s*github\s*$' -Quiet)) { throw "Packaged updater is not configured for GitHub." }

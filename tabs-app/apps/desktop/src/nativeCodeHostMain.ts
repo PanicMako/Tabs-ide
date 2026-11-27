@@ -1132,6 +1132,12 @@ export async function createNativeCodeHostMainBackend(
         await callbacks.openAgentsWindow(parseNativeAgentsWindowOptions(args[1]));
         return undefined;
       }
+      if (command === "showAgentsLauncher") {
+        // Tabs hosts Agents in its own window; opening it is the launcher.
+        if (!callbacks?.openAgentsWindow) throw new Error("Agents window host is unavailable");
+        await callbacks.openAgentsWindow(parseNativeAgentsWindowOptions(undefined));
+        return undefined;
+      }
       if (command === "notifyReady") {
         if (webContents) callbacks?.onWindowReady?.(webContents);
         return undefined;
@@ -1199,7 +1205,8 @@ export async function createNativeCodeHostMainBackend(
       }
       if (command === "getCursorScreenPoint") {
         const point = screen.getCursorScreenPoint();
-        return { point, display: screen.getDisplayNearestPoint(point).bounds };
+        const display = screen.getDisplayNearestPoint(point);
+        return { point, display: display.bounds, workArea: display.workArea };
       }
       if (command === "isMaximized") return embeddedWindow?.win.isMaximized() ?? false;
       if (command === "focusWindow") {
@@ -1222,6 +1229,24 @@ export async function createNativeCodeHostMainBackend(
       }
       if (command === "setWindowAlwaysOnTop") {
         embeddedWindow?.win.setAlwaysOnTop(Boolean(args[1]));
+        return undefined;
+      }
+      if (command === "showWindow") {
+        // Code is a view inside the Tabs window; showing it means focusing it.
+        embeddedWindow?.webContents.focus();
+        return undefined;
+      }
+      if (
+        command === "hideWindow" ||
+        command === "setWindowOpacity" ||
+        command === "setWindowIgnoreMouseEvents"
+      ) {
+        // These serve Code's own floating windows. Tabs owns the outer window,
+        // so Code must not hide it, fade it or let clicks pass through it.
+        return undefined;
+      }
+      if (command === "setWindowFolderLocation") {
+        // Tabs restores projects itself; Code keeps no per-window folder state.
         return undefined;
       }
       if (command === "setMinimumSize") {
@@ -1520,6 +1545,61 @@ export async function createNativeCodeHostMainBackend(
         const rect = args[1] as Electron.Rectangle | undefined;
         const captured = await webContents.capturePage(rect);
         return modules.VSBuffer.wrap(captured.toJPEG(95));
+      }
+      if (command === "getAppWindows") {
+        const interactive = Boolean(
+          (args[1] as { interactive?: boolean } | undefined)?.interactive,
+        );
+        if (
+          process.platform === "linux" &&
+          process.env.XDG_SESSION_TYPE?.startsWith("wayland") &&
+          process.env.WAYLAND_DISPLAY &&
+          !interactive
+        ) {
+          return { kind: "systemPicker" };
+        }
+        if (
+          process.platform === "darwin" &&
+          systemPreferences.getMediaAccessStatus("screen") !== "granted" &&
+          !interactive
+        ) {
+          return { kind: "permissionRequired" };
+        }
+        const { desktopCapturer } = await import("electron");
+        const sources = await desktopCapturer.getSources({
+          types: ["window"],
+          thumbnailSize: { width: 0, height: 0 },
+          fetchWindowIcons: true,
+        });
+        if (
+          process.platform === "darwin" &&
+          systemPreferences.getMediaAccessStatus("screen") !== "granted"
+        ) {
+          return { kind: "permissionRequired" };
+        }
+        const ownSourceIds = new Set(
+          BrowserWindow.getAllWindows().map((candidate) => candidate.getMediaSourceId()),
+        );
+        return {
+          kind: "windows",
+          windows: sources
+            .filter((source) => !ownSourceIds.has(source.id))
+            .map((source) => ({
+              sourceId: source.id,
+              title: source.name,
+              ...(source.appIcon && !source.appIcon.isEmpty()
+                ? { iconDataUrl: source.appIcon.toDataURL() }
+                : null),
+            })),
+        };
+      }
+      if (command === "captureAppWindow") {
+        // No single-shot capture here; Code falls back to a desktop media frame.
+        return undefined;
+      }
+      if (command === "endAppWindowCaptureFeedback") {
+        // captureAppWindow never shows capture feedback, so there is none to end.
+        return undefined;
       }
       if (command === "uploadFileViaMobileApi") {
         const value = args[4] as { buffer?: Uint8Array } | Uint8Array | undefined;

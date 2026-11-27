@@ -50,8 +50,33 @@ describe("embedded Code native-host contract", () => {
     const handled = collectHandledCommands(implementation);
     const missing = [...methods].filter((method) => !handled.has(method));
 
-    expect(methods.size).toBe(116);
+    expect(methods.size).toBe(125);
     expect(missing).toEqual([]);
+  });
+
+  it("registers the command names added in VS Code 1.148.0", () => {
+    const v148AddedMethods = [
+      "showAgentsLauncher",
+      "showWindow",
+      "hideWindow",
+      "setWindowOpacity",
+      "setWindowIgnoreMouseEvents",
+      "setWindowFolderLocation",
+      "getAppWindows",
+      "captureAppWindow",
+      "endAppWindowCaptureFeedback",
+    ];
+
+    const mainSource = readFileSync(
+      Path.join(import.meta.dirname, "nativeCodeHostMain.ts"),
+      "utf8",
+    );
+
+    for (const method of v148AddedMethods) {
+      expect(mainSource).toContain(`command === "${method}"`);
+    }
+    // 1.148 adds the display work area to the cursor point result.
+    expect(mainSource).toContain("workArea: display.workArea");
   });
 
   it("registers the command and event names added in VS Code 1.146.0", () => {

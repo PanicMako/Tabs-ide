@@ -16,6 +16,15 @@ import { renderSvgToIcoFile, renderSvgToPngFile } from "./lib/icon-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
+import {
+  copyVsceSignModules,
+  findVsceSignScope,
+  vsceSignScopeCandidates,
+} from "./lib/code-oss-vsce-sign.ts";
+import {
+  createWorkspaceMemberModulesFilter,
+  readCodeOssWorkspaceMembers,
+} from "./lib/code-oss-workspace.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
 import { splitTargets, validateBuildTarget } from "./lib/desktop-targets.ts";
 import { resolveAppxIdentity } from "./lib/windows-appx.ts";
@@ -623,7 +632,7 @@ function getRequiredMacArtifactPaths(productName: string, thin = false): readonl
       "Release",
       "vscode_fs.node",
     ),
-    join(codeOss, "extensions", "copilot", "node_modules", "@anthropic-ai", "sdk", "package.json"),
+    join(codeOss, "extensions", "copilot", "node_modules", "@github", "copilot", "package.json"),
   ];
 }
 
@@ -1200,7 +1209,13 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
   // Marketplace signature verification runs in the shared process. The
   // verifier lives in build/node_modules in a source checkout and is copied
   // into the packaged runtime below before build/ is removed.
-  compiledMarkers.push("build/node_modules/@vscode/vsce-sign/src/main.js");
+  if (!findVsceSignScope(vsCodeSourceDir)) {
+    compiledMarkers.push(
+      ...vsceSignScopeCandidates(vsCodeSourceDir).map((scope) =>
+        path.relative(vsCodeSourceDir, path.join(scope, "vsce-sign", "src", "main.js")),
+      ),
+    );
+  }
 
   const missingMarkers: string[] = [];
   for (const marker of compiledMarkers) {
@@ -1259,6 +1274,11 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
       excludedSourceEntries.add(entry);
     }
   }
+  const workspaceMembers = readCodeOssWorkspaceMembers(vsCodeSourceDir);
+  const skipWorkspaceMemberModules = createWorkspaceMemberModulesFilter(
+    vsCodeSourceDir,
+    workspaceMembers,
+  );
   for (const entry of yield* fs.readDirectory(vsCodeSourceDir)) {
     if (excludedSourceEntries.has(entry)) continue;
     const source = path.join(vsCodeSourceDir, entry);
@@ -1271,6 +1291,10 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
           recursive: true,
           filter: (filename) => includeWindowsCompiledFile(source, filename),
         });
+      } else if (
+        workspaceMembers.some((member) => member === entry || member.startsWith(`${entry}/`))
+      ) {
+        cpSync(source, destination, { recursive: true, filter: skipWorkspaceMemberModules });
       } else {
         yield* fs.copy(source, destination);
       }
@@ -1301,14 +1325,11 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
   // Upstream installs that package under build/node_modules, but build/ is not
   // part of the runtime artifact. Preserve only the verifier and its matching
   // platform package in the runtime dependency tree before removing build/.
-  const buildVscodeModules = path.join(vsCodeSourceDir, "build", "node_modules", "@vscode");
-  const runtimeVscodeModules = path.join(vsCodeDestDir, "node_modules", "@vscode");
-  if (yield* fs.exists(buildVscodeModules)) {
-    for (const entry of yield* fs.readDirectory(buildVscodeModules)) {
-      if (!entry.startsWith("vsce-sign")) continue;
-      yield* fs.copy(path.join(buildVscodeModules, entry), path.join(runtimeVscodeModules, entry));
-    }
-  }
+  const vsceSignModules = yield* Effect.try({
+    try: () => copyVsceSignModules(vsCodeSourceDir, vsCodeDestDir),
+    catch: (cause) => new BuildScriptError({ message: String(cause) }),
+  });
+  yield* Effect.log(`[desktop-artifact] Staged ${vsceSignModules.join(", ")}`);
 
   // Remove problematic absolute symlinks that break code signing
   const claudeDir = path.join(vsCodeDestDir, ".claude");
