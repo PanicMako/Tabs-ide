@@ -1358,13 +1358,26 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - id: package
-        name: Locate Store package
+        name: Check the Store package and prepare the upload
         if: steps.gate.outputs.submit == 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $appx = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.appx"
           if (-not (Test-Path $appx -PathType Leaf)) { throw "Store package for $env:RELEASE_VERSION is missing: $appx" }
+          # Fail here, not after a 10-minute upload: Partner Center rejects MSIX
+          # uploads whose TargetDeviceFamily MinVersion is <= 10.0.17134.0.
+          $zip = Join-Path $env:RUNNER_TEMP "tabs-store.zip"
+          Copy-Item $appx $zip -Force
+          $root = Join-Path $env:RUNNER_TEMP "tabs-store"
+          Expand-Archive $zip -DestinationPath $root -Force
+          [xml]$manifest = Get-Content (Join-Path $root "AppxManifest.xml")
+          $identity = $manifest.Package.Identity
+          $family = $manifest.Package.Dependencies.TargetDeviceFamily | Where-Object { $_.Name -eq "Windows.Desktop" } | Select-Object -First 1
+          if (-not $family) { throw "AppxManifest.xml has no Windows.Desktop TargetDeviceFamily." }
+          if ([version]$family.MinVersion -le [version]"10.0.17134.0") { throw "Package MinVersion $($family.MinVersion) is too old for an MSIX Store upload; rebuild it with the current build scripts." }
+          if ($identity.Version -ne "$env:RELEASE_VERSION.0") { throw "Package version is $($identity.Version); expected $env:RELEASE_VERSION.0." }
+          Write-Host "Package $($identity.Name) $($identity.Version), MinVersion $($family.MinVersion), MaxVersionTested $($family.MaxVersionTested)"
           # .appx and .msix share one container format; the Store CLI only takes
           # the .msix/.msixupload extensions, so submit a .msix-named copy.
           $msix = Join-Path $PWD "store/Tabs-$env:RELEASE_VERSION-x64.msix"

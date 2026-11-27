@@ -1,7 +1,7 @@
 name: Submit to Microsoft Store
 
 # Submits a Store package that a Build Desktop Installers run already built
-# (platforms including win-x64-appx), without re-running a GitHub release. Use
+# (by default every run builds win-x64-appx), without re-running a GitHub release. Use
 # it to resubmit a version whose automatic submission failed.
 on:
   workflow_dispatch:
@@ -53,7 +53,20 @@ jobs:
             echo "::error::Set the MSSTORE_TENANT_ID, MSSTORE_SELLER_ID, MSSTORE_CLIENT_ID and MSSTORE_CLIENT_SECRET secrets. See docs/desktop-packages.md."; exit 1
           fi
 
+      # Build Desktop Installers names it store-win-x64-appx; runs made before
+      # that rename used desktop-win-x64-appx.
       - name: Download Store package from the build run
+        id: store_artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: store-win-x64-appx
+          path: store
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Store package from an older build run
+        if: steps.store_artifact.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: desktop-win-x64-appx
