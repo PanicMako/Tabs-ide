@@ -15,6 +15,10 @@ export interface AppxIdentity {
 }
 
 export const DEFAULT_APPX_DISPLAY_NAME = "Tabs IDE";
+/** Windows 10 1809; Partner Center rejects MSIX packages targeting MinVersion <= 10.0.17134.0. */
+export const DEFAULT_APPX_MIN_VERSION = "10.0.17763.0";
+export const DEFAULT_APPX_MAX_VERSION_TESTED = "10.0.22621.0";
+const STORE_MSIX_MIN_EXCLUSIVE_VERSION = "10.0.17134.0";
 
 export const APPX_IDENTITY_ENV = {
   identityName: "TABS_APPX_IDENTITY_NAME",
@@ -69,6 +73,22 @@ export function toAppxVersion(version: string): string {
   return `${match[1]}.${match[2]}.${match[3]}.0`;
 }
 
+export function createAppxBuildConfig(identity: AppxIdentity) {
+  return {
+    identityName: identity.identityName,
+    publisher: identity.publisher,
+    publisherDisplayName: identity.publisherDisplayName,
+    applicationId: "Tabs",
+    displayName: identity.displayName,
+    minVersion: DEFAULT_APPX_MIN_VERSION,
+    maxVersionTested: DEFAULT_APPX_MAX_VERSION_TESTED,
+    artifactName: "Tabs-${version}-${arch}.${ext}",
+    // Store-managed updates only: never write electron-updater metadata.
+    electronUpdaterAware: false,
+    setBuildNumber: false,
+  };
+}
+
 export interface AppxManifestFacts {
   readonly identityName: string | null;
   readonly publisher: string | null;
@@ -80,11 +100,34 @@ export interface AppxManifestFacts {
   readonly processorArchitecture: string | null;
   readonly executable: string | null;
   readonly capabilities: readonly string[];
+  readonly targetDeviceFamilyMinVersion: string | null;
+  readonly targetDeviceFamilyMaxVersionTested: string | null;
 }
 
 function attribute(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
   return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
+function parseWindowsVersion(
+  value: string | null,
+): readonly [number, number, number, number] | null {
+  if (!value) return null;
+  const match = value.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return null;
+  const parts = [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4])] as const;
+  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 65535)) return null;
+  return parts;
+}
+
+function compareWindowsVersions(
+  a: readonly [number, number, number, number],
+  b: readonly [number, number, number, number],
+): number {
+  for (let i = 0; i < 4; i++) {
+    if (a[i]! !== b[i]!) return a[i]! - b[i]!;
+  }
+  return 0;
 }
 
 export function readAppxManifest(xml: string): AppxManifestFacts {
@@ -105,6 +148,13 @@ export function readAppxManifest(xml: string): AppxManifestFacts {
   const capabilities = [...xml.matchAll(/<(?:\w+:)?Capability\b[^>]*\sName\s*=\s*"([^"]+)"/g)].map(
     (m) => m[1] as string,
   );
+  const targetDeviceFamilyTags = [...xml.matchAll(/<(?:\w+:)?TargetDeviceFamily\b[^>]*>/g)].map(
+    (m) => m[0],
+  );
+  const desktopFamilyTag =
+    targetDeviceFamilyTags.find((tag) => attribute(tag, "Name") === "Windows.Desktop") ??
+    targetDeviceFamilyTags[0] ??
+    "";
   return {
     identityName: attribute(identityTag, "Name"),
     publisher: attribute(identityTag, "Publisher"),
@@ -116,13 +166,20 @@ export function readAppxManifest(xml: string): AppxManifestFacts {
     processorArchitecture: attribute(identityTag, "ProcessorArchitecture"),
     executable: attribute(applicationTag, "Executable"),
     capabilities,
+    targetDeviceFamilyMinVersion: attribute(desktopFamilyTag, "MinVersion"),
+    targetDeviceFamilyMaxVersionTested: attribute(desktopFamilyTag, "MaxVersionTested"),
   };
 }
 
 /** Returns a list of human-readable problems; empty means the manifest is acceptable. */
 export function verifyAppxManifest(
   xml: string,
-  expected: AppxIdentity & { readonly version: string; readonly arch: "x64" | "arm64" },
+  expected: AppxIdentity & {
+    readonly version: string;
+    readonly arch: "x64" | "arm64";
+    readonly minVersion?: string;
+    readonly maxVersionTested?: string;
+  },
 ): string[] {
   const facts = readAppxManifest(xml);
   const problems: string[] = [];
@@ -147,6 +204,38 @@ export function verifyAppxManifest(
   }
   if (!facts.capabilities.includes("runFullTrust")) {
     problems.push("Manifest does not declare the runFullTrust capability.");
+  }
+  const storeMinExclusive = parseWindowsVersion(STORE_MSIX_MIN_EXCLUSIVE_VERSION)!;
+  const minVersion = parseWindowsVersion(facts.targetDeviceFamilyMinVersion);
+  if (!minVersion) {
+    problems.push(
+      `TargetDeviceFamily MinVersion is ${facts.targetDeviceFamilyMinVersion ?? "<missing>"}; expected a 4-part version > ${STORE_MSIX_MIN_EXCLUSIVE_VERSION}.`,
+    );
+  } else if (compareWindowsVersions(minVersion, storeMinExclusive) <= 0) {
+    problems.push(
+      `TargetDeviceFamily MinVersion is ${facts.targetDeviceFamilyMinVersion}; Microsoft Store rejects MSIX packages targeting MinVersion <= ${STORE_MSIX_MIN_EXCLUSIVE_VERSION}.`,
+    );
+  } else if (expected.minVersion) {
+    check("TargetDeviceFamily MinVersion", facts.targetDeviceFamilyMinVersion, expected.minVersion);
+  }
+  const maxVersionTested = parseWindowsVersion(facts.targetDeviceFamilyMaxVersionTested);
+  if (!maxVersionTested) {
+    problems.push(
+      `TargetDeviceFamily MaxVersionTested is ${facts.targetDeviceFamilyMaxVersionTested ?? "<missing>"}; expected a 4-part version >= MinVersion.`,
+    );
+  } else {
+    if (minVersion && compareWindowsVersions(maxVersionTested, minVersion) < 0) {
+      problems.push(
+        `TargetDeviceFamily MaxVersionTested (${facts.targetDeviceFamilyMaxVersionTested}) must be >= MinVersion (${facts.targetDeviceFamilyMinVersion}).`,
+      );
+    }
+    if (expected.maxVersionTested) {
+      check(
+        "TargetDeviceFamily MaxVersionTested",
+        facts.targetDeviceFamilyMaxVersionTested,
+        expected.maxVersionTested,
+      );
+    }
   }
   return problems;
 }

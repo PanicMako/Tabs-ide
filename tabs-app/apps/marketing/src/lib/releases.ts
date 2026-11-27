@@ -38,6 +38,20 @@ export function pickOptionalAsset(release: Release, pkg: OptionalPackage): strin
   const name = `Tabs-${release.tag_name.replace(/^v/, "")}${optionalPackages[pkg].suffix}`;
   return release.assets.find((a) => a.name === name)?.browser_download_url ?? null;
 }
+
+/** Anything the downloads page can offer as a one-click download. */
+export type DownloadId = Platform | OptionalPackage;
+const isOptionalPackage = (id: DownloadId): id is OptionalPackage => id in optionalPackages;
+
+export function downloadSuffix(id: DownloadId): string {
+  return isOptionalPackage(id)
+    ? optionalPackages[id].suffix
+    : platforms.find((p) => p.id === id)!.suffix;
+}
+
+export function pickDownload(release: Release, id: DownloadId): string | null {
+  return isOptionalPackage(id) ? pickOptionalAsset(release, id) : pickAsset(release, id);
+}
 export type ReleaseChannel = "stable" | "beta";
 
 export function releaseChannel(

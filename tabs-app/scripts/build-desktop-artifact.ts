@@ -27,7 +27,7 @@ import {
 } from "./lib/code-oss-workspace.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
 import { splitTargets, validateBuildTarget } from "./lib/desktop-targets.ts";
-import { resolveAppxIdentity } from "./lib/windows-appx.ts";
+import { createAppxBuildConfig, resolveAppxIdentity } from "./lib/windows-appx.ts";
 import { writeWindowsNsisScripts } from "./lib/windows-nsis.ts";
 import { WINDOWS_APP_FILE_EXCLUSIONS } from "./lib/windows-app-payload.ts";
 import {
@@ -1061,17 +1061,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     if (target === "appx") {
       // Identity comes straight from Partner Center via env; it is never defaulted.
       const identity = resolveAppxIdentity(process.env);
-      buildConfig.appx = {
-        identityName: identity.identityName,
-        publisher: identity.publisher,
-        publisherDisplayName: identity.publisherDisplayName,
-        applicationId: "Tabs",
-        displayName: identity.displayName,
-        artifactName: "Tabs-${version}-${arch}.${ext}",
-        // Store-managed updates only: never write electron-updater metadata.
-        electronUpdaterAware: false,
-        setBuildNumber: false,
-      };
+      buildConfig.appx = createAppxBuildConfig(identity);
     }
     if (target === "nsis") {
       const nsisConfig: Record<string, unknown> = {

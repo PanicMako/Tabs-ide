@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { validateBuildTarget } from "./desktop-targets.ts";
 import { missingDebPayloadPaths, parseDebControl, verifyDebControl } from "./linux-deb.ts";
 import {
+  createAppxBuildConfig,
   DEFAULT_APPX_DISPLAY_NAME,
+  DEFAULT_APPX_MAX_VERSION_TESTED,
+  DEFAULT_APPX_MIN_VERSION,
   readAppxManifest,
   resolveAppxIdentity,
   toAppxVersion,
@@ -51,6 +54,20 @@ describe("validateBuildTarget", () => {
   });
 });
 
+const appxManifestFixture = (
+  name = "Example.Tabs",
+  displayName = "Tabs IDE",
+  appId = "Tabs",
+  minVersion = DEFAULT_APPX_MIN_VERSION,
+  maxVersionTested = DEFAULT_APPX_MAX_VERSION_TESTED,
+) => `<Package><Identity Name="${name}" ProcessorArchitecture="x64" Publisher='CN=00000000-0000-0000-0000-000000000000' Version="2.10.0.0" />
+<Properties><DisplayName>${displayName}</DisplayName><PublisherDisplayName>Example Publisher</PublisherDisplayName></Properties>
+<Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="${minVersion}" MaxVersionTested="${maxVersionTested}" /></Dependencies>
+<Applications><Application Id="${appId}" Executable="app\\Tabs.exe" EntryPoint="Windows.FullTrustApplication">
+<uap:VisualElements DisplayName="${displayName}" Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png" Description="Tabs" BackgroundColor="#464646"/>
+</Application></Applications>
+<Capabilities><rescap:Capability Name="runFullTrust"/></Capabilities></Package>`;
+
 describe("Store AppX identity", () => {
   it("requires every Partner Center value and never defaults", () => {
     expect(() => resolveAppxIdentity({})).toThrow(/TABS_APPX_IDENTITY_NAME, TABS_APPX_PUBLISHER,/);
@@ -75,29 +92,58 @@ describe("Store AppX identity", () => {
     expect(toAppxVersion("2.10.0-beta.1")).toBe("2.10.0.0");
     expect(() => toAppxVersion("nope")).toThrow();
   });
-  const manifest = (
-    name = "Example.Tabs",
-    displayName = "Tabs IDE",
-    appId = "Tabs",
-  ) => `<Package><Identity Name="${name}" ProcessorArchitecture="x64" Publisher='CN=00000000-0000-0000-0000-000000000000' Version="2.10.0.0" />
-<Properties><DisplayName>${displayName}</DisplayName><PublisherDisplayName>Example Publisher</PublisherDisplayName></Properties>
-<Applications><Application Id="${appId}" Executable="app\\Tabs.exe" EntryPoint="Windows.FullTrustApplication">
-<uap:VisualElements DisplayName="${displayName}" Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png" Description="Tabs" BackgroundColor="#464646"/>
-</Application></Applications>
-<Capabilities><rescap:Capability Name="runFullTrust"/></Capabilities></Package>`;
+  it("configures Store AppX builds with MinVersion > 10.0.17134.0 for Partner Center MSIX acceptance", () => {
+    const config = createAppxBuildConfig(resolveAppxIdentity(identityEnv));
+    expect(config.minVersion).toBe("10.0.17763.0");
+    expect(config.maxVersionTested).toBe("10.0.22621.0");
+    expect(config.electronUpdaterAware).toBe(false);
+  });
   it("verifies the generated manifest against the identity", () => {
     const expected = {
       ...resolveAppxIdentity(identityEnv),
       version: "2.10.0",
       arch: "x64",
+      minVersion: DEFAULT_APPX_MIN_VERSION,
+      maxVersionTested: DEFAULT_APPX_MAX_VERSION_TESTED,
     } as const;
-    const parsed = readAppxManifest(manifest());
+    const parsed = readAppxManifest(appxManifestFixture());
     expect(parsed.capabilities).toEqual(["runFullTrust"]);
     expect(parsed.displayName).toBe("Tabs IDE");
     expect(parsed.visualElementsDisplayName).toBe("Tabs IDE");
     expect(parsed.applicationId).toBe("Tabs");
-    expect(verifyAppxManifest(manifest(), expected)).toEqual([]);
-    expect(verifyAppxManifest(manifest("Other.Name"), expected)[0]).toContain("Identity Name");
+    expect(parsed.targetDeviceFamilyMinVersion).toBe(DEFAULT_APPX_MIN_VERSION);
+    expect(parsed.targetDeviceFamilyMaxVersionTested).toBe(DEFAULT_APPX_MAX_VERSION_TESTED);
+    expect(verifyAppxManifest(appxManifestFixture(), expected)).toEqual([]);
+    expect(verifyAppxManifest(appxManifestFixture("Other.Name"), expected)[0]).toContain(
+      "Identity Name",
+    );
+  });
+  it("rejects manifests targeting MinVersion <= 10.0.17134.0 or invalid MaxVersionTested", () => {
+    const expected = {
+      ...resolveAppxIdentity(identityEnv),
+      version: "2.10.0",
+      arch: "x64",
+      minVersion: DEFAULT_APPX_MIN_VERSION,
+      maxVersionTested: DEFAULT_APPX_MAX_VERSION_TESTED,
+    } as const;
+    for (const badMin of ["10.0.14316.0", "10.0.17134.0"]) {
+      const problems = verifyAppxManifest(
+        appxManifestFixture("Example.Tabs", "Tabs IDE", "Tabs", badMin),
+        expected,
+      );
+      expect(problems.some((p) => p.includes("10.0.17134.0"))).toBe(true);
+    }
+    const inverted = verifyAppxManifest(
+      appxManifestFixture("Example.Tabs", "Tabs IDE", "Tabs", "10.0.22621.0", "10.0.17763.0"),
+      expected,
+    );
+    expect(inverted.some((p) => p.includes("MaxVersionTested"))).toBe(true);
+    const missingDeps = verifyAppxManifest(
+      appxManifestFixture().replace(/<Dependencies>[\s\S]*?<\/Dependencies>/, ""),
+      expected,
+    );
+    expect(missingDeps.some((p) => p.includes("TargetDeviceFamily MinVersion"))).toBe(true);
+    expect(missingDeps.some((p) => p.includes("TargetDeviceFamily MaxVersionTested"))).toBe(true);
   });
   it("rejects packages where DisplayName is Tabs instead of reserved Tabs IDE", () => {
     const expected = {
@@ -105,7 +151,7 @@ describe("Store AppX identity", () => {
       version: "2.10.0",
       arch: "x64",
     } as const;
-    const problems = verifyAppxManifest(manifest("Example.Tabs", "Tabs"), expected);
+    const problems = verifyAppxManifest(appxManifestFixture("Example.Tabs", "Tabs"), expected);
     expect(
       problems.some((p) =>
         p.includes("Package Properties DisplayName is Tabs; expected Tabs IDE."),
@@ -122,7 +168,7 @@ describe("Store AppX identity", () => {
       arch: "x64",
     } as const;
     const problems = verifyAppxManifest(
-      manifest("Example.Tabs", "Tabs IDE", "AlteredAppId"),
+      appxManifestFixture("Example.Tabs", "Tabs IDE", "AlteredAppId"),
       expected,
     );
     expect(problems.some((p) => p.includes("Application Id is AlteredAppId; expected Tabs."))).toBe(
