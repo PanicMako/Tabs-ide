@@ -25,6 +25,19 @@ export const platforms: { id: Platform; label: string; suffix: string }[] = [
   { id: "windows-x64", label: "Windows · x64", suffix: "-x64.exe" },
   { id: "linux-x64", label: "Linux · x64 AppImage", suffix: "-x86_64.AppImage" },
 ];
+/**
+ * Additive packages. They are deliberately not in `platforms`: a release that
+ * predates a package must still qualify as a complete download release.
+ */
+export const optionalPackages = {
+  "linux-x64-deb": { label: "Linux · x64 Debian/Ubuntu (.deb)", suffix: "-amd64.deb" },
+} as const;
+export type OptionalPackage = keyof typeof optionalPackages;
+
+export function pickOptionalAsset(release: Release, pkg: OptionalPackage): string | null {
+  const name = `Tabs-${release.tag_name.replace(/^v/, "")}${optionalPackages[pkg].suffix}`;
+  return release.assets.find((a) => a.name === name)?.browser_download_url ?? null;
+}
 export type ReleaseChannel = "stable" | "beta";
 
 export function releaseChannel(

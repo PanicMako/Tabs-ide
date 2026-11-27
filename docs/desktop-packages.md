@@ -9,27 +9,40 @@ Existing outputs are unchanged: Windows x64 NSIS installer, Linux x64 AppImage, 
 - Maintainer field: `TABS_DEB_MAINTAINER`, default is the public contact address on the privacy page.
 
 ## Microsoft Store x64 package (not a release asset)
-- Tool: electron-builder **26.15.3 (unchanged)** `appx` target, which writes a `.appx`. v26 has no `msix` target (MSIX is beta in v27); Partner Center accepts `.appx` for MSIX/PWA products and the Store re-signs it.
-- **Product Display Name**: Declared in package manifest (`Package/Properties/DisplayName` and `uap:VisualElements/@DisplayName`) as **`Tabs IDE`**, matching the reserved product name in Microsoft Partner Center. Can be customized via the `TABS_APPX_DISPLAY_NAME` variable (defaults to `Tabs IDE`).
-- **Product Identity**: Never defaulted. Copy verbatim from Partner Center → Product identity into repository **variables**:
-  - `TABS_APPX_IDENTITY_NAME` (`Package/Identity/Name`, e.g. `<PublisherId>.<AppName>`)
-  - `TABS_APPX_PUBLISHER` (`Package/Identity/Publisher`, e.g. `CN=<GUID>`)
-  - `TABS_APPX_PUBLISHER_DISPLAY_NAME` (`Package/Properties/PublisherDisplayName`)
-  - `TABS_APPX_DISPLAY_NAME` (optional, defaults to `Tabs IDE`)
-  The build and CI manifest verification fail loudly if any required field is missing, malformed, or has an unexpected display name or application ID.
-- **Outputs produced**:
-  - `Tabs-<version>-x64.appx`: The raw Windows Store package.
-  - `Tabs-<version>-x64.appxupload`: The Store submission upload bundle (zip container containing the `.appx`).
-  Both are collected into the `desktop-win-x64-appx` artifact.
-- **Build**: run **Build Desktop Installers** manually with `platforms = win-x64-appx`. It is opt-in and never part of `release.yml` or the public GitHub release. No signing secrets are used because Microsoft Partner Center re-signs the package upon submission.
+- **Live listing**: product **Tabs IDE**, Store ID `9P8P9XTGZQM9` — <https://apps.microsoft.com/detail/9P8P9XTGZQM9> (deep link `ms-windows-store://pdp/?productid=9P8P9XTGZQM9`). The downloads page links it from the Windows ticket (`microsoftStoreUrl` in `apps/marketing/src/data/downloads.ts`).
+- Tool: electron-builder **26.15.3 (unchanged)** `appx` target, which writes a `.appx`. v26 has no `msix` target (MSIX is beta in v27); `.appx` and `.msix` share one container format and the Store re-signs it.
+- **Product Display Name**: `Package/Properties/DisplayName` and `uap:VisualElements/@DisplayName` are **`Tabs IDE`**, the reserved Partner Center name. Override with the `TABS_APPX_DISPLAY_NAME` variable.
+- **Product Identity** (repository **variables**, copied verbatim from Partner Center → Product identity, never defaulted): `TABS_APPX_IDENTITY_NAME`, `TABS_APPX_PUBLISHER`, `TABS_APPX_PUBLISHER_DISPLAY_NAME`. The build and manifest verification fail loudly if any is missing or malformed.
 - The app disables its NSIS updater when `process.windowsStore` is true; the Store handles updates. NSIS self-updates are untouched.
-- **Partner Center Submission Steps**:
-  1. Ensure the repository variables (`TABS_APPX_*`) are set in GitHub repository settings.
-  2. Run the **Build Desktop Installers** workflow with `platforms = win-x64-appx`.
-  3. Download the `desktop-win-x64-appx` artifact zip containing `Tabs-<version>-x64.appx` and `Tabs-<version>-x64.appxupload`.
-  4. In Microsoft Partner Center, navigate to your submission → **Packages**.
-  5. Drag and drop either `Tabs-<version>-x64.appxupload` or `Tabs-<version>-x64.appx` into the package uploader.
-  6. Partner Center validation verifies that `Package/Properties/DisplayName` matches the reserved name `Tabs IDE` and that the Publisher matches your account.
+
+### Automatic submission on every release
+`release.yml` does it end to end:
+1. The `build` matrix has a **Windows x64 Store AppX** leg (`target: appx`). It verifies the manifest and payload and uploads `Tabs-<version>-x64.appx` as the `store-win-x64-appx` artifact. It is `continue-on-error`, so a Store packaging failure never blocks the GitHub release, and its artifact name is outside the `desktop-*` pattern, so it is never attached to the release.
+2. After **Publish GitHub Release** succeeds, the `microsoft_store` job installs the Microsoft Store Developer CLI (`microsoft/microsoft-store-apppublisher`), signs in to Partner Center and runs `msstore publish <package>.msix -id 9P8P9XTGZQM9`. That creates a new submission from the last published one (listing, pricing, availability kept; any pending draft is discarded), swaps the package and commits it for certification.
+3. Skipped with a notice for prerelease versions (`x.y.z-…`): the Store version is `x.y.z.0`, so a prerelease would collide with its final release. Skipped with a warning when the credentials below are missing. Not run for the v2.0.0 replacement path.
+4. With `artifact_run_id`, the package comes from that Build Desktop Installers run's `desktop-win-x64-appx` artifact, so include `win-x64-appx` in its `platforms`.
+
+Override the product with the `TABS_MSSTORE_PRODUCT_ID` variable (defaults to `9P8P9XTGZQM9`).
+
+### One-time Partner Center API setup
+1. Partner Center → **Account settings → User management → Microsoft Entra applications** → **Create Microsoft Entra application** (or add an existing one), role **Manager**.
+2. Note the **Tenant ID** and **Client ID**, then **Add new key** and copy the key value (shown once; it expires, so rotate it before then).
+3. Partner Center → **Account settings → Legal info → Developer** → copy the **Seller ID**.
+4. Add the repository **secrets**:
+   ```bash
+   gh secret set MSSTORE_TENANT_ID -R PanicMako/Tabs-ide
+   gh secret set MSSTORE_CLIENT_ID -R PanicMako/Tabs-ide
+   gh secret set MSSTORE_CLIENT_SECRET -R PanicMako/Tabs-ide
+   gh secret set MSSTORE_SELLER_ID -R PanicMako/Tabs-ide
+   ```
+
+### Caveats
+- Microsoft documents CLI updates as supported for free products only (Tabs is free).
+- If a previous submission is still **in certification**, the CLI's behaviour is undocumented; if the job fails for that reason, wait for certification to finish (or cancel it in Partner Center) and re-run the `microsoft_store` job.
+- Certification is on Microsoft's side; the job finishing means the submission was committed, not that it is live.
+
+### Manual build (fallback)
+Run **Build Desktop Installers** with `platforms = win-x64-appx`, download the `desktop-win-x64-appx` artifact and drag `Tabs-<version>-x64.appx` into the submission's **Packages** page in Partner Center.
 
 ## ARM64 (Windows and Linux)
 Not enabled for production release. `validateBuildTarget` refuses arm64 for Windows/Linux unless built on a native arm64 host and `TABS_ALLOW_UNVERIFIED_ARCH=1` is set, so x64 binaries cannot be packed into an arm64 artifact.
