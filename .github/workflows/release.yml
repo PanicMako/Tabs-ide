@@ -1,4 +1,5 @@
 name: Release Desktop
+run-name: Release ${{ inputs.version || github.ref_name }}
 
 on:
   push:
@@ -214,9 +215,13 @@ jobs:
                 echo "Release artifacts were built from $run_sha; verified commit $GITHUB_SHA only touches tests, documentation, or workflows."
               fi
               jobs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$artifact_run_id/jobs" --jq '.jobs[] | [.name, .conclusion] | @tsv')
-              for name in "Build macOS arm64" "Build macOS x64" "Build Linux x64" "Build Windows x64"; do
-                if ! grep -Fxq "$name"$'\t'success <<< "$jobs"; then
-                  echo "::error::Source release run lacks a successful $name job."
+              # Job names before and after the stage rename (Build X → Package · X · formats).
+              for pair in "Build macOS arm64|Package · macOS arm64 · DMG + ZIP" \
+                          "Build macOS x64|Package · macOS x64 · DMG + ZIP" \
+                          "Build Linux x64|Package · Linux x64 · AppImage + .deb" \
+                          "Build Windows x64|Package · Windows x64 · NSIS installer"; do
+                if ! grep -Fxq "${pair%%|*}"$'\t'success <<< "$jobs" && ! grep -Fxq "${pair#*|}"$'\t'success <<< "$jobs"; then
+                  echo "::error::Source release run lacks a successful ${pair%%|*} job."
                   exit 1
                 fi
               done
@@ -240,7 +245,7 @@ jobs:
   # release job needs it), but the four platform builds no longer sit idle for
   # the length of a serial test run before they can start.
   verify:
-    name: Verify (typecheck, lint, tests)
+    name: Verify · typecheck, lint, tests
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -306,9 +311,129 @@ jobs:
         # Avoid concurrent package compilers competing with process/GC integration tests.
         run: bun run test --concurrency=1
 
-  build:
-    name: Build ${{ matrix.label }}
+  # The workbench (out/, out-build/) is plain JavaScript, identical on every
+  # platform, so it is compiled once here on Linux and handed to each platform
+  # job. macOS runners took 10-28 min for this compile (3 cores, 7 GB RAM); this
+  # Linux runner takes about 4. The result is cached by the git tree hash of
+  # tabs-code-oss, so a build whose Code-OSS sources are unchanged skips the
+  # install and compile. Bump the `-v1` salt when the compile commands change.
+  # Built-in extensions stay per platform: .build/extensions carries
+  # platform-specific packages (such as @github/copilot-<os>-<arch>).
+  compile_workbench:
+    name: Compile · Code-OSS workbench (once, all platforms)
     needs: preflight
+    if: needs.preflight.outputs.artifact_run_id == ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+          fetch-depth: 1
+
+      - name: Key the workbench on the Code-OSS sources
+        id: key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "key=code-oss-workbench-v1-$(git rev-parse HEAD:tabs-code-oss)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiled workbench
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: code-oss-workbench.tar
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Setup Node
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        if: steps.cache.outputs.cache-hit != 'true'
+        # Code-OSS 1.146+ is a pnpm workspace; the version comes from the
+        # packageManager field of tabs-code-oss/package.json.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: tabs-code-oss/package.json
+
+      - name: Install VS Code dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: tabs-code-oss
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=12288"
+          VSCODE_SKIP_NODE_VERSION_CHECK: "1"
+        run: |
+          # Install packages without lifecycle scripts (~3 min).
+          # The postinstall spawns 50+ concurrent pnpm install processes
+          # which exhausts 7GB RAM on CI runners and hangs indefinitely.
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm --dir build install --frozen-lockfile --ignore-scripts
+
+          # Download electron.d.ts types required for workbench compilation.
+          # GitHub release assets can intermittently return 5xx responses.
+          for attempt in 1 2 3 4 5; do
+            if node --experimental-strip-types build/npm/electronTypes.ts; then
+              break
+            fi
+
+            if [[ "$attempt" == 5 ]]; then
+              echo "::error::Unable to download electron.d.ts after $attempt attempts"
+              exit 1
+            fi
+
+            delay=$((attempt * 15))
+            echo "::warning::Electron type download failed; retrying in ${delay}s (attempt ${attempt}/5)"
+            sleep "$delay"
+          done
+
+      - name: Compile VS Code workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: tabs-code-oss
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=12288"
+        run: |
+          # out/ : dev workbench + server-main.js (skip extensions & Monaco
+          # typechecking — the desktop build doesn't need them).
+          pnpm run gulp compile-client
+          # out-build/nls.messages.{json,js} : required by the desktop artifact
+          # assert and the runtime server. Use the without-mangling variant —
+          # `compile-build` fails on the protected-fields mangler check.
+          pnpm run gulp compile-build-without-mangling
+          test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
+
+      - name: Pack compiled workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html
+          test -s tabs-code-oss/out-build/nls.messages.json
+          tar -cf code-oss-workbench.tar -C tabs-code-oss out out-build
+
+      - name: Save compiled workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: code-oss-workbench.tar
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Upload compiled workbench
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-oss-workbench
+          path: code-oss-workbench.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    name: Package · ${{ matrix.label }}
+    needs: [preflight, compile_workbench]
     if: needs.preflight.outputs.artifact_run_id == ''
     runs-on: ${{ matrix.runner }}
     # Fail fast instead of hanging until GitHub's 6h hard limit if the VS Code
@@ -321,30 +446,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: macOS arm64
+          - label: macOS arm64 · DMG + ZIP
+            key: mac-arm64
             runner: macos-15
             platform: mac
             target: dmg
             arch: arm64
-          - label: macOS x64
+          - label: macOS x64 · DMG + ZIP
+            key: mac-x64
             runner: macos-15
             platform: mac
             target: dmg
             arch: x64
-          - label: Linux x64
+          - label: Linux x64 · AppImage + .deb
+            key: linux-x64
             runner: ubuntu-24.04
             platform: linux
             # One electron-builder pass packs both from the same staged payload.
             target: AppImage,deb
             arch: x64
-          - label: Windows x64
+          - label: Windows x64 · NSIS installer
+            key: win-x64
             runner: windows-2022
             platform: win
             target: nsis
             arch: x64
           # Microsoft Store package (product 9P8P9XTGZQM9). The Store signs it and
           # it is never a GitHub release asset; the microsoft_store job submits it.
-          - label: Windows x64 Store AppX
+          - label: Windows x64 · Microsoft Store AppX
+            key: win-x64-appx
             runner: windows-2022
             platform: win
             target: appx
@@ -372,6 +502,14 @@ jobs:
         if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: ./tabs-app/scripts/test-windows-install-processes.ps1
+
+      # Bun's download cache; Windows spent 4-6 min in this install.
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ hashFiles('tabs-app/bun.lock') }}
+          restore-keys: bun-install-${{ runner.os }}-
 
       - name: Install dependencies
         working-directory: tabs-app
@@ -434,20 +572,21 @@ jobs:
             sleep "$delay"
           done
 
-      - name: Compile VS Code workbench
-        working-directory: tabs-code-oss
+      # out/ and out-build/ come from the compile_workbench job.
+      - name: Download compiled workbench
+        uses: actions/download-artifact@v8
+        with:
+          name: code-oss-workbench
+          path: code-oss-workbench
+
+      - name: Unpack compiled workbench
         shell: bash
-        env:
-          NODE_OPTIONS: "--max-old-space-size=12288"
         run: |
-          # out/ : dev workbench + server-main.js (skip extensions & Monaco
-          # typechecking — the desktop build doesn't need them).
-          pnpm run gulp compile-client
-          # out-build/nls.messages.{json,js} : required by the desktop artifact
-          # assert and the runtime server. Use the without-mangling variant —
-          # `compile-build` fails on the protected-fields mangler check.
-          pnpm run gulp compile-build-without-mangling
-          test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
+          set -euo pipefail
+          tar -xf code-oss-workbench/code-oss-workbench.tar -C tabs-code-oss
+          rm -rf code-oss-workbench
+          test -f tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html
+          test -s tabs-code-oss/out-build/nls.messages.json
 
       # The embedded workbench activates ALL built-in extensions at startup or on
       # file-open, not a curated few. compile-client above skips EVERY extension,
@@ -517,6 +656,26 @@ jobs:
           }
           test -f .build/extensions/copilot/package.json
 
+      - name: Resolve Code-OSS runtime module key
+        id: runtime_modules_key
+        shell: bash
+        run: |
+          set -euo pipefail
+          electron_version="$(node -p "const p = require('./tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+          echo "electron=$electron_version" >> "$GITHUB_OUTPUT"
+          # The isolated install above only served the extension compile.
+          rm -rf tabs-code-oss/node_modules
+
+      # The hoisted root node_modules with natives rebuilt for Tabs' Electron
+      # depends only on the lockfile, the OS/arch and the Electron version, so
+      # reuse it instead of reinstalling and recompiling natives on every run.
+      - name: Restore Code-OSS runtime modules
+        id: runtime_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: tabs-code-oss/node_modules
+          key: code-oss-runtime-modules-v1-${{ runner.os }}-${{ matrix.arch }}-electron-${{ steps.runtime_modules_key.outputs.electron }}-${{ hashFiles('tabs-code-oss/pnpm-lock.yaml', 'tabs-code-oss/package.json', 'tabs-code-oss/pnpm-workspace.yaml', 'tabs-code-oss/.pnpmfile.mjs', 'tabs-code-oss/build/npm/patchNativeGyp.ts', 'tabs-code-oss/build/npm/patches/**') }}
+
       # Code-OSS 1.148 is one pnpm workspace (root, extensions, Copilot) that
       # compiles from pnpm's isolated layout: build/lib/dependencies.ts refuses a
       # hoisted install of it. The Tabs runtime ships the root node_modules as-is,
@@ -525,6 +684,7 @@ jobs:
       # (.build/extensions already carries those). Native modules are prepared
       # here, after the relayout, so they are not discarded with the old layout.
       - name: Lay out Code-OSS runtime dependencies
+        if: steps.runtime_modules.outputs.cache-hit != 'true'
         working-directory: tabs-code-oss
         shell: bash
         env:
@@ -568,6 +728,20 @@ jobs:
           electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
           echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
           npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
+
+      - name: Save Code-OSS runtime modules
+        if: steps.runtime_modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: tabs-code-oss/node_modules
+          key: ${{ steps.runtime_modules.outputs.cache-primary-key }}
+
+      - name: Build the packaged git extension's macOS fs-copyfile binding
+        if: matrix.platform == 'mac'
+        working-directory: tabs-code-oss
+        shell: bash
+        run: |
+          set -euo pipefail
           # The packaged git extension's fs-copyfile needs node-addon-api to build
           # its macOS binding. Since 1.148 only this hoisted root layout provides it
           # where node-gyp looks (up the tree from .build/extensions).
@@ -819,8 +993,31 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
+      - name: Describe installers for the summary
+        if: always()
+        shell: bash
+        env:
+          LABEL: ${{ matrix.label }}
+          KEY: ${{ matrix.key }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          if [[ "${{ matrix.target }}" == "appx" ]]; then
+            node .github/scripts/installer-manifest.cjs "installer-manifest/$KEY.json" "tabs-app/release/Tabs-$RELEASE_VERSION-x64.appx"
+          else
+            node .github/scripts/installer-manifest.cjs "installer-manifest/$KEY.json" release-publish
+          fi
+
+      - name: Upload installer manifest
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: manifest-${{ matrix.key }}
+          path: installer-manifest/
+          if-no-files-found: ignore
+          retention-days: 14
+
   windows_smoke:
-    name: Smoke-test Windows upgrade
+    name: Verify · Windows install + locked-process upgrade
     needs: [preflight, build]
     if: needs.preflight.result == 'success' && (needs.build.result == 'success' || needs.preflight.outputs.artifact_run_id != '')
     runs-on: windows-2022
@@ -879,7 +1076,7 @@ jobs:
           retention-days: 14
 
   release:
-    name: Publish GitHub Release
+    name: Publish · GitHub Release
     needs: [preflight, verify, build, windows_smoke]
     if: ${{ always() && needs.preflight.result == 'success' && needs.verify.result == 'success' && ((needs.build.result == 'success' && needs.windows_smoke.result == 'success') || (needs.build.result == 'skipped' && (needs.windows_smoke.result == 'success' || needs.windows_smoke.result == 'skipped') && needs.preflight.outputs.artifact_run_id != '')) }}
     runs-on: ubuntu-24.04
@@ -1099,7 +1296,7 @@ jobs:
           if-no-files-found: warn
 
   microsoft_store:
-    name: Submit to Microsoft Store
+    name: Publish · Microsoft Store
     needs: [preflight, build, release]
     # Runs once the GitHub release is published. Only plain x.y.z versions go to
     # the Store: its package version is x.y.z.0, so a prerelease suffix would
@@ -1137,12 +1334,24 @@ jobs:
           name: store-win-x64-appx
           path: store
 
+      # Build Desktop Installers and Release Desktop both name it
+      # store-win-x64-appx; Build Desktop runs before the stage rename used
+      # desktop-win-x64-appx.
       - name: Download Store package from artifact build run
+        id: store_artifact
         if: steps.gate.outputs.submit == 'true' && needs.preflight.outputs.artifact_run_id != ''
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
-          # Build Desktop Installers names it desktop-win-x64-appx; run that
-          # workflow with win-x64-appx included to ship it to the Store.
+          name: store-win-x64-appx
+          path: store
+          run-id: ${{ needs.preflight.outputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Store package from an older artifact build run
+        if: steps.gate.outputs.submit == 'true' && needs.preflight.outputs.artifact_run_id != '' && steps.store_artifact.outcome == 'failure'
+        uses: actions/download-artifact@v8
+        with:
           name: desktop-win-x64-appx
           path: store
           run-id: ${{ needs.preflight.outputs.artifact_run_id }}
@@ -1186,3 +1395,33 @@ jobs:
         # and availability are kept; a pending draft is discarded), replaces the
         # package and commits it. Certification then runs on Microsoft's side.
         run: msstore publish "$env:APPX_PATH" -id $env:MSSTORE_PRODUCT_ID
+
+  summary:
+    name: Summary
+    needs: [preflight, verify, compile_workbench, build, windows_smoke, release, microsoft_store]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout summary scripts
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/scripts
+
+      - name: Download installer manifests
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          pattern: manifest-*
+          merge-multiple: true
+          path: installer-manifest
+
+      - name: Write run summary
+        uses: actions/github-script@v7
+        env:
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        with:
+          script: |
+            const summarize = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/desktop-build-summary.cjs`);
+            await summarize({ github, context, core, manifestDir: 'installer-manifest', title: `Release ${process.env.RELEASE_VERSION || ''}`.trim() });

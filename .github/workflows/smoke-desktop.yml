@@ -1,0 +1,279 @@
+name: Smoke Desktop Installers
+run-name: Smoke · ${{ inputs.smoke_platforms }} · build run ${{ inputs.artifact_run_id || 'none' }}
+
+# Smoke-only and diagnosis modes, split out of Build Desktop Installers so a
+# normal build run shows only real build stages. These jobs reuse installers
+# from an existing Build Desktop Installers (or Release Desktop) run; nothing is
+# compiled here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: "Build Desktop Installers run whose installers to smoke-test (not needed for win-processes)"
+        required: false
+        type: string
+      smoke_platforms:
+        description: "Targets: win-x64, win-processes, linux-x64, mac (comma-separated)"
+        required: true
+        default: "win-x64"
+        type: string
+      previous_version:
+        description: "Released version used for the Windows upgrade smoke test"
+        required: false
+        default: "2.2.0"
+        type: string
+      repack_windows:
+        description: "Repack the existing full-fat Windows artifact with the current installer logic"
+        required: false
+        default: false
+        type: boolean
+      windows_fresh_only:
+        description: "Only run fresh same-volume/cross-volume checks for the Windows artifact"
+        required: false
+        default: false
+        type: boolean
+      diagnose_uninstall:
+        description: "Windows only: stop after running the previous version's uninstaller directly"
+        required: false
+        default: false
+        type: boolean
+      diagnose_short_temp:
+        description: "Windows uninstall diagnosis only: give the old uninstaller a short temp path"
+        required: false
+        default: false
+        type: boolean
+      diagnose_subst_temp:
+        description: "Windows uninstall diagnosis only: map the user's temp directory to a short drive"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    name: Check inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate smoke inputs
+        shell: bash
+        env:
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          SMOKE_PLATFORMS: ${{ inputs.smoke_platforms }}
+          WINDOWS_FRESH_ONLY: ${{ inputs.windows_fresh_only }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -r -a requested <<< "$SMOKE_PLATFORMS"
+          declare -A seen=()
+          needs_artifacts=false
+          for raw in "${requested[@]}"; do
+            entry="$(echo "$raw" | xargs)"
+            [[ -z "$entry" ]] && continue
+            case "$entry" in
+              win-x64|linux-x64|mac) needs_artifacts=true ;;
+              win-processes) ;;
+              *) echo "::error::smoke_platforms entries must be win-x64, win-processes, linux-x64 or mac (got '$entry')."; exit 1 ;;
+            esac
+            if [[ -n "${seen[$entry]:-}" ]]; then
+              echo "::error::smoke_platforms lists '$entry' twice."; exit 1
+            fi
+            seen[$entry]=1
+          done
+          if (( ${#seen[@]} == 0 )); then
+            echo "::error::smoke_platforms is empty."; exit 1
+          fi
+          if [[ -n "$ARTIFACT_RUN_ID" && ! "$ARTIFACT_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::artifact_run_id must be a numeric Actions run ID."; exit 1
+          fi
+          if [[ "$needs_artifacts" == true && -z "$ARTIFACT_RUN_ID" ]]; then
+            echo "::error::win-x64, linux-x64 and mac smoke tests need artifact_run_id."; exit 1
+          fi
+          if [[ "$WINDOWS_FRESH_ONLY" == true && -z "$ARTIFACT_RUN_ID" ]]; then
+            echo "::error::windows_fresh_only requires artifact_run_id."; exit 1
+          fi
+
+  windows_process_checks:
+    name: Windows · installer process and temp checks
+    needs: validate
+    if: contains(inputs.smoke_platforms, 'win-processes')
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Verify process scope, same-volume staging and junction-safe cleanup
+        shell: pwsh
+        run: ./tabs-app/scripts/test-windows-install-processes.ps1
+
+  windows_artifact_smoke:
+    needs: validate
+    if: contains(inputs.smoke_platforms, 'win-x64')
+    name: Windows x64 · install + locked-process upgrade
+    runs-on: windows-2022
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install pinned repack tooling
+        if: inputs.repack_windows
+        shell: pwsh
+        run: npm install --ignore-scripts --no-audit --no-fund --prefix "$env:RUNNER_TEMP/repack-tools" electron-builder@26.15.3
+      - name: Repack existing full-fat Windows payload
+        if: inputs.repack_windows
+        shell: pwsh
+        env:
+          NODE_PATH: ${{ runner.temp }}/repack-tools/node_modules
+        run: node --experimental-strip-types tabs-app/scripts/repack-windows-installer.ts tabs-app/release
+      - name: Upload repacked Windows installer
+        if: inputs.repack_windows
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release/*
+          compression-level: 0
+          retention-days: 14
+      - name: Smoke-test Windows install and locked-process upgrade
+        if: ${{ !inputs.windows_fresh_only }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TABS_SMOKE_PREVIOUS_VERSION: ${{ inputs.previous_version }}
+          TABS_SMOKE_DIAGNOSE_UNINSTALL: ${{ inputs.diagnose_uninstall }}
+          TABS_SMOKE_DIAGNOSE_SHORT_TEMP: ${{ inputs.diagnose_short_temp }}
+          TABS_SMOKE_DIAGNOSE_SUBST_TEMP: ${{ inputs.diagnose_subst_temp }}
+        run: ./tabs-app/scripts/smoke-windows-installer.ps1
+      - name: Upload Windows installer and app logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-process-log
+          path: |
+            ${{ runner.temp }}/tabs-installer-processes.log
+            ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.txt
+            ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.dmp
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload Windows installation timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-timings
+          path: |
+            ${{ runner.temp }}/tabs-installer-metrics.json
+            ${{ runner.temp }}/tabs-installer-phase-*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows_fresh_artifact_smoke:
+    needs: windows_artifact_smoke
+    if: contains(inputs.smoke_platforms, 'win-x64')
+    name: Windows x64 · fresh install (${{ matrix.volume }})
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        volume: [same-volume, cross-volume]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release
+          run-id: ${{ inputs.repack_windows && github.run_id || inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install and launch full-fat app on a fresh runner
+        shell: pwsh
+        env:
+          TABS_SMOKE_FRESH_ONLY: "true"
+          TABS_SMOKE_CROSS_VOLUME: ${{ matrix.volume == 'cross-volume' && 'true' || 'false' }}
+        run: ./tabs-app/scripts/smoke-windows-installer.ps1
+      - name: Upload fresh Windows installation timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-fresh-installer-timings-${{ matrix.volume }}
+          path: |
+            ${{ runner.temp }}/tabs-installer-metrics.json
+            ${{ runner.temp }}/tabs-installer-phase-*.log
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  linux_artifact_smoke:
+    needs: validate
+    if: contains(inputs.smoke_platforms, 'linux-x64')
+    name: Linux x64 · launch AppImage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-linux-x64
+          path: tabs-app/release
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Linux AppImage runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libsecret-1-0
+      - name: Launch packaged AppImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find tabs-app/release -maxdepth 1 -name '*.AppImage' -type f -print -quit)"
+          test -n "$appimage"
+          bash tabs-app/scripts/smoke-linux-appimage.sh "$appimage"
+
+  mac_artifact_smoke:
+    needs: validate
+    if: contains(inputs.smoke_platforms, 'mac')
+    name: macOS ${{ matrix.arch }} · launch from DMG
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-mac-${{ matrix.arch }}
+          path: tabs-app/release
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Launch packaged app from DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg="$(find tabs-app/release -maxdepth 1 -name '*.dmg' -type f -print -quit)"
+          test -n "$dmg"
+          bash tabs-app/scripts/smoke-macos-dmg.sh "$dmg" "${{ matrix.arch }}"

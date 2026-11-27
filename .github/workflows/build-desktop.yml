@@ -1,56 +1,29 @@
 name: Build Desktop Installers
+run-name: Desktop installers · ${{ inputs.version || github.ref_name }}
+
+# One run builds every full installer: macOS arm64 and x64 (DMG + ZIP), Linux
+# x64 (AppImage + .deb), the Windows x64 NSIS installer and the Microsoft Store
+# AppX. Stages: plan → preflight + compile once → package per platform in
+# parallel → Windows install/upgrade verification → summary.
+# Smoke-only checks of an existing run live in smoke-desktop.yml.
 
 on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: "Platforms to build (comma-separated: mac-arm64, mac-x64, linux-x64, win-x64; opt-in: win-x64-appx for the Microsoft Store package)"
+        description: "Installers to build (comma-separated: mac-arm64, mac-x64, linux-x64, win-x64, win-x64-appx). Empty builds all of them."
         required: false
-        default: "mac-arm64,mac-x64,linux-x64,win-x64"
+        default: "mac-arm64,mac-x64,linux-x64,win-x64,win-x64-appx"
         type: string
       version:
         description: "Build version label (leave empty to use package.json version)"
         required: false
         type: string
       previous_version:
-        description: "Released version used for the Windows upgrade smoke test"
+        description: "Released version used for the Windows upgrade check"
         required: false
         default: "2.2.0"
         type: string
-      artifact_run_id:
-        description: "Existing build run ID for smoke-only mode (skips all compilation)"
-        required: false
-        type: string
-      repack_windows:
-        description: "Repack an existing full-fat Windows artifact with the current installer logic"
-        required: false
-        default: false
-        type: boolean
-      windows_fresh_only:
-        description: "Only run fresh same-volume/cross-volume checks for an existing Windows artifact"
-        required: false
-        default: false
-        type: boolean
-      smoke_platforms:
-        description: "Smoke-only targets: win-x64, win-processes, linux-x64, mac (comma-separated)"
-        required: false
-        default: "win-x64"
-        type: string
-      diagnose_uninstall:
-        description: "Windows smoke only: stop after running the previous version's uninstaller directly"
-        required: false
-        default: false
-        type: boolean
-      diagnose_short_temp:
-        description: "Windows uninstall diagnosis only: give the old uninstaller a short temp path"
-        required: false
-        default: false
-        type: boolean
-      diagnose_subst_temp:
-        description: "Windows uninstall diagnosis only: map the user's temp directory to a short drive"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -61,52 +34,35 @@ env:
   PUPPETEER_SKIP_DOWNLOAD: "true"
 
 jobs:
-  resolve:
-    name: Resolve build matrix
+  plan:
+    name: Plan
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.matrix.outputs.result }}
+      windows: ${{ steps.windows.outputs.selected }}
     steps:
       - id: matrix
-        name: Build matrix from input
+        name: Pick installers
         uses: actions/github-script@v7
         env:
           REQUESTED_PLATFORMS: ${{ inputs.platforms }}
-          REQUESTED_ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
-          REQUESTED_SMOKE_PLATFORMS: ${{ inputs.smoke_platforms }}
-          REQUESTED_WINDOWS_FRESH_ONLY: ${{ inputs.windows_fresh_only }}
         with:
           script: |
-            const artifactRunId = (process.env.REQUESTED_ARTIFACT_RUN_ID || '').trim();
-            if (process.env.REQUESTED_WINDOWS_FRESH_ONLY === 'true' && !artifactRunId) {
-              core.setFailed('windows_fresh_only requires artifact_run_id.');
-              return;
-            }
-            if (artifactRunId) {
-              if (!/^\d+$/.test(artifactRunId)) {
-                core.setFailed('artifact_run_id must be a numeric Actions run ID.');
-                return;
-              }
-              const allowed = new Set(['win-x64', 'win-processes', 'linux-x64', 'mac']);
-              const requested = (process.env.REQUESTED_SMOKE_PLATFORMS || '').split(',').map(x => x.trim()).filter(Boolean);
-              if (!requested.length || requested.some(x => !allowed.has(x)) || new Set(requested).size !== requested.length) {
-                core.setFailed('smoke_platforms must contain distinct entries from win-x64, win-processes, linux-x64, mac.');
-                return;
-              }
-            }
+            // `artifact` names are read by Release Desktop (artifact_run_id):
+            // it publishes every desktop-* artifact. The Store package is
+            // signed by Partner Center and never a GitHub release asset, so its
+            // artifact is deliberately not desktop-*.
             const allTargets = {
-              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'arm64', artifact: 'desktop-mac-arm64' },
-              'mac-x64':    { label: 'macOS x64',    runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'x64', artifact: 'desktop-mac-x64' },
-              'linux-x64':  { label: 'Linux x64',    runner: 'ubuntu-24.04',   platform: 'linux', target: 'AppImage,deb', arch: 'x64', artifact: 'desktop-linux-x64' },
-              'win-x64':    { label: 'Windows x64',  runner: 'windows-2022',   platform: 'win',   target: 'nsis',     arch: 'x64', artifact: 'desktop-win-x64' },
-              // Opt-in only: needs the Partner Center identity (repository variables
-              // TABS_APPX_*). The Store signs it, so it is never a GitHub release asset.
-              'win-x64-appx': { label: 'Windows x64 Store AppX', runner: 'windows-2022', platform: 'win', target: 'appx', arch: 'x64', artifact: 'desktop-win-x64-appx', optIn: true },
+              'mac-arm64':    { key: 'mac-arm64',    label: 'macOS arm64 · DMG + ZIP',            runner: 'macos-15',     platform: 'mac',   target: 'dmg',          arch: 'arm64', artifact: 'desktop-mac-arm64' },
+              'mac-x64':      { key: 'mac-x64',      label: 'macOS x64 · DMG + ZIP',              runner: 'macos-15',     platform: 'mac',   target: 'dmg',          arch: 'x64',   artifact: 'desktop-mac-x64' },
+              'linux-x64':    { key: 'linux-x64',    label: 'Linux x64 · AppImage + .deb',        runner: 'ubuntu-24.04', platform: 'linux', target: 'AppImage,deb', arch: 'x64',   artifact: 'desktop-linux-x64' },
+              'win-x64':      { key: 'win-x64',      label: 'Windows x64 · NSIS installer',       runner: 'windows-2022', platform: 'win',   target: 'nsis',         arch: 'x64',   artifact: 'desktop-win-x64' },
+              // Needs the Partner Center identity (repository variables TABS_APPX_*).
+              'win-x64-appx': { key: 'win-x64-appx', label: 'Windows x64 · Microsoft Store AppX', runner: 'windows-2022', platform: 'win',   target: 'appx',         arch: 'x64',   artifact: 'store-win-x64-appx' },
             };
 
             const input = (process.env.REQUESTED_PLATFORMS || '').trim();
-            const keys = input ? input.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(allTargets).filter(k => !allTargets[k].optIn);
-
+            const keys = input ? input.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(allTargets);
             const include = [];
             for (const key of keys) {
               const entry = allTargets[key];
@@ -114,35 +70,33 @@ jobs:
                 core.setFailed(`Unknown platform key: ${key}. Valid keys: ${Object.keys(allTargets).join(', ')}`);
                 return;
               }
+              if (include.includes(entry)) {
+                core.setFailed(`Platform ${key} is listed twice.`);
+                return;
+              }
               include.push(entry);
             }
-
             if (include.length === 0) {
               core.setFailed('No platforms selected.');
               return;
             }
-
             return { include };
 
-  windows_process_checks:
-    name: Windows installer process and temp checks
-    needs: resolve
-    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-processes')
-    runs-on: windows-2022
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-      - name: Verify process scope, same-volume staging and junction-safe cleanup
-        shell: pwsh
-        run: ./tabs-app/scripts/test-windows-install-processes.ps1
+      - id: windows
+        name: Note whether the NSIS installer is built
+        shell: bash
+        env:
+          MATRIX: ${{ steps.matrix.outputs.result }}
+        run: |
+          if jq -e '.include[] | select(.key == "win-x64")' <<< "$MATRIX" >/dev/null; then
+            echo "selected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "selected=false" >> "$GITHUB_OUTPUT"
+          fi
 
   linux_preflight:
-    name: Linux bootstrap preflight
-    needs: resolve
-    if: inputs.artifact_run_id == ''
+    name: Preflight · Linux bootstrap tests
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -190,15 +144,130 @@ jobs:
         working-directory: tabs-app
         run: bun run test:workspace-rpc
 
-  build:
-    name: Build ${{ matrix.label }}
-    needs: [resolve, linux_preflight]
-    if: inputs.artifact_run_id == ''
+  # The workbench (out/, out-build/) is plain JavaScript, identical on every
+  # platform, so it is compiled once here on Linux and handed to each platform
+  # job. macOS runners took 10-28 min for this compile (3 cores, 7 GB RAM); this
+  # Linux runner takes about 4. The result is cached by the git tree hash of
+  # tabs-code-oss, so a build whose Code-OSS sources are unchanged skips the
+  # install and compile. Bump the `-v1` salt when the compile commands change.
+  # Built-in extensions stay per platform: .build/extensions carries
+  # platform-specific packages (such as @github/copilot-<os>-<arch>).
+  compile_workbench:
+    name: Compile · Code-OSS workbench (once, all platforms)
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Key the workbench on the Code-OSS sources
+        id: key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "key=code-oss-workbench-v1-$(git rev-parse HEAD:tabs-code-oss)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiled workbench
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: code-oss-workbench.tar
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Setup Node
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        if: steps.cache.outputs.cache-hit != 'true'
+        # Code-OSS 1.146+ is a pnpm workspace; the version comes from the
+        # packageManager field of tabs-code-oss/package.json.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: tabs-code-oss/package.json
+
+      - name: Install VS Code dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: tabs-code-oss
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=12288"
+          VSCODE_SKIP_NODE_VERSION_CHECK: "1"
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          # The workbench gulp tasks import dependencies from build/package.json.
+          # Those are not installed by the root package install.
+          pnpm --dir build install --frozen-lockfile --ignore-scripts
+          # Download electron.d.ts types required for workbench compilation.
+          # GitHub release assets can intermittently return 5xx responses.
+          for attempt in 1 2 3 4 5; do
+            if node --experimental-strip-types build/npm/electronTypes.ts; then
+              break
+            fi
+
+            if [[ "$attempt" == 5 ]]; then
+              echo "::error::Unable to download electron.d.ts after $attempt attempts"
+              exit 1
+            fi
+
+            delay=$((attempt * 15))
+            echo "::warning::Electron type download failed; retrying in ${delay}s (attempt ${attempt}/5)"
+            sleep "$delay"
+          done
+
+      - name: Compile VS Code workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: tabs-code-oss
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=12288"
+        run: |
+          # out/ : dev workbench + server-main.js (skip extensions & Monaco
+          # typechecking — the desktop build doesn't need them).
+          pnpm run gulp compile-client
+          # out-build/nls.messages.{json,js} : required by the artifact assert and
+          # the runtime. without-mangling avoids the protected-fields mangler error.
+          pnpm run gulp compile-build-without-mangling
+          # Code-OSS 1.140 writes nls.messages.json to out-build via bundle --nls
+          test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
+
+      - name: Pack compiled workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html
+          test -s tabs-code-oss/out-build/nls.messages.json
+          tar -cf code-oss-workbench.tar -C tabs-code-oss out out-build
+
+      - name: Save compiled workbench
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: code-oss-workbench.tar
+          key: ${{ steps.key.outputs.key }}
+
+      - name: Upload compiled workbench
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-oss-workbench
+          path: code-oss-workbench.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  package:
+    name: Package · ${{ matrix.label }}
+    needs: [plan, linux_preflight, compile_workbench]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -219,6 +288,14 @@ jobs:
         if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         run: ./tabs-app/scripts/test-windows-install-processes.ps1
+
+      # Bun's download cache; Windows spent 4-6 min in this install.
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ hashFiles('tabs-app/bun.lock') }}
+          restore-keys: bun-install-${{ runner.os }}-
 
       - name: Install dependencies
         working-directory: tabs-app
@@ -279,20 +356,21 @@ jobs:
             sleep "$delay"
           done
 
-      - name: Compile VS Code workbench
-        working-directory: tabs-code-oss
+      # out/ and out-build/ come from the compile_workbench job.
+      - name: Download compiled workbench
+        uses: actions/download-artifact@v8
+        with:
+          name: code-oss-workbench
+          path: code-oss-workbench
+
+      - name: Unpack compiled workbench
         shell: bash
-        env:
-          NODE_OPTIONS: "--max-old-space-size=12288"
         run: |
-          # out/ : dev workbench + server-main.js (skip extensions & Monaco
-          # typechecking — the desktop build doesn't need them).
-          pnpm run gulp compile-client
-          # out-build/nls.messages.{json,js} : required by the artifact assert and
-          # the runtime. without-mangling avoids the protected-fields mangler error.
-          pnpm run gulp compile-build-without-mangling
-          # Code-OSS 1.140 writes nls.messages.json to out-build via bundle --nls
-          test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
+          set -euo pipefail
+          tar -xf code-oss-workbench/code-oss-workbench.tar -C tabs-code-oss
+          rm -rf code-oss-workbench
+          test -f tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html
+          test -s tabs-code-oss/out-build/nls.messages.json
 
       # The embedded workbench activates ALL built-in extensions at startup or on
       # file-open, not a curated few. compile-client above skips EVERY extension,
@@ -359,6 +437,26 @@ jobs:
           }
           test -f .build/extensions/copilot/package.json
 
+      - name: Resolve Code-OSS runtime module key
+        id: runtime_modules_key
+        shell: bash
+        run: |
+          set -euo pipefail
+          electron_version="$(node -p "const p = require('./tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+          echo "electron=$electron_version" >> "$GITHUB_OUTPUT"
+          # The isolated install above only served the extension compile.
+          rm -rf tabs-code-oss/node_modules
+
+      # The hoisted root node_modules with natives rebuilt for Tabs' Electron
+      # depends only on the lockfile, the OS/arch and the Electron version, so
+      # reuse it instead of reinstalling and recompiling natives on every run.
+      - name: Restore Code-OSS runtime modules
+        id: runtime_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: tabs-code-oss/node_modules
+          key: code-oss-runtime-modules-v1-${{ runner.os }}-${{ matrix.arch }}-electron-${{ steps.runtime_modules_key.outputs.electron }}-${{ hashFiles('tabs-code-oss/pnpm-lock.yaml', 'tabs-code-oss/package.json', 'tabs-code-oss/pnpm-workspace.yaml', 'tabs-code-oss/.pnpmfile.mjs', 'tabs-code-oss/build/npm/patchNativeGyp.ts', 'tabs-code-oss/build/npm/patches/**') }}
+
       # Code-OSS 1.148 is one pnpm workspace (root, extensions, Copilot) that
       # compiles from pnpm's isolated layout: build/lib/dependencies.ts refuses a
       # hoisted install of it. The Tabs runtime ships the root node_modules as-is,
@@ -367,6 +465,7 @@ jobs:
       # (.build/extensions already carries those). Native modules are prepared
       # here, after the relayout, so they are not discarded with the old layout.
       - name: Lay out Code-OSS runtime dependencies
+        if: steps.runtime_modules.outputs.cache-hit != 'true'
         working-directory: tabs-code-oss
         shell: bash
         env:
@@ -399,6 +498,20 @@ jobs:
           electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
           echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
           npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
+
+      - name: Save Code-OSS runtime modules
+        if: steps.runtime_modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: tabs-code-oss/node_modules
+          key: ${{ steps.runtime_modules.outputs.cache-primary-key }}
+
+      - name: Build the packaged git extension's macOS fs-copyfile binding
+        if: matrix.platform == 'mac'
+        working-directory: tabs-code-oss
+        shell: bash
+        run: |
+          set -euo pipefail
           # The packaged git extension's fs-copyfile needs node-addon-api to build
           # its macOS binding. Since 1.148 only this hoisted root layout provides it
           # where node-gyp looks (up the tree from .build/extensions).
@@ -413,6 +526,16 @@ jobs:
               exit 1
             }
           fi
+
+      # electron-builder's NSIS/7zip/AppImage toolchain downloads.
+      - name: Cache electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-binaries-${{ runner.os }}-${{ matrix.arch }}-v1
 
       - name: Build desktop artifact
         working-directory: tabs-app
@@ -601,9 +724,53 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
           retention-days: 14
+          # Installers are already compressed; zipping them again only costs time.
+          compression-level: 0
+
+      - name: Describe installers for the summary
+        if: always()
+        shell: bash
+        env:
+          LABEL: ${{ matrix.label }}
+          KEY: ${{ matrix.key }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: node .github/scripts/installer-manifest.cjs "installer-manifest/$KEY.json" artifacts
+
+      - name: Upload installer manifest
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: manifest-${{ matrix.key }}
+          path: installer-manifest/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Installs the freshly built NSIS installer over the previous release while
+  # Tabs is running, on a clean Windows runner.
+  verify_windows:
+    name: Verify · Windows install + locked-process upgrade
+    needs: [plan, package]
+    if: ${{ !cancelled() && needs.plan.outputs.windows == 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release
 
       - name: Smoke-test Windows install and locked-process upgrade
-        if: matrix.platform == 'win' && matrix.target == 'nsis'
         shell: pwsh
         timeout-minutes: 50
         env:
@@ -612,7 +779,7 @@ jobs:
         run: ./tabs-app/scripts/smoke-windows-installer.ps1
 
       - name: Upload Windows installation timings
-        if: always() && matrix.platform == 'win' && matrix.target == 'nsis'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: windows-installer-timings
@@ -621,65 +788,6 @@ jobs:
           retention-days: 14
 
       - name: Upload Windows installer process log on failure
-        if: failure() && matrix.platform == 'win' && matrix.target == 'nsis'
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-installer-process-log
-          path: |
-            ${{ runner.temp }}/tabs-installer-processes.log
-            ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.txt
-            ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.dmp
-            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
-            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
-          if-no-files-found: ignore
-          retention-days: 14
-
-  windows_artifact_smoke:
-    needs: resolve
-    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
-    name: Smoke existing Windows installer
-    runs-on: windows-2022
-    timeout-minutes: 70
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v8
-        with:
-          name: desktop-win-x64
-          path: tabs-app/release
-          run-id: ${{ inputs.artifact_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-      - name: Install pinned repack tooling
-        if: inputs.repack_windows
-        shell: pwsh
-        run: npm install --ignore-scripts --no-audit --no-fund --prefix "$env:RUNNER_TEMP/repack-tools" electron-builder@26.15.3
-      - name: Repack existing full-fat Windows payload
-        if: inputs.repack_windows
-        shell: pwsh
-        env:
-          NODE_PATH: ${{ runner.temp }}/repack-tools/node_modules
-        run: node --experimental-strip-types tabs-app/scripts/repack-windows-installer.ts tabs-app/release
-      - name: Upload repacked Windows installer
-        if: inputs.repack_windows
-        uses: actions/upload-artifact@v7
-        with:
-          name: desktop-win-x64
-          path: tabs-app/release/*
-          compression-level: 0
-          retention-days: 14
-      - name: Smoke-test Windows install and locked-process upgrade
-        if: ${{ !inputs.windows_fresh_only }}
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TABS_SMOKE_PREVIOUS_VERSION: ${{ inputs.previous_version }}
-          TABS_SMOKE_DIAGNOSE_UNINSTALL: ${{ inputs.diagnose_uninstall }}
-          TABS_SMOKE_DIAGNOSE_SHORT_TEMP: ${{ inputs.diagnose_short_temp }}
-          TABS_SMOKE_DIAGNOSE_SUBST_TEMP: ${{ inputs.diagnose_subst_temp }}
-        run: ./tabs-app/scripts/smoke-windows-installer.ps1
-      - name: Upload Windows installer and app logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -692,109 +800,31 @@ jobs:
             ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
           if-no-files-found: ignore
           retention-days: 14
-      - name: Upload Windows installation timings
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-installer-timings
-          path: |
-            ${{ runner.temp }}/tabs-installer-metrics.json
-            ${{ runner.temp }}/tabs-installer-phase-*.log
-          if-no-files-found: ignore
-          retention-days: 14
 
-  windows_fresh_artifact_smoke:
-    needs: windows_artifact_smoke
-    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
-    name: Smoke fresh full-fat Windows installer (${{ matrix.volume }})
-    runs-on: windows-2022
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        volume: [same-volume, cross-volume]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-      - uses: actions/download-artifact@v8
-        with:
-          name: desktop-win-x64
-          path: tabs-app/release
-          run-id: ${{ inputs.repack_windows && github.run_id || inputs.artifact_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install and launch full-fat app on a fresh runner
-        shell: pwsh
-        env:
-          TABS_SMOKE_FRESH_ONLY: "true"
-          TABS_SMOKE_CROSS_VOLUME: ${{ matrix.volume == 'cross-volume' && 'true' || 'false' }}
-        run: ./tabs-app/scripts/smoke-windows-installer.ps1
-      - name: Upload fresh Windows installation timings
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-fresh-installer-timings-${{ matrix.volume }}
-          path: |
-            ${{ runner.temp }}/tabs-installer-metrics.json
-            ${{ runner.temp }}/tabs-installer-phase-*.log
-            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
-            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
-          if-no-files-found: ignore
-          retention-days: 14
-
-  linux_artifact_smoke:
-    needs: resolve
-    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'linux-x64')
-    name: Smoke existing Linux AppImage
+  summary:
+    name: Summary
+    needs: [plan, linux_preflight, compile_workbench, package, verify_windows]
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v8
+      - name: Checkout summary scripts
+        uses: actions/checkout@v6
         with:
-          name: desktop-linux-x64
-          path: tabs-app/release
-          run-id: ${{ inputs.artifact_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Linux AppImage runtime dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libsecret-1-0
-      - name: Launch packaged AppImage
-        shell: bash
-        run: |
-          set -euo pipefail
-          appimage="$(find tabs-app/release -maxdepth 1 -name '*.AppImage' -type f -print -quit)"
-          test -n "$appimage"
-          bash tabs-app/scripts/smoke-linux-appimage.sh "$appimage"
+          fetch-depth: 1
+          sparse-checkout: .github/scripts
 
-  mac_artifact_smoke:
-    needs: resolve
-    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'mac')
-    name: Smoke existing macOS ${{ matrix.arch }} DMG
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-15
-          - arch: x64
-            runner: macos-15-intel
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v8
+      - name: Download installer manifests
+        uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
-          name: desktop-mac-${{ matrix.arch }}
-          path: tabs-app/release
-          run-id: ${{ inputs.artifact_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Launch packaged app from DMG
-        shell: bash
-        run: |
-          set -euo pipefail
-          dmg="$(find tabs-app/release -maxdepth 1 -name '*.dmg' -type f -print -quit)"
-          test -n "$dmg"
-          bash tabs-app/scripts/smoke-macos-dmg.sh "$dmg" "${{ matrix.arch }}"
+          pattern: manifest-*
+          merge-multiple: true
+          path: installer-manifest
+
+      - name: Write run summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summarize = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/desktop-build-summary.cjs`);
+            await summarize({ github, context, core, manifestDir: 'installer-manifest', title: 'Desktop installers' });

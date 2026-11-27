@@ -34,7 +34,7 @@ Tabs desktop releases distinguish between fully production-ready platforms, inte
 - **User Data & Session Continuity**: New production installs use `$XDG_CONFIG_HOME/tabs` (defaulting to `~/.config/tabs`), with development mode isolated to `~/.config/tabs-dev`.
 - **Legacy Path Compatibility**: Existing `Tabs (Alpha)` profiles retain the precedence used by prior releases. The resolver can also reuse Electron's historical `Tabs` default when no established canonical or alpha profile exists. It never merges or deletes profile directories automatically.
 - **Native Verification**: AppImage launch and install-over-existing behavior must be verified on a Linux CI runner or release machine; macOS unit tests cover path selection only.
-  - The root `Build Desktop Installers` workflow accepts an existing `artifact_run_id` and launches its packaged AppImage under a virtual display when `smoke_platforms` includes `linux-x64`. It uses AppImage extract-and-run because GitHub runners may restrict FUSE mounts. This checks that the bundled editor backend starts without rebuilding the installer; a normal direct launch on a Linux desktop is still a separate release check.
+  - The root `Smoke Desktop Installers` workflow (`smoke-desktop.yml`) takes an existing build's `artifact_run_id` and launches its packaged AppImage under a virtual display when `smoke_platforms` includes `linux-x64`. It uses AppImage extract-and-run because GitHub runners may restrict FUSE mounts. This checks that the bundled editor backend starts without rebuilding the installer; a normal direct launch on a Linux desktop is still a separate release check.
 
 ### 2. Windows (`.exe` NSIS Installer) - Release Configuration
 
@@ -61,7 +61,7 @@ Tabs desktop releases distinguish between fully production-ready platforms, inte
   - Public macOS release distribution requires Apple Developer ID Application code signing and Apple Notarization to pass Gatekeeper without user security overrides.
   - Because an Apple Developer account is not currently active, **Apple Developer ID signing and notarization are an explicitly deferred production-release requirement**.
   - Local macOS packaging and non-macOS release jobs (Windows and Linux) must never be blocked or failed due to the absence of Apple Developer credentials.
-  - The root `Build Desktop Installers` workflow reuses existing arm64 and x64 artifacts on matching native runners when `artifact_run_id` is set and `smoke_platforms` includes `mac`. It checks signature, architecture, and editor backend startup after copying the app out of the DMG. It does not establish Gatekeeper approval for a quarantined download.
+  - The root `Smoke Desktop Installers` workflow reuses existing arm64 and x64 artifacts on matching native runners when `artifact_run_id` is set and `smoke_platforms` includes `mac`. It checks signature, architecture, and editor backend startup after copying the app out of the DMG. It does not establish Gatekeeper approval for a quarantined download.
 
 ### 4. Browser-Partition Shutdown & Updater Flushing
 
@@ -103,18 +103,21 @@ Tabs desktop releases distinguish between fully production-ready platforms, inte
 
 ## 1) Validate installers without publishing
 
-Run the repository-root `Build Desktop Installers` workflow with all four
-platforms selected. It uploads installers as workflow artifacts and runs the
-Windows upgrade smoke test without publishing a GitHub Release.
+Run the repository-root `Build Desktop Installers` workflow. By default one run
+builds every installer: macOS arm64 and x64 (DMG + ZIP), Linux x64 (AppImage +
+.deb), the Windows NSIS installer and the Microsoft Store AppX
+(`store-win-x64-appx` artifact). It compiles the Code-OSS workbench once, packages
+each platform in parallel, runs the Windows upgrade smoke test and ends with a
+summary table of every installer, without publishing a GitHub Release.
 
-The root `Build Desktop Installers` workflow has a smoke-only mode that reuses platform artifacts from an existing build run. Set `artifact_run_id` and set `smoke_platforms` to `win-x64`, `linux-x64`, `mac`, or a comma-separated combination. Dispatch that existing workflow on `main` for focused native checks after a script-only test change; the build matrix is skipped. The Windows smoke installs a previous release, upgrades it with a process holding an installation file, and launches the upgraded app. Failed Windows runs upload installer and startup logs.
+Smoke-only checks of an existing build run live in the root `Smoke Desktop Installers` workflow (`smoke-desktop.yml`). Set `artifact_run_id` and set `smoke_platforms` to `win-x64`, `linux-x64`, `mac`, or a comma-separated combination. Dispatch it on `main` for focused native checks after a script-only test change; nothing is compiled. The Windows smoke installs a previous release, upgrades it with a process holding an installation file, and launches the upgraded app. Failed Windows runs upload installer and startup logs.
 
-Use `smoke_platforms=win-processes` for the native process-closure, same-volume temporary-path and junction-safe cleanup checks without downloading an app artifact. With `smoke_platforms=win-x64`, `windows_fresh_only=true` runs the fresh same-volume/cross-volume checks without repeating the legacy upgrade. Both use the existing `artifact_run_id` smoke-only mode.
+Use `smoke_platforms=win-processes` for the native process-closure, same-volume temporary-path and junction-safe cleanup checks without downloading an app artifact. With `smoke_platforms=win-x64`, `windows_fresh_only=true` runs the fresh same-volume/cross-volume checks without repeating the legacy upgrade. Both run in `Smoke Desktop Installers`.
 
 For example, to retest Windows without recompiling after changing only the smoke script:
 
 ```bash
-gh workflow run build-desktop.yml --ref main -f artifact_run_id=<build-run-id> -f smoke_platforms=win-x64
+gh workflow run smoke-desktop.yml --ref main -f artifact_run_id=<build-run-id> -f smoke_platforms=win-x64
 ```
 
 After all four jobs pass, the repository-root `Release Desktop` workflow can
@@ -232,7 +235,7 @@ bun run release:smoke
 bun run build:marketing
 cd ..
 git push origin main
-gh workflow run build-desktop.yml --ref main -f version=1.3.31 -f previous_version=1.3.30 -f platforms=mac-arm64,mac-x64,linux-x64,win-x64
+gh workflow run build-desktop.yml --ref main -f version=1.3.31 -f previous_version=1.3.30
 gh run list --workflow build-desktop.yml --limit 3
 ```
 
@@ -242,8 +245,8 @@ build run ID. Reuse that ID for native smoke on all targets:
 ```bash
 read -r 'BUILD_RUN_ID?Successful installer build run ID: '
 gh run watch "$BUILD_RUN_ID" --exit-status
-gh workflow run build-desktop.yml --ref main -f version=1.3.31 -f previous_version=1.3.30 -f artifact_run_id="$BUILD_RUN_ID" -f smoke_platforms=mac,linux-x64,win-x64
-gh run list --workflow build-desktop.yml --limit 3
+gh workflow run smoke-desktop.yml --ref main -f previous_version=1.3.30 -f artifact_run_id="$BUILD_RUN_ID" -f smoke_platforms=mac,linux-x64,win-x64
+gh run list --workflow smoke-desktop.yml --limit 3
 ```
 
 Wait for the smoke run, download and manually test all installers, and verify

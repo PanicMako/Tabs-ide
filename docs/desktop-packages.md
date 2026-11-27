@@ -17,10 +17,11 @@ Existing outputs are unchanged: Windows x64 NSIS installer, Linux x64 AppImage, 
 
 ### Automatic submission on every release
 `release.yml` does it end to end:
-1. The `build` matrix has a **Windows x64 Store AppX** leg (`target: appx`). It verifies the manifest and payload and uploads `Tabs-<version>-x64.appx` as the `store-win-x64-appx` artifact. It is `continue-on-error`, so a Store packaging failure never blocks the GitHub release, and its artifact name is outside the `desktop-*` pattern, so it is never attached to the release.
+1. The `build` matrix has a **Package · Windows x64 · Microsoft Store AppX** leg (`target: appx`). It verifies the manifest and payload and uploads `Tabs-<version>-x64.appx` as the `store-win-x64-appx` artifact. It is `continue-on-error`, so a Store packaging failure never blocks the GitHub release, and its artifact name is outside the `desktop-*` pattern, so it is never attached to the release.
 2. After **Publish GitHub Release** succeeds, the `microsoft_store` job installs the Microsoft Store Developer CLI (`microsoft/microsoft-store-apppublisher`), signs in to Partner Center and runs `msstore publish <package>.msix -id 9P8P9XTGZQM9`. That creates a new submission from the last published one (listing, pricing, availability kept; any pending draft is discarded), swaps the package and commits it for certification.
 3. Skipped with a notice for prerelease versions (`x.y.z-…`): the Store version is `x.y.z.0`, so a prerelease would collide with its final release. Skipped with a warning when the credentials below are missing. Not run for the v2.0.0 replacement path.
-4. With `artifact_run_id`, the package comes from that Build Desktop Installers run's `desktop-win-x64-appx` artifact, so include `win-x64-appx` in its `platforms`.
+4. With `artifact_run_id`, the package comes from that run's `store-win-x64-appx` artifact (Build Desktop Installers builds it by default). Runs made before the rename are still found under the old `desktop-win-x64-appx` name.
+5. Before uploading, the job checks the package version is `x.y.z.0` and its MinVersion is above `10.0.17134.0`, the same check `microsoft-store.yml` runs.
 
 Override the product with the `TABS_MSSTORE_PRODUCT_ID` variable (defaults to `9P8P9XTGZQM9`).
 
@@ -46,11 +47,11 @@ The package declares `TargetDeviceFamily MinVersion="10.0.17763.0"` (Windows 10 
 
 ### Resubmitting a version
 If a release's automatic submission fails, rebuild the package and submit it without touching the GitHub release:
-1. Run **Build Desktop Installers** on `main` with `platforms = win-x64-appx` and `version = <x.y.z>`.
+1. Run **Build Desktop Installers** on `main` with `version = <x.y.z>` (`platforms = win-x64-appx` builds only the Store package).
 2. Run **Submit to Microsoft Store** (`.github/workflows/microsoft-store.yml`) with that `version` and the build's run ID as `build_run_id`. It checks the package's version and MinVersion before uploading.
 
 ### Manual upload (fallback)
-Download the `desktop-win-x64-appx` artifact from step 1 and drag `Tabs-<version>-x64.appx` into the submission's **Packages** page in Partner Center.
+Download the `store-win-x64-appx` artifact from step 1 (`desktop-win-x64-appx` for runs made before the rename) and drag `Tabs-<version>-x64.appx` into the submission's **Packages** page in Partner Center.
 
 ## ARM64 (Windows and Linux)
 Not enabled for production release. `validateBuildTarget` refuses arm64 for Windows/Linux unless built on a native arm64 host and `TABS_ALLOW_UNVERIFIED_ARCH=1` is set, so x64 binaries cannot be packed into an arm64 artifact.
