@@ -63,7 +63,9 @@ module.exports = async function afterPack(context) {
         ? "@vscode/fs-copyfile/build/Release/vscode_fs.node"
         : "@vscode/fs-copyfile/lib/native.js",
     ],
-    ["extensions/copilot/node_modules", "@anthropic-ai/sdk/package.json"],
+    // Since Code-OSS 1.148 Copilot bundles its SDKs into dist/ and ships only
+    // the external @github/copilot runtime in node_modules.
+    ["extensions/copilot/node_modules", "@github/copilot/package.json"],
   ];
   for (const [directory, marker] of requiredDependencies) {
     const source = path.join(sourceRuntimeDir, directory);

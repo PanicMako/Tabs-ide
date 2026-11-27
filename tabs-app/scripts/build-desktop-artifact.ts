@@ -21,6 +21,10 @@ import {
   findVsceSignScope,
   vsceSignScopeCandidates,
 } from "./lib/code-oss-vsce-sign.ts";
+import {
+  createWorkspaceMemberModulesFilter,
+  readCodeOssWorkspaceMembers,
+} from "./lib/code-oss-workspace.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
 import { splitTargets, validateBuildTarget } from "./lib/desktop-targets.ts";
 import { resolveAppxIdentity } from "./lib/windows-appx.ts";
@@ -628,7 +632,7 @@ function getRequiredMacArtifactPaths(productName: string, thin = false): readonl
       "Release",
       "vscode_fs.node",
     ),
-    join(codeOss, "extensions", "copilot", "node_modules", "@anthropic-ai", "sdk", "package.json"),
+    join(codeOss, "extensions", "copilot", "node_modules", "@github", "copilot", "package.json"),
   ];
 }
 
@@ -1270,6 +1274,11 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
       excludedSourceEntries.add(entry);
     }
   }
+  const workspaceMembers = readCodeOssWorkspaceMembers(vsCodeSourceDir);
+  const skipWorkspaceMemberModules = createWorkspaceMemberModulesFilter(
+    vsCodeSourceDir,
+    workspaceMembers,
+  );
   for (const entry of yield* fs.readDirectory(vsCodeSourceDir)) {
     if (excludedSourceEntries.has(entry)) continue;
     const source = path.join(vsCodeSourceDir, entry);
@@ -1282,6 +1291,10 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
           recursive: true,
           filter: (filename) => includeWindowsCompiledFile(source, filename),
         });
+      } else if (
+        workspaceMembers.some((member) => member === entry || member.startsWith(`${entry}/`))
+      ) {
+        cpSync(source, destination, { recursive: true, filter: skipWorkspaceMemberModules });
       } else {
         yield* fs.copy(source, destination);
       }

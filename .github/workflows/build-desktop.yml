@@ -472,7 +472,7 @@ jobs:
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/node_modules/minimist/index.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@anthropic-ai/sdk/package.json"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@github/copilot/package.json"
           bun tabs-app/scripts/verify-code-oss-media.ts "$extract_root/squashfs-root/resources/tabs-code-oss/extensions"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
@@ -504,7 +504,7 @@ jobs:
           if (-not (Test-Path (Join-Path $runtimeRoot "node_modules/minimist/index.js") -PathType Leaf)) { throw "Code OSS runtime dependencies are missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "extensions/node_modules/typescript/lib/typescript.js") -PathType Leaf)) { throw "TypeScript extension runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js") -PathType Leaf)) { throw "Git extension runtime is missing from Windows installer." }
-          if (-not (Test-Path (Join-Path $runtimeRoot "extensions/copilot/node_modules/@anthropic-ai/sdk/package.json") -PathType Leaf)) { throw "Copilot extension runtime is missing from Windows installer." }
+          if (-not (Test-Path (Join-Path $runtimeRoot "extensions/copilot/node_modules/@github/copilot/package.json") -PathType Leaf)) { throw "Copilot extension runtime is missing from Windows installer." }
           $updateConfig = Join-Path $appRoot "resources/app-update.yml"
           if (-not (Test-Path $updateConfig -PathType Leaf)) { throw "Packaged app-update.yml is missing." }
           if (-not (Select-String $updateConfig -Pattern '^provider:\s*github\s*$' -Quiet)) { throw "Packaged updater is not configured for GitHub." }
