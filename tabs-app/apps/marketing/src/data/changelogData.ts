@@ -32,11 +32,12 @@ export const changelogData: ChangelogRelease[] = [
     isLatest: true,
     type: "feature",
     summary:
-      "Tabs 2.11.0 adds two new ways to install: Tabs IDE from the Microsoft Store on Windows, and a Debian/Ubuntu .deb package on Linux. The installer and AppImage are unchanged.",
+      "Tabs 2.11.0 adds two new ways to install: Tabs IDE from the Microsoft Store on Windows, and a Debian/Ubuntu .deb package on Linux. The installer and AppImage are unchanged, and the Code tab moves up to VS Code 1.148.",
     highlights: [
       "Install Tabs IDE from the Microsoft Store; the Store keeps it up to date.",
       "Each release now includes a Debian/Ubuntu .deb package. Update it by installing the newer .deb.",
       "The downloads page links the Microsoft Store and the .deb.",
+      "The Code tab now runs VS Code 1.148, with your Tabs layout and styling unchanged.",
       "Installer and AppImage users keep their automatic updates and do not need to switch.",
     ],
     categories: [],
