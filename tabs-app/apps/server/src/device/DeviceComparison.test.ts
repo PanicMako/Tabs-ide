@@ -3767,6 +3767,122 @@ describe("Device comparison", () => {
       }),
     ).toBe(false);
   });
+
+  it("addresses the pinned daemon with platform-specific flags and rejects a changed app", async () => {
+    type RpcRequest = {
+      id: string;
+      params: {
+        command: string;
+        flags: unknown;
+        positionals: string[];
+        session: string;
+      };
+    };
+    const sent: Array<{
+      url: string;
+      request: RpcRequest;
+      headers: RequestInit["headers"];
+    }> = [];
+    const endpoint = (hostId: string) =>
+      Effect.succeed({
+        baseUrl: `http://${hostId}`,
+        token: "fixture",
+        entryPath: "agent-device",
+      });
+    let systemSurface = false;
+    let warning: string | undefined;
+    const fetchRpc = async (url: string, init: RequestInit) => {
+      const request = JSON.parse(String(init.body)) as RpcRequest;
+      sent.push({ url, request, headers: init.headers });
+      const data =
+        request.params.command === "snapshot"
+          ? { ...frame("ios", ["Continue"]), systemSurfaceOnly: systemSurface }
+          : { warning };
+      return Response.json({ id: request.id, result: { ok: true, data } });
+    };
+    const driver = makeDeviceSemanticDriver(endpoint, fetchRpc);
+    await Effect.runPromise(
+      driver.snapshot({ ...iphone, platform: "ios", appId: iosApp, threadId }),
+    );
+    await expect(
+      Effect.runPromise(
+        driver.snapshot({
+          ...pixel,
+          platform: "android",
+          appId: androidApp,
+          threadId,
+        }),
+      ),
+    ).rejects.toThrow("selected app is unavailable");
+    await Effect.runPromise(
+      driver.press(
+        { ...pixel, platform: "android", appId: androidApp, threadId },
+        "@e4~s42",
+        Effect.void,
+      ),
+    );
+    expect(sent.map(({ url }) => url)).toEqual([
+      "http://mac-build/rpc",
+      "http://linux-build/rpc",
+      "http://linux-build/rpc",
+    ]);
+    expect(sent[0]?.request.params.flags).toEqual({
+      platform: "ios",
+      udid: iphone.deviceId,
+      noRecord: true,
+    });
+    expect(sent[2]?.request.params.flags).toEqual({
+      platform: "android",
+      serial: pixel.deviceId,
+      noRecord: true,
+      settle: true,
+    });
+    expect(sent[2]?.request.params.positionals).toEqual(["@e4~s42"]);
+    expect(sent[2]?.headers).toMatchObject({ authorization: "Bearer fixture" });
+    expect(sent[0]?.request.params.session).not.toBe(sent[1]?.request.params.session);
+    await Effect.runPromise(
+      driver.scroll(
+        { ...pixel, platform: "android", appId: androidApp, threadId },
+        "up",
+        Effect.void,
+      ),
+    );
+    expect(sent.at(-1)?.request.params).toMatchObject({
+      command: "scroll",
+      positionals: ["up", "0.65"],
+      flags: {
+        platform: "android",
+        serial: pixel.deviceId,
+        noRecord: true,
+        settle: true,
+      },
+    });
+    systemSurface = true;
+    await expect(
+      Effect.runPromise(
+        driver.snapshot({
+          ...pixel,
+          platform: "android",
+          appId: androidApp,
+          threadId,
+        }),
+      ),
+    ).rejects.toThrow("Choose My turn");
+    const dialogWarning = (app: string) =>
+      `press @e4 opened an Android permission dialog (com.google.android.permissioncontroller) over ${app}. Use "alert get" to inspect it, then "alert accept" or "alert dismiss" to respond.`;
+    const press = () =>
+      Effect.runPromise(
+        driver.press(
+          { ...pixel, platform: "android", appId: androidApp, threadId },
+          "@e4~s42",
+          Effect.void,
+        ),
+      );
+    warning = dialogWarning(androidApp);
+    await expect(press()).resolves.toEqual({ permissionDialog: true });
+    warning = dialogWarning("wrong.app");
+    await expect(press()).resolves.toBeUndefined();
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
