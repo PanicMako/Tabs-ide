@@ -33,6 +33,7 @@ export interface RequestOptions {
   readonly coalesceKey?: string | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly onChunk?: ((values: readonly unknown[]) => void) | undefined;
+  readonly connectedOnly?: boolean | undefined;
 }
 
 interface QueuedOutboundMessage {
@@ -56,6 +57,8 @@ interface RpcSubscription {
   readonly decode: (value: unknown) => unknown;
   readonly receive: (value: unknown) => void;
   readonly onError: (error: Error) => void;
+  readonly onComplete: (() => void) | undefined;
+  readonly onDisconnect: (() => void) | undefined;
 }
 
 type TransportState = "connecting" | "open" | "reconnecting" | "closed" | "disposed";
@@ -186,6 +189,49 @@ export class WsTransport {
     return new URL(relativeUrl, origin).href;
   }
 
+  /** Issue a short-lived ticket for a device HTTP request or socket upgrade. */
+  async authorizeDeviceMedia(raw: string): Promise<string> {
+    const endpoint = new URL(raw);
+    const origin = new URL(this.resolveHttpUrl("/")).origin;
+    const httpOrigin = endpoint.origin.replace(/^ws/, "http");
+    if (
+      httpOrigin !== origin ||
+      !["ws:", "wss:", "http:", "https:"].includes(endpoint.protocol) ||
+      !endpoint.pathname.startsWith("/api/device-hub/") ||
+      endpoint.username ||
+      endpoint.password
+    )
+      throw new Error("Device media must use its connected environment’s proxy.");
+    const environmentId =
+      this.environmentId ??
+      (typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("tabsEnvironmentId")
+        : null);
+    const refresh =
+      this.refreshUrl ??
+      (environmentId
+        ? async () =>
+            (await import("./connection/manualConnections")).resolveManualConnectionSocketUrl(
+              environmentId,
+            )
+        : undefined);
+    const bootstrap = this.configuredUrl ?? window.desktopBridge?.getWsUrl();
+    let socketUrl: string;
+    if (refresh) socketUrl = await refresh();
+    else if (bootstrap && new URL(bootstrap).searchParams.has("token")) {
+      const { authorizeDesktopWebSocket } = await import("./desktopWebSocketAuth");
+      socketUrl = await authorizeDesktopWebSocket(bootstrap);
+    } else if (new URL(this.url).searchParams.has("wsTicket")) {
+      throw new Error("Reconnect this environment to renew device access.");
+    } else return endpoint.href;
+    const issued = new URL(socketUrl);
+    const ticket = issued.searchParams.get("wsTicket");
+    if (!ticket || issued.origin.replace(/^ws/, "http") !== origin)
+      throw new Error("Reconnect the environment to authorize its device stream.");
+    endpoint.searchParams.set("wsTicket", ticket);
+    return endpoint.href;
+  }
+
   private resolveUrl(explicitUrl?: string): string {
     if (explicitUrl && explicitUrl.length > 0) {
       return explicitUrl;
@@ -220,6 +266,10 @@ export class WsTransport {
 
     if (options?.signal?.aborted) {
       throw new Error("Request aborted");
+    }
+    const socket = options?.connectedOnly ? this.ws : undefined;
+    if (options?.connectedOnly && socket?.readyState !== WebSocket.OPEN) {
+      throw new Error("WebSocket is disconnected. Reconnect and try again.");
     }
 
     const id = String(this.nextId++);
@@ -274,6 +324,19 @@ export class WsTransport {
         trackRpcRequest(id, method, () => (pendingEntry.sentAt ? "in-flight" : "transport-queued"));
       }
 
+      if (socket) {
+        try {
+          pendingEntry.sentAt = Date.now();
+          socket.send(encoded);
+        } catch (cause) {
+          if (timeout !== null) clearTimeout(timeout);
+          pendingEntry.onAbort?.();
+          this.pending.delete(id);
+          acknowledgeRpcRequest(id);
+          reject(asError(cause, "Failed to send WebSocket request."));
+        }
+        return;
+      }
       this.send({
         id,
         method,
@@ -321,6 +384,8 @@ export class WsTransport {
     decode: (value: unknown) => T,
     callback: (value: T) => void,
     onError: (error: Error) => void,
+    onComplete?: () => void,
+    onDisconnect?: () => void,
   ): () => void {
     const subscription: RpcSubscription = {
       requestId: null,
@@ -329,6 +394,8 @@ export class WsTransport {
       decode,
       receive: (value) => callback(value as T),
       onError,
+      onComplete,
+      onDisconnect,
     };
     this.rpcSubscriptions.add(subscription);
     if (this.state === "open") this.startRpcSubscription(subscription);
@@ -398,6 +465,14 @@ export class WsTransport {
     this.connect();
   }
 
+  private disconnectRpcSubscriptions(): void {
+    for (const subscription of this.rpcSubscriptionsById.values()) {
+      subscription.requestId = null;
+      subscription.onDisconnect?.();
+    }
+    this.rpcSubscriptionsById.clear();
+  }
+
   dispose() {
     this.disposed = true;
     this.state = "disposed";
@@ -418,8 +493,8 @@ export class WsTransport {
     }
     for (const id of this.pending.keys()) acknowledgeRpcRequest(id);
     this.pending.clear();
+    this.disconnectRpcSubscriptions();
     this.rpcSubscriptions.clear();
-    this.rpcSubscriptionsById.clear();
     this.outboundQueue.length = 0;
     this.ws?.close();
     this.ws = null;
@@ -544,8 +619,7 @@ export class WsTransport {
       if (this.ws === ws) {
         this.ws = null;
         this.outboundQueue.length = 0;
-        this.rpcSubscriptionsById.clear();
-        for (const subscription of this.rpcSubscriptions) subscription.requestId = null;
+        this.disconnectRpcSubscriptions();
         for (const [id, pending] of this.pending.entries()) {
           if (pending.timeout !== null) {
             clearTimeout(pending.timeout);
@@ -717,6 +791,7 @@ export class WsTransport {
         this.rpcSubscriptionsById.delete(id);
         subscription.requestId = null;
         if (error) subscription.onError(error);
+        else subscription.onComplete?.();
         return;
       }
       const pending = this.pending.get(id);
