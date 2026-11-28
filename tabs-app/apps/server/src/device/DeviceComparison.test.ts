@@ -1420,6 +1420,231 @@ describe("Device comparison", () => {
       }
     }
   });
+
+  it.each(["retained screen", "screen changed after restore", "lost correction reply"] as const)(
+    "restores a saved checkout checkpoint with %s without repeating a completed tap",
+    async (scenario) => {
+      const directory = await mkdtemp(join(tmpdir(), "tabs-paused-replay-"));
+      try {
+        const ios = [
+          frame("ios", ["Continue"], ["Total: $20.00"]),
+          frame("ios", ["Review"], ["Total: $20.00"]),
+          frame("ios", [], ["Order review", "Total: $20.00"]),
+        ];
+        const android = [
+          frame("android", ["Continue"], ["Total: $20.00"]),
+          frame("android", ["Review"], ["Total: $22.00"]),
+          frame("android", [], ["Order review", "Total: $20.00"]),
+        ];
+        const open = () => fixture(ios, android, true, makeDeviceComparisonStore(directory));
+        const original = open();
+        const runId = await original.begin();
+        await original.tap(runId, "Continue");
+        const { controls } = await original.tap(runId, "Review");
+        await original.invoke({
+          action: "expect",
+          threadId,
+          runId,
+          controlId: controls!.find(({ label }) => label === "Order review")!.id,
+        });
+        await original.approve(runId);
+        await original.replay(runId, {
+          sourceLabel: "Total",
+          targetLabel: "Total",
+          currency: "USD",
+        });
+        const paused = await original.settle();
+        expect(paused.run).toMatchObject({
+          phase: "paused",
+          firstDifference: {
+            step: 1,
+            sourceTotal: "USD 20.00",
+            targetTotal: "USD 22.00",
+          },
+        });
+        const reference = { threadId, runId };
+        const frozen = await original.invoke({
+          ...reference,
+          action: "evidence",
+        });
+        expect(
+          original.press.mock.calls.filter(([hostId]) => hostId === pixel.hostId),
+        ).toHaveLength(1);
+        const restore = {
+          ...reference,
+          action: "restoreReplay",
+          device: pixel,
+          appId: androidApp,
+        } as const;
+        const restart = () => {
+          const f = open();
+          f.positions.set(pixel.hostId, 1);
+          return f;
+        };
+        let restarted = restart();
+        expect(
+          (await restarted.invoke({ ...reference, action: "status" }, panelSession))
+            .canRestoreReplay,
+        ).toBe(true);
+        expect(
+          await restarted.invoke({ ...reference, action: "evidence" }, panelSession),
+        ).toMatchObject({ canRestoreReplay: true, evidence: frozen.evidence });
+        expect(
+          (await restarted.invoke({ ...reference, action: "evidence" })).canRestoreReplay,
+        ).toBeUndefined();
+        expect(
+          (await restarted.invoke({ ...reference, action: "status" }, undefined, recordingCaller))
+            .canRestoreReplay,
+        ).toBeUndefined();
+        await expect(restarted.invoke(restore)).rejects.toThrow("Device panel");
+        await expect(
+          restarted.invoke({ ...restore, device: iphone }, panelSession),
+        ).rejects.toThrow("original destination");
+        await expect(
+          restarted.invoke({ ...restore, threadId: otherThreadId }, panelSession),
+        ).rejects.toThrow("original destination");
+        expect(restarted.snapshot).not.toHaveBeenCalled();
+        let restored;
+        if (scenario === "retained screen") {
+          const reading = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          const snapshot = restarted.snapshot.getMockImplementation()!;
+          restarted.snapshot.mockImplementationOnce((...args) =>
+            Effect.promise(() => {
+              reading.resolve();
+              return release.promise;
+            }).pipe(Effect.andThen(snapshot(...args))),
+          );
+          const controller = new AbortController();
+          const first = Effect.runPromise(restarted.service.invoke(restore, panelSession), {
+            signal: controller.signal,
+          });
+          const disconnected = expect(first).rejects.toThrow();
+          let retries: Promise<Awaited<typeof first>[]> | undefined;
+          try {
+            await reading.promise;
+            controller.abort();
+            await disconnected;
+            retries = Promise.all([
+              restarted.invoke(restore, panelSession),
+              restarted.invoke(restore, panelSession),
+            ]);
+            await expect(
+              restarted.invoke(restore, AuthSessionId.make("foreign-session")),
+            ).rejects.toThrow("that restored");
+            await expect(
+              restarted.invoke({ ...restore, appId: iosApp }, panelSession),
+            ).rejects.toThrow("original destination");
+            expect(restarted.snapshot).toHaveBeenCalledTimes(1);
+          } finally {
+            release.resolve();
+          }
+          const [one, two] = (await retries)!;
+          expect(one).toEqual(two);
+          expect(await restarted.invoke(restore, panelSession)).toEqual(one);
+          expect(restarted.snapshot).toHaveBeenCalledTimes(1);
+          restored = one;
+        } else {
+          restored = await restarted.invoke(restore, panelSession);
+        }
+        expect(restored?.run).toMatchObject({
+          phase: "paused",
+          completedSteps: 0,
+          uncertainTap: false,
+        });
+        const resume = { ...reference, action: "resume" } as const;
+        await expect(
+          restarted.invoke(resume, AuthSessionId.make("foreign-session")),
+        ).rejects.toThrow("that restored");
+        expect(restarted.open).not.toHaveBeenCalled();
+        expect(restarted.press).not.toHaveBeenCalled();
+        const correctTotal = () => {
+          android[1] = frame("android", ["Review"], ["Total: $20.00"]);
+        };
+        if (scenario === "screen changed after restore") {
+          correctTotal();
+          await restarted.invoke(resume, panelSession);
+          expect((await restarted.settle()).run).toMatchObject({
+            phase: "paused",
+            uncertainTap: true,
+          });
+        } else {
+          await restarted.invoke(
+            {
+              ...reference,
+              action: "takeover",
+              liveInput: true,
+              device: pixel,
+            },
+            panelSession,
+          );
+          const { manualControlId } = await restarted.invoke(
+            { action: "status", threadId, device: pixel },
+            panelSession,
+          );
+          restarted.manual.mockImplementationOnce(() =>
+            Effect.sync(correctTotal).pipe(
+              Effect.andThen(
+                scenario === "lost correction reply"
+                  ? Effect.fail(
+                      new DeviceComparisonError({
+                        reason: "Correction reply lost.",
+                      }),
+                    )
+                  : Effect.void,
+              ),
+            ),
+          );
+          const corrected = restarted.invoke(
+            {
+              ...reference,
+              action: "manualInput",
+              controlId: manualControlId!,
+              gesture: { type: "tap", x: 0.5, y: 0.5 },
+            },
+            panelSession,
+          );
+          if (scenario === "lost correction reply") {
+            await expect(corrected).rejects.toThrow("Correction reply lost");
+            restarted = restart();
+            expect((await restarted.invoke(restore, panelSession)).run?.uncertainTap).toBe(true);
+          } else {
+            await corrected;
+            await restarted.invoke({ ...resume, controlId: manualControlId! }, panelSession);
+          }
+        }
+        if (scenario !== "retained screen") {
+          await expect(restarted.invoke(resume, panelSession)).rejects.toThrow("confirm whether");
+          expect(restarted.press).not.toHaveBeenCalled();
+          await restarted.invoke({ ...reference, action: "resolve", applied: false }, panelSession);
+          await restarted.invoke(resume, panelSession);
+        }
+        expect((await restarted.settle()).run).toMatchObject({
+          phase: "completed",
+          completedSteps: 2,
+          firstDifference: frozen.run?.firstDifference,
+        });
+        expect(restarted.open).not.toHaveBeenCalled();
+        expect(restarted.press.mock.calls).toEqual([[pixel.hostId, "@e1~s42"]]);
+        const completed = restart();
+        const loaded = await completed.invoke({
+          ...reference,
+          action: "evidence",
+        });
+        expect(loaded.run?.phase).toBe("completed");
+        expect(loaded.evidence).toEqual(frozen.evidence);
+        expect(
+          (await completed.invoke({ ...reference, action: "status" }, panelSession))
+            .canRestoreReplay,
+        ).toBeUndefined();
+        await expect(completed.invoke(restore, panelSession)).rejects.toThrow(
+          "original destination",
+        );
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
