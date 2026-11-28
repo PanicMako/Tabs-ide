@@ -1516,3 +1516,54 @@ it("selects the exact saved pair when multiple runs have the same device names a
     await browser.close();
   }
 });
+
+it("keeps individual actions when incomplete screenshots belong to different comparison runs", async () => {
+  const threadId = ThreadId.make("screenshot-pair-incomplete");
+  const latest = savedComparison("207070c3-688a-42d6-92fd-7a75e6cd4c0d", 2);
+  const older = savedComparison("792710c3-0413-4887-aefc-fff2ab4538f4", 2);
+  const complete = savedComparison("001020c3-0413-4887-aefc-fff2ab4538f4", 3);
+  for (const run of [older, complete]) {
+    openDeviceComparisonResult(testEnvironment, threadId, {
+      runId: run.runId,
+      step: run.firstDifference.step,
+    });
+  }
+  comparison.mockImplementation(async (input) => {
+    if (input.action !== "status" && input.action !== "evidence") return {};
+    const run = [older, complete].find(({ runId }) => runId === input.runId) ?? latest;
+    if (input.action === "status") return { run };
+    return {
+      run,
+      evidence: {
+        ...(run !== older ? { sourcePng: png } : {}),
+        ...(run !== latest ? { targetPng: png } : {}),
+      },
+    };
+  });
+  const browser = await renderScreenshotPairBrowser(threadId);
+  try {
+    await browser.tools.click();
+    await expect
+      .element(
+        page.getByRole("menuitem", {
+          name: /Attach first difference .*Checkout iPhone .*Run 207070c3/,
+        }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByRole("menuitem", {
+          name: /Attach first difference .*Checkout Pixel .*Run 792710c3/,
+        }),
+      )
+      .toBeVisible();
+    await page.getByRole("menuitem", { name: pairAction, exact: true }).click();
+    const review = page.getByRole("dialog");
+    await expect.element(review).toHaveTextContent(`Run ${complete.runId}, step 3`);
+    await review.getByRole("button", { name: "Cancel" }).click();
+    expect(bridge.runBrowserAutomation).not.toHaveBeenCalled();
+    expect(browser.files()).toHaveLength(0);
+  } finally {
+    await browser.close();
+  }
+});
