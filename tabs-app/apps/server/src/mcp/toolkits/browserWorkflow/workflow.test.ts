@@ -1065,4 +1065,59 @@ test.each(["pending", "manual"] as const)(
   },
 );
 
+test.each(["control", "breakpoint"] as const)(
+  "saves the Uploaded receipt and finishes the watch when the next %s is unavailable",
+  async (unavailable) => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-browser-upload-watch-"));
+    try {
+      const definition = { ...journalDefinition, states: uploadStates, uploadSelector: "#upload" };
+      let page: BrowserWorkflowHostResult = {
+        target: journalTarget,
+        disposition: "observed",
+        observation: {
+          stage: "ready_to_upload",
+          statusText: uploadStates.ready_to_upload,
+          breakpoint: "clear",
+          submitAvailable: false,
+          uploadAvailable: false,
+        },
+      };
+      const workflows = makeBrowserWorkflows(directory, journalOwner, async () => page);
+      const { workflowId } = await workflows.arm({ ...armJournal, definition });
+      expect(await workflows.watch(workflowId, "uploaded")).toMatchObject({ phase: "watching" });
+
+      page = {
+        ...status("uploaded"),
+        observation: {
+          stage: "uploaded",
+          statusText: uploadStates.uploaded,
+          breakpoint: unavailable === "breakpoint" ? "unobservable" : "clear",
+          submitAvailable: unavailable !== "control",
+        },
+      };
+      const checked = await workflows.advance(workflowId, "check");
+      expect(checked).toMatchObject({
+        phase: "unobservable",
+        reason: expect.stringContaining(unavailable === "control" ? "Submit needs" : "breakpoint"),
+        lastVerified: { stage: "uploaded", statusText: uploadStates.uploaded },
+      });
+      expect(checked.watchUntil).toBeUndefined();
+      expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+      expect(
+        await readBrowserWorkflowResult(directory, journalOwner, { workflowId, stage: "uploaded" }),
+      ).toEqual({ target: journalTarget, definition, stage: "uploaded" });
+      expect(await workflows.advance(workflowId, "upload")).toMatchObject({ phase: "verified" });
+
+      page = status("uploaded");
+      const corrected = { ...definition, submitSelector: "#new-submit" };
+      expect(await workflows.arm({ ...armJournal, definition: corrected })).toMatchObject({
+        workflowId,
+        phase: "ready",
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 const chromiumPath = chromium.executablePath();
