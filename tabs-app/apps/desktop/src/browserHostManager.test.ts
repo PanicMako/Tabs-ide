@@ -6278,6 +6278,45 @@ describe("reliable browser tabs and agent control", () => {
         "Approve",
       );
     });
+
+    it("requires the human owner and exact live tab, guest, profile, URL and page reference", async () => {
+      const f = createEvidenceFixture();
+      await expect(f.authorizeEvidence()).rejects.toThrow("exact destination tab");
+      await f.authorizePage();
+      await expect(f.authorizeEvidence({}, { source: "agent" })).rejects.toThrow("destination tab");
+      await expect(f.authorizeEvidence({}, { taskId: "other" })).rejects.toThrow(
+        "exact destination tab",
+      );
+      await expect(f.authorizeEvidence({}, { taskId: "" })).rejects.toThrow("destination tab");
+      await expect(f.authorizeEvidence({}, { projectId: "other" })).rejects.toThrow("session");
+      await expect(f.authorizeEvidence({}, { sessionId: "other" })).rejects.toThrow("session");
+      for (const input of [
+        { runId: "malformed" },
+        { instanceId: "malformed" },
+        { source: { ...sourceDevice, deviceId: "" } },
+        { target: { ...targetDevice, hostId: " " } },
+      ])
+        await expect(f.authorizeEvidence(input)).rejects.toThrow("both comparison devices");
+      for (const input of [
+        { target: sourceDevice },
+        { source: { ...sourceDevice, hostId: " build-mac" } },
+      ])
+        await expect(f.authorizeEvidence(input)).rejects.toThrow("distinct comparison devices");
+      for (const input of [
+        { instanceId: crypto.randomUUID() },
+        { profileId: "personal" },
+        { pageRef: "0".repeat(64) },
+        { url: `${f.session.currentUrl}?draft=other` },
+      ])
+        await expect(f.authorizeEvidence(input)).rejects.toThrow("exact destination tab");
+      Object.assign(f.webContents, { isLoadingMainFrame: () => true });
+      await expect(f.authorizeEvidence()).rejects.toThrow("exact destination tab");
+      Object.assign(f.webContents, { isLoadingMainFrame: () => false });
+      f.manager.takeControl(f.target);
+      await expect(f.authorizeEvidence()).rejects.toThrow("exact destination tab");
+      expect(f.state().deviceScreenshotAuthorized).toBe(false);
+      expect(f.attach).not.toHaveBeenCalled();
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
