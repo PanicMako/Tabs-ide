@@ -716,6 +716,77 @@ it("restores the exact Work toolbar draft and refreshes its verified status", as
   }
 });
 
+it("opens the original live destination after rechecking the run and exact host", async () => {
+  const threadId = ThreadId.make("live-comparison-target");
+  const threadScope = `${testEnvironment}:${threadId}`;
+  const reference = { runId: "f49d91d0-b366-4521-a267-a90fa439732c", step: 2 };
+  const source = {
+    hostId: "source",
+    deviceId: "same-id",
+    platform: "ios",
+    name: "iPhone",
+    appId: "com.apple.mobilesafari",
+  } as const;
+  const target = {
+    hostId: "target",
+    deviceId: "same-id",
+    platform: "android",
+    name: "Pixel",
+    appId: "com.android.chrome",
+  } as const;
+  const store = useCompanionSurfaceStore.getState();
+  const other = store.open(threadScope, "device", { ...target, hostId: "another-pixel-host" });
+  const destination = store.open(threadScope, "device", target);
+  const result = store.open(threadScope, "device", { deviceComparisonResult: reference });
+  const run: DeviceComparisonReport = {
+    runId: reference.runId,
+    source,
+    target,
+    phase: "paused",
+    busy: false,
+    playing: false,
+    completedSteps: 1,
+    canResume: true,
+    uncertainTap: false,
+    steps: [],
+    firstDifference: { step: 2, kind: "total", reason: "The totals differ." },
+  };
+  let available = false;
+  comparison.mockImplementation(async (input) =>
+    input.action === "evidence"
+      ? { run, liveTargetAvailable: true, evidence: { sourcePng: png, targetPng: png } }
+      : { run, ...(available ? { liveTargetAvailable: true as const } : {}) },
+  );
+  await render(
+    <DeviceComparisonResultPanel
+      environmentId={testEnvironment}
+      threadId={threadId}
+      reference={reference}
+      visible
+    />,
+  );
+  const open = page.getByRole("button", { name: "Open live Pixel" });
+  await open.click();
+  await expect
+    .element(page.getByRole("alert"))
+    .toHaveTextContent("The original live device is no longer available");
+  await expect
+    .element(page.getByRole("img", { name: "Pixel at the first difference" }))
+    .toBeVisible();
+  expect(useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId).toBe(result);
+  available = true;
+  await open.click();
+  await expect
+    .poll(() => useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId)
+    .toBe(destination);
+  expect(destination).not.toBe(other);
+  expect(
+    comparison.mock.calls.every(
+      ([input]) => input.action === "status" || input.action === "evidence",
+    ),
+  ).toBe(true);
+});
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
