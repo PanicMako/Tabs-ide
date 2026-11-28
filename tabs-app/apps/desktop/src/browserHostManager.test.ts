@@ -5958,6 +5958,95 @@ describe("reliable browser tabs and agent control", () => {
     expect(evaluate.mock.calls[11]?.[1][0].code).toContain('"revealFileToken"');
   });
 
+  it.each([
+    ["https://docs.google.com/document/u/0/d/one", "https://docs.google.com/document/u/1/d/one"],
+    [
+      "https://docs.google.com/document/u/0/d/one",
+      "https://docs.google.com/document/d/two?authuser=0",
+    ],
+    [
+      "https://www.figma.com/design/One/QA?node-id=1-2",
+      "https://www.figma.com/design/Two/QA?node-id=1-2",
+    ],
+    [
+      "https://www.figma.com/design/One/QA?node-id=1-2",
+      "https://www.figma.com/design/One/branch/Branch/QA?node-id=1-2",
+    ],
+  ])(
+    "stops Quick Action replay from %s when the file or account changes to %s",
+    async (url, destination) => {
+      const manager = new BrowserHostManager(() => null);
+      const origin = new URL(url).origin;
+      const fixture = createMockSession({ currentUrl: url });
+      const { session, webContents } = fixture;
+      const { events } = mockNavigation(manager, fixture);
+      const preventDefault = vi.fn();
+      const evaluate = vi
+        .fn()
+        .mockResolvedValueOnce("missing")
+        .mockImplementationOnce(async () => {
+          events.emit("will-redirect", {
+            isMainFrame: true,
+            url: destination,
+            preventDefault,
+          });
+          return "ok";
+        })
+        .mockResolvedValueOnce("missing")
+        .mockImplementationOnce(async () => {
+          session.currentUrl = destination;
+          events.emit("did-navigate-in-page", {}, destination, true);
+          session.currentUrl = url;
+          events.emit("did-navigate-in-page", {}, url, true);
+          return "ok";
+        });
+      Object.assign(webContents, {
+        executeJavaScriptInIsolatedWorld: evaluate,
+      });
+      const target = {
+        projectId: session.projectId,
+        sessionId: session.sessionId,
+        taskId: "qa",
+      };
+      const action = {
+        id: crypto.randomUUID(),
+        label: "Save report",
+        origin,
+        steps: [
+          { action: "click", selector: "#save" },
+          { action: "click", selector: "#confirm" },
+        ],
+        outcome: { selector: "#confirmation", description: "Report saved" },
+      };
+      const run = async () => {
+        const [tab] = (await manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "listQuickActionTargets",
+          input: { action },
+        })) as [{ token: string }];
+        const { id } = (await manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "authorizeQuickAction",
+          input: { action, token: tab.token },
+        })) as { id: string };
+        return manager.runAutomation({
+          ...target,
+          source: "agent",
+          operation: "runQuickAction",
+          input: { actionId: action.id, approvalId: id },
+        });
+      };
+      await expect(run()).rejects.toThrow("interrupted");
+      expect(preventDefault).toHaveBeenCalledOnce();
+      expect(evaluate).toHaveBeenCalledTimes(2);
+      await expect(run()).rejects.toThrow("interrupted");
+      expect(evaluate).toHaveBeenCalledTimes(4);
+      expect(evaluate.mock.calls[3]?.[1][0].code).toContain(`location.href === "${url}"`);
+    },
+  );
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
