@@ -3383,7 +3383,7 @@ describe("reliable browser tabs and agent control", () => {
     60_000,
   );
 
-  describe.skip("saved browser workflow results", () => {
+  describe("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
       historyUrls?: string[],
@@ -3556,7 +3556,7 @@ describe("reliable browser tabs and agent control", () => {
       };
     }
 
-    describe.skip("Partner Center status consent", () => {
+    describe("Partner Center status consent", () => {
       async function setupStatus() {
         const url = "https://partner.microsoft.com/dashboard/store/submissions/42?account=work";
         const f = await setup(url);
@@ -3597,6 +3597,90 @@ describe("reliable browser tabs and agent control", () => {
               .pendingPartnerCenterStatus,
         };
       }
+
+      it("proposes exact read-only consent, accepts it from the original thread, and consumes it once", async () => {
+        const f = await setupStatus();
+        await expect(f.status()).rejects.toThrow("Approve access");
+        expect(f.evaluate).not.toHaveBeenCalled();
+        await f.grant();
+        await expect(
+          f.manager.runAutomation({
+            ...f.agent,
+            source: "human",
+            input: f.input,
+          }),
+        ).rejects.toThrow("original tab and thread");
+        const { status, approval } = await f.status();
+        expect(status).toBe("approval_required");
+        expect(approval).toEqual({
+          id: expect.any(String),
+          workflowId: f.input.workflowId,
+          applicationId: f.input.applicationId,
+          tenantId: f.input.tenantId,
+          clientId: f.input.clientId,
+          submissionId: f.input.definition.resourceId,
+        });
+        expect(f.pending()).toEqual(approval);
+        await expect(f.status()).resolves.toEqual({ status, approval });
+        for (const override of [{ source: "agent" }, { taskId: "another-thread" }] as const)
+          await expect(
+            f.manager.runAutomation({
+              ...f.human,
+              ...override,
+              input: { approvalId: approval.id },
+            }),
+          ).rejects.toThrow("original tab and thread");
+        await expect(f.consent("stale-id")).rejects.toThrow("original tab and thread");
+        await expect(f.consent(approval.id)).resolves.toEqual({
+          approved: true,
+          approval,
+        });
+        expect(f.pending()).toBeUndefined();
+
+        for (const change of [
+          { applicationId: "different-app" },
+          { tenantId: f.input.clientId },
+          { clientId: f.input.tenantId },
+          { workflowId: "b".repeat(64) },
+          { definition: { ...f.input.definition, resourceId: "43" } },
+        ])
+          await expect(f.status(change)).rejects.toThrow("different request");
+
+        const outcomes = await Promise.allSettled([f.status(), f.status()]);
+        expect(outcomes).toContainEqual({
+          status: "fulfilled",
+          value: { status: "approved", approval },
+        });
+        expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+        await expect(
+          f.status({
+            verifyApprovalId: "44444444-4444-4444-8444-444444444444",
+          }),
+        ).rejects.toThrow("original tab and thread");
+        await expect(f.status({ verifyApprovalId: approval.id })).resolves.toEqual({
+          status: "approved",
+          approval,
+        });
+        const next = await f.status();
+        expect(next.status).toBe("approval_required");
+        expect(next.approval.id).not.toBe(approval.id);
+        await expect(f.consent(approval.id)).rejects.toThrow("original tab and thread");
+        await expect(f.status({ verifyApprovalId: approval.id })).resolves.toEqual({
+          status: "approved",
+          approval,
+        });
+        f.manager.takeControl(f.request);
+        await expect(f.status({ verifyApprovalId: approval.id })).rejects.toThrow(
+          "original tab and thread",
+        );
+        expect(f.evaluate.mock.calls.every(([world]) => world === 999)).toBe(true);
+        expect(new Set(f.querySelectorAll.mock.calls.map(([selector]) => selector))).toEqual(
+          new Set(["*", "#draft-id"]),
+        );
+        expect(f.executeJavaScript).not.toHaveBeenCalled();
+        expect(f.loadURL).not.toHaveBeenCalled();
+        expect(f.submit).not.toHaveBeenCalled();
+      });
     });
 
     describe.skip("monitor", () => {
