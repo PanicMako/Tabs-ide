@@ -3505,6 +3505,88 @@ describe("Device comparison", () => {
     });
     expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toHaveLength(1);
   });
+
+  it.each(["stable", "app changed", "protected", "changed during capture"] as const)(
+    "freezes only the approved permission dialog crop when the destination is %s",
+    async (scenario) => {
+      const overlay = androidPermissionDialog();
+      const dialog: SemanticSnapshot = {
+        ...overlay,
+        appBundleId: scenario === "app changed" ? "other.app" : androidApp,
+        nodes: overlay.nodes.map((node, index) => ({
+          ...node,
+          password: scenario === "protected" && index === 1,
+        })),
+      };
+      const destination = [dialog];
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+        destination,
+      );
+      const fakeSnapshot = f.driver.snapshot;
+      const androidDriver = makeDeviceSemanticDriver(
+        () =>
+          Effect.succeed({
+            baseUrl: "http://localhost",
+            token: "fixture",
+            entryPath: "agent-device",
+          }),
+        async (_url, request) => {
+          const { id } = JSON.parse(String(request.body)) as { id: string };
+          return Response.json({
+            id,
+            result: { ok: true, data: destination[0] },
+          });
+        },
+      );
+      Object.assign(f.driver, {
+        snapshot: (...args: Parameters<SemanticDriver["snapshot"]>) =>
+          args[0].platform === "android" ? androidDriver.snapshot(...args) : fakeSnapshot(...args),
+      });
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      await f.approve(runId);
+      const png = new PNG({ width: 18, height: 18 });
+      png.data.fill(0xff);
+      for (let y = 4; y < 14; y++) {
+        for (let x = 4; x < 14; x++) {
+          const offset = (y * png.width + x) * 4;
+          png.data.fill(0, offset, offset + 3);
+        }
+      }
+      f.capture.mockImplementationOnce(() => {
+        if (scenario === "changed during capture") {
+          destination[0] = {
+            ...dialog,
+            nodes: dialog.nodes.map((node) =>
+              node.rect ? { ...node, rect: { ...node.rect, x: node.rect.x + 1 } } : node,
+            ),
+          };
+        }
+        return PNG.sync.write(png);
+      });
+      await f.replay(runId);
+      const paused = await f.settle();
+      expect(paused.run?.phase).toBe("paused");
+      expect(paused.controls ?? []).toEqual([]);
+      expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toEqual([]);
+      const { evidence } = await f.invoke({
+        action: "evidence",
+        threadId,
+        runId,
+      });
+      expect(evidence?.sourcePng).toBeDefined();
+      if (scenario === "stable") {
+        const crop = PNG.sync.read(Buffer.from(evidence!.targetPng!, "base64"));
+        expect([crop.width, crop.height]).toEqual([10, 10]);
+        expect(crop.data).toEqual(Buffer.alloc(400, Buffer.from([0, 0, 0, 255])));
+      } else {
+        expect(evidence?.targetPng).toBeUndefined();
+        if (scenario !== "changed during capture")
+          expect(f.capture).not.toHaveBeenCalledWith(pixel.hostId);
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
