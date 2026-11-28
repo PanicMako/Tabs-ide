@@ -7565,6 +7565,39 @@ describe("reliable browser tabs and agent control", () => {
         return { approval, write };
       }
     });
+
+    it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
+      const f = await setup();
+      const captured = await f.capture();
+      expect(captured).toEqual({
+        attachmentId: expect.stringMatching(/^[a-f0-9-]{36}$/u),
+      });
+      expect((await f.capture()).attachmentId).not.toBe(captured.attachmentId);
+      const directory = join(f.userData, "browser-attachment-bookmarks");
+      const file = join(directory, captured.attachmentId!);
+      expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
+        url: f.address,
+        projectId: f.request.projectId,
+        tabId: f.request.sessionId,
+        threadId: f.request.taskId,
+        profileId: "work",
+      });
+      if (process.platform !== "win32") {
+        expect((await stat(directory)).mode & 0o777).toBe(0o700);
+        expect((await stat(file)).mode & 0o777).toBe(0o600);
+      }
+      f.events.emit("did-navigate", {}, "https://app.test/reports/43?view=review#overview");
+      await expect(f.capture()).rejects.toThrow("changed");
+      await expect(f.enter(f.manager, captured.attachmentId)).resolves.toEqual({
+        url: f.address,
+      });
+      expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
+      expect(f.session.controller).toBe("none");
+      expect(f.session.assignedTaskId).toBeNull();
+      expect(
+        f.manager.getSessionState(f.request.projectId, f.request.sessionId).browserPageAuthorized,
+      ).toBe(false);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
