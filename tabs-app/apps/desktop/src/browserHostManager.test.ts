@@ -5279,6 +5279,177 @@ describe("reliable browser tabs and agent control", () => {
     expect(evaluate).toHaveBeenCalledTimes(3);
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "keeps a used Quick Action value across a fresh agent approval and edits an unused value",
+    async () => {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const page = await browser.newPage();
+      const origin = "https://app.test";
+      const address = `${origin}/reports/new`;
+      const saves: { method: string; body: unknown }[] = [];
+      await page.route(address, (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<form id="report">
+            <label>Month <input id="month" name="month"></label>
+            <button id="continue" type="button" disabled>Continue</button>
+            <fieldset id="details" hidden>
+              <label>Confirm month <input id="confirm-month" name="confirmMonth"></label>
+              <label>Note <input id="note" name="note"></label>
+              <button id="save" type="submit">Save draft</button>
+            </fieldset>
+          </form>
+          <output id="receipt" hidden></output>
+          <script>
+            const form = document.querySelector('#report');
+            const month = document.querySelector('#month');
+            month.addEventListener('input', () => {
+              month.dataset.fills = String(Number(month.dataset.fills ?? 0) + 1);
+            });
+            document.querySelector('#continue').onclick = () => {
+              document.querySelector('#details').hidden = false;
+            };
+            form.onsubmit = async (event) => {
+              event.preventDefault();
+              const response = await fetch('/drafts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.fromEntries(new FormData(form))),
+              });
+              const receipt = document.querySelector('#receipt');
+              receipt.textContent = (await response.json()).id;
+              receipt.hidden = false;
+            };
+          </script>`,
+        }),
+      );
+      await page.route(`${origin}/drafts`, (route) => {
+        const request = route.request();
+        saves.push({ method: request.method(), body: request.postDataJSON() });
+        return route.fulfill({ status: 201, json: { id: "draft-42" } });
+      });
+      await page.goto(address);
+
+      const manager = new BrowserHostManager(() => null);
+      const fixture = createMockSession({ currentUrl: address });
+      mockNavigation(manager, fixture);
+      const { session, webContents } = fixture;
+      const evaluate = vi.fn<(world: number, scripts: { code: string }[]) => Promise<unknown>>();
+      Object.assign(webContents, {
+        executeJavaScriptInIsolatedWorld: evaluate,
+      });
+      await connectChromiumPage(page, { evaluate });
+      const target = {
+        projectId: session.projectId,
+        sessionId: session.sessionId,
+        taskId: "qa",
+      };
+      const action: BrowserQuickAction = {
+        id: crypto.randomUUID(),
+        label: "Save monthly draft",
+        origin,
+        steps: [
+          { action: "fill", selector: "#month", parameter: "month" },
+          { action: "click", selector: "#continue" },
+          { action: "fill", selector: "#confirm-month", parameter: "month" },
+          { action: "fill", selector: "#note", parameter: "note" },
+          { action: "click", selector: "#save" },
+        ],
+        outcome: { selector: "#receipt", description: "Draft saved" },
+      };
+      const list = () =>
+        manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "listQuickActionTargets",
+          input: { action },
+        }) as Promise<[BrowserQuickActionTarget]>;
+      const approve = (token: string, values: Record<string, string>, pauseId?: string) =>
+        manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "authorizeQuickAction",
+          input: {
+            action,
+            token,
+            values,
+            ...(pauseId && { pauseId, resume: true }),
+          },
+        }) as Promise<{ id: string }>;
+      const run = (approvalId: string) =>
+        manager.runAutomation({
+          ...target,
+          source: "agent",
+          operation: "runQuickAction",
+          input: { actionId: action.id, approvalId },
+        }) as Promise<BrowserQuickActionResult>;
+
+      const initialValues = { month: "2026-11", note: "Original draft note" };
+      const [initialTab] = await list();
+      expect(initialTab).not.toHaveProperty("lockedParameters");
+      const firstApproval = await approve(initialTab.token, initialValues);
+      const paused = await run(firstApproval.id);
+      const pauseId = paused.resumeRequest?.pause.pauseId;
+      expect(pauseId).toEqual(expect.any(String));
+      expect(paused).toMatchObject({
+        status: "paused",
+        completedSteps: 1,
+        resumeRequest: {
+          actionId: action.id,
+          pause: { pauseId, tabId: session.sessionId, profileId: "default" },
+        },
+      });
+      const month = page.locator("#month");
+      expect(await month.inputValue()).toBe(initialValues.month);
+      expect(await page.locator("#confirm-month").inputValue()).toBe("");
+      expect(await page.locator("#note").inputValue()).toBe("");
+      expect(saves).toEqual([]);
+
+      const [pausedTab] = await list();
+      const note = "Edited draft note";
+      await expect(approve(pausedTab.token, { month: "2026-12", note }, pauseId)).rejects.toThrow(
+        "original values for inputs already used",
+      );
+      expect(pausedTab).toMatchObject({
+        pausedAt: 1,
+        pauseOwner: { pauseId, taskId: target.taskId },
+        lockedParameters: ["month"],
+      });
+      expect(await list()).toEqual([pausedTab]);
+
+      await page.locator("#continue").evaluate((button: HTMLButtonElement) => {
+        button.disabled = false;
+      });
+      const resumedApproval = await approve(pausedTab.token, { note }, pauseId);
+      expect(resumedApproval.id).not.toBe(firstApproval.id);
+      const listedTargets = JSON.stringify([pausedTab, ...(await list())]);
+      for (const value of [initialValues.month, initialValues.note, note]) {
+        expect(listedTargets).not.toContain(value);
+      }
+      await expect(run(resumedApproval.id)).resolves.toMatchObject({
+        status: "pass",
+        completedSteps: action.steps.length,
+        message: "Draft saved",
+      });
+      await expect(run(resumedApproval.id)).rejects.toThrow("exact tab and thread");
+      expect(await month.getAttribute("data-fills")).toBe("1");
+      expect(await page.locator("#receipt").innerText()).toBe("draft-42");
+      expect(saves).toEqual([
+        {
+          method: "POST",
+          body: {
+            month: initialValues.month,
+            confirmMonth: initialValues.month,
+            note,
+          },
+        },
+      ]);
+      expect((await list())[0]).not.toHaveProperty("lockedParameters");
+    },
+  );
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
