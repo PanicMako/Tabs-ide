@@ -1654,3 +1654,86 @@ test("the registered read-only workflow monitors and reopens a submitted receipt
 });
 
 const chromiumPath = chromium.executablePath();
+test.skipIf(!existsSync(chromiumPath))(
+  "the registered workflow resolves the approved draft and keeps its exact URL out of reports",
+  async () => {
+    const fixture = await startBrowserSubmission(0, false, { idempotentSubmit: true });
+    const browser = await chromium.launch().catch(async (cause) => {
+      await fixture.close();
+      throw cause;
+    });
+    try {
+      const page = await browser.newPage();
+      const { definition } = fixture;
+      const exactUrl = definition.url + "?view=private-details#private-panel";
+      // The fixture serves the draft pathname. Keep the browser's exact URL for guest checks.
+      await page.route(exactUrl.split("#")[0]!, async (route) => {
+        const response = await route.fetch({ url: definition.url });
+        await route.fulfill({ response });
+      });
+      await page.goto(fixture.origin + "/Work");
+      await page.goto(exactUrl);
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { stateDir } = yield* ServerConfig.ServerConfig;
+          const requests: BrowserWorkflowBrowserRequest[] = [];
+          yield* serve(page, "Work", {
+            resolveCurrentDraft: true,
+            onRequest: (request) => requests.push(request),
+          });
+
+          const arm = { action: "arm", tabId, profileId: "Work", definition };
+          const redactedReport = (result: typeof McpSchema.CallToolResult.Type) => {
+            expect(JSON.stringify(result)).not.toMatch(/private-details|private-panel/);
+            const output = report(result);
+            expect(output.result.url).toBe(definition.url);
+            return output;
+          };
+          const armed = redactedReport(yield* call(arm, "redacted-draft-provider"));
+          const { workflowId } = armed;
+          expect(armed.phase).toBe("approval_required");
+          const exactDefinition = { ...definition, url: exactUrl };
+          expect(
+            redactedReport(
+              yield* call({ ...arm, definition: exactDefinition }, "redacted-draft-provider"),
+            ).workflowId,
+          ).toBe(workflowId);
+          for (const action of ["check", "enter"] as const) {
+            if (action === "enter") {
+              yield* Effect.promise(() => page.goto(fixture.origin + "/unrelated"));
+            }
+            expect(
+              redactedReport(yield* call({ action, workflowId }, "redacted-draft-provider")).phase,
+            ).toBe("approval_required");
+          }
+          expect(page.url()).toBe(exactUrl);
+          const saved = yield* Effect.promise(() =>
+            readBrowserWorkflowResult(stateDir, journalOwner, { workflowId, stage: "uploaded" }),
+          );
+          expect(saved.definition).toEqual(exactDefinition);
+          const exactRequest = { profileId: "Work", definition: exactDefinition };
+          const targeted = { ...exactRequest, workflowId, target: saved.target };
+          expect(requests).toEqual([
+            { phase: "inspect", profileId: "Work", definition },
+            { ...targeted, phase: "inspect" },
+            { ...exactRequest, phase: "inspect" },
+            { ...targeted, phase: "inspect" },
+            { ...targeted, phase: "inspect", statusOnly: false },
+            { ...targeted, phase: "enter", statusOnly: false },
+          ]);
+        }).pipe(
+          Effect.scoped,
+          Effect.provide(mcpLayer),
+          Effect.provide(
+            ServerConfig.layerTest(process.cwd(), { prefix: "tabs-workflow-redacted-" }),
+          ),
+          Effect.provide(NodeServices.layer),
+        ),
+      );
+    } finally {
+      await browser.close();
+      await fixture.close();
+    }
+  },
+  30_000,
+);
