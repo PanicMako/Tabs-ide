@@ -9143,6 +9143,44 @@ describe("reliable browser tabs and agent control", () => {
         await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
       },
     );
+
+    it("finds only the verified first difference by project, thread, run and step without a live tab", async () => {
+      const url = "https://app.test/drafts/42?view=edit#evidence";
+      const f = await setup(url, url, "first-difference", {
+        targetPng: "AQID",
+      });
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+
+      f.receipt.text = f.digest;
+      await f.verify();
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      f.receipt.text = `${f.digest}\n${f.targetDigest}`;
+      await expect(f.observe()).resolves.not.toHaveProperty("verifiedEvidenceDraft");
+      await expect(f.observe()).resolves.not.toHaveProperty("verifiedEvidenceDraft");
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      f.showDraft();
+      await expect(f.observe()).resolves.toMatchObject({
+        verifiedEvidenceDraft: { runId: evidenceRunId, step: sourceFrame.step },
+      });
+      f.receipt.text = f.digest;
+      await expect(f.observe()).resolves.not.toHaveProperty("verifiedEvidenceDraft");
+
+      const restarted = new BrowserHostManager(() => null);
+      await expect(f.findComparison(restarted)).resolves.toEqual({
+        tabId: f.target.sessionId,
+        profileId: f.input.profileId,
+      });
+      for (const overrides of [
+        { projectId: "other-project" },
+        { taskId: "other-thread" },
+        { sessionId: f.target.sessionId },
+        { input: { runId: crypto.randomUUID(), step: sourceFrame.step } },
+        { input: { runId: evidenceRunId, step: sourceFrame.step + 1 } },
+      ]) {
+        await expect(f.findComparison(restarted, overrides)).resolves.toBeNull();
+      }
+      await expect(f.findComparison(restarted, { source: "agent" })).rejects.toThrow("thread");
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
