@@ -3175,6 +3175,201 @@ describe("Device comparison", () => {
     expect(captures[1]).toBeGreaterThan(reads[2]!);
     expect(captures[1]).toBeLessThan(reads[3]!);
   });
+
+  it.each([
+    "two pages",
+    "already visible",
+    "total already visible",
+    "ambiguous",
+    "end of content",
+    "lost reply before the outcome",
+    "lost reply with the outcome visible",
+    "lost manual correction reply after resolving a scroll",
+  ] as const)("replays a recorded scroll by its revealed result (%s)", async (scenario) => {
+    const totalAlreadyVisible = scenario === "total already visible";
+    const lostReplyBeforeOutcome = scenario === "lost reply before the outcome";
+    const lostCorrection = scenario === "lost manual correction reply after resolving a scroll";
+    const lostReply =
+      lostReplyBeforeOutcome ||
+      scenario === "lost reply with the outcome visible" ||
+      lostCorrection;
+    const checkout = ["Checkout", ...(lostReplyBeforeOutcome ? ["Total: $20.00"] : [])];
+    const initial = frame("android", [], checkout);
+    const result = frame("android", ["Continue"], ["Delivery options"]);
+    const screens = totalAlreadyVisible
+      ? [frame("android", ["Continue"], ["Delivery options", "Total: $22.00"])]
+      : scenario === "two pages" || lostReplyBeforeOutcome || lostCorrection
+        ? [
+            initial,
+            frame("android", lostCorrection ? ["Choose shipping method"] : [], ["Shipping"]),
+            ...(lostCorrection ? [frame("android", [], ["Shipping method selected"])] : []),
+            result,
+          ]
+        : scenario === "already visible"
+          ? [result]
+          : scenario === "ambiguous"
+            ? [frame("android", [], ["Delivery options", "Delivery options"])]
+            : [initial, scenario === "end of content" ? initial : result];
+    const f = fixture(
+      [
+        frame("ios", [], checkout),
+        frame("ios", [], ["Checkout", "Shipping"]),
+        frame(
+          "ios",
+          ["Continue"],
+          ["Checkout", "Delivery options", ...(totalAlreadyVisible ? ["Total: $20.00"] : [])],
+        ),
+      ],
+      screens,
+    );
+    const runId = await f.begin();
+    const scroll = {
+      action: "scroll",
+      threadId,
+      runId,
+      direction: "down",
+    } as const;
+    await expect(f.invoke(scroll)).rejects.toThrow("Device panel");
+    await f.invoke(scroll, panelSession);
+    await f.settle();
+    await f.invoke(scroll, panelSession);
+    const { controls } = await f.settle();
+    await expect(f.invoke({ action: "finish", threadId, runId })).rejects.toThrow(
+      "Mark the result",
+    );
+    const mark = (label: string) =>
+      f.invoke({
+        action: "expect",
+        threadId,
+        runId,
+        controlId: controls!.find((control) => control.label === label)!.id,
+      });
+    await expect(mark("Checkout")).rejects.toThrow("came into view");
+    const marked = await mark("Delivery options");
+    expect(marked.run?.steps).toEqual([
+      {
+        label: "Scroll down",
+        scrollDirection: "down",
+        expected: "Delivery options",
+      },
+    ]);
+    await f.approve(runId);
+    if (lostReply) {
+      const sendScroll = f.driver.scroll;
+      vi.spyOn(f.driver, "scroll").mockImplementationOnce((...args) =>
+        sendScroll(...args).pipe(
+          Effect.andThen(Effect.fail(new DeviceComparisonError({ reason: "Scroll reply lost" }))),
+        ),
+      );
+    }
+    await f.replay(
+      runId,
+      totalAlreadyVisible || lostReplyBeforeOutcome
+        ? { sourceLabel: "Total", targetLabel: "Total", currency: "USD" }
+        : undefined,
+    );
+    const paused = (await f.settle()).run;
+    if (lostReply) {
+      expect(paused).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+        uncertainTap: true,
+      });
+      expect(f.positions.get(pixel.hostId)).toBe(1);
+      expect(f.scroll.mock.calls.filter(([host]) => host === pixel.hostId)).toEqual([
+        [pixel.hostId, "down"],
+      ]);
+      await expect(f.invoke({ action: "resume", threadId, runId })).rejects.toThrow(
+        "confirm whether",
+      );
+      await f.invoke({ action: "resolve", threadId, runId, applied: true }, panelSession);
+      if (lostCorrection) {
+        const reference = { threadId, runId };
+        await f.invoke({ ...reference, action: "takeover", liveInput: true }, panelSession);
+        const { manualControlId } = await f.invoke(
+          { action: "status", threadId, device: pixel },
+          panelSession,
+        );
+        const control = { ...reference, controlId: manualControlId! };
+        f.manual.mockImplementationOnce(() =>
+          Effect.sync(() => f.positions.set(pixel.hostId, 2)).pipe(
+            Effect.andThen(
+              Effect.fail(
+                new DeviceComparisonError({
+                  reason: "Correction reply lost",
+                }),
+              ),
+            ),
+          ),
+        );
+        await expect(
+          f.invoke(
+            {
+              ...control,
+              action: "manualInput",
+              gesture: { type: "tap", x: 0.25, y: 0.45 },
+            },
+            panelSession,
+          ),
+        ).rejects.toThrow("Correction reply lost");
+        expect((await f.settle()).run).toMatchObject({
+          uncertainTap: true,
+          completedSteps: 0,
+        });
+        const resume = { ...control, action: "resume" } as const;
+        await expect(f.invoke(resume, panelSession)).rejects.toThrow("confirm whether");
+        await f.invoke({ ...control, action: "resolve", applied: true }, panelSession);
+        await f.invoke(resume, panelSession);
+        expect((await f.settle()).run).toMatchObject({
+          phase: "paused",
+          completedSteps: 0,
+          firstDifference: { step: 1, kind: "outcome" },
+          uncertainTap: false,
+        });
+      } else {
+        await f.invoke({ action: "resume", threadId, runId }, panelSession);
+      }
+    } else if (scenario === "ambiguous" || scenario === "end of content") {
+      expect(paused).toMatchObject({
+        phase: "paused",
+        firstDifference: { step: 1, kind: "outcome" },
+      });
+    } else if (totalAlreadyVisible) {
+      expect(paused).toMatchObject({
+        phase: "paused",
+        firstDifference: {
+          step: 1,
+          kind: "total",
+          sourceTotal: "USD 20.00",
+          targetTotal: "USD 22.00",
+        },
+      });
+    }
+    if (
+      scenario !== "ambiguous" &&
+      scenario !== "end of content" &&
+      !totalAlreadyVisible &&
+      !lostCorrection
+    )
+      expect((await f.settle()).run).toMatchObject({
+        phase: "completed",
+        completedSteps: 1,
+      });
+    expect(f.scroll.mock.calls.filter(([host]) => host === pixel.hostId)).toEqual(
+      Array.from(
+        {
+          length:
+            scenario === "two pages" || lostReplyBeforeOutcome
+              ? 2
+              : lostReply || scenario === "end of content"
+                ? 1
+                : 0,
+        },
+        () => [pixel.hostId, "down"],
+      ),
+    );
+    expect(f.press).not.toHaveBeenCalled();
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
