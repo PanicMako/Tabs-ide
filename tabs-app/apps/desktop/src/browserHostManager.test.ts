@@ -1489,6 +1489,111 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "marks a real Chromium text drag for review and delivers its payload to a different origin",
+    async () => {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        const thread = await browser.newPage();
+        const sourceUrl = "https://work.tabs.test/";
+        const targetUrl = "https://thread.tabs.test/";
+        await page.route(sourceUrl, (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: `<p><span>Selected report</span></p>
+              <script>window.addEventListener('dragstart', event => {
+                document.body.dataset.token = event.dataTransfer.getData('${BROWSER_SELECTION_DRAG_MIME}');
+                document.body.dataset.text = event.dataTransfer.getData('text/plain');
+              });</script>`,
+          }),
+        );
+        await thread.route(targetUrl, (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: `<div id="drop" style="width:280px;height:160px">Drop the report</div>
+            <script>
+              document.querySelector('#drop').addEventListener('dragover', event => event.preventDefault());
+              document.querySelector('#drop').addEventListener('drop', event => {
+                event.preventDefault();
+                event.currentTarget.dataset.token = event.dataTransfer.getData('${BROWSER_SELECTION_DRAG_MIME}');
+                event.currentTarget.dataset.text = event.dataTransfer.getData('text/plain');
+              });
+            </script>`,
+          }),
+        );
+        await thread.goto(targetUrl);
+        await page.goto(sourceUrl);
+        await page.bringToFront();
+        const cdp = await page.context().newCDPSession(page);
+        const { frameTree } = await cdp.send("Page.getFrameTree");
+        const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+          frameId: frameTree.frame.id,
+          worldName: "selection-drag",
+        });
+        const token = "fixture-drag-token";
+        const installed = await cdp.send("Runtime.evaluate", {
+          expression: browserSelectionDragScript(sourceUrl, token),
+          contextId: executionContextId,
+        });
+        expect(installed.exceptionDetails).toBeUndefined();
+        const selection = page.locator("span");
+        await selection.click();
+        await selection.evaluate((element) => window.getSelection()!.selectAllChildren(element));
+        expect(
+          await selection.evaluate((element) => {
+            const data = new DataTransfer();
+            element.dispatchEvent(
+              new DragEvent("dragstart", { bubbles: true, dataTransfer: data }),
+            );
+            return data.types;
+          }),
+        ).toEqual([]);
+        const start = (await selection.boundingBox())!;
+        const x = start.x + start.width / 2;
+        const y = start.y + start.height / 2;
+        await page.mouse.move(x, y);
+        await page.mouse.down();
+        // macOS waits for a short hold before dragging selected text.
+        if (process.platform === "darwin") await page.waitForTimeout(550);
+        await page.mouse.move(x + 16, y, { steps: 5 });
+        await page.mouse.move(340, 150, { steps: 20 });
+        await page.mouse.up();
+        const source = page.locator("body");
+        await vi.waitFor(async () => expect(await source.getAttribute("data-token")).toBe(token));
+        const data = {
+          items: [
+            {
+              mimeType: BROWSER_SELECTION_DRAG_MIME,
+              data: (await source.getAttribute("data-token"))!,
+            },
+            {
+              mimeType: "text/plain",
+              data: (await source.getAttribute("data-text"))!,
+            },
+          ],
+          dragOperationsMask: 1,
+        };
+        // CDP delivers the captured payload to the second page without relying on OS window focus.
+        const destination = await thread.context().newCDPSession(thread);
+        for (const type of ["dragEnter", "dragOver", "drop"] as const) {
+          await destination.send("Input.dispatchDragEvent", {
+            type,
+            x: 30,
+            y: 30,
+            data,
+          });
+        }
+        const drop = thread.locator("#drop");
+        expect(await drop.getAttribute("data-token")).toBe(token);
+        expect(await drop.getAttribute("data-text")).toBe("Selected report");
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
