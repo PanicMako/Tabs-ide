@@ -3815,6 +3815,47 @@ describe("reliable browser tabs and agent control", () => {
         });
         expect(f.manager.listBrowserWorkflowTabs()).toEqual([]);
       });
+
+      it("reads the trusted status without activating the tab, inspecting Submit, or changing controls", async () => {
+        const f = await setup();
+        await f.authorize();
+        f.visible.status = "Uploaded";
+        const epoch = f.session.controlEpoch;
+        const takeControl = vi.spyOn(f.manager, "takeControl");
+
+        await expect(f.monitor()).resolves.toEqual({
+          disposition: "observed",
+          target: f.saved.target,
+          observation: {
+            stage: "uploaded",
+            statusText: "Uploaded",
+            breakpoint: "irrelevant",
+            submitAvailable: false,
+            identityText: expect.stringMatching(/\S/),
+          },
+        });
+
+        expect(f.evaluate.mock.calls.map(([world]) => world)).toEqual([999]);
+        expect(f.querySelectorAll).not.toHaveBeenCalledWith("#submit");
+        expect(f.querySelectorAll).not.toHaveBeenCalledWith("#replacement");
+        expect(f.submit).not.toHaveBeenCalled();
+        expect(f.executeJavaScript).not.toHaveBeenCalled();
+        expect(f.sendInputEvent).not.toHaveBeenCalled();
+        expect(f.loadURL).not.toHaveBeenCalled();
+        expect(f.goToIndex).not.toHaveBeenCalled();
+        expect(f.focus).not.toHaveBeenCalled();
+        expect(f.setBounds).not.toHaveBeenCalled();
+        expect(takeControl).not.toHaveBeenCalled();
+        expect(f.session).toMatchObject({
+          assignedTaskId: f.request.taskId,
+          controller: "none",
+          controlEpoch: epoch,
+          actionTimeline: [],
+        });
+        const state = f.manager.getSessionState(f.request.projectId, f.request.sessionId);
+        expect(state?.submissionGuardActive).toBe(false);
+        expect(state?.pendingSubmissionApproval).toBeUndefined();
+      });
     });
   });
 
