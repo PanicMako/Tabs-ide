@@ -50,6 +50,61 @@ const BLOCKED_UNSAFE_SCHEMES = new Set([
 ]);
 
 const ALLOWED_WEB_SCHEMES = new Set(["http:", "https:"]);
+const AUTHENTICATION_HOST_PREFIXES = ["accounts.", "auth.", "id.", "login.", "sso."];
+const AUTHENTICATION_PATH_SEGMENTS = new Set([
+  "auth",
+  "authorize",
+  "login",
+  "oauth",
+  "signin",
+  "sign-in",
+  "mfa",
+  "2fa",
+  "accountchooser",
+  "sso",
+]);
+
+function decodeRoute(path: string): string {
+  if (!path.includes("%")) return path;
+  return path
+    .split("/")
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join("/");
+}
+
+function hasAuthenticationSegment(path: string): boolean {
+  return path
+    .toLowerCase()
+    .split(/[\\/]/u)
+    .some((segment) => AUTHENTICATION_PATH_SEGMENTS.has(segment.split(";", 1)[0]!));
+}
+
+/** Identify likely sign-in pages that require the user to retain control. */
+export function isLikelyAuthenticationUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (!ALLOWED_WEB_SCHEMES.has(parsed.protocol)) return false;
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (AUTHENTICATION_HOST_PREFIXES.some((prefix) => hostname.startsWith(prefix))) return true;
+
+  if (hasAuthenticationSegment(decodeRoute(parsed.pathname))) return true;
+  // Treat hash router paths as destinations. Ordinary anchors and query values
+  // can mention sign-in without taking the browser to an authentication page.
+  const hashRoute = decodeRoute(parsed.hash.slice(1)).replace(/^!/u, "").split("?", 1)[0]!;
+  return hashRoute.startsWith("/") && hasAuthenticationSegment(hashRoute);
+}
+
 // Add a scheme only after the desktop main process has a state-bound OAuth
 // callback handler for it. Merely registering a protocol with the OS is not enough.
 const ALLOWED_CALLBACK_SCHEMES = new Set<string>();

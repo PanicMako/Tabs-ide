@@ -2,11 +2,33 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAuthNavigation,
   hasSameRegistrableOrigin,
+  isLikelyAuthenticationUrl,
   isLoopbackHostname,
   sanitizeAuthUrl,
 } from "./authClassifier";
 
 describe("authClassifier", () => {
+  it.each([
+    "https://private.example/account/%6Cogin",
+    "https://private.example/legacy%2Fsignin%2Fcontinue",
+    "https://private.example/invalid%/m%66a",
+    "https://private.example/sign-in;flow=sso",
+    "https://private.example/app#/accountchooser?next=/work",
+    "https://private.example/app#!%2Faccount%2Fm%66a",
+  ])("requires human control on authentication route %s", (url) => {
+    expect(isLikelyAuthenticationUrl(url)).toBe(true);
+  });
+
+  it.each([
+    "https://private.example/login-guide",
+    "https://private.example/app#login",
+    "https://private.example/app#/guide?next=/signin",
+    "https://private.example/app?next=/signin#/report",
+    "https://private.example/app#/guide%3Fnext=%2Fsignin",
+  ])("allows ordinary pages and anchors at %s", (url) => {
+    expect(isLikelyAuthenticationUrl(url)).toBe(false);
+  });
+
   describe("sanitizeAuthUrl", () => {
     it("strips query parameters and fragments", () => {
       const url =
