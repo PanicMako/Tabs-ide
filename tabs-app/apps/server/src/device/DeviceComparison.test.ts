@@ -2673,6 +2673,50 @@ describe("Device comparison", () => {
     expect((await f.settle()).run?.phase).toBe("completed");
     expect(f.press).toHaveBeenCalledTimes(4);
   });
+
+  it("rechecks a failed final total after live step completion before marking replay complete", async () => {
+    const owner = AuthSessionId.make("owner");
+    const android = [frame("android", ["Review"]), frame("android", [], ["Total: $13.00"])];
+    const f = fixture([frame("ios", ["Review"]), frame("ios", [], ["Total: $12.00"])], android);
+    const runId = await f.begin();
+    await f.tap(runId, "Review");
+    await f.approve(runId);
+    await f.replay(runId, {
+      sourceLabel: "Total",
+      targetLabel: "Total",
+      currency: "USD",
+    });
+    await f.settle();
+    await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, owner);
+    const { manualControlId } = await f.invoke(
+      { action: "status", threadId, device: pixel },
+      owner,
+    );
+    await f.invoke(
+      {
+        action: "resume",
+        threadId,
+        runId,
+        controlId: manualControlId!,
+        stepCompleted: true,
+      },
+      owner,
+    );
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      totalVerification: { pending: { step: 1, timing: "after" } },
+    });
+    expect(f.press).toHaveBeenCalledTimes(2);
+
+    android[1] = frame("android", [], ["Total: $12.00"]);
+    await f.invoke({ action: "resume", threadId, runId });
+    expect((await f.settle()).run).toMatchObject({
+      phase: "completed",
+      completedSteps: 1,
+    });
+    expect(f.press).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
