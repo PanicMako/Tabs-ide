@@ -6809,6 +6809,78 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "recovers a screenshot selection after a lost reply without re-dispatching input",
+    async () => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      onTestFinished(async () => browser.close());
+      const page = await browser.newPage();
+      await page.route("**/*", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<input id="file" type="file"><output id="events">0</output>
+            <script>document.querySelector("#file").addEventListener("change", () => {
+              const output = document.querySelector("#events");
+              output.textContent = String(Number(output.textContent) + 1);
+            });</script>`,
+        }),
+      );
+      await page.goto(f.session.currentUrl);
+      const cdp = await page.context().newCDPSession(page);
+      const { frameTree } = await cdp.send("Page.getFrameTree");
+      const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: "screenshot-retry",
+      });
+      const evaluate = async (_world: number, [{ code }]: [{ code: string }]) => {
+        const result = await cdp.send("Runtime.evaluate", {
+          expression: code,
+          contextId: executionContextId,
+          returnByValue: true,
+        });
+        if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+        return result.result.value;
+      };
+      f.attach.mockImplementation(evaluate);
+      const inspect = (selector = "#file") => f.transfer(grantId, { phase: "inspect", selector });
+      await inspect();
+      f.attach.mockImplementationOnce(async (...args: Parameters<typeof evaluate>) => {
+        expect(await evaluate(...args)).toBe(true);
+        throw new Error("reply lost after dispatch");
+      });
+      await expect(f.transfer(grantId)).rejects.toThrow("reply lost");
+      await expect(f.transfer(grantId)).rejects.toThrow("Approve");
+      await expect(inspect("input")).rejects.toThrow("selection changed");
+      const receipt = {
+        ...sourceDevice,
+        selection: {
+          sha256: createHash("sha256").update(Buffer.from("AAAA", "base64")).digest("hex"),
+          sizeBytes: 3,
+        },
+      };
+      await expect(inspect()).resolves.toEqual(receipt);
+      await expect(inspect()).resolves.toEqual(receipt);
+      expect(await page.locator("#events").innerText()).toBe("1");
+      await page.locator("#file").evaluate((input: HTMLInputElement) => {
+        const files = new DataTransfer();
+        files.items.add(new File(["abc"], input.files![0]!.name, { type: "image/png" }));
+        input.files = files.files;
+      });
+      await expect(inspect()).rejects.toThrow("selection changed");
+      expect(await page.locator("#events").innerText()).toBe("1");
+      await f.manager.runAutomation({
+        ...f.target,
+        source: "human",
+        operation: "revokeDeviceScreenshot",
+        input: { grantId },
+      });
+      await expect(inspect()).rejects.toThrow("Approve");
+    },
+  );
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
