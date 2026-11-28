@@ -1567,3 +1567,41 @@ it("keeps individual actions when incomplete screenshots belong to different com
     await browser.close();
   }
 });
+
+it("revokes only the two new grants when the composer has no room", async () => {
+  const threadId = ThreadId.make("screenshot-pair-full-composer");
+  const run = savedComparison("207070c3-688a-42d6-92fd-7a75e6cd4c0d", 2);
+  comparison.mockResolvedValue({ run, evidence: { sourcePng: png, targetPng: png } });
+  const browser = await renderScreenshotPairBrowser(threadId);
+  try {
+    const file = new File(["Existing attachment"], "existing.txt", { type: "text/plain" });
+    useComposerDraftStore.getState().addFiles(
+      browser.scoped,
+      Array.from({ length: PROVIDER_SEND_TURN_MAX_ATTACHMENTS }, (_, index) => ({
+        type: "file" as const,
+        id: String(index),
+        name: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        file,
+      })),
+    );
+    const existing = browser.files();
+    expect(existing).toHaveLength(PROVIDER_SEND_TURN_MAX_ATTACHMENTS);
+    await browser.tools.click();
+    await page.getByRole("menuitem", { name: pairAction, exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
+    await vi.waitFor(() => expect(bridge.runBrowserAutomation).toHaveBeenCalledTimes(2));
+    expect(bridge.runBrowserAutomation).toHaveBeenNthCalledWith(2, {
+      projectId: "project",
+      sessionId,
+      taskId: threadId,
+      source: "human",
+      operation: "revokeDeviceScreenshot",
+      input: { grantIds: pairGrantIds },
+    });
+    expect(browser.files()).toEqual(existing);
+  } finally {
+    await browser.close();
+  }
+});
