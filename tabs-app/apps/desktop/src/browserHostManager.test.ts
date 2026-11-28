@@ -3856,6 +3856,44 @@ describe("reliable browser tabs and agent control", () => {
         expect(state?.submissionGuardActive).toBe(false);
         expect(state?.pendingSubmissionApproval).toBeUndefined();
       });
+
+      it("requires the saved workflow ID, status-only request, exact target and original URL", async () => {
+        const f = await setup();
+        await f.authorize();
+        for (const input of [
+          { target: undefined },
+          { workflowId: undefined },
+          { statusOnly: false },
+        ]) {
+          await expect(f.monitor({ ...input, refresh: true })).rejects.toThrow("saved workflow");
+        }
+        await expect(
+          f.manager.runAutomation({
+            ...f.monitorRequest,
+            source: "human",
+            input: f.monitorInput,
+          }),
+        ).rejects.toThrow("saved workflow");
+        for (const overrides of [
+          { tabId: PreviewTabId.make("other-tab") },
+          { projectId: "other-project" },
+          { profileId: "other-profile" },
+          { hostKey: "other-host" },
+        ]) {
+          await expect(
+            f.monitor({
+              target: { ...f.saved.target, ...overrides },
+              refresh: true,
+            }),
+          ).rejects.toThrow("another browser host, profile or tab");
+        }
+        f.webContents.session.isPersistent.mockReturnValueOnce(false);
+        await expect(f.monitor({ refresh: true })).rejects.toThrow("another browser host");
+        f.session.currentUrl = f.url + "#other";
+        await expect(f.monitor({ refresh: true })).rejects.toThrow("original workflow URL");
+        expect(f.evaluate).not.toHaveBeenCalled();
+        expect(f.loadURL).not.toHaveBeenCalled();
+      });
     });
   });
 
