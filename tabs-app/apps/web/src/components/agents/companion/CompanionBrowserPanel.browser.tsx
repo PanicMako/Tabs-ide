@@ -1023,6 +1023,75 @@ async function openSelectionReview() {
   return review;
 }
 
+it("reviews an exact browser selection from the keyboard and adds only the approved excerpt", async () => {
+  const threadId = ThreadId.make("browser-excerpt");
+  const { text, state, surfaceId, files, close } = await renderSelectionBrowser(threadId);
+  try {
+    const tools = page.getByRole("button", { name: "Browser tools" });
+    await expect.element(tools).toBeEnabled();
+    (tools.element() as HTMLButtonElement).focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(page.getByRole("menu")).toBeVisible();
+    await userEvent.keyboard("review");
+    await expect
+      .element(page.getByRole("menuitem", { name: "Review browser selection" }))
+      .toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    const review = page.getByRole("dialog", { name: "Review browser selection" });
+    await expect.element(review.getByLabelText("Selected browser text")).toBeVisible();
+    expect(review.getByLabelText("Selected browser text").element().textContent).toBe(text);
+    expect(files()).toHaveLength(0);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(review).not.toBeInTheDocument();
+    expect(files()).toHaveLength(0);
+
+    const location = { environmentId: testEnvironment, projectId: "project", threadId };
+    const requestReview = (target: BrowserSelectionReviewTarget) =>
+      window.dispatchEvent(
+        new CustomEvent<BrowserSelectionReviewTarget>(BROWSER_SELECTION_REVIEW_EVENT, {
+          cancelable: true,
+          detail: target,
+        }),
+      );
+    expect(requestReview({ location, sessionId: "other-browser" })).toBe(true);
+    expect(
+      requestReview({
+        sessionId,
+        location: { ...location, threadId: ThreadId.make("other-thread") },
+      }),
+    ).toBe(true);
+    expect(bridge.runBrowserAutomation).toHaveBeenCalledOnce();
+    expect(requestReview({ location, sessionId })).toBe(false);
+    await review.getByRole("button", { name: "Add to draft" }).click();
+    await vi.waitFor(() => expect(files()).toHaveLength(1));
+    expect(JSON.parse(await files()[0]!.file.text())).toMatchObject({
+      environmentId: testEnvironment,
+      projectId: "project",
+      threadId,
+      surfaceId,
+      browserInstanceId: state.instanceId,
+      pageRef: state.pageRef,
+      target: { kind: "browser-excerpt", tabId: sessionId, profileId: "work" },
+      text,
+    });
+    const request = {
+      projectId: "project",
+      sessionId,
+      taskId: threadId,
+      source: "human",
+      operation: "readBrowserSelection",
+      input: { pageRef: state.pageRef, instanceId: state.instanceId, profileId: "work" },
+    };
+    expect(bridge.runBrowserAutomation.mock.calls).toEqual([
+      [request],
+      [request],
+      [{ ...request, operation: "captureAttachedPage" }],
+    ]);
+  } finally {
+    await close();
+  }
+});
+
 const pairAction = "Attach both first-difference screenshots";
 const pairGrantIds = [
   "692cb917-ea45-49cb-b0b5-cebec45d66ca",
