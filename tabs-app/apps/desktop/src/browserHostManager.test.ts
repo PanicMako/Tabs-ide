@@ -2174,7 +2174,7 @@ describe("reliable browser tabs and agent control", () => {
     });
   }
 
-  describe.skip("snapshot findText in Chromium", () => {
+  describe.skipIf(process.env.TABS_QA_BROWSER !== "1")("snapshot findText in Chromium", () => {
     const url = "https://docs.google.com/document/u/0/d/receipt-42/edit";
     const resourceId = String.raw`Receipt "42" \ archive`;
     const statusText = "Ready for certification";
@@ -2255,6 +2255,107 @@ describe("reliable browser tabs and agent control", () => {
         snapshot,
       };
     }
+
+    it("finds exact visible labels and reuses their selectors to observe a later workflow stage", async () => {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-browser-find-text-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const sensitiveId = "session-token-fixture";
+      const f = await setup(`
+        <section hidden><p>${resourceId}</p></section>
+        <p style="opacity: 0">${statusText}</p>
+        <p inert>${statusText}</p>
+        <p aria-hidden="true">${statusText}</p>
+        <p contenteditable>${resourceId}</p>
+        <main>
+          <h1><span><strong id="${sensitiveId}"> ${resourceId} </strong></span></h1>
+          <div data-status><span><strong>${statusText}</strong></span></div>
+          <div><span>Needs review</span></div>
+          <div><span>Needs review</span></div>
+          <p>${resourceId} copy</p>
+          <p>${resourceId.toLowerCase()}</p>
+          <p>Approved with warnings</p>
+        </main>`);
+      Object.assign(f.webContents.session, {
+        storagePath: join(userData, "Partitions", "work"),
+      });
+      await f.authorize();
+
+      const { textMatches } = await f.snapshot({
+        findText: [resourceId, statusText, "Needs review", "Approved"],
+      });
+      expect(textMatches).toEqual([
+        { text: resourceId, status: "matched", selector: expect.any(String) },
+        { text: statusText, status: "matched", selector: expect.any(String) },
+        { text: "Needs review", status: "ambiguous" },
+        { text: "Approved", status: "not_found" },
+      ]);
+      const [identity, status] = textMatches ?? [];
+      if (identity?.status !== "matched" || status?.status !== "matched")
+        throw new Error("Expected selectors for the receipt ID and status.");
+      expect(identity.selector).not.toContain(sensitiveId);
+      for (const match of [identity, status]) {
+        const tagName = await f.page.locator(match.selector).evaluate((element) => element.tagName);
+        expect(tagName).toBe("STRONG");
+      }
+
+      const workflow: BrowserWorkflowBrowserRequest = {
+        phase: "inspect",
+        profileId: "work",
+        definition: {
+          url,
+          identitySelector: identity.selector,
+          resourceId,
+          statusSelector: status.selector,
+          readOnly: true,
+          states: { submitted: statusText, certified: "Certified" },
+        },
+      };
+      const observe = (input: BrowserWorkflowBrowserRequest) =>
+        f.manager.runAutomation({
+          ...f.agent,
+          operation: "browserWorkflow",
+          input,
+        }) as Promise<BrowserWorkflowHostResult>;
+      const first = await observe(workflow);
+      expect(first).toMatchObject({
+        disposition: "observed",
+        observation: {
+          stage: "submitted",
+          statusText,
+          submitAvailable: false,
+        },
+        target: { tabId: f.agent.sessionId, profileId: "work" },
+        submissionApproved: false,
+      });
+
+      await f.page.locator("[data-status] strong").evaluate((element) => {
+        element.textContent = "Certified";
+      });
+      await expect(
+        observe({
+          ...workflow,
+          phase: "monitor",
+          statusOnly: true,
+          target: first.target,
+          workflowId: "a".repeat(64),
+        }),
+      ).resolves.toMatchObject({
+        disposition: "observed",
+        observation: {
+          stage: "certified",
+          statusText: "Certified",
+          submitAvailable: false,
+        },
+        target: first.target,
+      });
+      expect(f.loadURL).not.toHaveBeenCalled();
+      expect(f.sendInputEvent).not.toHaveBeenCalled();
+      expect(f.page.url()).toBe(url);
+    });
   });
 
   describe.skip("saved browser attachments", () => {
