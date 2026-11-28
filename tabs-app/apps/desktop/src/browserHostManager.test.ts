@@ -7843,6 +7843,58 @@ describe("reliable browser tabs and agent control", () => {
           expect(tab.session.currentUrl).toBe("about:blank");
         }
       });
+
+      it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+        "verifies the normalized frame in the loaded Chromium document",
+        async () => {
+          const f = await setupFigma(address.replace("/design/", "/file/"));
+          await f.grant();
+          const target = await f.inspect();
+          const restarted = new BrowserHostManager(() => null);
+          const tab = f.tab(restarted, "about:blank");
+          const { chromium } = await import("playwright");
+          const browser = await chromium.launch();
+          onTestFinished(async () => browser.close());
+          const page = await browser.newPage();
+          const normalized =
+            "https://www.figma.com/design/mainKey/branch/branchKey/Renamed?node-id=35%3A90";
+          await page.route("**/*", (route) => {
+            if (route.request().url() !== f.address.replace("35-12", "35-90")) return route.abort();
+            return route.fulfill({
+              contentType: "text/html",
+              body: `<canvas aria-label="Verified frame"></canvas>
+                <script>history.replaceState(null, "", ${JSON.stringify(normalized)})</script>`,
+            });
+          });
+          await connectChromiumPage(page, tab);
+          tab.loadURL.mockImplementation(async (destination) => {
+            await page.goto(destination);
+            tab.events.emit("did-navigate", {}, page.url());
+          });
+          const request = {
+            ...f.request,
+            operation: "enterFigmaCanvasResult",
+            input: {
+              target,
+              frameNodeId: "35:90",
+              textNodeId: "35:91",
+              verifiedAt: "2026-11-26T00:00:00Z",
+            },
+          };
+
+          await expect(restarted.runAutomation(request)).resolves.toEqual({
+            url: normalized,
+          });
+          expect(await page.getByLabel("Verified frame").count()).toBe(1);
+          await page.evaluate(() => {
+            const protectedInput = document.createElement("input");
+            protectedInput.type = "password";
+            document.body.append(protectedInput);
+          });
+          await expect(restarted.runAutomation(request)).rejects.toThrow("protected content");
+          expect(tab.loadURL).toHaveBeenCalledOnce();
+        },
+      );
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
