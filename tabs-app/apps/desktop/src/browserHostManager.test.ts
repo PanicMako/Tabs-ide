@@ -2617,6 +2617,196 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("hands the approved draft to the human when its submit breakpoint matches", async () => {
+    const userData = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-host-"));
+    const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+    try {
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-workflow";
+      const url = "https://docs.google.com/document/u/0/d/42";
+      const { session, webContents } = createMockSession({
+        sessionId,
+        key: "project-1::" + sessionId,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: url,
+      });
+      let inspectStage = "uploaded";
+      let inspectBreakpoint = "unobservable";
+      const runScript = vi
+        .fn()
+        .mockImplementation(async (_world: number, scripts: { code: string }[]) =>
+          scripts[0]?.code.includes("observeWorkflowPage")
+            ? {
+                disposition: "observed",
+                observation: {
+                  stage: inspectStage,
+                  statusText: "Uploaded",
+                  submitAvailable: true,
+                  breakpoint: inspectBreakpoint,
+                },
+              }
+            : true,
+        );
+      const loadURL = vi.fn();
+      Object.assign(webContents, {
+        getURL: () => session.currentUrl,
+        session: { storagePath: join(userData, "Partitions", "work") },
+        executeJavaScriptInIsolatedWorld: runScript,
+        loadURL,
+      });
+      (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+      const target = {
+        projectId: session.projectId,
+        sessionId,
+        taskId: "workflow-thread",
+      };
+      const agent = {
+        ...target,
+        source: "agent" as const,
+        operation: "browserWorkflow",
+      };
+      const input = {
+        phase: "inspect",
+        profileId: "work",
+        definition: {
+          url,
+          identitySelector: "#draft-id",
+          resourceId: "42",
+          statusSelector: "#status",
+          submitSelector: "#submit",
+          states: {
+            uploaded: "Uploaded",
+            submitted: "Submitted",
+            certified: "Certified",
+            published: "Published",
+          },
+          breakpoint: {
+            selector: "#replacement",
+            pauseText: "Replacing",
+            clearText: "Clear",
+          },
+        },
+      };
+      await expect(manager.runAutomation({ ...agent, input })).rejects.toThrow("Approve");
+      await manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId: "work" },
+      });
+      const inspected = (await manager.runAutomation({ ...agent, input })) as {
+        target: unknown;
+        observation: { breakpoint: string };
+      };
+      expect(inspected.observation.breakpoint).toBe("unobservable");
+      const { BrowserSubmissionGuards } = await import("./browserWorkflowHostId");
+      const afterRestart = new BrowserSubmissionGuards(() => userData);
+      expect(afterRestart.has(session.partition, url)).toBe(true);
+      expect(afterRestart.has(session.partition, url + "#details")).toBe(true);
+      expect(afterRestart.has("persist:tabs-browser:profile:personal", url)).toBe(false);
+      expect(afterRestart.has(session.partition, url + "/other")).toBe(false);
+      inspectStage = "submitted";
+      inspectBreakpoint = "irrelevant";
+      await manager.runAutomation({
+        ...agent,
+        input: {
+          ...input,
+          definition: {
+            ...input.definition,
+            states: {
+              ...input.definition.states,
+              uploaded: "Draft",
+              submitted: "Uploaded",
+            },
+          },
+        },
+      });
+      expect(new BrowserSubmissionGuards(() => userData).has(session.partition, url)).toBe(true);
+      inspectStage = "uploaded";
+      inspectBreakpoint = "clear";
+      for (const address of [url, url + "#details"]) {
+        session.currentUrl = address;
+        for (const operation of ["click", "press", "type"]) {
+          await expect(
+            manager.runAutomation({
+              ...agent,
+              operation,
+              input: { selector: "#submit", key: "Enter" },
+            }),
+          ).rejects.toThrow("submission breakpoint");
+        }
+      }
+      session.currentUrl = url;
+      await expect(
+        manager.runAutomation({
+          ...agent,
+          operation: "releaseSubmissionGuard",
+          input: { url, instanceId: session.instanceId },
+        }),
+      ).rejects.toThrow("original draft");
+      await expect(
+        manager.runAutomation({
+          ...agent,
+          input: {
+            ...input,
+            phase: "enter",
+            target: inspected.target,
+            definition: {
+              ...input.definition,
+              url: url.replace("/u/0/", "/u/1/"),
+            },
+          },
+        }),
+      ).rejects.toThrow("selected persistent browser profile");
+      expect(loadURL).not.toHaveBeenCalled();
+      inspectBreakpoint = "matched";
+      const submit = {
+        ...agent,
+        input: { ...input, phase: "submit", target: inspected.target },
+      };
+      await expect(manager.runAutomation(submit)).resolves.toMatchObject({
+        disposition: "observed",
+        observation: { breakpoint: "matched" },
+      });
+      expect(session.controller).toBe("human");
+      await expect(manager.runAutomation(submit)).rejects.toThrow("Approve");
+      const action = {
+        id: crypto.randomUUID(),
+        label: "Submit draft",
+        origin: new URL(url).origin,
+        steps: [{ action: "click", selector: "#submit" }],
+        outcome: { selector: "#status", description: "Submitted" },
+      };
+      const [choice] = (await manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "listQuickActionTargets",
+        input: { action },
+      })) as Array<{ token: string }>;
+      expect(choice).toBeDefined();
+      await expect(
+        manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "runQuickAction",
+          input: { action, token: choice!.token, values: {} },
+        }),
+      ).rejects.toThrow("submission breakpoint");
+      expect(session.controller).toBe("human");
+      await manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "releaseSubmissionGuard",
+        input: { url, instanceId: session.instanceId },
+      });
+      expect(new BrowserSubmissionGuards(() => userData).has(session.partition, url)).toBe(false);
+    } finally {
+      dataPath.mockRestore();
+      await rm(userData, { recursive: true, force: true });
+    }
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
