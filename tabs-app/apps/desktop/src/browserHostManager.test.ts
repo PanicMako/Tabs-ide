@@ -2451,6 +2451,39 @@ describe("reliable browser tabs and agent control", () => {
         { text: "Absent label", status: "unobservable" },
       ]);
     });
+
+    it("rejects selectors if a same-URL navigation occurs during snapshot capture", async () => {
+      const f = await setup(`<p>${resourceId}</p>`);
+      await f.authorize();
+      const started = deferred<void>();
+      const release = deferred<void>();
+      const capture = f.capturePage.getMockImplementation()!;
+      f.capturePage.mockImplementationOnce(async () => {
+        started.resolve();
+        await release.promise;
+        return capture();
+      });
+      const input = { findText: [resourceId] };
+      const pending = f.snapshot(input);
+      try {
+        await Promise.race([started.promise, pending]);
+        await f.page.evaluate(() => history.replaceState({ revised: true }, "", location.href));
+        f.events.emit("did-navigate-in-page", {}, url, true);
+        expect(f.page.url()).toBe(url);
+      } finally {
+        release.resolve();
+      }
+      await expect(pending).rejects.toThrow(/changed/i);
+      await expect(f.snapshot(input)).resolves.toMatchObject({
+        textMatches: [
+          {
+            text: resourceId,
+            status: "matched",
+            selector: expect.any(String),
+          },
+        ],
+      });
+    });
   });
 
   describe.skip("saved browser attachments", () => {
