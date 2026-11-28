@@ -7863,6 +7863,29 @@ describe("reliable browser tabs and agent control", () => {
     }
   });
 
+  it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
+    "keeps bytes out of the page after %s",
+    async (change) => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      if (change === "takeover") {
+        f.manager.takeControl(f.target);
+        f.manager.resumeAgent(f.target);
+      } else if (change === "revoke") {
+        await f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "revokeDeviceScreenshot",
+        });
+      } else if (change === "navigate") f.session.currentUrl += "/other-draft";
+      else if (change === "partition")
+        f.session.partition = "persist:tabs-browser:profile:personal";
+      else f.manager.assignTabTask({ ...f.target, taskId: "other-thread" });
+      await expect(f.transfer(grantId)).rejects.toThrow();
+      expect(f.attach).not.toHaveBeenCalled();
+    },
+  );
+
   it("cancels queued automation operations when human takes control before execution", async () => {
     const manager = new BrowserHostManager(() => null);
     const { session, executeJavaScript } = createMockSession({
