@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { DeviceComparisonViewRef } from "@tabs/contracts";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { createMemoryStorage } from "~/lib/storage";
 import type { RightPanelTab } from "./rightPanelStore";
@@ -7,6 +8,9 @@ export interface CompanionSurface {
   id: string;
   kind: RightPanelTab;
   url?: string;
+  profileId?: string | undefined;
+  pageRef?: string | undefined;
+  browserInstanceId?: string | undefined;
   title?: string;
   selectedPath?: string | undefined;
   draftContents?: string | undefined;
@@ -15,6 +19,8 @@ export interface CompanionSurface {
   hostId?: string;
   deviceId?: string;
   platform?: "ios" | "android";
+  /** Read-only comparison outcome in the original thread. */
+  deviceComparisonResult?: DeviceComparisonViewRef;
   /** Device tabs: shown in a window over the chat instead of inside the panel. */
   floating?: boolean;
   floatX?: number;
@@ -35,6 +41,7 @@ interface CompanionSurfaceState {
     initial?: Partial<Omit<CompanionSurface, "id" | "kind">>,
   ) => string;
   activate: (scope: string, id: string) => void;
+  moveBrowser: (sourceScope: string, destinationScope: string, id: string) => boolean;
   close: (scope: string, id: string) => void;
   update: (
     scope: string,
@@ -72,6 +79,40 @@ export const useCompanionSurfaceStore = create<CompanionSurfaceState>()(
           if (!workspace?.tabs.some((tab) => tab.id === id)) return state;
           return { workspaces: { ...state.workspaces, [scope]: { ...workspace, activeId: id } } };
         }),
+      moveBrowser: (sourceScope, destinationScope, id) => {
+        let moved = false;
+        set((state) => {
+          const source = state.workspaces[sourceScope];
+          const destination = state.workspaces[destinationScope] ?? EMPTY_COMPANION_WORKSPACE;
+          const index = source?.tabs.findIndex((tab) => tab.id === id) ?? -1;
+          const browser = source?.tabs[index];
+          if (
+            !source ||
+            browser?.kind !== "browser" ||
+            destination.tabs.some((tab) => tab.id === id)
+          )
+            return state;
+          const remaining = source.tabs.filter((tab) => tab.id !== id);
+          moved = true;
+          return {
+            workspaces: {
+              ...state.workspaces,
+              [sourceScope]: {
+                tabs: remaining,
+                activeId:
+                  source.activeId === id
+                    ? (remaining[Math.min(index, remaining.length - 1)]?.id ?? null)
+                    : source.activeId,
+              },
+              [destinationScope]: {
+                tabs: [...destination.tabs, browser],
+                activeId: destination.activeId ?? id,
+              },
+            },
+          };
+        });
+        return moved;
+      },
       close: (scope, id) =>
         set((state) => {
           const workspace = state.workspaces[scope];
