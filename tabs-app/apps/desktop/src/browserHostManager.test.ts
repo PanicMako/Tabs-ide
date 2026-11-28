@@ -6317,6 +6317,18 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.state().deviceScreenshotAuthorized).toBe(false);
       expect(f.attach).not.toHaveBeenCalled();
     });
+
+    it("refuses evidence approval if the page revision changes while reading the receipt mode", async () => {
+      const f = createEvidenceFixture();
+      const { events } = mockNavigation(f.manager, f);
+      await f.authorizePage();
+      f.attach.mockImplementationOnce(async () => {
+        events.emit("did-navigate", {}, f.session.currentUrl);
+        return "same-origin-png";
+      });
+      await expect(f.authorizeEvidence()).rejects.toThrow("approved draft changed");
+      expect(f.state().deviceScreenshotAuthorized).toBe(false);
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
