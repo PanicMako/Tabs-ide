@@ -614,6 +614,108 @@ it("opens a verified evidence draft directly from the snapshot in chat", async (
   }
 });
 
+it("restores the exact Work toolbar draft and refreshes its verified status", async () => {
+  const projectId = ProjectId.make("project");
+  const threadId = ThreadId.make("toolbar-draft-thread");
+  const toolId = "qa-toolbar";
+  const tabId = "custom-qa-checkout";
+  const reference = { runId: RunId.make("f49d91d0-b366-4521-a267-a90fa439732c"), step: 2 };
+  const url = "https://quality.test/work/verified-checkout";
+  const oldWorkspace = useWorkspaceShellStore.getState();
+  oldWorkspace.openProject(projectId);
+  oldWorkspace.setActiveTool(projectId, "agents");
+  oldWorkspace.upsertProjectSettings(projectId, (settings) => ({
+    ...settings,
+    tools: [
+      ...settings.tools,
+      {
+        id: toolId,
+        kind: "custom_embed",
+        customEmbedId: "qa-checkout",
+        label: "QA",
+        visible: true,
+      },
+    ],
+    customEmbeds: [
+      {
+        id: "qa-checkout",
+        label: "QA",
+        url: "https://quality.test",
+        partitionMode: "profile",
+        partitionProfile: "work",
+        resumeLastVisitedPage: true,
+      },
+    ],
+  }));
+  bridge.getBrowserSessionState
+    .mockResolvedValueOnce(emptyBrowserState(projectId, tabId))
+    .mockResolvedValue({
+      ...emptyBrowserState(projectId, tabId),
+      instanceId: "restored-work-guest",
+      profileId: "work",
+    });
+  let verified = false;
+  bridge.runBrowserAutomation.mockImplementation(async ({ operation, input }) => {
+    if (operation === "findDeviceComparisonDraft") {
+      if ((input as { runId: string }).runId !== reference.runId) return null;
+      return { tabId, profileId: "work", ...(verified ? {} : { pending: true }) };
+    }
+    if (operation === "enterDeviceComparisonDraft") {
+      verified = true;
+      return { url };
+    }
+    throw new Error("Unexpected browser operation");
+  });
+  const previousEnvironment = getPrimaryEnvironmentId();
+  setPrimaryEnvironmentIdForTesting(testEnvironment);
+  const link = (runId = reference.runId) => (
+    <DeviceComparisonDraftLink
+      environmentId={testEnvironment}
+      projectId={projectId}
+      threadId={threadId}
+      reference={{ ...reference, runId }}
+      workLog
+    />
+  );
+  const view = await render(link());
+  try {
+    await page.getByRole("button", { name: "Open draft" }).click();
+    await expect.element(page.getByRole("button", { name: "Open draft" })).toBeVisible();
+    expect(bridge.ensureBrowserSession).toHaveBeenCalledExactlyOnceWith({
+      projectId,
+      sessionId: tabId,
+      partition: "persist:tabs-browser:profile:work",
+      initialUrl: "",
+    });
+    expect(bridge.runBrowserAutomation).toHaveBeenCalledWith({
+      projectId,
+      taskId: threadId,
+      sessionId: tabId,
+      source: "human",
+      operation: "enterDeviceComparisonDraft",
+      input: { ...reference, profileId: "work" },
+    });
+    const revealed = useWorkspaceShellStore.getState();
+    expect(revealed.session.activeToolIdByProjectId[projectId]).toBe(toolId);
+    expect(revealed.browserUrlBySessionKey[`${projectId}:${tabId}`]).toBe(url);
+
+    const nextRun = RunId.make("334499e5-ed97-4326-bce6-1d9dc0e4bd64");
+    await view.rerender(link(nextRun));
+    await expect.element(page.getByRole("button", { name: "Open draft" })).not.toBeInTheDocument();
+    expect(bridge.runBrowserAutomation).toHaveBeenLastCalledWith({
+      projectId,
+      taskId: threadId,
+      source: "human",
+      operation: "findDeviceComparisonDraft",
+      input: { ...reference, runId: nextRun },
+    });
+  } finally {
+    await view.unmount();
+    useWorkspaceShellStore.setState(oldWorkspace);
+    setPrimaryEnvironmentIdForTesting(previousEnvironment);
+  }
+});
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
