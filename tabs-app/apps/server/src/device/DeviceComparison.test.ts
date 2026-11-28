@@ -2312,6 +2312,104 @@ describe("Device comparison", () => {
     const evidence = await f.invoke({ action: "evidence", threadId, runId });
     expect(evidence.evidence?.targetPng).toBeUndefined();
   });
+
+  it("freezes the first diverging screens and resumes from a user correction without repeating the tap", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", ["Review"]), frame("ios", [], ["Order review"])],
+      [
+        frame("android", ["Grant app permission"]),
+        frame("android", ["Review"]),
+        frame("android", [], ["Order review"]),
+      ],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    const result = await f.tap(runId, "Review");
+    await f.invoke({
+      action: "expect",
+      threadId,
+      runId,
+      controlId: result.controls!.find((node) => node.label === "Order review")!.id,
+    });
+    const oldApproval = await f.approve(runId);
+    const updated = await f.invoke({
+      action: "approve",
+      threadId,
+      runId,
+      target: pixel,
+      appId: androidApp,
+    });
+    await expect(
+      f.invoke({
+        action: "replay",
+        threadId,
+        runId,
+        approvalId: oldApproval,
+      }),
+    ).rejects.toThrow("approved destination changed");
+    await f.invoke({
+      action: "replay",
+      threadId,
+      runId,
+      approvalId: updated.run!.approvalId!,
+    });
+    const paused = await f.settle();
+    expect(paused.run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      firstDifference: { kind: "control", step: 1 },
+    });
+    expect(paused.ownerThreadId).toBe(threadId);
+    expect(f.service.inputAllowed(iphone.hostId, iphone.deviceId)).toBe(true);
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(false);
+    expect(f.service.inputAllowed(pixel.hostId)).toBe(false);
+    expect(f.press.mock.calls).toEqual([
+      [iphone.hostId, "@e1~s42"],
+      [iphone.hostId, "@e1~s42"],
+    ]);
+    const evidence = await f.invoke({ action: "evidence", threadId, runId });
+    expect(evidence.evidence).toEqual({
+      sourcePng: screenshot(iphone.hostId).toString("base64"),
+      targetPng: screenshot(pixel.hostId).toString("base64"),
+    });
+    expect(evidence.liveTargetAvailable).toBe(true);
+    await expect(f.invoke({ action: "evidence", threadId: otherThreadId, runId })).rejects.toThrow(
+      "no longer available",
+    );
+    await expect(
+      f.invoke({
+        action: "start",
+        threadId: otherThreadId,
+        device: pixel,
+        appId: androidApp,
+      }),
+    ).rejects.toThrow("owned");
+    await f.tap(runId, "Grant app permission");
+    await f.invoke({ action: "resume", threadId, runId });
+    const completed = await f.settle();
+    expect(completed).toMatchObject({
+      liveTargetAvailable: true,
+      run: {
+        phase: "completed",
+        completedSteps: 2,
+        firstDifference: { kind: "control", step: 1 },
+      },
+    });
+    expect(completed.ownerThreadId).toBeUndefined();
+    expect(f.press.mock.calls.slice(2)).toEqual([
+      [pixel.hostId, "@e1~s42"],
+      [pixel.hostId, "@e1~s42"],
+    ]);
+    const statusRef = { action: "status", threadId, runId } as const;
+    expect((await f.invoke(statusRef)).liveTargetAvailable).toBe(true);
+    f.reopen(pixel);
+    const reopened = await f.invoke(statusRef);
+    expect(reopened.run?.runId).toBe(runId);
+    expect(reopened.liveTargetAvailable).toBeUndefined();
+    expect((await f.invoke({ action: "evidence", threadId, runId })).evidence).toEqual(
+      evidence.evidence,
+    );
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
