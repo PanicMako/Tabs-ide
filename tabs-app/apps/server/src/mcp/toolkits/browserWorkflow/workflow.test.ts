@@ -396,4 +396,28 @@ test("rejects a draft URL that exceeds the contract limit after normalization", 
   }
 });
 
+test("requires exactly one upload selector only when ready_to_upload is defined", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-upload-definition-"));
+  try {
+    const workflows = makeBrowserWorkflows(directory, journalOwner, async () => {
+      throw new Error("Unexpected browser inspection for an invalid definition.");
+    });
+    const staged = { uploadSelector: "#upload" };
+    const direct = { uploadInputSelector: "#package" };
+    for (const overrides of [
+      staged,
+      direct,
+      { ...staged, ...direct },
+      { states: uploadStates },
+      { states: uploadStates, ...staged, ...direct },
+    ]) {
+      await expect(
+        workflows.arm({ ...armJournal, definition: { ...journalDefinition, ...overrides } }),
+      ).rejects.toThrow("Provide exactly one of uploadSelector and uploadInputSelector");
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
