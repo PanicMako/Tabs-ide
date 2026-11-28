@@ -2543,6 +2543,73 @@ describe("Device comparison", () => {
       [pixel.hostId, "@e1~s42"],
     ]);
   });
+
+  it.each([
+    {
+      layout: "separate label and amount",
+      sourceText: ["Total", "$42.00"],
+      targetText: ["Order total: USD 44.00"],
+      difference: { kind: "total", targetTotal: "USD 44.00" },
+    },
+    {
+      layout: "duplicate accessible totals",
+      sourceText: ["Total: $42.00", "Total: $42.00"],
+      targetText: ["Order total: USD 44.00"],
+      difference: { kind: "total", targetTotal: "USD 44.00" },
+    },
+    {
+      layout: "a missing destination total",
+      sourceText: ["Total: $42.00"],
+      targetText: [],
+      difference: { kind: "unobservable" },
+    },
+  ])(
+    "rechecks the first total before dispatching any tap with $layout",
+    async ({ sourceText, targetText, difference }) => {
+      const android = [frame("android", ["Continue"], targetText), frame("android", [])];
+      const f = fixture([frame("ios", ["Continue"], sourceText), frame("ios", [])], android);
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      await f.approve(runId);
+      await expect(
+        f.replay(runId, {
+          sourceLabel: "Subtotal",
+          targetLabel: "Order total",
+          currency: "USD",
+        }),
+      ).rejects.toThrow("never showed one readable total");
+      await f.replay(runId, {
+        sourceLabel: "Total",
+        targetLabel: "Order total",
+        currency: "USD",
+      });
+      expect((await f.settle()).run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+        totalVerification: {
+          startsAt: { step: 1, timing: "before" },
+          pending: { step: 1, timing: "before" },
+        },
+        firstDifference: {
+          ...difference,
+          step: 1,
+          sourceTotal: "USD 42.00",
+        },
+      });
+      expect(f.press).toHaveBeenCalledTimes(1);
+      await f.invoke({ action: "resume", threadId, runId });
+      expect((await f.settle()).run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+      });
+      expect(f.press).toHaveBeenCalledTimes(1);
+
+      android[0] = frame("android", ["Continue"], ["Order total: $42.00"]);
+      await f.invoke({ action: "resume", threadId, runId });
+      expect((await f.settle()).run?.phase).toBe("completed");
+      expect(f.press).toHaveBeenCalledTimes(2);
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
