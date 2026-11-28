@@ -1796,6 +1796,71 @@ describe("Device comparison", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("keeps a newer comparison when a saved restore races checkpoint loading", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-replay-restore-race-"));
+    try {
+      const store = makeDeviceComparisonStore(directory);
+      const ios = [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])];
+      const android = [frame("android", ["Back"])];
+      const original = fixture(ios, android, true, store);
+      const runId = await original.begin();
+      await original.tap(runId, "Continue");
+      await original.approve(runId);
+      await original.replay(runId);
+      expect((await original.settle()).run?.phase).toBe("paused");
+
+      const reading = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const restarted = fixture(ios, android, true, {
+        ...store,
+        loadReplay: (...args) =>
+          Effect.promise(() => {
+            reading.resolve();
+            return release.promise;
+          }).pipe(Effect.andThen(store.loadReplay(...args))),
+      });
+      const reference = { threadId, runId };
+      const pending = restarted.invoke(
+        {
+          ...reference,
+          action: "restoreReplay",
+          device: pixel,
+          appId: androidApp,
+        },
+        panelSession,
+      );
+      const rejected = expect(pending).rejects.toThrow("newer comparison");
+      try {
+        await reading.promise;
+        const newer = await restarted.begin();
+        // The newer run is replaceable through the ordinary start path.
+        await restarted.invoke({ action: "stop", threadId, runId: newer });
+        release.resolve();
+        await rejected;
+        expect((await restarted.status()).run?.runId).toBe(newer);
+        expect(
+          await restarted.invoke({ ...reference, action: "evidence" }, panelSession),
+        ).toMatchObject({
+          run: { runId, phase: "stopped" },
+          evidence: expect.any(Object),
+        });
+        expect(
+          (await restarted.invoke({ ...reference, action: "status" }, panelSession))
+            .canRestoreReplay,
+        ).toBeUndefined();
+        expect(restarted.snapshot.mock.calls.map(([device]) => device.hostId)).toEqual([
+          iphone.hostId,
+        ]);
+        expect(restarted.press).not.toHaveBeenCalled();
+      } finally {
+        release.resolve();
+        await pending.catch(() => undefined);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
