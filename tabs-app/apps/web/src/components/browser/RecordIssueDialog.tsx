@@ -1,3 +1,4 @@
+import { BrowserQuickActionReview } from "./BrowserQuickActionReview";
 import { saveIssueReproduction } from "./saveIssueReproduction";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -112,6 +113,7 @@ export function evaluateVerification(
 }
 
 type ReviewDraft = {
+  quickAction?: boolean;
   phase: "idle" | "recording" | "review" | "verifying" | "verified";
   recordedUrl: string;
   steps: RecordedStep[];
@@ -151,6 +153,8 @@ export function RecordIssueDialog({
     saved?.phase === "verifying" ? "review" : (saved?.phase ?? "idle"),
   );
   const [busy, setBusy] = useState(false);
+  const [quickAction, setQuickAction] = useState(saved?.quickAction ?? false);
+  const [teaching, setTeaching] = useState(false);
   const [recordedUrl, setRecordedUrl] = useState(saved?.recordedUrl ?? currentUrl);
   const [dispatched, setDispatched] = useState(saved?.dispatched ?? false);
   const operationGeneration = useRef(0);
@@ -228,6 +232,7 @@ export function RecordIssueDialog({
   useEffect(() => {
     reviewDrafts.set(draftKey, {
       phase,
+      quickAction,
       recordedUrl,
       steps,
       expectedResult,
@@ -243,6 +248,7 @@ export function RecordIssueDialog({
   }, [
     draftKey,
     phase,
+    quickAction,
     recordedUrl,
     steps,
     expectedResult,
@@ -260,6 +266,8 @@ export function RecordIssueDialog({
     reproductionId.current = null;
     setDispatched(false);
     setPhase("idle");
+    setQuickAction(false);
+    setTeaching(false);
     setBusy(false);
     setSteps([]);
     setExpectedResult("");
@@ -288,7 +296,7 @@ export function RecordIssueDialog({
     onOpenChange(open);
   };
 
-  const startRecording = async () => {
+  const startRecording = async (asQuickAction = false) => {
     if (!bridge) return;
     setBusy(true);
     try {
@@ -297,8 +305,10 @@ export function RecordIssueDialog({
         projectId,
         sessionId,
         operation: "recordStart",
+        ...(asQuickAction ? { input: { quickAction: true } } : {}),
       });
       resetState();
+      setQuickAction(asQuickAction);
       reproductionId.current = null;
       setDispatched(false);
       setRecordedUrl(currentUrl);
@@ -306,8 +316,10 @@ export function RecordIssueDialog({
       onOpenChange(false);
       toastManager.add({
         type: "success",
-        title: "Issue recording started",
-        description: "Interact with the application tab to demonstrate the issue.",
+        title: asQuickAction ? "Quick Action recording started" : "Issue recording started",
+        description: asQuickAction
+          ? "Demonstrate the workflow on this site."
+          : "Interact with the application tab to demonstrate the issue.",
       });
     } catch (err) {
       toastManager.add({
@@ -335,14 +347,13 @@ export function RecordIssueDialog({
         initialUrl?: string;
       };
 
-      // Capture before screenshot as failure evidence
-      try {
-        const screenshot = await bridge.captureBrowserScreenshot({ projectId, sessionId });
-        if (screenshot?.path) {
-          setBeforeScreenshot(screenshot.path);
+      if (!quickAction) {
+        try {
+          const screenshot = await bridge.captureBrowserScreenshot({ projectId, sessionId });
+          if (screenshot?.path) setBeforeScreenshot(screenshot.path);
+        } catch {
+          // Recording review remains available if the screenshot fails.
         }
-      } catch {
-        // Non-fatal
       }
 
       const recorded = (result.steps ?? []).map((s, idx) => ({
@@ -353,6 +364,7 @@ export function RecordIssueDialog({
       setSteps(recorded);
       setRecordedUrl(result.initialUrl || currentUrl);
       setPhase("review");
+      if (quickAction) setTeaching(true);
       toastManager.add({
         type: "success",
         title: "Recording captured",
@@ -516,6 +528,21 @@ export function RecordIssueDialog({
     }
   };
 
+  const showReproductionReview =
+    !quickAction && ["review", "verifying", "verified"].includes(phase);
+
+  if (isOpen && teaching) {
+    return (
+      <BrowserQuickActionReview
+        projectId={projectId}
+        sessionId={sessionId}
+        initialUrl={recordedUrl}
+        recorded={steps}
+        onClose={() => setTeaching(false)}
+      />
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogPopup className="max-w-2xl">
@@ -531,7 +558,7 @@ export function RecordIssueDialog({
               <RadioIcon
                 className={`size-4 ${phase === "recording" ? "animate-pulse text-red-500" : "text-foreground"}`}
               />
-              Record Issue Reproduction
+              {quickAction ? "Record a Quick Action" : "Record Issue Reproduction"}
             </DialogTitle>
             {verificationStatus !== "not_verified" && (
               <Badge
@@ -554,7 +581,9 @@ export function RecordIssueDialog({
             )}
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            Record the bug and describe what should happen.
+            {quickAction
+              ? "Demonstrate the steps you want to use again."
+              : "Record an issue or teach a browser Quick Action."}
           </DialogDescription>
         </DialogHeader>
 
@@ -606,6 +635,14 @@ export function RecordIssueDialog({
                 <RadioIcon className="size-3.5 text-red-600 dark:text-red-400" />
                 Start recording issue
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void startRecording(true)}
+                disabled={busy}
+              >
+                Start Quick Action recording
+              </Button>
             </div>
           )}
 
@@ -616,8 +653,9 @@ export function RecordIssueDialog({
                 Recording in progress…
               </div>
               <p className="max-w-md text-xs text-muted-foreground">
-                Demonstrate the bug in the browser tab. Clicks, inputs, and navigations are captured
-                without persisting sensitive passwords or tokens.
+                {quickAction
+                  ? "Demonstrate the workflow in this tab. Typed values stay out of the recording."
+                  : "Demonstrate the bug in this tab. Typed values stay out of the recording."}
               </p>
               <Button
                 type="button"
@@ -627,13 +665,13 @@ export function RecordIssueDialog({
                 className="gap-1.5"
               >
                 <SquareIcon className="size-3.5" />
-                Stop & review issue
+                {quickAction ? "Stop and review steps" : "Stop & review issue"}
               </Button>
             </div>
           )}
 
           {/* Review & Verification Phases */}
-          {(phase === "review" || phase === "verifying" || phase === "verified") && (
+          {showReproductionReview && (
             <div className="space-y-3">
               {/* Tabs */}
               <div className="flex items-center gap-1 border-b pb-1 text-xs">
@@ -961,31 +999,43 @@ export function RecordIssueDialog({
 
           {(phase === "review" || phase === "verified") && (
             <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || steps.length === 0}
+                onClick={() => setTeaching(true)}
+              >
+                Keep as Quick Action
+              </Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={resetState}>
                 New recording
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void rerunReproduction()}
-                className="gap-1.5"
-              >
-                <RefreshCwIcon className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
-                Rerun & Verify
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                disabled={busy || dispatched || !selectedTaskId || !expectedResult.trim()}
-                onClick={() => void sendReproductionToTask()}
-                className="gap-1.5"
-              >
-                <SendIcon className="size-3.5" />
-                Send to Task
-              </Button>
+              {!quickAction && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void rerunReproduction()}
+                  className="gap-1.5"
+                >
+                  <RefreshCwIcon className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+                  Rerun & Verify
+                </Button>
+              )}
+              {!quickAction && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled={busy || dispatched || !selectedTaskId || !expectedResult.trim()}
+                  onClick={() => void sendReproductionToTask()}
+                  className="gap-1.5"
+                >
+                  <SendIcon className="size-3.5" />
+                  Send to Task
+                </Button>
+              )}
             </>
           )}
         </DialogFooter>
