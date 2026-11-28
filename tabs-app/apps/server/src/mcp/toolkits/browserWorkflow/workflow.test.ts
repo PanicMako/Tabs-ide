@@ -1448,4 +1448,209 @@ test("the registered watch follows the saved draft and retires when a check reac
   );
 });
 
+test("the registered read-only workflow monitors and reopens a submitted receipt without site writes", async () => {
+  const states = { submitted: "Submitted", certified: "Certified" };
+  const receiptPath = "/draft/42?view=receipt";
+  let siteStage: keyof typeof states = "submitted";
+  const siteWrites: string[] = [];
+  const fixture = createServer((request, response) => {
+    if (request.method !== "GET") {
+      siteWrites.push(`${request.method} ${request.url}`);
+      response.writeHead(405).end();
+      return;
+    }
+    if (request.url !== receiptPath) {
+      response.writeHead(404).end();
+      return;
+    }
+    response.end(`<code id="draft-id">42</code><strong id="status">${states[siteStage]}</strong>`);
+  });
+  await once(fixture.listen(0, "127.0.0.1"), "listening");
+  try {
+    const address = fixture.address();
+    if (!address || typeof address === "string") throw new Error("Fixture listener unavailable.");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const definition = { ...readOnlyDefinition, url: origin + "/draft/42", states };
+    const exactUrl = origin + receiptPath + "#details";
+    let currentUrl = exactUrl;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const { stateDir } = yield* ServerConfig.ServerConfig;
+        const broker = yield* Broker.PreviewAutomationBroker;
+        const clientId = "read-only-receipt-host";
+        const connected = yield* Deferred.make<void>();
+        const requests: BrowserWorkflowBrowserRequest[] = [];
+        const stream = yield* broker.connect({
+          clientId,
+          environmentId,
+          supportedOperations: ["browserWorkflow"],
+        });
+        yield* Stream.runForEach(stream, (event) =>
+          Effect.gen(function* () {
+            if (event.type === "connected") {
+              yield* broker.focusHost({
+                clientId,
+                connectionId: event.connectionId,
+                environmentId,
+                focused: false,
+                liveTabs: [{ threadId, tabId, workflowHostKey: journalTarget.hostKey }],
+              });
+              yield* Deferred.succeed(connected, undefined);
+              return;
+            }
+            expect(event.request).toMatchObject({ operation: "browserWorkflow", tabId, threadId });
+            const input = decodeRequest(event.request.input);
+            requests.push(input);
+            expect(["inspect", "refresh", "monitor", "enter"]).toContain(input.phase);
+            if (input.target) {
+              expect(input).toMatchObject({
+                definition: { ...definition, url: exactUrl },
+                target: journalTarget,
+                statusOnly: true,
+              });
+            } else {
+              expect(input).toEqual({ phase: "inspect", profileId: "Work", definition });
+            }
+            if (input.phase === "enter" || input.phase === "refresh" || input.refresh)
+              currentUrl = input.definition.url;
+            let result: BrowserWorkflowHostResult = {
+              disposition: "unobservable",
+              target: journalTarget,
+            };
+            if (currentUrl === exactUrl) {
+              const response = yield* Effect.promise(() => fetch(currentUrl));
+              const html = yield* Effect.promise(() => response.text());
+              expect(response.ok).toBe(true);
+              expect(html).not.toMatch(/<(button|form|input)\b/i);
+              expect(html).toContain('<code id="draft-id">42</code>');
+              const statusText = html.match(/<strong id="status">([^<]+)<\/strong>/u)?.[1];
+              const stage = (["submitted", "certified"] as const).find(
+                (stage) => states[stage] === statusText,
+              );
+              if (stage) {
+                result = {
+                  disposition: "observed",
+                  target: journalTarget,
+                  ...(!input.target && { resolvedDraftUrl: currentUrl }),
+                  observation: {
+                    stage,
+                    statusText: states[stage],
+                    breakpoint: "irrelevant",
+                    submitAvailable: false,
+                  },
+                };
+              }
+            }
+            yield* broker.respond({
+              clientId,
+              connectionId: event.connectionId,
+              requestId: event.request.requestId,
+              ok: true,
+              result,
+            });
+          }),
+        ).pipe(Effect.forkScoped);
+        yield* Deferred.await(connected);
+        const invoke = (args: object) => call(args, "read-only-receipt-provider");
+        const armed = report(
+          yield* invoke({ action: "arm", tabId, profileId: "Work", definition }),
+        );
+        expect(armed).toMatchObject({
+          phase: "verified",
+          lastVerified: { stage: "submitted" },
+          result: { readOnly: true, url: definition.url },
+        });
+        const { workflowId } = armed;
+        for (const action of ["upload", "submit", "resume"]) {
+          const rejected = yield* invoke({ action, workflowId });
+          expect(rejected.isError).toBe(true);
+          expect(JSON.stringify(rejected.content)).toContain("read-only workflow");
+        }
+        for (const action of ["watch", "check"]) {
+          const rejected = yield* invoke({ action, workflowId, until: "published", refresh: true });
+          expect(rejected.isError).toBe(true);
+          expect(JSON.stringify(rejected.content)).toContain(
+            "does not define a status label for published",
+          );
+        }
+        expect(
+          report(yield* invoke({ action: "watch", workflowId, until: "uploaded" })),
+        ).toMatchObject({ phase: "verified", result: { readOnly: true } });
+        expect(requests).toHaveLength(1);
+
+        const checked = report(yield* invoke({ action: "check", workflowId }));
+        expect(checked).toMatchObject({ phase: "verified", result: { readOnly: true } });
+        const watch = { action: "watch", workflowId, until: "certified", refresh: true };
+        expect(report(yield* invoke(watch))).toMatchObject({
+          phase: "watching",
+          watchUntil: "certified",
+          result: { readOnly: true },
+        });
+        expect(report(yield* invoke({ action: "unwatch", workflowId })).phase).toBe(
+          "watch_stopped",
+        );
+        yield* invoke(watch);
+        siteStage = "certified";
+        yield* pollBrowserWorkflowWatches(
+          stateDir,
+          environmentId,
+          () =>
+            Effect.succeed({
+              archivedAt: null,
+              deletedAt: null,
+              providerInstanceId: ProviderInstanceId.make("codex"),
+            }),
+          broker,
+        );
+        expect(
+          yield* Effect.promise(() => listBrowserWorkflowWatches(stateDir, environmentId)),
+        ).toEqual([]);
+        currentUrl = origin + "/elsewhere";
+        const reopened = report(yield* invoke({ action: "enter", workflowId }));
+        expect(reopened).toMatchObject({
+          phase: "verified",
+          lastVerified: { stage: "certified" },
+          result: { readOnly: true, url: definition.url },
+        });
+        expect(currentUrl).toBe(exactUrl);
+        siteStage = "submitted";
+        expect(report(yield* invoke({ action: "check", workflowId, refresh: true }))).toMatchObject(
+          {
+            phase: "unobservable",
+            lastVerified: { stage: "certified" },
+          },
+        );
+        const saved = yield* Effect.promise(() =>
+          readBrowserWorkflowResult(stateDir, journalOwner, { workflowId, stage: "certified" }),
+        );
+        expect(saved).toEqual({
+          target: journalTarget,
+          definition: { ...definition, url: exactUrl },
+          stage: "certified",
+        });
+        expect(requests.map(({ phase }) => phase)).toEqual([
+          "inspect",
+          "inspect",
+          "monitor",
+          "enter",
+          "refresh",
+        ]);
+        expect(siteWrites).toEqual([]);
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(mcpLayer),
+        Effect.provide(
+          ServerConfig.layerTest(process.cwd(), { prefix: "tabs-read-only-workflow-" }),
+        ),
+        Effect.provide(NodeServices.layer),
+      ),
+    );
+  } finally {
+    await new Promise<void>((resolve) => {
+      fixture.close(() => resolve());
+      fixture.closeAllConnections();
+    });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
