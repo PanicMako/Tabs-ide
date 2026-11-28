@@ -2427,6 +2427,30 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.evaluate).not.toHaveBeenCalled();
       expect(f.capturePage).not.toHaveBeenCalled();
     });
+
+    it("reports an unobservable match when the bounded scan cannot establish uniqueness", async () => {
+      const filler = "<span>Other</span>";
+      const f = await setup(`<p>${resourceId}</p>${filler.repeat(4_000)}`);
+      await f.authorize();
+      const input = { findText: [resourceId, "Absent label"] };
+      const withinBudget = await f.snapshot(input);
+      expect(withinBudget.textMatches).toEqual([
+        { text: resourceId, status: "matched", selector: expect.any(String) },
+        { text: "Absent label", status: "not_found" },
+      ]);
+
+      await f.page.locator("body").evaluate(
+        (body, html) => {
+          body.insertAdjacentHTML("beforeend", html);
+        },
+        `${filler.repeat(2_000)}<p>${resourceId}</p>`,
+      );
+      const overBudget = await f.snapshot(input);
+      expect(overBudget.textMatches).toEqual([
+        { text: resourceId, status: "unobservable" },
+        { text: "Absent label", status: "unobservable" },
+      ]);
+    });
   });
 
   describe.skip("saved browser attachments", () => {
