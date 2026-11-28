@@ -1353,6 +1353,37 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("rejects explicit returns after the tab leaves the granted page", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-demonstration";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+    });
+    const { session } = fixture;
+    const { events } = mockNavigation(manager, fixture);
+    const target = { projectId: session.projectId, sessionId, taskId: "qa" };
+    await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeBrowserPage",
+      input: { url: session.currentUrl, profileId: "default" },
+    });
+    manager.takeControl(target);
+    events.emit("did-navigate", {}, "https://other.example/");
+    await expect(
+      manager.resumeAgent({
+        ...target,
+        expectedGeneration: {
+          instanceId: session.instanceId,
+          controlEpoch: session.controlEpoch,
+        },
+      }),
+    ).rejects.toThrow("tab changed while returning control");
+    expect(session.controller).toBe("human");
+    expect(session.actionTimeline).toEqual([]);
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
