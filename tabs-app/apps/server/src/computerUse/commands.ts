@@ -1,9 +1,25 @@
+import type { NativeWindowFrame } from "@tabs/contracts";
 import { resolveKeySpec, type ParsedKey } from "./keySpec.ts";
 
 /** Everything the JXA runtime needs to perform one operation. Plain JSON: it crosses a process boundary. */
-export type ComputerRequest =
+export type ComputerRequest = RuntimeRequest & {
+  readonly native?: NativeActionGuard;
+  readonly controlFile?: string;
+};
+
+export interface NativeActionGuard {
+  readonly foreground: boolean;
+  readonly frame?: NativeWindowFrame;
+  readonly scale?: number;
+  readonly display?: string;
+  readonly elements?: Readonly<Record<string, string>>;
+  readonly focused?: string;
+}
+
+type RuntimeRequest =
   | { readonly op: "permissions" }
   | { readonly op: "listApps" }
+  | { readonly op: "listWindows" }
   | { readonly op: "focusApp"; readonly app: AppSelector }
   | {
       readonly op: "snapshot";
@@ -68,7 +84,12 @@ export type ComputerRequest =
     }
   | { readonly op: "windowFrame"; readonly app: AppSelector };
 
+export type AppComputerRequest = Extract<ComputerRequest, { readonly app: AppSelector }>;
+export type AttachedAppSelector = Extract<AppSelector, { readonly kind: "attachment" }>;
+
 export type AppSelector =
+  | { readonly kind: "window"; readonly id: string }
+  | { readonly kind: "attachment"; readonly selector: string }
   | { readonly kind: "pid"; readonly pid: number }
   | { readonly kind: "name"; readonly query: string };
 
@@ -92,6 +113,9 @@ export function parseAppSelector(raw: string): Parsed<AppSelector> {
   const trimmed = raw.trim();
   if (trimmed === "")
     return fail("app is required: pass a bundle id or name from computer_list_apps.");
+  if (trimmed.startsWith("window:")) {
+    return { ok: true, value: { kind: "attachment", selector: trimmed } };
+  }
   const pid = /^pid:(\d+)$/i.exec(trimmed);
   if (pid) {
     const value = Number(pid[1]);

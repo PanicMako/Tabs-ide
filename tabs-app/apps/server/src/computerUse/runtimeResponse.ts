@@ -1,3 +1,4 @@
+import type { NativeComputerCapabilities, NativeWindowChoice } from "@tabs/contracts";
 import type { DiffableSnapshot } from "./treeDiff.ts";
 
 export interface RuntimeSnapshot {
@@ -17,6 +18,9 @@ export interface RuntimeSnapshot {
   readonly elementCount: number;
   readonly focusedElementIndex: number | null;
   readonly truncated: boolean;
+  readonly elements?: ReadonlyArray<string | null>;
+  readonly scale?: number;
+  readonly display?: string;
 }
 
 export interface RuntimeAction {
@@ -39,10 +43,14 @@ export interface RuntimeAppInfo {
 
 export interface RuntimeSuccess {
   readonly ok: true;
+  readonly handoff?: string;
+  readonly userDemonstration?: string;
   readonly permissions?: {
     readonly accessibility: boolean;
+    readonly capabilities?: NativeComputerCapabilities;
     readonly screenRecording: "granted" | "denied" | "unknown";
   };
+  readonly windows?: ReadonlyArray<NativeWindowChoice>;
   readonly apps?: ReadonlyArray<RuntimeAppInfo>;
   readonly app?: RuntimeAppInfo;
   readonly frame?: {
@@ -84,8 +92,8 @@ export function parseRuntimeResponse(stdout: string, stderr = ""): RuntimeRespon
     ok: false,
     code: "accessibility_error",
     message: detail
-      ? `The macOS runtime failed: ${detail}`
-      : "The macOS runtime returned no result.",
+      ? `The desktop runtime failed: ${detail}`
+      : "The desktop runtime returned no result.",
   };
 }
 
@@ -104,15 +112,17 @@ export function failureAdvice(code: string): string {
   switch (code) {
     case "permission_denied":
       return "Ask the user to grant the permission in System Settings > Privacy & Security, then call computer_permissions.";
+    case "stale_observation":
     case "element_not_found":
+      return "Call computer_snapshot again and use the new observation and indexes.";
     case "window_stale":
-      return "The window changed. Call computer_snapshot again and use the new indexes.";
+      return "Check whether the same window is still open. Ask the user to attach it again if its identity changed.";
     case "sensitive_field":
       return "Do not retry. The user must enter secrets themselves.";
     case "app_blocked":
       return "Do not retry: password managers are never driven.";
     case "background_unavailable":
-      return "Use an element action instead, or pass foreground=true if the user agrees to the app being raised.";
+      return "Use an accessibility action, or ask the user to allow physical input and bring the selected window to the front.";
     case "action_not_supported":
     case "value_not_settable":
       return "Try computer_click or computer_type on the element instead.";
