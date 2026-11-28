@@ -4,6 +4,8 @@ import * as Record from "effect/Record";
 import * as Schema from "effect/Schema";
 import { McpSchema } from "effect/unstable/ai";
 import {
+  type BrowserQuickActionApprovalRequired,
+  BrowserQuickActionResult,
   PROVIDER_SEND_TURN_MAX_FILE_BYTES,
   PREVIEW_RECORDING_STOP_TIMEOUT_MS,
   PreviewAutomationRecordingTransferError,
@@ -241,6 +243,48 @@ const handlers = {
       })),
     ),
   preview_wait_for: (input) => invokeTargeted<object>("waitFor", input, input.timeoutMs),
+  preview_run_quick_action: (input) =>
+    Effect.gen(function* () {
+      const scope = yield* McpInvocationContext.requireThreadMcpCapability("preview");
+      const broker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+      if ("actionName" in input) {
+        return yield* broker.invoke<BrowserQuickActionApprovalRequired>({
+          scope,
+          operation: "requestQuickAction",
+          input,
+          updateCurrentTab: false,
+        });
+      }
+      const { tabId, actionId, approvalId } = input;
+      const result = yield* broker.invoke({
+        scope,
+        operation: "runQuickAction",
+        tabId,
+        input: { actionId, approvalId },
+        timeoutMs: 45_000,
+        updateCurrentTab: false,
+      });
+      return yield* Schema.decodeUnknownEffect(BrowserQuickActionResult)(result).pipe(
+        Effect.map(({ fileResult, resumeRequest, ...replay }) => ({
+          ...replay,
+          ...(fileResult &&
+            replay.status === "pass" &&
+            fileResult.tabId === tabId &&
+            replay.fileReceipt?.filename === fileResult.filename && { fileResult }),
+          ...(replay.status === "paused" &&
+            resumeRequest?.actionId === actionId &&
+            resumeRequest.pause.tabId === tabId && { resumeRequest }),
+        })),
+        Effect.catch(() =>
+          Effect.succeed({
+            status: "interrupted" as const,
+            completedSteps: 0,
+            message:
+              "The browser returned no verifiable completion receipt. Inspect the target before running the action again.",
+          }),
+        ),
+      );
+    }),
   preview_recording_start: (input) =>
     invokeTargeted<PreviewAutomationRecordingStatus>("recordingStart", input ?? {}),
   preview_recording_stop: (input) =>

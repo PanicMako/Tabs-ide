@@ -36,6 +36,7 @@ import {
   type WsWelcomePayload,
   type TerminalEvent,
   TerminalEvent as TerminalEventSchema,
+  TerminalMetadataStreamEvent,
   TerminalAttachStreamEvent as TerminalAttachStreamEventSchema,
   ResourceTelemetrySnapshot,
   type OrchestrationReadModel,
@@ -505,6 +506,11 @@ export function createWsNativeApi(options?: {
       open: (input) => transport.request(WS_METHODS.terminalOpen, input),
       list: () => transport.request(WS_METHODS.terminalList, {}),
       write: (input) => transport.request(WS_METHODS.terminalWrite, input),
+      reviewAgentInput: (input) => transport.request(WS_METHODS.terminalAgentInputReview, input),
+      declinePendingAgentInput: (input) =>
+        transport.request(WS_METHODS.terminalAgentInputDeclinePending, input).then((result) => ({
+          declined: [...(result as { declined: readonly string[] }).declined],
+        })),
       resize: (input) => transport.request(WS_METHODS.terminalResize, input),
       clear: (input) => transport.request(WS_METHODS.terminalClear, input),
       restart: (input) => transport.request(WS_METHODS.terminalRestart, input),
@@ -558,7 +564,17 @@ export function createWsNativeApi(options?: {
           stop?.();
         };
       },
-      onMetadata: () => () => {},
+      onMetadata: (callback, options) =>
+        transport.subscribeRpc(
+          WS_METHODS.subscribeTerminalMetadata,
+          () => {
+            options?.onResubscribe?.();
+            return {};
+          },
+          Schema.decodeUnknownSync(TerminalMetadataStreamEvent),
+          callback,
+          (error) => console.error("Terminal metadata subscription failed:", error),
+        ),
     },
     projects: {
       searchEntries: (input) => transport.request(WS_METHODS.projectsSearchEntries, input),
@@ -796,6 +812,7 @@ export function createWsNativeApi(options?: {
       checkSecretSource: (source) =>
         transport.request(WS_METHODS.serverCheckSecretSource, { source }),
       computerUsePermissions: () => transport.request(WS_METHODS.serverComputerUsePermissions, {}),
+      nativeComputer: (command) => transport.request(WS_METHODS.serverNativeComputer, command),
       cloneRepository: (input) => transport.request(WS_METHODS.serverCloneRepository, input),
       lookupRepository: (input) => transport.request(WS_METHODS.serverLookupRepository, input),
       updateProvider: (input) => transport.request(WS_METHODS.serverUpdateProvider, input),
@@ -1291,6 +1308,8 @@ export function createWsNativeApi(options?: {
       },
     } as any,
     device: {
+      mediaOrigin: () => new URL(transport.resolveHttpUrl("/")).origin,
+      authorizeMediaUrl: (url) => transport.authorizeDeviceMedia(url),
       list: (input) => transport.request(WS_METHODS.deviceList, input),
       configure: (input) => transport.request(WS_METHODS.deviceConfigure, input),
       testHost: (input) => transport.request(WS_METHODS.deviceTestHost, input),
@@ -1299,6 +1318,12 @@ export function createWsNativeApi(options?: {
       shutdown: (input) => transport.request(WS_METHODS.deviceShutdown, input),
       detail: (input) => transport.request(WS_METHODS.deviceDetail, input),
       action: (input) => transport.request(WS_METHODS.deviceAction, input),
+      comparison: (input) =>
+        transport.request(
+          WS_METHODS.deviceComparison,
+          input,
+          input.action === "sourceTap" ? { connectedOnly: true } : undefined,
+        ),
       subscribe: (callback, onError) =>
         transport.subscribeRpc(
           WS_METHODS.subscribeDeviceState,
@@ -1316,6 +1341,11 @@ export function createWsNativeApi(options?: {
       close: (input) => transport.request(WS_METHODS.previewClose, input),
       list: (input) => transport.request(WS_METHODS.previewList, input),
       reportStatus: (input) => transport.request(WS_METHODS.previewReportStatus, input),
+      getWorkflowResult: (input) => transport.request(WS_METHODS.previewGetWorkflowResult, input),
+      getFigmaCanvasResult: (input) =>
+        transport.request(WS_METHODS.previewGetFigmaCanvasResult, input),
+      partnerCenterConnection: (input) =>
+        transport.request(WS_METHODS.previewPartnerCenterConnection, input),
       automation: {
         connect: (input, callback, options) => {
           let subscribed = false;
@@ -1352,6 +1382,8 @@ export function createWsNativeApi(options?: {
           };
         },
         respond: (input) => transport.request(WS_METHODS.previewAutomationRespond, input),
+        authorizeDeviceScreenshot: (input) =>
+          transport.request(WS_METHODS.previewAutomationAuthorizeDeviceScreenshot, input),
         focusHost: (input) => transport.request(WS_METHODS.previewAutomationFocusHost, input),
       },
       onEvent: (callback) =>

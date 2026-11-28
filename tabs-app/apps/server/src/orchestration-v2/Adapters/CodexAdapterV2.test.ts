@@ -609,8 +609,21 @@ describe("CodexAdapterV2 runtime policy", () => {
 });
 
 describe("CodexAdapterV2 process spawning", () => {
-  it("injects cwd, model, and MCP authorization into thread-scoped params", () => {
+  it.each([
+    { label: "clean profile", registrations: {} },
+    { label: "Figma HTTP profile", registrations: { figma: { url: "https://mcp.figma.com/mcp" } } },
+    { label: "custom stdio profile", registrations: { figma: { command: "fixture" } } },
+  ])("injects scoped MCP params for a $label", async ({ registrations }) => {
     const threadId = ThreadId.make("thread-codex-mcp");
+    const calls: Array<{ method: string; params: unknown }> = [];
+    const client: Parameters<typeof CodexAdapterV2.codexThreadRuntimeParams>[0] = {
+      raw: {
+        request: (method, params) => {
+          calls.push({ method, params });
+          return Effect.succeed({ config: { mcp_servers: registrations } });
+        },
+      },
+    };
     McpProviderSession.setMcpProviderSession({
       environmentId: EnvironmentId.make("environment-codex-mcp"),
       threadId,
@@ -623,21 +636,24 @@ describe("CodexAdapterV2 process spawning", () => {
 
     try {
       assert.deepEqual(
-        CodexAdapterV2.codexThreadRuntimeParams({
-          threadId,
-          modelSelection: { model: "gpt-5.4" },
-          runtimePolicy: {
-            runtimeMode: "full-access",
-            interactionMode: "default",
-            cwd: "/workspace/thread-codex-mcp",
-          },
-        }),
+        await Effect.runPromise(
+          CodexAdapterV2.codexThreadRuntimeParams(client, {
+            threadId,
+            modelSelection: { model: "gpt-5.4" },
+            runtimePolicy: {
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              cwd: "/workspace/thread-codex-mcp",
+            },
+          }),
+        ),
         {
           cwd: "/workspace/thread-codex-mcp",
           model: "gpt-5.4",
           config: {
             "tools.update_plan.enabled": true,
             mcp_servers: {
+              ...(Object.hasOwn(registrations, "figma") ? { figma: { enabled: false } } : {}),
               "t3-code": {
                 url: "http://127.0.0.1:43123/mcp",
                 http_headers: {
@@ -648,6 +664,12 @@ describe("CodexAdapterV2 process spawning", () => {
           },
         },
       );
+      assert.deepEqual(calls, [
+        {
+          method: "config/read",
+          params: { cwd: "/workspace/thread-codex-mcp", includeLayers: false },
+        },
+      ]);
     } finally {
       McpProviderSession.clearMcpProviderSession(threadId);
     }
@@ -1048,6 +1070,75 @@ describe("CodexAdapterV2 native protocol logging", () => {
         },
       });
     }),
+  );
+
+  it.effect(
+    "keeps Figma connector arguments, responses, and provider config out of the protocol log",
+    () =>
+      Effect.gen(function* () {
+        const writes: unknown[] = [];
+        const log = CodexAdapterV2.makeCodexAppServerProtocolLogger({
+          nativeEventLogger: {
+            filePath: "/tmp/events.log",
+            write: (event) =>
+              Effect.sync(() => {
+                writes.push(event);
+              }),
+            close: () => Effect.void,
+          },
+          threadId: ThreadId.make("thread-1"),
+          providerSessionId: ProviderSessionId.make("provider-session-1"),
+        });
+        if (!log) throw new Error("Protocol logging is unavailable");
+        yield* log({
+          direction: "outgoing",
+          stage: "decoded",
+          payload: { id: 1, method: "mcpServerStatus/list", params: { serverName: "figma" } },
+        });
+        yield* log({
+          direction: "outgoing",
+          stage: "decoded",
+          payload: {
+            id: 3,
+            method: "config/read",
+            params: { cwd: "/workspace", includeLayers: false },
+          },
+        });
+        yield* log({
+          direction: "outgoing",
+          stage: "decoded",
+          payload: {
+            id: 2,
+            method: "mcpServer/tool/call",
+            params: { server: "figma", arguments: { code: "private frame text" } },
+          },
+        });
+        yield* log({
+          direction: "incoming",
+          stage: "decoded",
+          payload: { id: 2, result: { text: "private content" } },
+        });
+        yield* log({
+          direction: "incoming",
+          stage: "decoded",
+          payload: { id: 1, result: { data: ["private config"] } },
+        });
+        yield* log({
+          direction: "incoming",
+          stage: "decoded",
+          payload: {
+            id: 3,
+            result: { config: { mcp_servers: { other: { headers: "private" } } } },
+          },
+        });
+        yield* log({
+          direction: "incoming",
+          stage: "decoded",
+          payload: { id: 3, result: { threadId: "other" } },
+        });
+        assert.lengthOf(writes, 1);
+        assert.include(JSON.stringify(writes[0]), "other");
+      }),
   );
 
   it.effect("filters streaming frames before redaction without losing decode failures", () =>

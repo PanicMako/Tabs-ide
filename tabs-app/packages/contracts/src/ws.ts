@@ -138,6 +138,7 @@ import {
   PreviewResizeInput,
 } from "./preview.ts";
 import {
+  PreviewAutomationDeviceScreenshotAuthorization,
   PreviewAutomationHost,
   PreviewAutomationHostFocus,
   PreviewAutomationResponse,
@@ -334,6 +335,7 @@ export const WS_METHODS = {
   previewAutomationConnect: "previewAutomation.connect",
   previewAutomationFocusHost: "previewAutomation.focusHost",
   previewAutomationRespond: "previewAutomation.respond",
+  previewAutomationAuthorizeDeviceScreenshot: "previewAutomation.authorizeDeviceScreenshot",
   previewClose: "preview.close",
   previewList: "preview.list",
   previewNavigate: "preview.navigate",
@@ -580,6 +582,10 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.previewAutomationConnect, PreviewAutomationHost),
   tagRequestBody(WS_METHODS.previewAutomationFocusHost, PreviewAutomationHostFocus),
   tagRequestBody(WS_METHODS.previewAutomationRespond, PreviewAutomationResponse),
+  tagRequestBody(
+    WS_METHODS.previewAutomationAuthorizeDeviceScreenshot,
+    PreviewAutomationDeviceScreenshotAuthorization,
+  ),
   tagRequestBody(
     WS_METHODS.subscribeDiscoveredLocalServers,
     Schema.Struct({

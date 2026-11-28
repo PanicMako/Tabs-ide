@@ -31,6 +31,8 @@ import { cn, isMacPlatform, isWindowsPlatform } from "../lib/utils";
 import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { ProjectFavicon } from "./ProjectFavicon";
 import { useWorkspaceAppearanceStore } from "../stores/workspaceAppearanceStore";
+import { writeSurfaceDrag } from "~/lib/threadSurfaceAttachment";
+import { BrowserToolActivity } from "./browser/BrowserHandoffControls";
 
 const isMacDesktop =
   isElectron && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
@@ -80,9 +82,11 @@ export interface InterfaceStudyTopBarProps {
     icon?: React.ReactNode;
     temporary?: boolean;
     closable?: boolean;
+    browserActivity?: string | undefined;
   }>;
   onCloseTool?: (id: string) => void;
   onKeepTool?: (id: string) => void;
+  attachmentFor?: ((id: string) => File | null) | undefined;
   threads?: ReadonlyArray<Thread>;
   onActivateProject: (projectId: ProjectId) => void;
   onCloseProject: (projectId: ProjectId) => void;
@@ -491,6 +495,12 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                   role="tab"
                   data-tool-kind={tool.kind}
                   data-workspace-tool-id={tool.id}
+                  draggable={!isAgents && Boolean(props.attachmentFor)}
+                  onDragStart={
+                    props.attachmentFor && !isAgents
+                      ? (event) => writeSurfaceDrag(event, props.attachmentFor?.(tool.id) ?? null)
+                      : undefined
+                  }
                   aria-selected={active}
                   tabIndex={active ? 0 : -1}
                   onClick={() => props.onSelectTool(tool.id)}
@@ -512,6 +522,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                     )}
                   </span>
                   <span>{tool.label}</span>
+                  {tool.browserActivity && <BrowserToolActivity label={tool.browserActivity} />}
 
                   {/* Agent live ping pulse */}
                   {isAgents && hasActiveAgents && (

@@ -15,8 +15,11 @@ const encodeEndpoint = Schema.encodeEffect(
 const key = (value: string) =>
   NodeCrypto.createHash("sha256").update(value).digest("hex").slice(0, 24);
 
-/** A stable file per host lets forwarded endpoints change without retargeting other commands. */
-export const agentDeviceConfigPath = (stateDir: string, hostId: string, path: Path.Path) =>
+export const agentDeviceGrantDirectory = (stateDir: string, path: Path.Path) =>
+  path.join(stateDir, "device", "control");
+
+// Remove configs from versions that passed the daemon's own credential to the CLI.
+export const legacyAgentDeviceConfigPath = (stateDir: string, hostId: string, path: Path.Path) =>
   path.join(stateDir, "device", "hosts", `${key(hostId)}.json`);
 
 export const agentDeviceSession = (
@@ -28,7 +31,7 @@ export const agentDeviceSession = (
 
 export const writeAgentDeviceConfig = Effect.fn("AgentDeviceTarget.writeConfig")(function* (
   file: string,
-  endpoint: AgentDeviceEndpoint,
+  endpoint: Pick<AgentDeviceEndpoint, "baseUrl" | "token">,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

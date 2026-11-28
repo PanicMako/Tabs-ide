@@ -14,6 +14,7 @@ import { useSettings } from "~/hooks/useSettings";
 import { useKeybindings } from "~/state/settings";
 import { resolveShortcutCommand } from "~/keybindings";
 import {
+  DEFAULT_SUB_ACTIONS,
   normalizeLauncherDesign,
   clampLauncher,
   orderedActions,
@@ -35,10 +36,24 @@ import { toastManager } from "../ui/toast";
 
 /** Coming back after at least this long offers the away summary. */
 const AWAY_THRESHOLD_MS = 15 * 60 * 1000;
+const FOCUSED_ACTIONS = new Set<QuickActionId>([
+  "attach-surface",
+  "browser-my-turn",
+  "browser-stop",
+  "review-browser-selection",
+  "device-my-turn",
+  "device-stop",
+  "native-window-my-turn",
+  "native-window-stop",
+]);
 import "./quick-actions.css";
 
 export interface ActionContext {
-  execute: (id: QuickActionId, query: string) => Promise<void | typeof KEEP_LAUNCHER_OPEN>;
+  execute: (
+    id: QuickActionId,
+    query: string,
+    source?: HTMLElement | null,
+  ) => Promise<void | typeof KEEP_LAUNCHER_OPEN>;
   disabled: (id: QuickActionId) => string | undefined;
 }
 const Context = createContext<ActionContext | null>(null);
@@ -86,10 +101,12 @@ export function QuickActionsHost({
     clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(
       () => {
+        const focused = document.activeElement;
+        const restoreFocus = focused === document.body || popup.current?.contains(focused);
         setAnchor(null);
         setClosing(false);
         setGlance(null);
-        previousFocus.current?.focus();
+        if (restoreFocus) previousFocus.current?.focus();
       },
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 140,
     );
@@ -113,13 +130,16 @@ export function QuickActionsHost({
         setGlance(id);
         return KEEP_LAUNCHER_OPEN;
       }
-      return execute(id, query);
+      return FOCUSED_ACTIONS.has(id)
+        ? execute(id, query, previousFocus.current)
+        : execute(id, query);
     },
     [execute],
   );
   const runDirect = useCallback(
     async (id: QuickActionId, query: string) => {
-      await execute(id, query);
+      const source = document.activeElement;
+      await execute(id, query, source instanceof HTMLElement ? source : null);
     },
     [execute],
   );
@@ -312,7 +332,13 @@ export function QuickActionsHost({
                         ? ({ ...action, label: `Ask ${teammateName}` } as QuickAction)
                         : action,
                   )}
-                  subActions={settings.subActions}
+                  subActions={
+                    sessionSearchEnabled
+                      ? settings.subActions
+                      : (settings.subActions ?? DEFAULT_SUB_ACTIONS).filter(
+                          (entry) => entry.actionId !== "session-search",
+                        )
+                  }
                   flyoutShape={settings.flyoutShape}
                   execute={hostExecute}
                   disabled={disabled}

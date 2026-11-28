@@ -36,6 +36,7 @@ import { Switch } from "../ui/switch";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 import { SettingsSection, SettingsSectionHeader, SettingsRow } from "./SettingsLayout";
+import { PartnerCenterConnectionSettings } from "./PartnerCenterConnectionSettings";
 import {
   Dialog,
   DialogContent,
@@ -852,6 +853,7 @@ export function BrowserProfilesSettings() {
             </Select>
           }
         />
+        <PartnerCenterConnectionSettings />
       </SettingsSection>
 
       <SettingsSection

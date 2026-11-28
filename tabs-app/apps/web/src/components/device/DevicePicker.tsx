@@ -2,7 +2,7 @@ import { RefreshCwIcon } from "lucide-react";
 import { useRef } from "react";
 import { useStaggerIn } from "~/components/agents/companion/designs/motion";
 import { groupDevicesByHost, isDeviceBooting } from "~/device/deviceLogic";
-import { refreshDevices, useDeviceStore } from "~/device/deviceStore";
+import { refreshDevices, useDeviceState } from "~/device/deviceStore";
 import type { DeviceApi } from "~/device/useDeviceApi";
 import type { DeviceSummary } from "@tabs/contracts";
 import "./device.css";
@@ -15,9 +15,9 @@ export function DevicePicker({
   api: DeviceApi;
   onChoose: (device: DeviceSummary) => void;
 }) {
-  const state = useDeviceStore((s) => s.state);
-  const refreshing = useDeviceStore((s) => s.refreshing);
-  const error = useDeviceStore((s) => s.error);
+  const state = useDeviceState(api, (s) => s.state);
+  const refreshing = useDeviceState(api, (s) => s.refreshing);
+  const error = useDeviceState(api, (s) => s.error);
   const root = useRef<HTMLDivElement>(null);
   const groups = groupDevicesByHost(state);
   const count = groups.reduce((total, group) => total + group.devices.length, 0);

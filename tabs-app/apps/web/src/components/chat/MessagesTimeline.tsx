@@ -1,12 +1,27 @@
+import { NativeWindowUnavailableError, requestNativeWindowAttach } from "~/lib/nativeWindowHandoff";
+import { openSurfaceAttachment, SURFACE_ATTACHMENT_TYPE } from "~/lib/threadSurfaceAttachment";
+import { toastManager } from "../ui/toast";
 import { UserMessageImages } from "./UserMessageImages";
 import { AssistantMessageBorder } from "./AssistantMessageBorder";
 import { resolveProviderIcon } from "../providerIcons";
+import { TerminalAgentInputButton } from "./TerminalAgentInputButton";
+import { DeviceComparisonDraftLink } from "../device/DeviceComparisonDraftLink";
 import { UserMessageLayout, UserPromptText } from "./UserMessageLayout";
 import {
+  BrowserWorkflowStage,
+  ProjectId,
   type EnvironmentId,
   type MessageId,
   type TurnId,
   type AssistantCitation,
+  type BrowserQuickActionRequestRef,
+  type BrowserQuickActionFileResultRef,
+  type BrowserWorkflowResultRef,
+  type DeviceAccessRequestRef,
+  type DeviceComparisonResultRef,
+  type DeviceComparisonViewRef,
+  type FigmaCanvasResultRef,
+  type TerminalAgentInputRef,
   type ThreadId,
 } from "@tabs/contracts";
 import {
@@ -61,7 +76,11 @@ import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { UserReadReceipt, seenUserMessageIds } from "./UserReadReceipt";
-import { computeMessageDurationStart, normalizeCompactToolLabel } from "./MessagesTimeline.logic";
+import {
+  browserWorkflowResultSupersedes,
+  computeMessageDurationStart,
+  normalizeCompactToolLabel,
+} from "./MessagesTimeline.logic";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import { useTimelineRowEntrance } from "./useTimelineRowEntrance";
 import {
@@ -70,7 +89,7 @@ import {
 } from "~/lib/terminalContext";
 import { cn } from "~/lib/utils";
 import { type TimestampFormat } from "@tabs/contracts/settings";
-import { formatTimestamp } from "../../timestampFormat";
+import { formatChatTimestampTooltip, formatTimestamp } from "../../timestampFormat";
 import {
   buildInlineTerminalContextText,
   formatInlineTerminalContextLabel,
@@ -80,7 +99,41 @@ import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection
 import { parseScopedThreadKey } from "@tabs/client-runtime/environment";
 import { AssistantCitationSource, type AssistantCitationRequest } from "./AssistantCitationSource";
 import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
+import { BrowserWorkflowPendingRelease } from "./BrowserWorkflowPendingRelease";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
+
+function browserWorkflowResultKey(result: BrowserWorkflowResultRef): string {
+  return JSON.stringify([
+    result.workflowId,
+    result.stage,
+    result.pendingAction,
+    result.submitRequiresUser,
+    result.partnerCenter?.storeStatus,
+    result.partnerCenter?.observedAt,
+  ]);
+}
+
+/** Stable button label; the current state goes in the secondary line. */
+function browserWorkflowButtonLabel(result: BrowserWorkflowResultRef): string {
+  if (result.pendingAction === "upload") return "Check upload status";
+  if (result.pendingAction === "submit" || result.submitRequiresUser)
+    return "Check submission status";
+  if (result.stage === "ready_to_upload" || result.stage === "uploaded") return "Open draft";
+  return "Open submission";
+}
+
+function browserWorkflowStatusLine(result: BrowserWorkflowResultRef): string {
+  if (result.submitRequiresUser) return "Submit in the original draft";
+  if (result.pendingAction === "upload") return "Upload outcome unverified";
+  if (result.pendingAction === "submit") return "Submission outcome unverified";
+  // The reference carries `evidence` once the server projects it; Partner Center
+  // data always comes from the connector.
+  const evidence = (result as { evidence?: string }).evidence;
+  if (evidence === "user") return "You confirmed it";
+  if (evidence === "connector" || result.partnerCenter) return "Confirmed by Partner Center";
+  if (result.stage === "ready_to_upload") return "The page shows Ready to upload";
+  return `The page shows ${capitalizePhrase(result.stage)}`;
+}
 
 interface MessagesTimelineProps {
   hasMessages: boolean;
@@ -96,6 +149,14 @@ interface MessagesTimelineProps {
   expandedWorkGroups: Record<string, boolean>;
   onToggleWorkGroup: (groupId: string) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
+  onOpenDeviceComparison?: ((result: DeviceComparisonViewRef) => void) | undefined;
+  onOpenDeviceComparisonRequest?: ((request: DeviceAccessRequestRef) => void) | undefined;
+  onOpenBrowserQuickActionRequest?: ((request: BrowserQuickActionRequestRef) => void) | undefined;
+  onOpenBrowserQuickActionFile?: ((result: BrowserQuickActionFileResultRef) => void) | undefined;
+  observedBrowserWorkflowResults?: ReadonlyMap<string, BrowserWorkflowResultRef> | undefined;
+  onOpenBrowserWorkflow?: ((result: BrowserWorkflowResultRef) => void) | undefined;
+  onOpenFigmaCanvasResult?: ((result: FigmaCanvasResultRef) => void) | undefined;
+  terminalInputEnvironmentId?: EnvironmentId | undefined;
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onRevertUserMessage: (messageId: MessageId) => void;
   isRevertingCheckpoint: boolean;
@@ -115,6 +176,7 @@ interface MessagesTimelineProps {
     sourceAnchor: AssistantCitationSourceAnchor,
   ) => boolean;
   threadId?: ThreadId;
+  projectId?: string | undefined;
   routeThreadKey?: string;
 }
 
@@ -132,6 +194,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   expandedWorkGroups,
   onToggleWorkGroup,
   onOpenTurnDiff,
+  onOpenDeviceComparison,
+  onOpenDeviceComparisonRequest,
+  onOpenBrowserQuickActionRequest,
+  onOpenBrowserQuickActionFile,
+  observedBrowserWorkflowResults,
+  onOpenBrowserWorkflow,
+  onOpenFigmaCanvasResult,
+  terminalInputEnvironmentId,
   revertTurnCountByUserMessageId,
   onRevertUserMessage,
   isRevertingCheckpoint,
@@ -147,6 +217,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   citationRequest,
   onCiteAssistantText,
   threadId,
+  projectId,
   routeThreadKey,
 }: MessagesTimelineProps) {
   const citationThreadRef = useMemo(() => {
@@ -157,6 +228,28 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
   const rows = useMemo<TimelineRow[]>(() => {
     const nextRows: TimelineRow[] = [];
+    const seenDeviceResults = new Set<string>();
+    const seenEvidenceDrafts = new Set<string>();
+    const seenDeviceRequests = new Set<string>();
+    const seenBrowserResults = new Set<string>();
+    const seenQuickActionFiles = new Set<string>();
+    const seenFigmaResults = new Set<string>();
+    const seenTerminalRequests = new Set<string>();
+    const verifiedBrowserStages = new Map<string, number>();
+    const latestPendingUploadIndex = new Map<string, number>();
+    const latestPendingSubmitIndex = new Map<string, number>();
+    const browserStages = BrowserWorkflowStage.literals;
+    for (const [index, entry] of timelineEntries.entries()) {
+      if (entry.kind !== "work" || !entry.entry.browserWorkflowResult) continue;
+      const { workflowId, stage, pendingAction } = entry.entry.browserWorkflowResult;
+      const rank = browserStages.indexOf(stage);
+      if (rank > (verifiedBrowserStages.get(workflowId) ?? -1))
+        verifiedBrowserStages.set(workflowId, rank);
+      if (stage === "ready_to_upload" && pendingAction === "upload")
+        latestPendingUploadIndex.set(workflowId, index);
+      if (stage === "uploaded" && pendingAction === "submit")
+        latestPendingSubmitIndex.set(workflowId, index);
+    }
     const durationStartByMessageId = computeMessageDurationStart(
       timelineEntries.flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
     );
@@ -176,11 +269,112 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           groupedEntries.push(nextEntry.entry);
           cursor += 1;
         }
+        const deviceResults = groupedEntries.flatMap((entry) => {
+          const views: (DeviceComparisonViewRef | undefined)[] = [
+            entry.deviceDifference,
+            entry.deviceCompletion,
+          ];
+          return views.flatMap((result) => {
+            if (!result) return [];
+            const key = `${result.runId}:${result.step ?? "completed"}`;
+            if (seenDeviceResults.has(key)) return [];
+            seenDeviceResults.add(key);
+            return [result];
+          });
+        });
+        const unverifiedScreenshots = groupedEntries.filter(
+          (entry) => entry.unverifiedScreenshotDraft && !entry.verifiedEvidenceDraft,
+        ).length;
+        const evidenceDrafts = groupedEntries.flatMap(({ verifiedEvidenceDraft: result }) => {
+          // Only an image receipt counts as verified; absent means the original image kind.
+          if (!result || ((result as { receiptKind?: string }).receiptKind ?? "image") !== "image")
+            return [];
+          const key = `${result.runId}:${result.step}`;
+          if (seenEvidenceDrafts.has(key)) return [];
+          seenEvidenceDrafts.add(key);
+          return [result];
+        });
+        const deviceRequests = groupedEntries.flatMap(({ deviceComparisonRequest }) => {
+          if (!deviceComparisonRequest) return [];
+          const id =
+            "runId" in deviceComparisonRequest
+              ? deviceComparisonRequest.runId
+              : deviceComparisonRequest.approvalId;
+          if (seenDeviceRequests.has(id)) return [];
+          seenDeviceRequests.add(id);
+          return [deviceComparisonRequest];
+        });
+        const browserResults = groupedEntries.flatMap(({ browserWorkflowResult }, offset) => {
+          if (!browserWorkflowResult) return [];
+          const { workflowId, stage, pendingAction, submitRequiresUser, partnerCenter } =
+            browserWorkflowResult;
+          const rank = browserStages.indexOf(stage);
+          const pending = pendingAction || submitRequiresUser;
+          // A later tool receipt already supersedes this pending check.
+          if (pending && (verifiedBrowserStages.get(workflowId) ?? -1) > rank) return [];
+          if (
+            submitRequiresUser &&
+            stage === "uploaded" &&
+            (latestPendingSubmitIndex.get(workflowId) ?? -1) > index + offset
+          )
+            return [];
+          if (
+            !pending &&
+            !partnerCenter &&
+            stage === "ready_to_upload" &&
+            (latestPendingUploadIndex.get(workflowId) ?? -1) > index + offset
+          )
+            return [];
+          const observed = pending ? observedBrowserWorkflowResults?.get(workflowId) : undefined;
+          const result =
+            observed && browserWorkflowResultSupersedes(observed, browserWorkflowResult)
+              ? observed
+              : browserWorkflowResult;
+          const key = browserWorkflowResultKey(result);
+          if (seenBrowserResults.has(key)) return [];
+          seenBrowserResults.add(key);
+          return [result];
+        });
+        const quickActionRequests = new Map<string, BrowserQuickActionRequestRef>();
+        for (const { browserQuickActionRequest } of groupedEntries) {
+          if (browserQuickActionRequest)
+            quickActionRequests.set(
+              browserQuickActionRequest.pause?.pauseId ?? browserQuickActionRequest.actionId,
+              browserQuickActionRequest,
+            );
+        }
+        const quickActionFiles = groupedEntries.flatMap(
+          ({ browserQuickActionFileResult: result }) => {
+            if (!result || seenQuickActionFiles.has(result.resultId)) return [];
+            seenQuickActionFiles.add(result.resultId);
+            return [result];
+          },
+        );
+        const figmaResults = groupedEntries.flatMap(({ figmaCanvasResult }) => {
+          if (!figmaCanvasResult || seenFigmaResults.has(figmaCanvasResult.operationId)) return [];
+          seenFigmaResults.add(figmaCanvasResult.operationId);
+          return [figmaCanvasResult];
+        });
+        const terminalRequests = groupedEntries.flatMap(({ terminalAgentInput }) => {
+          if (!terminalAgentInput || seenTerminalRequests.has(terminalAgentInput.requestId))
+            return [];
+          seenTerminalRequests.add(terminalAgentInput.requestId);
+          return [terminalAgentInput];
+        });
         nextRows.push({
           kind: "work",
           id: timelineEntry.id,
           createdAt: timelineEntry.createdAt,
           groupedEntries,
+          deviceResults,
+          evidenceDrafts,
+          unverifiedScreenshots,
+          deviceRequests,
+          browserResults,
+          quickActionRequests: [...quickActionRequests.values()],
+          quickActionFiles,
+          figmaResults,
+          terminalRequests,
         });
         index = cursor - 1;
         continue;
@@ -234,7 +428,13 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     }
 
     return positionedRows;
-  }, [timelineEntries, completionDividerBeforeEntryId, isWorking, activeTurnStartedAt]);
+  }, [
+    timelineEntries,
+    completionDividerBeforeEntryId,
+    isWorking,
+    activeTurnStartedAt,
+    observedBrowserWorkflowResults,
+  ]);
 
   const seenPromptIds = useMemo(() => seenUserMessageIds(rows), [rows]);
   const timelineRootRef = useRef<HTMLDivElement>(null);
@@ -324,14 +524,157 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 (entry as unknown as { activityKind?: string }).activityKind ?? "",
               ),
           );
-          if (steps.length === 0) return null;
           return (
-            <WorkLogGroup
-              entries={steps}
-              expanded={expandedWorkGroups[row.id] ?? false}
-              onToggle={() => onToggleWorkGroup(row.id)}
-              active={isWorking && rows.at(-1)?.id === row.id}
-            />
+            <>
+              {steps.length > 0 && (
+                <WorkLogGroup
+                  entries={steps}
+                  expanded={expandedWorkGroups[row.id] ?? false}
+                  onToggle={() => onToggleWorkGroup(row.id)}
+                  active={isWorking && rows.at(-1)?.id === row.id}
+                />
+              )}
+              {onOpenDeviceComparisonRequest &&
+                row.deviceRequests.map((request) => (
+                  <Button
+                    key={"runId" in request ? request.runId : request.approvalId}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => onOpenDeviceComparisonRequest(request)}
+                  >
+                    Review device access
+                  </Button>
+                ))}
+              {onOpenBrowserQuickActionRequest &&
+                row.quickActionRequests.map((request) => (
+                  <Button
+                    key={request.pause?.pauseId ?? request.actionId}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => onOpenBrowserQuickActionRequest(request)}
+                  >
+                    {request.pause ? "Repair Quick Action" : "Review Quick Action"}
+                  </Button>
+                ))}
+              {onOpenBrowserQuickActionFile &&
+                row.quickActionFiles.map((result) => (
+                  <Button
+                    key={result.resultId}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2 max-w-full"
+                    onClick={() => onOpenBrowserQuickActionFile(result)}
+                  >
+                    <span className="truncate">Open verified file</span>
+                    <span className="truncate text-xs font-normal text-muted-foreground">
+                      {result.filename}
+                    </span>
+                  </Button>
+                ))}
+              {terminalInputEnvironmentId &&
+                threadId &&
+                row.terminalRequests.map((request) => (
+                  <TerminalAgentInputButton
+                    key={request.requestId}
+                    environmentId={terminalInputEnvironmentId}
+                    threadId={threadId}
+                    request={request}
+                  />
+                ))}
+              {onOpenDeviceComparison &&
+                row.deviceResults.map((result) => (
+                  <Button
+                    key={`${result.runId}:${result.step ?? "completed"}`}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => onOpenDeviceComparison(result)}
+                  >
+                    {result.step === undefined
+                      ? "Open comparison result"
+                      : `Open first difference · Step ${result.step}`}
+                  </Button>
+                ))}
+              {row.unverifiedScreenshots > 0 && (
+                <p role="status" className="mt-2 text-xs text-muted-foreground">
+                  The page shows the screenshot fingerprint, but Tabs couldn&apos;t confirm the
+                  image.
+                </p>
+              )}
+              {onOpenDeviceComparison &&
+                environmentId &&
+                projectId &&
+                threadId &&
+                row.evidenceDrafts.map((result) => (
+                  <DeviceComparisonDraftLink
+                    key={`${environmentId}:${projectId}:${threadId}:${result.runId}:${result.step}`}
+                    environmentId={environmentId}
+                    projectId={ProjectId.make(projectId)}
+                    threadId={threadId}
+                    reference={result}
+                    workLog
+                  />
+                ))}
+              {row.browserResults
+                .filter((result) => onOpenBrowserWorkflow || result.partnerCenter)
+                .map((result) => (
+                  <span
+                    key={browserWorkflowResultKey(result)}
+                    className="mt-2 inline-flex flex-wrap items-center gap-2"
+                  >
+                    {onOpenBrowserWorkflow && (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        onClick={() => onOpenBrowserWorkflow(result)}
+                      >
+                        {browserWorkflowButtonLabel(result)}
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {browserWorkflowStatusLine(result)}
+                    </span>
+                    {result.pendingAction && environmentId && threadId && (
+                      <BrowserWorkflowPendingRelease
+                        environmentId={environmentId}
+                        threadId={threadId}
+                        result={result}
+                      />
+                    )}
+                    {result.partnerCenter && (
+                      <span className="text-xs text-muted-foreground">
+                        Microsoft Store · {result.partnerCenter.storeStatus} · Observed{" "}
+                        <time dateTime={result.partnerCenter.observedAt}>
+                          {formatChatTimestampTooltip(
+                            result.partnerCenter.observedAt,
+                            timestampFormat,
+                          )}
+                        </time>
+                      </span>
+                    )}
+                  </span>
+                ))}
+              {onOpenFigmaCanvasResult &&
+                row.figmaResults.map((result) => (
+                  <Button
+                    key={result.operationId}
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => onOpenFigmaCanvasResult(result)}
+                  >
+                    Open editable frame
+                  </Button>
+                ))}
+            </>
           );
         })()}
 
@@ -411,9 +754,46 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                           className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/80 bg-background/70 px-2.5 py-2 text-xs"
                         >
                           <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate" title={file.name}>
-                            {file.name}
-                          </span>
+                          {file.mimeType === SURFACE_ATTACHMENT_TYPE && threadId && projectId ? (
+                            <button
+                              type="button"
+                              className="truncate hover:underline"
+                              title={file.name}
+                              onClick={(event) => {
+                                const button = event.currentTarget;
+                                const isVisible = () =>
+                                  button.isConnected && button.getClientRects().length > 0;
+                                void openSurfaceAttachment(
+                                  { environmentId: environmentId ?? null, threadId, projectId },
+                                  file,
+                                  isVisible,
+                                ).catch((error: Error) => {
+                                  if (!isVisible()) return;
+                                  const where = {
+                                    environmentId: environmentId ?? null,
+                                    threadId,
+                                    projectId,
+                                  };
+                                  if (error instanceof NativeWindowUnavailableError)
+                                    toastManager.add({
+                                      type: "warning",
+                                      title: error.message,
+                                      actionProps: {
+                                        children: "Attach a window",
+                                        onClick: () => requestNativeWindowAttach(where),
+                                      },
+                                    });
+                                  else toastManager.add({ type: "error", title: error.message });
+                                });
+                              }}
+                            >
+                              {file.name.replace(/\.tabs\.json$/, "")}
+                            </button>
+                          ) : (
+                            <span className="truncate" title={file.name}>
+                              {file.name}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -685,6 +1065,15 @@ type TimelineRow =
       id: string;
       createdAt: string;
       groupedEntries: TimelineWorkEntry[];
+      deviceResults: DeviceComparisonViewRef[];
+      evidenceDrafts: DeviceComparisonResultRef[];
+      unverifiedScreenshots: number;
+      deviceRequests: DeviceAccessRequestRef[];
+      browserResults: BrowserWorkflowResultRef[];
+      quickActionRequests: BrowserQuickActionRequestRef[];
+      quickActionFiles: BrowserQuickActionFileResultRef[];
+      figmaResults: FigmaCanvasResultRef[];
+      terminalRequests: TerminalAgentInputRef[];
     }
   | {
       kind: "message";

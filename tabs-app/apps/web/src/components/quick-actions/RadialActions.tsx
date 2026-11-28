@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  AppWindow,
   ArrowUpRight,
   BookOpen,
   Braces,
@@ -10,7 +11,11 @@ import {
   GitBranch,
   HardDrive,
   Link,
+  Hand,
   MoreHorizontal,
+  Paperclip,
+  Smartphone,
+  Square,
   Play,
   Plus,
   Rocket,
@@ -31,7 +36,10 @@ import { BrowserPlanetIcon } from "../BrowserPlanetIcon";
 import { TabsMascot } from "../TabsMascot";
 import {
   DEFAULT_SUB_ACTIONS,
+  DRILL_ACTION_IDS,
   QUICK_ACTIONS,
+  findBuiltInAction,
+  withBuiltInSubActions,
   RING_SLOTS,
   KEEP_LAUNCHER_OPEN,
   actionRunId,
@@ -77,9 +85,28 @@ export const QUICK_ACTION_ICONS: Record<QuickAction["icon"], RadialIconComponent
   cloud: Cloud,
   play: Play,
   flask: FlaskConical,
+  attach: Paperclip,
+  hand: Hand,
+  stop: Square,
+  device: Smartphone,
+  window: AppWindow,
 };
 /** One or two words: labels sit on a ring and must never wrap. */
 const SHORT_LABELS: Record<QuickActionId, string> = {
+  "add-to-conversation": "Add",
+  "agent-control": "Agent",
+  "browser-my-turn": "My turn",
+  "browser-stop": "Stop agent",
+  "attach-surface": "Use this",
+  "attach-open-browser": "Attach tab",
+  "attach-running-device": "Attach device",
+  "review-browser-selection": "Review text",
+  "device-my-turn": "Device takeover",
+  "device-stop": "Stop device",
+  "native-window-my-turn": "Window takeover",
+  "native-window-stop": "Stop agent",
+  "agent-my-turn": "My turn",
+  "agent-stop-all": "Stop all",
   "new-tab": "New tab",
   "new-agent": "New chat",
   "isolated-agent": "Isolated",
@@ -98,6 +125,7 @@ const SHORT_LABELS: Record<QuickActionId, string> = {
   "extension-tool": "Extension",
   "open-thread": "Open",
   "terminal-quick-command": "Command",
+  "browser-quick-action": "Browser action",
   inbox: "Inbox",
   away: "Away",
   toggles: "Toggles",
@@ -184,7 +212,7 @@ export function RadialLauncher({
   disabled,
   onClose,
   preview = false,
-  subActions = DEFAULT_SUB_ACTIONS,
+  subActions: savedSubActions = DEFAULT_SUB_ACTIONS,
   flyoutShape = "curved",
 }: {
   design: LauncherDesign;
@@ -205,8 +233,10 @@ export function RadialLauncher({
     [query, setQuery] = useState(""),
     [searching, setSearching] = useState(false),
     [searchTemplate, setSearchTemplate] = useState<string | null>(null),
+    [moreParent, setMoreParent] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
+  const subActions = withBuiltInSubActions(savedSubActions);
   const main = actions.slice(0, RING_SLOTS);
   const more = actions.filter((action) => !main.some((entry) => entry.id === action.id));
   const nodes: readonly (QuickAction | undefined)[] = [
@@ -216,25 +246,39 @@ export function RadialLauncher({
   const currentIndex = Math.min(index, Math.max(0, nodes.length - 1));
   const active = nodes[currentIndex];
   const isMore = !active && more.length > 0;
-  const children = isMore
-    ? // Pills have room for the full name; only ring nodes use the short one.
-      more.map((action) => ({ action, label: action.label, query: "", id: action.id }))
-    : subActions
-        .filter((entry) => entry.parentId === active?.id)
-        .flatMap((entry) => {
-          const action = actions.find((candidate) => candidate.id === entry.actionId);
-          return action
-            ? [
-                {
-                  action,
-                  label: entry.label.trim() || shortLabel(action),
-                  query: entry.query,
-                  id: entry.id,
-                },
-              ]
-            : [];
-        })
-        .slice(0, 8);
+  const subOptionsOf = (parentId: string | undefined) =>
+    subActions
+      .filter((entry) => entry.parentId === parentId)
+      .flatMap((entry) => {
+        const action =
+          actions.find((candidate) => candidate.id === entry.actionId) ??
+          findBuiltInAction(entry.actionId);
+        return action
+          ? [
+              {
+                action: action as QuickAction,
+                label: entry.label.trim() || shortLabel(action as QuickAction),
+                query: entry.query,
+                id: entry.id,
+                drill: undefined as string | undefined,
+              },
+            ]
+          : [];
+      })
+      .slice(0, 8);
+  const drillParent = isMore && moreParent ? more.find((a) => a.id === moreParent) : undefined;
+  const children = drillParent
+    ? subOptionsOf(drillParent.id)
+    : isMore
+      ? // Pills have room for the full name; only ring nodes use the short one.
+        more.map((action) => ({
+          action,
+          label: action.label,
+          query: "",
+          id: action.id,
+          drill: DRILL_ACTION_IDS.includes(action.id) ? action.id : undefined,
+        }))
+      : subOptionsOf(active?.id);
   const selectedSub = expanded && subIndex >= 0 ? children[subIndex]?.action : undefined;
   const matched =
     query.trim() && !searchTemplate
@@ -286,6 +330,35 @@ export function RadialLauncher({
     return () => observer.disconnect();
   }, [expanded, searching, children.length]);
   const eyes = point(16, activeAngle);
+  const resetSearch = () => {
+    setQuery("");
+    setSearchTemplate(null);
+  };
+  const closeSearch = () => {
+    setSearching(false);
+    resetSearch();
+    root.current?.focus();
+  };
+  const runAndClose = async (task: () => Promise<void | typeof KEEP_LAUNCHER_OPEN>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await task();
+      if (outcome !== KEEP_LAUNCHER_OPEN) onClose?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      if (searching && root.current?.contains(document.activeElement)) input.current?.focus();
+    } finally {
+      setBusy(false);
+      if (
+        !searching &&
+        (document.activeElement === document.body || root.current?.contains(document.activeElement))
+      ) {
+        root.current?.focus();
+      }
+    }
+  };
   const run = async (action: QuickAction | undefined, given = query) => {
     // A custom action always runs with its own saved input.
     const target = action && "custom" in action ? action.custom.query : given;
@@ -297,23 +370,21 @@ export function RadialLauncher({
       return;
     }
     if (!action || !runId || busy || disabled(runId)) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const outcome = await execute(
+    await runAndClose(() =>
+      execute(
         runId,
         target.includes("{query}")
           ? target.replaceAll("{query}", encodeURIComponent(query))
           : target,
-      );
-      // A glance opens inside the launcher, so it stays open.
-      if (outcome !== KEEP_LAUNCHER_OPEN) onClose?.();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-      root.current?.focus();
-    }
+      ),
+    );
+  };
+  const drillInto = (parentId: string) => {
+    setMoreParent(parentId);
+    setSubIndex(0);
+    requestAnimationFrame(() =>
+      root.current?.querySelector<HTMLButtonElement>('[data-sub-index="0"]')?.focus(),
+    );
   };
   const submitSearch = (customTemplate = searchTemplate) => {
     if (!query.trim()) return;
@@ -335,6 +406,7 @@ export function RadialLauncher({
     }
     setIndex(value);
     setSubIndex(-1);
+    setMoreParent(null);
     setExpanded(true);
     if (focus)
       root.current?.querySelector<HTMLButtonElement>(`[data-radial-index="${value}"]`)?.focus();
@@ -387,10 +459,12 @@ export function RadialLauncher({
           event.preventDefault();
           event.stopPropagation();
           if (searching) {
-            setSearching(false);
-            setQuery("");
-            setSearchTemplate(null);
-            root.current?.focus();
+            closeSearch();
+            return;
+          }
+          if (moreParent) {
+            setMoreParent(null);
+            setSubIndex(-1);
             return;
           }
           onClose?.();
@@ -444,10 +518,7 @@ export function RadialLauncher({
             searching &&
             !(event.target as Element).closest(".qa-search-panel, .qa-radial-node")
           ) {
-            setSearching(false);
-            setQuery("");
-            setSearchTemplate(null);
-            root.current?.focus();
+            closeSearch();
           }
         }}
         onPointerMove={(event) => {
@@ -543,6 +614,7 @@ export function RadialLauncher({
                 onFocus={() => {
                   setIndex(i);
                   setSubIndex(-1);
+                  setMoreParent(null);
                   setExpanded(true);
                 }}
                 onPointerEnter={() => select(i)}
@@ -576,6 +648,7 @@ export function RadialLauncher({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
                   if (event.key === "Enter") {
                     event.preventDefault();
                     event.stopPropagation();
@@ -583,10 +656,7 @@ export function RadialLauncher({
                   } else if (event.key === "Escape") {
                     event.preventDefault();
                     event.stopPropagation();
-                    setSearching(false);
-                    setQuery("");
-                    setSearchTemplate(null);
-                    root.current?.focus();
+                    closeSearch();
                   }
                 }}
               />
@@ -644,12 +714,7 @@ export function RadialLauncher({
                 className="qa-search-panel-close"
                 aria-label="Close search"
                 title="Close search (Esc)"
-                onClick={() => {
-                  setSearching(false);
-                  setQuery("");
-                  setSearchTemplate(null);
-                  root.current?.focus();
-                }}
+                onClick={closeSearch}
               >
                 <kbd>esc</kbd>
                 <span>to close</span>
@@ -667,8 +732,8 @@ export function RadialLauncher({
           <CurvedMenu
             angle={activeAngle}
             center={280}
-            title={active ? shortLabel(active) : "More"}
-            label={`${active?.label ?? "More"} options`}
+            title={drillParent ? drillParent.label : active ? shortLabel(active) : "More"}
+            label={`${drillParent?.label ?? active?.label ?? "More"} options`}
             current={subIndex}
             busy={busy}
             bounds={menuBounds}
@@ -677,6 +742,10 @@ export function RadialLauncher({
             onHover={setSubIndex}
             onRun={(i) => {
               const entry = children[i];
+              if (entry?.drill) {
+                drillInto(entry.drill);
+                return;
+              }
               if (entry) void run(entry.action, entry.query);
             }}
             rows={children.map((entry) => {
@@ -684,7 +753,7 @@ export function RadialLauncher({
               return {
                 id: entry.id,
                 label: entry.label,
-                hint: destinationHint(entry.query),
+                hint: entry.drill ? "›" : destinationHint(entry.query),
                 icon: QUICK_ACTION_ICONS[entry.action.icon] as CurvedMenuRow["icon"],
                 disabledReason: reason,
                 title: `${entry.label} · ${reason ?? entry.action.detail}`,
@@ -726,7 +795,10 @@ export function RadialLauncher({
                   title={`${entry.label} · ${reason ?? action.detail}`}
                   onPointerEnter={() => setSubIndex(i)}
                   onFocus={() => setSubIndex(i)}
-                  onClick={() => void run(action, entry.query)}
+                  onClick={() => {
+                    if (entry.drill) drillInto(entry.drill);
+                    else void run(action, entry.query);
+                  }}
                 >
                   <RowIcon aria-hidden="true" size={15} width={15} height={15} />
                   <span className="qa-sub-label">{entry.label}</span>

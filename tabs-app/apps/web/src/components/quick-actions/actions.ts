@@ -49,6 +49,20 @@ export const QUICK_ACTIONS = [
     icon: "clipboard",
   },
   {
+    id: "add-to-conversation",
+    label: "Add to conversation",
+    detail: "Attach a tab, device or selection to this conversation",
+    group: "Workspace",
+    icon: "attach",
+  },
+  {
+    id: "agent-control",
+    label: "Agent control",
+    detail: "Take your turn or stop the agent in this conversation",
+    group: "Workspace",
+    icon: "hand",
+  },
+  {
     id: "code",
     label: "Return to code",
     detail: "Focus this project's editor",
@@ -126,7 +140,104 @@ export const QUICK_ACTIONS = [
     icon: "settings",
   },
 ] as const;
-export type BuiltInQuickAction = (typeof QUICK_ACTIONS)[number];
+/**
+ * Actions that run from a parent's sub-options, shortcuts and commands. They have no spot on
+ * the ring or in More, and are not part of a saved arrangement.
+ */
+export const INTERNAL_ACTIONS = [
+  {
+    id: "browser-my-turn",
+    label: "My turn — selected browser tab",
+    detail: "Pause agent input and demonstrate one step",
+    group: "Workspace",
+    icon: "browser",
+  },
+  {
+    id: "browser-stop",
+    label: "Stop agent — selected browser tab",
+    detail: "Cancel queued input and revoke the thread’s page and screenshot grants",
+    group: "Workspace",
+    icon: "stop",
+  },
+  {
+    id: "attach-surface",
+    label: "Use this here",
+    detail: "Attach the focused project tool or selected conversation panel",
+    group: "Workspace",
+    icon: "attach",
+  },
+  {
+    id: "attach-open-browser",
+    label: "Attach an open browser tab",
+    detail: "Move a live browser tab from another conversation in this project",
+    group: "Workspace",
+    icon: "browser",
+  },
+  {
+    id: "attach-running-device",
+    label: "Attach a running device",
+    detail: "Choose an open device view from this project",
+    group: "Workspace",
+    icon: "device",
+  },
+  {
+    id: "review-browser-selection",
+    label: "Review selected browser text",
+    detail: "Attach an excerpt from the selected conversation browser",
+    group: "Workspace",
+    icon: "browser",
+  },
+  {
+    id: "device-my-turn",
+    label: "My turn — selected device",
+    detail: "Pause agent input on this device",
+    group: "Workspace",
+    icon: "device",
+  },
+  {
+    id: "device-stop",
+    label: "Stop agent — selected device",
+    detail: "Stop the device session or comparison",
+    group: "Workspace",
+    icon: "stop",
+  },
+  {
+    id: "native-window-my-turn",
+    label: "My turn — attached desktop window",
+    detail: "Cancel queued input and take back the window",
+    group: "Workspace",
+    icon: "window",
+  },
+  {
+    id: "agent-my-turn",
+    label: "My turn — active agent target",
+    detail: "Take over the browser tab, device or window the agent is using in this conversation",
+    group: "Workspace",
+    icon: "hand",
+  },
+  {
+    id: "agent-stop-all",
+    label: "Stop agent — everything in this conversation",
+    detail: "End agent access to browser tabs, devices and desktop windows",
+    group: "Workspace",
+    icon: "stop",
+  },
+  {
+    id: "native-window-stop",
+    label: "Stop agent — attached desktop window",
+    detail: "Stop agent control of this conversation’s window",
+    group: "Workspace",
+    icon: "stop",
+  },
+] as const;
+export type BuiltInQuickAction = (typeof QUICK_ACTIONS)[number] | (typeof INTERNAL_ACTIONS)[number];
+/** Parents in More that open their own sub-options instead of running. */
+export const DRILL_ACTION_IDS: readonly string[] = ["add-to-conversation", "agent-control"];
+/** Every built-in action, including the ones that only run from a parent's sub-options. */
+export const ALL_BUILT_IN_ACTIONS = [...QUICK_ACTIONS, ...INTERNAL_ACTIONS] as const;
+export function findBuiltInAction(id: string): BuiltInQuickAction | undefined {
+  return ALL_BUILT_IN_ACTIONS.find((action) => action.id === id);
+}
 /**
  * Not shown on their own: "extension-tool" is what an installed extension's
  * launcher entry runs (input: the toolbar tool id), and "open-thread" is what
@@ -136,7 +247,8 @@ export type QuickActionId =
   | BuiltInQuickAction["id"]
   | "extension-tool"
   | "open-thread"
-  | "terminal-quick-command";
+  | "terminal-quick-command"
+  | "browser-quick-action";
 
 /**
  * Actions that open a panel inside the launcher instead of taking you
@@ -220,7 +332,7 @@ export interface CustomActionDraft {
 }
 
 function isBuiltInId(id: string): id is QuickActionId {
-  return QUICK_ACTIONS.some((action) => action.id === id);
+  return findBuiltInAction(id) !== undefined;
 }
 
 export function newCustomActionDraft(id: string): CustomActionDraft {
@@ -276,7 +388,7 @@ export function customActionFromDraft(draft: CustomActionDraft): CustomQuickActi
 function toLauncherAction(saved: CustomQuickAction): CustomLauncherAction | null {
   if (!isBuiltInId(saved.actionId)) return null;
   const { icon } = customActionDraft(saved);
-  const builtIn = QUICK_ACTIONS.find((action) => action.id === saved.actionId)!;
+  const builtIn = findBuiltInAction(saved.actionId)!;
   return {
     id: saved.id,
     label: saved.label,
@@ -409,6 +521,12 @@ export function actionAccentIdentity(action: BuiltInQuickAction): string {
     inbox: "agents",
     away: "agents",
     toggles: "settings",
+    book: "notes",
+    attach: "agents",
+    hand: "agents",
+    stop: "agents",
+    device: "workspace",
+    window: "workspace",
   }[action.icon];
 }
 
@@ -435,6 +553,48 @@ export function blankBrowserStartUrl(preferences: BlankBrowserPreferences | unde
 }
 
 export const DEFAULT_SUB_ACTIONS: readonly QuickSubAction[] = [
+  {
+    id: "attach-here",
+    parentId: "add-to-conversation",
+    actionId: "attach-surface",
+    label: "Use this here",
+    query: "",
+  },
+  {
+    id: "attach-browser-tab",
+    parentId: "add-to-conversation",
+    actionId: "attach-open-browser",
+    label: "Open browser tab",
+    query: "",
+  },
+  {
+    id: "attach-device",
+    parentId: "add-to-conversation",
+    actionId: "attach-running-device",
+    label: "Running device",
+    query: "",
+  },
+  {
+    id: "attach-browser-text",
+    parentId: "add-to-conversation",
+    actionId: "review-browser-selection",
+    label: "Selected browser text",
+    query: "",
+  },
+  {
+    id: "agent-my-turn",
+    parentId: "agent-control",
+    actionId: "agent-my-turn",
+    label: "My turn",
+    query: "",
+  },
+  {
+    id: "agent-stop",
+    parentId: "agent-control",
+    actionId: "agent-stop-all",
+    label: "Stop agent",
+    query: "",
+  },
   {
     id: "search-google",
     parentId: "search",
@@ -499,3 +659,19 @@ export const DEFAULT_SUB_ACTIONS: readonly QuickSubAction[] = [
     query: "",
   },
 ];
+
+/**
+ * Saved sub-options come from before the Add to conversation and Agent control parents existed,
+ * so their built-in options are added when none are saved for that parent.
+ */
+export function withBuiltInSubActions(
+  saved: readonly QuickSubAction[] | undefined,
+): readonly QuickSubAction[] {
+  const base = saved ?? DEFAULT_SUB_ACTIONS;
+  const missing = DEFAULT_SUB_ACTIONS.filter(
+    (entry) =>
+      DRILL_ACTION_IDS.includes(entry.parentId) &&
+      !base.some((candidate) => candidate.parentId === entry.parentId),
+  );
+  return missing.length ? [...base, ...missing] : base;
+}

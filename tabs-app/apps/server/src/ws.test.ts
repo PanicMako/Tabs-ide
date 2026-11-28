@@ -1,6 +1,13 @@
-import { assert, it } from "@effect/vitest";
+import { assert, expect, it } from "@effect/vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  EnvironmentId,
   ORCHESTRATION_PROTOCOL_VERSION,
+  PreviewTabId,
+  ProjectId,
+  ThreadId,
   type ServerConfig,
   type ServerConfigStreamEvent,
 } from "@tabs/contracts";
@@ -18,9 +25,11 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
+import { figmaCanvasJournal } from "./mcp/toolkits/figmaCanvas/journal.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import {
   hasCompatibleOrchestrationProtocol,
+  readOwnedFigmaCanvasResult,
   resolveAvailableEditorsForConfig,
   SNAPSHOT_EDITOR_DISCOVERY_TIMEOUT,
   shouldUseBoundedThreadSnapshot,
@@ -46,6 +55,53 @@ it("keeps full thread snapshot fallback unless the client opts into bounded hist
   assert.isFalse(shouldUseBoundedThreadSnapshot({}));
   assert.isFalse(shouldUseBoundedThreadSnapshot({ acceptBoundedSnapshot: false }));
   assert.isTrue(shouldUseBoundedThreadSnapshot({ acceptBoundedSnapshot: true }));
+});
+
+it("reads a verified Figma receipt only for its journal owner", async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), "tabs-figma-receipt-rpc-"));
+  const environmentId = EnvironmentId.make("desktop");
+  const threadId = ThreadId.make("figma-thread");
+  const projectId = ProjectId.make("figma-project");
+  const operationId = "1a".repeat(32);
+  const target = {
+    projectId,
+    tabId: PreviewTabId.make("custom-figma"),
+    profileId: "work",
+    hostKey: "desktop-work",
+    attachmentId: "dd056428-88b4-4cb7-96c5-97503c89f805",
+    mainFileKey: "design-main",
+    fileKey: "design-branch",
+    nodeId: "1:2",
+  };
+  const receipt = {
+    target,
+    frameNodeId: "2:3",
+    textNodeId: "2:4",
+    verifiedAt: "2026-11-26T00:00:00.000Z",
+  };
+  const journal = figmaCanvasJournal(stateDir, operationId);
+  const read = (owner = { environmentId, projectId }, input = { operationId, threadId }) =>
+    Effect.runPromise(readOwnedFigmaCanvasResult(stateDir, owner, input));
+  const assertUnavailable = (result: Promise<unknown>) =>
+    expect(result).rejects.toThrow("The saved Figma frame is unavailable in this thread.");
+  try {
+    await assertUnavailable(read());
+    await journal.reserve({ environmentId, threadId }, target, "designer@example.com");
+    await assertUnavailable(read());
+    await journal.saveReceipt(receipt);
+    assert.deepEqual(await read(), receipt);
+    await assertUnavailable(read({ environmentId: EnvironmentId.make("other"), projectId }));
+    await assertUnavailable(read({ environmentId, projectId: ProjectId.make("other") }));
+    await assertUnavailable(read(undefined, { operationId, threadId: ThreadId.make("other") }));
+
+    const otherOperationId = "2b".repeat(32);
+    const mismatched = figmaCanvasJournal(stateDir, otherOperationId);
+    await mismatched.reserve({ environmentId, threadId }, target, "designer@example.com");
+    await mismatched.saveReceipt({ ...receipt, target: { ...target, profileId: "personal" } });
+    await assertUnavailable(read(undefined, { operationId: otherOperationId, threadId }));
+  } finally {
+    await rm(stateDir, { recursive: true, force: true });
+  }
 });
 
 it.effect("does not block server config when editor discovery never resolves", () =>

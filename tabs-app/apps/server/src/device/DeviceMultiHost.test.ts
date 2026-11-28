@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { ThreadId } from "@tabs/contracts";
+import { ProviderInstanceId, ThreadId } from "@tabs/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Effect from "effect/Effect";
@@ -69,15 +69,17 @@ it.effect("keeps hosts independent when serials collide and another host fails",
     const writeStarted = yield* Deferred.make<void>();
     const finishWrite = yield* Deferred.make<void>();
     const order: string[] = [];
-    const service = yield* DeviceService.makeWithHosts(hosts, undefined, () =>
-      Effect.gen(function* () {
-        order.push("write started");
-        yield* Deferred.succeed(writeStarted, undefined);
-        yield* Deferred.await(finishWrite);
-        order.push("write finished");
-        return "/host-config.json";
-      }),
-    ).pipe(Effect.provideService(HttpClient.HttpClient, http));
+    const service = yield* DeviceService.makeWithHosts(hosts, undefined, {
+      providerActive: () => true,
+      configForGrant: () =>
+        Effect.gen(function* () {
+          order.push("write started");
+          yield* Deferred.succeed(writeStarted, undefined);
+          yield* Deferred.await(finishWrite);
+          order.push("write finished");
+          return { command: "/agent-device", configPath: "/device-grant.json" };
+        }),
+    }).pipe(Effect.provideService(HttpClient.HttpClient, http));
     expect(yield* service.agentReadinessIfSupported("b")).not.toBeNull();
     const listed = yield* service.list;
     expect(listed.devices.map((device) => device.hostId).sort()).toEqual(["a", "b"]);
@@ -92,7 +94,15 @@ it.effect("keeps hosts independent when serials collide and another host fails",
     expect(state.hostStatuses.a?.status).toBe("ready");
     expect(state.hostStatuses.offline?.status).toBe("failed");
     const targeting = yield* service
-      .agentTarget({ threadId, hostId: "b", deviceId: "emulator-5554" })
+      .agentTarget(
+        state.sessions[0]!,
+        {
+          threadId,
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          providerSessionId: "provider-session",
+        },
+        "/entry",
+      )
       .pipe(Effect.forkChild);
     yield* Deferred.await(writeStarted);
     const replacing = yield* service

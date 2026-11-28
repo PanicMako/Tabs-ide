@@ -18,6 +18,7 @@ import type {
   DeviceShutdownInput,
   SshDeviceHostConfig,
 } from "./device.ts";
+import type { DeviceComparisonInput, DeviceComparisonStatus } from "./deviceComparison.ts";
 import type { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import type {
   StorageInventory,
@@ -59,7 +60,11 @@ import type {
 } from "./pullRequest.ts";
 import type { SecretReference } from "./secretReference.ts";
 import type { SecretSourceCheckResult } from "./settingsSecretValue.ts";
-import type { ComputerUsePermissionStatus } from "./computerUse.ts";
+import type {
+  ComputerUsePermissionStatus,
+  NativeComputerCommand,
+  NativeComputerState,
+} from "./computerUse.ts";
 import type {
   ScheduledTaskListResult,
   ScheduledTaskUpsertInput,
@@ -290,6 +295,8 @@ import type {
   ServerRunProviderMaintenanceInput,
 } from "./server.ts";
 import type {
+  TerminalAgentInputReview,
+  TerminalAgentInputReviewCommand,
   TerminalAttachInput,
   TerminalAttachStreamEvent,
   TerminalClearInput,
@@ -338,6 +345,7 @@ import type {
 import {
   PreviewAutomationClickInput,
   PreviewAutomationEvaluateInput,
+  PreviewAutomationDeviceScreenshotAuthorization,
   PreviewAutomationHost,
   PreviewAutomationHostFocus,
   PreviewAutomationPressInput,
@@ -1893,6 +1901,7 @@ export interface LocalApi {
     checkSecretSource: (source: SecretReference) => Promise<SecretSourceCheckResult>;
     /** macOS Accessibility and Screen Recording status for the computer_* agent tools. */
     computerUsePermissions: () => Promise<ComputerUsePermissionStatus>;
+    nativeComputer: (command: NativeComputerCommand) => Promise<NativeComputerState>;
     getTraceDiagnostics: () => Promise<ServerTraceDiagnosticsResult>;
     getProcessDiagnostics: () => Promise<ServerProcessDiagnosticsResult>;
     getProcessResourceHistory: (
@@ -1997,6 +2006,11 @@ export interface EnvironmentApi {
       },
     ) => () => void;
     write: (input: typeof TerminalWriteInput.Encoded) => Promise<void>;
+    reviewAgentInput?: (
+      input: TerminalAgentInputReviewCommand,
+    ) => Promise<TerminalAgentInputReview>;
+    /** Declines every pending agent input request of a thread (Stop agent). */
+    declinePendingAgentInput?: (input: { threadId: string }) => Promise<{ declined: string[] }>;
     resize: (input: typeof TerminalResizeInput.Encoded) => Promise<void>;
     clear: (input: typeof TerminalClearInput.Encoded) => Promise<void>;
     restart: (input: typeof TerminalRestartInput.Encoded) => Promise<TerminalSessionSnapshot>;
@@ -2175,6 +2189,9 @@ export interface EnvironmentApi {
     ) => () => void;
   };
   device: {
+    /** Origin of this environment’s media proxy. Contains no access tokens. */
+    mediaOrigin?: () => string;
+    authorizeMediaUrl?: (url: string) => Promise<string>;
     list: (input: typeof DeviceListInput.Encoded) => Promise<DeviceServiceState>;
     configure: (input: typeof DeviceConfigureInput.Encoded) => Promise<DeviceServiceState>;
     testHost: (input: typeof SshDeviceHostConfig.Encoded) => Promise<DeviceHostSummary>;
@@ -2183,6 +2200,7 @@ export interface EnvironmentApi {
     shutdown: (input: typeof DeviceShutdownInput.Encoded) => Promise<void>;
     detail: (input: typeof DeviceDetailInput.Encoded) => Promise<DeviceDetail>;
     action: (input: typeof DeviceActionInput.Encoded) => Promise<DeviceDetail>;
+    comparison: (input: typeof DeviceComparisonInput.Encoded) => Promise<DeviceComparisonStatus>;
     /** Streams device state; the first value is the current snapshot. */
     subscribe: (
       callback: (state: DeviceServiceState) => void,
@@ -2197,6 +2215,15 @@ export interface EnvironmentApi {
     close: (input: typeof PreviewCloseInput.Encoded) => Promise<void>;
     list: (input: typeof PreviewListInput.Encoded) => Promise<PreviewListResult>;
     reportStatus: (input: typeof PreviewReportStatusInput.Encoded) => Promise<void>;
+    getWorkflowResult: (
+      input: typeof BrowserWorkflowResultInput.Encoded,
+    ) => Promise<BrowserWorkflowSavedResult>;
+    getFigmaCanvasResult: (
+      input: typeof FigmaCanvasResultInput.Encoded,
+    ) => Promise<FigmaCanvasReceipt>;
+    partnerCenterConnection: (
+      input: typeof PartnerCenterConnectionInput.Encoded,
+    ) => Promise<PartnerCenterConnectionStatus>;
     automation: {
       connect: (
         input: PreviewAutomationHost,
@@ -2204,6 +2231,9 @@ export interface EnvironmentApi {
         options?: { onResubscribe?: () => void; onDisconnect?: () => void },
       ) => () => void;
       respond: (response: PreviewAutomationResponse) => Promise<void>;
+      authorizeDeviceScreenshot: (
+        input: PreviewAutomationDeviceScreenshotAuthorization,
+      ) => Promise<boolean>;
       focusHost: (input: PreviewAutomationHostFocus) => Promise<void>;
     };
     onEvent: (

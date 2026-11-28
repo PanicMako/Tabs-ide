@@ -1,5 +1,14 @@
+import { isUserBrowserTab } from "@tabs/shared/preview";
 import {
+  BrowserQuickActionRequestInput,
+  BrowserQuickActionResult,
+  BrowserQuickActionVerifiedRepair,
+  BrowserWorkflowBrowserRequest,
   PREVIEW_AUTOMATION_OPERATIONS,
+  PreviewAutomationQuickActionLookupError,
+  type BrowserQuickActionApprovalRequired,
+  type BrowserWorkflowHostResult,
+  type EnvironmentId,
   type DesktopBrowserSessionState,
   type PreviewAutomationResizeInput,
   type PreviewAutomationResizeResult,
@@ -11,15 +20,61 @@ import {
   type PreviewViewportPresetId,
   type PreviewViewportSetting,
 } from "@tabs/contracts";
+import * as Schema from "effect/Schema";
 import { useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { saveVerifiedBrowserQuickActionRepair } from "../lib/browserQuickActionRepair";
+import {
+  createBrowserWorkflowResultPresenter,
+  readBrowserWorkflowReceipt,
+} from "../lib/browserWorkflowResult";
 
 import { readNativeApi } from "../nativeApi";
 import { appAtomRegistry } from "../state/atomRegistry";
 import { readModelStateAtom } from "../state/readModel";
 import { clientSettingsAtom } from "../state/settings";
 import { workspaceShellActions } from "../state/workspaceShell";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
 
 const SUPPORTED_OPERATIONS = PREVIEW_AUTOMATION_OPERATIONS;
+const decodeQuickActionRequest = Schema.decodeUnknownSync(BrowserQuickActionRequestInput);
+const isQuickActionResult = Schema.is(BrowserQuickActionResult);
+const decodeVerifiedRepair = Schema.decodeUnknownOption(BrowserQuickActionVerifiedRepair);
+
+function automationThread(
+  environmentId: EnvironmentId,
+  threadId: PreviewAutomationRequest["threadId"],
+) {
+  const thread = appAtomRegistry
+    .get(readModelStateAtom)
+    .threads.find(
+      (candidate) => candidate.id === threadId && candidate.environmentId === environmentId,
+    );
+  if (!thread) throw new Error(`Thread ${threadId} is not available in this environment.`);
+  return thread;
+}
+
+export function requestBrowserQuickAction(
+  environmentId: EnvironmentId,
+  request: Pick<PreviewAutomationRequest, "threadId" | "tabId" | "tabIdExplicit" | "input">,
+): BrowserQuickActionApprovalRequired {
+  const thread = automationThread(environmentId, request.threadId);
+  if (request.tabId !== undefined || request.tabIdExplicit) {
+    throw new Error("A Quick Action approval request accepts only the action name.");
+  }
+  const { actionName } = decodeQuickActionRequest(request.input);
+  const name = actionName.toLowerCase();
+  const project = useWorkspaceShellStore.getState().projectSettingsByProjectId[thread.projectId];
+  const matches =
+    project?.browserQuickActions?.filter((action) => action.label.trim().toLowerCase() === name) ??
+    [];
+  const [match] = matches;
+  if (!match) throw new PreviewAutomationQuickActionLookupError({ reason: "missing" });
+  if (matches.length > 1) {
+    throw new PreviewAutomationQuickActionLookupError({ reason: "ambiguous" });
+  }
+  return { status: "approval_required", actionId: match.id };
+}
 
 interface ActiveBrowserRecording {
   readonly recorder: MediaRecorder;
@@ -39,6 +94,9 @@ export function buildPreviewStatusReport(
   target: { threadId: PreviewReportStatusInput["threadId"]; tabId: string },
 ): PreviewReportStatusInput | null {
   if (!state.currentUrl) return null;
+  // A signed-in companion tab reports through scoped status requests only. Unsolicited
+  // navigation events can carry callback parameters or the next account's title.
+  if (isUserBrowserTab(state.sessionId)) return null;
   const title = state.pageTitle ?? "";
   return {
     threadId: target.threadId,
@@ -258,14 +316,18 @@ function errorResponse(
     connectionId,
     requestId: request.requestId,
     ok: false,
-    error: {
-      _tag: "PreviewAutomationExecutionError",
-      message: cause instanceof Error ? cause.message : String(cause),
-    },
+    error:
+      cause instanceof PreviewAutomationQuickActionLookupError
+        ? { _tag: cause._tag, message: cause.message, detail: cause.reason }
+        : {
+            _tag: "PreviewAutomationExecutionError",
+            message: cause instanceof Error ? cause.message : String(cause),
+          },
   };
 }
 
 export function NativePreviewAutomationHost() {
+  const navigate = useNavigate();
   useEffect(() => {
     const api = readNativeApi();
     const bridge = window.desktopBridge;
@@ -273,13 +335,57 @@ export function NativePreviewAutomationHost() {
     const clientId = `tabs-desktop-${crypto.randomUUID()}`;
     let disposed = false;
     let connectionId: string | null = null;
+    let environmentId: EnvironmentId;
+    const presentWorkflowResult = createBrowserWorkflowResultPresenter(
+      bridge,
+      (environmentId, threadId) =>
+        navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId, threadId },
+        }),
+    );
     const previewTargets = new Map<
       string,
       { threadId: PreviewAutomationRequest["threadId"]; tabId: string }
     >();
     const lastReportedState = new Map<string, string>();
+    let hostReport: ReturnType<typeof setTimeout> | undefined;
+    let hostReportRevision = 0;
+    let lastHostReport = "";
+    const resetConnection = () => {
+      connectionId = null;
+      hostReportRevision++;
+      clearTimeout(hostReport);
+    };
+    const scheduleHostReport = () => {
+      const list = bridge.listBrowserWorkflowTabs;
+      if (!connectionId || !list || !api.preview.automation.focusHost) return;
+      const revision = ++hostReportRevision;
+      clearTimeout(hostReport);
+      hostReport = setTimeout(() => {
+        void list()
+          .then(async (liveTabs) => {
+            if (disposed || revision !== hostReportRevision || !connectionId) return;
+            const focused = document.hasFocus();
+            const signature = JSON.stringify([connectionId, focused, liveTabs]);
+            if (signature === lastHostReport) return;
+            await api.preview.automation.focusHost({
+              clientId,
+              connectionId,
+              environmentId,
+              focused,
+              liveTabs,
+            });
+            if (revision === hostReportRevision) lastHostReport = signature;
+          })
+          .catch(() => undefined);
+      }, 100);
+    };
+    window.addEventListener("focus", scheduleHostReport);
+    window.addEventListener("blur", scheduleHostReport);
 
     const unsubscribeState = bridge.onBrowserSessionState((state) => {
+      if (isUserBrowserTab(state.sessionId)) scheduleHostReport();
       const key = recordingKey(state.projectId, state.sessionId);
       const target = previewTargets.get(key);
       if (!target) return;
@@ -300,16 +406,84 @@ export function NativePreviewAutomationHost() {
       });
     });
 
-    const run = async (request: PreviewAutomationRequest): Promise<unknown> => {
-      const thread = appAtomRegistry
-        .get(readModelStateAtom)
-        .threads.find((candidate) => candidate.id === request.threadId);
-      if (!thread) throw new Error(`Thread ${request.threadId} is not available in this client.`);
+    const run = async (
+      request: PreviewAutomationRequest,
+      responseConnectionId: string,
+    ): Promise<unknown> => {
+      const assertConnection = () => {
+        if (disposed || connectionId !== responseConnectionId)
+          throw new Error("The browser automation connection changed.");
+      };
+      if (request.operation === "requestQuickAction") {
+        return requestBrowserQuickAction(environmentId, request);
+      }
+      const thread = automationThread(environmentId, request.threadId);
+      if (request.operation === "readWorkflowReceipt") {
+        assertConnection();
+        return readBrowserWorkflowReceipt(bridge, environmentId, thread.projectId, request);
+      }
+      if (request.operation === "runQuickAction") {
+        const { threadId, tabId, input } = request;
+        const { projectId } = thread;
+        if (!request.tabIdExplicit || !tabId)
+          throw new Error("Provide the exact tab ID from the user's Quick Actions approval.");
+        const actionId =
+          typeof input === "object" && input !== null && "actionId" in input
+            ? input.actionId
+            : undefined;
+        const response = await bridge.runBrowserAutomation({
+          source: "agent",
+          taskId: threadId,
+          projectId,
+          sessionId: tabId,
+          operation: "runQuickAction",
+          input,
+        });
+        if (typeof response !== "object" || response === null || !("verifiedRepair" in response))
+          return response;
+
+        const { verifiedRepair, ...result } = response;
+        if (
+          disposed ||
+          connectionId !== responseConnectionId ||
+          !isQuickActionResult(result) ||
+          result.status !== "pass" ||
+          !result.fileReceipt ||
+          result.fileResult?.tabId !== tabId ||
+          result.fileResult.filename !== result.fileReceipt.filename
+        )
+          return result;
+
+        const repair = decodeVerifiedRepair(verifiedRepair);
+        if (
+          repair._tag === "None" ||
+          repair.value.previous.id !== actionId ||
+          repair.value.replacement.id !== actionId
+        )
+          return result;
+
+        const { projects, threads } = appAtomRegistry.get(readModelStateAtom);
+        const [project, ...duplicates] = projects.filter((candidate) => candidate.id === projectId);
+        if (
+          project?.environmentId === environmentId &&
+          duplicates.length === 0 &&
+          threads.some(
+            (candidate) =>
+              candidate.id === threadId &&
+              candidate.environmentId === environmentId &&
+              candidate.projectId === projectId,
+          )
+        ) {
+          saveVerifiedBrowserQuickActionRepair(projectId, repair.value);
+        }
+        return result;
+      }
       const sessionId = request.tabId ?? `agent-${request.threadId}`;
-      previewTargets.set(recordingKey(thread.projectId, sessionId), {
-        threadId: request.threadId,
-        tabId: sessionId,
-      });
+      if (!isUserBrowserTab(sessionId))
+        previewTargets.set(recordingKey(thread.projectId, sessionId), {
+          threadId: request.threadId,
+          tabId: sessionId,
+        });
       const input =
         typeof request.input === "object" && request.input !== null
           ? (request.input as Record<string, unknown>)
@@ -321,14 +495,17 @@ export function NativePreviewAutomationHost() {
           projectId: thread.projectId,
           sessionId,
           initialUrl: url,
+          requireExisting: request.tabIdExplicit === true,
           taskId: request.threadId,
           temporaryAgentTab: true,
         });
-        if (input.show !== false) {
+        assertConnection();
+        if (input.show !== false && !isUserBrowserTab(sessionId)) {
           await bridge.activateBrowserSession({
             projectId: thread.projectId,
             sessionId,
           });
+          assertConnection();
         }
         return bridge.runBrowserAutomation({
           taskId: request.threadId,
@@ -349,6 +526,7 @@ export function NativePreviewAutomationHost() {
           projectId: thread.projectId,
           sessionId,
         });
+        assertConnection();
         return bridge.runBrowserAutomation({
           taskId: request.threadId,
           source: "agent",
@@ -357,16 +535,77 @@ export function NativePreviewAutomationHost() {
           operation: "status",
         });
       }
+      if (request.operation === "deviceScreenshotUpload") {
+        assertConnection();
+        const transfer = {
+          source: "agent",
+          taskId: request.threadId,
+          projectId: thread.projectId,
+          sessionId,
+          operation: request.operation,
+          input,
+        } as const;
+        if (
+          typeof input === "object" &&
+          input !== null &&
+          "phase" in input &&
+          input.phase === "inspect"
+        )
+          return bridge.runBrowserAutomation(transfer);
+        if (!bridge.runDeviceScreenshotTransfer)
+          throw new Error("Update the desktop to transfer device screenshots.");
+        const authorization = {
+          clientId,
+          connectionId: responseConnectionId,
+          requestId: request.requestId,
+        };
+        return bridge.runDeviceScreenshotTransfer(transfer, async () => {
+          assertConnection();
+          const approved = await api.preview.automation.authorizeDeviceScreenshot(authorization);
+          assertConnection();
+          return approved;
+        });
+      }
+      if (
+        isUserBrowserTab(sessionId) &&
+        (request.operation === "recordingStart" || request.operation === "recordingStop")
+      )
+        throw new Error("Use Browser tools to record this signed-in tab yourself.");
       // Carry the same control epoch through operations that use renderer APIs.
-      const control = (await bridge.runBrowserAutomation({
-        projectId: thread.projectId,
-        sessionId,
-        source: "agent",
-        taskId: request.threadId,
-        operation: "assertControl",
-      })) as { controlEpoch: number };
-      const checkControl = () =>
-        bridge.runBrowserAutomation({
+      let control: { controlEpoch: number };
+      try {
+        control = (await bridge.runBrowserAutomation({
+          projectId: thread.projectId,
+          sessionId,
+          source: "agent",
+          taskId: request.threadId,
+          operation: "assertControl",
+        })) as { controlEpoch: number };
+      } catch (cause) {
+        if (
+          request.operation !== "browserWorkflow" ||
+          !Schema.is(BrowserWorkflowBrowserRequest)(input)
+        )
+          throw cause;
+        const { phase, target } = input;
+        if (
+          (phase !== "upload" && phase !== "submit") ||
+          !request.tabIdExplicit ||
+          target?.tabId !== sessionId ||
+          target.projectId !== thread.projectId
+        )
+          throw cause;
+        // The write was never sent to Electron. The journal can release this reservation.
+        return {
+          disposition: "unobservable",
+          target,
+          reason: "The original browser tab was unavailable for agent input before dispatch.",
+        } satisfies BrowserWorkflowHostResult;
+      }
+      assertConnection();
+      const checkControl = () => {
+        assertConnection();
+        return bridge.runBrowserAutomation({
           projectId: thread.projectId,
           sessionId,
           source: "agent",
@@ -374,6 +613,7 @@ export function NativePreviewAutomationHost() {
           operation: "assertControl",
           input: control,
         });
+      };
       if (request.operation === "recordingStart") {
         return startNativeBrowserRecording(bridge, thread.projectId, sessionId, checkControl);
       }
@@ -415,10 +655,7 @@ export function NativePreviewAutomationHost() {
           viewport,
         } satisfies PreviewAutomationResizeResult;
       }
-      if (request.operation === "requestQuickAction") {
-        throw new Error("Browser Quick Action requests require a newer desktop host.");
-      }
-      return bridge.runBrowserAutomation({
+      const response = await bridge.runBrowserAutomation({
         taskId: request.threadId,
         source: "agent",
         projectId: thread.projectId,
@@ -426,6 +663,15 @@ export function NativePreviewAutomationHost() {
         operation: request.operation,
         input,
       });
+      if (request.operation === "browserWorkflow") {
+        void Promise.resolve()
+          .then(() => {
+            assertConnection();
+            return presentWorkflowResult(environmentId, request.threadId, input, response);
+          })
+          .catch(() => undefined);
+      }
+      return response;
     };
 
     let unsubscribe = () => {};
@@ -433,45 +679,58 @@ export function NativePreviewAutomationHost() {
       .getConfig()
       .then((config) => {
         if (disposed) return;
+        environmentId = config.environment.environmentId;
         unsubscribe = api.preview.automation.connect(
           {
             clientId,
             environmentId: config.environment.environmentId,
             supportedOperations: SUPPORTED_OPERATIONS,
+            ...(bridge.runDeviceScreenshotTransfer && { deviceScreenshotAuthorization: true }),
           },
           (event) => {
+            if (disposed) return;
             if (event.type === "connected") {
               connectionId = event.connectionId;
+              scheduleHostReport();
               return;
             }
-            const responseConnectionId = event.connectionId || connectionId;
-            if (!responseConnectionId) return;
-            void run(event.request)
-              .then((result) =>
-                api.preview.automation.respond({
-                  clientId,
-                  connectionId: responseConnectionId,
-                  requestId: event.request.requestId,
-                  ok: true,
-                  result,
-                }),
+            const responseConnectionId = event.connectionId;
+            if (responseConnectionId !== connectionId) return;
+            void run(event.request, responseConnectionId)
+              .then(
+                (result) => {
+                  if (disposed || responseConnectionId !== connectionId) return;
+                  return api.preview.automation.respond({
+                    clientId,
+                    connectionId: responseConnectionId,
+                    requestId: event.request.requestId,
+                    ok: true,
+                    result,
+                  });
+                },
+                (cause) => {
+                  if (disposed || responseConnectionId !== connectionId) return;
+                  return api.preview.automation.respond(
+                    errorResponse(clientId, responseConnectionId, event.request, cause),
+                  );
+                },
               )
-              .catch((cause) =>
-                api.preview.automation.respond(
-                  errorResponse(clientId, responseConnectionId, event.request, cause),
-                ),
-              );
+              .catch(() => undefined);
           },
+          { onDisconnect: resetConnection },
         );
       })
       .catch(() => undefined);
 
     return () => {
       disposed = true;
+      resetConnection();
+      window.removeEventListener("focus", scheduleHostReport);
+      window.removeEventListener("blur", scheduleHostReport);
       unsubscribe();
       unsubscribeState();
     };
-  }, []);
+  }, [navigate]);
 
   return null;
 }

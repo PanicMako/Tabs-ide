@@ -1,4 +1,4 @@
-import { OrchestratorMcpFailure } from "@tabs/contracts";
+import { NativeComputerCapabilities, OrchestratorMcpFailure } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/unstable/ai";
 import * as ComputerUse from "../../../computerUse/ComputerUseService.ts";
@@ -18,16 +18,24 @@ const shared = {
 };
 
 const app = Schema.String.annotate({
-  description: "Bundle id or app name from computer_list_apps, or pid:<number>.",
+  description: "Exact window selector returned by computer_list_apps for this thread.",
 });
 const elementIndex = Schema.Number.annotate({
   description: "Element index from the latest computer_snapshot or action result.",
 });
-const x = Schema.Number.annotate({ description: "Window-local x in points (use with y)." });
-const y = Schema.Number.annotate({ description: "Window-local y in points (use with x)." });
+const x = Schema.Number.annotate({
+  description: "Window-local x in the units of the latest snapshot (use with y).",
+});
+const y = Schema.Number.annotate({
+  description: "Window-local y in the units of the latest snapshot (use with x).",
+});
 const foreground = Schema.Boolean.annotate({
   description:
-    "Raise the app and use the real pointer or keyboard. Default is background delivery, which leaves the user's screen alone. Only set it when a background attempt had no effect and the user agrees.",
+    "Use the real pointer or keyboard in the already-frontmost attached window. Requires the user’s physical-input grant. Accessibility actions are preferred.",
+});
+
+const observationId = Schema.String.annotate({
+  description: "Observation ID from the latest snapshot, wait, or action for this window.",
 });
 
 /** What every observing or acting tool returns: what happened, then the (possibly diffed) tree. */
@@ -36,6 +44,11 @@ const ComputerResult = Schema.Struct({
   delivery: Schema.optionalKey(Schema.Literals(["background", "foreground"])),
   verification: Schema.optionalKey(Schema.String),
   tree: Schema.optionalKey(Schema.String),
+  observationId: Schema.optionalKey(Schema.String),
+  handoff: Schema.optionalKey(Schema.String),
+  userDemonstration: Schema.optionalKey(
+    Schema.String.annotate({ description: "The user’s description of the last handoff step." }),
+  ),
   treeIsDiff: Schema.Boolean,
   elementCount: Schema.optionalKey(Schema.Number),
   focusedElementIndex: Schema.optionalKey(Schema.NullOr(Schema.Number)),
@@ -44,13 +57,15 @@ const ComputerResult = Schema.Struct({
 const PermissionsTool = Tool.make("computer_permissions", {
   ...shared,
   description:
-    "Report whether desktop control is switched on in Tabs (Settings > Labs > Computer use) and whether macOS Accessibility and Screen Recording are granted to Tabs. Call this first if any computer_* tool fails.",
+    "Report whether desktop control is switched on in Tabs (Settings > Labs > Computer use), and the native capabilities available in the current desktop session. Call this first if any computer_* tool fails.",
   success: Schema.Struct({
     enabled: Schema.Boolean,
     platformSupported: Schema.Boolean,
+    runtimeAvailable: Schema.Boolean,
     accessibility: Schema.Boolean,
     screenRecording: Schema.Literals(["granted", "denied", "unknown"]),
     guidance: Schema.String,
+    capabilities: Schema.optionalKey(NativeComputerCapabilities),
   }),
 })
   .annotate(Tool.Title, "Check computer-use permissions")
@@ -61,7 +76,7 @@ const PermissionsTool = Tool.make("computer_permissions", {
 const ListAppsTool = Tool.make("computer_list_apps", {
   ...shared,
   description:
-    "List running desktop apps (name | bundle id | pid). Pass a bundle id as `app` to the other computer_* tools.",
+    "List the native window attached by the user in this thread and its control state. Pass its window selector as `app` to the other computer_* tools.",
   success: ComputerResult,
 })
   .annotate(Tool.Title, "List desktop apps")
@@ -72,7 +87,7 @@ const ListAppsTool = Tool.make("computer_list_apps", {
 const FocusAppTool = Tool.make("computer_focus_app", {
   ...shared,
   description:
-    "Bring a running app to the front. Only needed before keyboard or pointer actions; element clicks and field text work without it. This takes over the user's screen, so use it only when the task needs it.",
+    "Check the focus policy for the attached window. The user brings the window to the front when physical input is needed.",
   parameters: Schema.Struct({ app }),
   success: ComputerResult,
 })
@@ -84,9 +99,10 @@ const FocusAppTool = Tool.make("computer_focus_app", {
 const SnapshotTool = Tool.make("computer_snapshot", {
   ...shared,
   description:
-    'Read an app window as an accessibility tree. Lines are `<index> <Role> "label" value=... (disabled|focused|selected|secure)`, indented by depth; indexes drive the other tools. Password fields show (secure) and never their value. Large windows are capped: pass rootElementIndex to read one subtree, or maxNodes to raise the cap. Action tools return a diff against the previous snapshot (~ changed, - removed) to keep context small; call this again for a full tree.',
+    'Read an app window as an accessibility tree. Lines are `<index> <Role> "label" value=... (disabled|focused|selected|secure)`, indented by depth; indexes drive the other tools. Password fields show (secure) and never their value. Large windows are capped: pass rootElementIndex to read one subtree, or maxNodes to raise the cap. Use the returned observationId for actions and subtree reads.',
   parameters: Schema.Struct({
     app,
+    observationId: Schema.optionalKey(observationId),
     rootElementIndex: Schema.optionalKey(elementIndex),
     query: Schema.optionalKey(
       Schema.String.annotate({
@@ -108,9 +124,10 @@ const SnapshotTool = Tool.make("computer_snapshot", {
 const ClickTool = Tool.make("computer_click", {
   ...shared,
   description:
-    "Click an element by elementIndex (preferred: uses the accessibility press action, in the background) or at window-local x,y (moves the real pointer and brings the app forward). Returns what was done and the changed tree.",
+    "Click an element by elementIndex (preferred: uses the accessibility press action, in the background) or at window-local x,y with granted physical input in the frontmost window. Returns what was done and the changed tree.",
   parameters: Schema.Struct({
     app,
+    observationId,
     elementIndex: Schema.optionalKey(elementIndex),
     x: Schema.optionalKey(x),
     y: Schema.optionalKey(y),
@@ -130,6 +147,7 @@ const TypeTool = Tool.make("computer_type", {
     "Insert text into a text field: the one given by elementIndex, or the field that currently has focus. Refuses password and other secret fields; the user must enter those. Check the returned tree to confirm the text landed.",
   parameters: Schema.Struct({
     app,
+    observationId,
     text: Schema.String,
     elementIndex: Schema.optionalKey(elementIndex),
   }),
@@ -143,9 +161,10 @@ const TypeTool = Tool.make("computer_type", {
 const KeyTool = Tool.make("computer_key", {
   ...shared,
   description:
-    "Press one key or chord in an app, such as Return, Escape, Tab, Down, or Cmd+Shift+P. Brings the app forward. Quit, log out, lock, force quit and empty-Trash chords are refused, as are text-producing keys while a password field has focus.",
+    "Press one key or chord in an app, such as Return, Escape, Tab, Down, or Cmd+Shift+P. Requires granted physical input and the attached window already in front. Quit, log out, lock, force quit and empty-Trash chords are refused, as are text-producing keys while a password field has focus.",
   parameters: Schema.Struct({
     app,
+    observationId,
     key: Schema.String,
     foreground: Schema.optionalKey(foreground),
   }),
@@ -159,9 +178,10 @@ const KeyTool = Tool.make("computer_key", {
 const ScrollTool = Tool.make("computer_scroll", {
   ...shared,
   description:
-    "Scroll at an element's center (elementIndex) or at window-local x,y. Moves the real pointer. amount is lines, 1-50, default 5.",
+    "Scroll at an element's center (elementIndex) or at window-local x,y. Physical scrolling requires the window in front and a physical-input grant. amount is lines, 1-50, default 5.",
   parameters: Schema.Struct({
     app,
+    observationId,
     direction: Schema.Literals(["up", "down", "left", "right"]),
     amount: Schema.optionalKey(Schema.Number),
     elementIndex: Schema.optionalKey(elementIndex),
@@ -179,9 +199,10 @@ const ScrollTool = Tool.make("computer_scroll", {
 const RightClickTool = Tool.make("computer_right_click", {
   ...shared,
   description:
-    "Open an element's context menu: uses the accessibility show-menu action when the element has one, else a synthetic right click at its center or at window-local x,y. Take a snapshot afterwards to read the menu.",
+    "Open an element's context menu: requires granted physical input and the attached window in front. Select the element or pass window-local x,y, then observe the menu.",
   parameters: Schema.Struct({
     app,
+    observationId,
     elementIndex: Schema.optionalKey(elementIndex),
     x: Schema.optionalKey(x),
     y: Schema.optionalKey(y),
@@ -197,9 +218,10 @@ const RightClickTool = Tool.make("computer_right_click", {
 const DragTool = Tool.make("computer_drag", {
   ...shared,
   description:
-    "Drag from one element or window-local point to another with synthetic mouse events. Some apps (Chromium, Electron, games) ignore background drags; retry with foreground only if the user agrees.",
+    "Drag from one element or window-local point to another with synthetic mouse events. Requires the attached window in front and a physical-input grant.",
   parameters: Schema.Struct({
     app,
+    observationId,
     fromElementIndex: Schema.optionalKey(elementIndex),
     fromX: Schema.optionalKey(x),
     fromY: Schema.optionalKey(y),
@@ -219,7 +241,7 @@ const SetValueTool = Tool.make("computer_set_value", {
   ...shared,
   description:
     "Replace a field's whole value through accessibility, without raising the app, then read it back. Prefer this to computer_type for editable fields. Refuses password and other secret fields. The result says whether the new value was verified.",
-  parameters: Schema.Struct({ app, elementIndex, value: Schema.String }),
+  parameters: Schema.Struct({ app, observationId, elementIndex, value: Schema.String }),
   success: ComputerResult,
 })
   .annotate(Tool.Title, "Set value in desktop app")
@@ -231,7 +253,7 @@ const SecondaryActionTool = Tool.make("computer_secondary_action", {
   ...shared,
   description:
     "Perform a named accessibility action on an element, such as AXShowMenu, AXIncrement or AXRaise on macOS, or invoke, toggle, expand, collapse, select on Windows. If the element lacks the action, the error lists the actions it has.",
-  parameters: Schema.Struct({ app, elementIndex, action: Schema.String }),
+  parameters: Schema.Struct({ app, observationId, elementIndex, action: Schema.String }),
   success: ComputerResult,
 })
   .annotate(Tool.Title, "Run accessibility action")
@@ -262,8 +284,8 @@ const WaitTool = Tool.make("computer_wait", {
 const ScreenshotTool = Tool.make("computer_screenshot", {
   ...shared,
   description:
-    "Capture an app window to a PNG file and return its path (read the file to see it). Needs Screen Recording permission. Prefer computer_snapshot for structure; use this for visual confirmation.",
-  parameters: Schema.Struct({ app }),
+    "Capture an app window to a PNG file and return its path (read the file to see it). Uses the platform’s window-capture capability. Prefer computer_snapshot for structure. Protected fields require the user to finish the step first.",
+  parameters: Schema.Struct({ app, observationId }),
   success: Schema.Struct({
     path: Schema.String,
     width: Schema.NullOr(Schema.Number),

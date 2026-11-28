@@ -45,9 +45,9 @@ it("moves actions between the ring, More and Hidden", async () => {
     expect(zone("Hidden").textContent).toContain("New workspace tab");
     // The ring refills from More instead of leaving a gap.
     expect(zone("On the ring").textContent).toContain("7/7");
-    expect(zone("On the ring").textContent).toContain("Return to code");
-    await page.getByRole("button", { name: "On the ring: Usage & limits", exact: true }).click();
-    expect(zone("On the ring").textContent).toContain("Usage & limits");
+    expect(zone("On the ring").textContent).toContain("Add to conversation");
+    await page.getByRole("button", { name: "On the ring: Quick toggles", exact: true }).click();
+    expect(zone("On the ring").textContent).toContain("Quick toggles");
     await expect
       .element(page.getByRole("button", { name: "Hidden: Customize quick actions", exact: true }))
       .toBeDisabled();

@@ -2,7 +2,12 @@ import { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import { WorkspaceCompatibilityRpcs } from "./workspaceCompatibilityRpc.ts";
 import { SecretReference } from "./secretReference.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
-import { ComputerUsePermissionStatus } from "./computerUse.ts";
+import {
+  ComputerUsePermissionStatus,
+  NativeComputerCommand,
+  NativeComputerState,
+  NativeComputerError,
+} from "./computerUse.ts";
 import { TESTING_WS_METHODS, TestingRpcs } from "./testingRpc.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
@@ -255,6 +260,11 @@ import {
   ProjectWriteFileResult,
 } from "./project.ts";
 import {
+  TerminalThreadInput,
+  TerminalAgentInputDeclinePendingResult,
+  TerminalAgentInputReview,
+  TerminalAgentInputReviewCommand,
+  TerminalAgentInputReviewUnavailableError,
   TerminalAttachInput,
   TerminalAttachStreamEvent,
   TerminalClearInput,
@@ -284,6 +294,18 @@ import {
   PreviewSessionSnapshot,
 } from "./preview.ts";
 import {
+  BrowserWorkflowResultError,
+  BrowserWorkflowResultInput,
+  BrowserWorkflowSavedResult,
+  PartnerCenterConnectionInput,
+  PartnerCenterConnectionStatus,
+} from "./browserWorkflow.ts";
+import {
+  FigmaCanvasReceipt,
+  FigmaCanvasResultError,
+  FigmaCanvasResultInput,
+} from "./figmaCanvas.ts";
+import {
   DeviceActionInput,
   DeviceCloseInput,
   DeviceConfigureInput,
@@ -299,6 +321,12 @@ import {
   DeviceShutdownInput,
 } from "./device.ts";
 import {
+  DeviceComparisonError,
+  DeviceComparisonInput,
+  DeviceComparisonStatus,
+} from "./deviceComparison.ts";
+import {
+  PreviewAutomationDeviceScreenshotAuthorization,
   PreviewAutomationError,
   PreviewAutomationHost,
   PreviewAutomationHostFocus,
@@ -498,6 +526,8 @@ export const WS_METHODS = {
   terminalOpen: "terminal.open",
   terminalAttach: "terminal.attach",
   terminalWrite: "terminal.write",
+  terminalAgentInputReview: "terminal.agentInputReview",
+  terminalAgentInputDeclinePending: "terminal.agentInputDeclinePending",
   terminalResize: "terminal.resize",
   terminalClear: "terminal.clear",
   terminalRestart: "terminal.restart",
@@ -511,8 +541,12 @@ export const WS_METHODS = {
   previewClose: "preview.close",
   previewList: "preview.list",
   previewReportStatus: "preview.reportStatus",
+  previewGetWorkflowResult: "preview.getWorkflowResult",
+  previewGetFigmaCanvasResult: "preview.getFigmaCanvasResult",
+  previewPartnerCenterConnection: "preview.partnerCenterConnection",
   previewAutomationConnect: "previewAutomation.connect",
   previewAutomationRespond: "previewAutomation.respond",
+  previewAutomationAuthorizeDeviceScreenshot: "previewAutomation.authorizeDeviceScreenshot",
   previewAutomationFocusHost: "previewAutomation.focusHost",
 
   // Device methods
@@ -524,6 +558,7 @@ export const WS_METHODS = {
   deviceShutdown: "device.shutdown",
   deviceDetail: "device.detail",
   deviceAction: "device.action",
+  deviceComparison: "device.comparison",
 
   // Server meta
   serverProbe: "server.probe",
@@ -541,6 +576,7 @@ export const WS_METHODS = {
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverCheckSecretSource: "server.checkSecretSource",
   serverComputerUsePermissions: "server.computerUsePermissions",
+  serverNativeComputer: "server.nativeComputer",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -864,6 +900,12 @@ const WsServerComputerUsePermissionsRpc = Rpc.make(WS_METHODS.serverComputerUseP
   payload: Schema.Struct({}),
   success: ComputerUsePermissionStatus,
   error: EnvironmentAuthorizationError,
+});
+
+const WsServerNativeComputerRpc = Rpc.make(WS_METHODS.serverNativeComputer, {
+  payload: NativeComputerCommand,
+  success: NativeComputerState,
+  error: Schema.Union([NativeComputerError, EnvironmentAuthorizationError]),
 });
 
 const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourceControl, {
@@ -1608,6 +1650,21 @@ const WsTerminalWriteRpc = Rpc.make(WS_METHODS.terminalWrite, {
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
 });
 
+const WsTerminalAgentInputReviewRpc = Rpc.make(WS_METHODS.terminalAgentInputReview, {
+  payload: TerminalAgentInputReviewCommand,
+  success: TerminalAgentInputReview,
+  error: Schema.Union([TerminalAgentInputReviewUnavailableError, EnvironmentAuthorizationError]),
+});
+
+const WsTerminalAgentInputDeclinePendingRpc = Rpc.make(
+  WS_METHODS.terminalAgentInputDeclinePending,
+  {
+    payload: TerminalThreadInput,
+    success: TerminalAgentInputDeclinePendingResult,
+    error: Schema.Union([TerminalAgentInputReviewUnavailableError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsTerminalResizeRpc = Rpc.make(WS_METHODS.terminalResize, {
   payload: TerminalResizeInput,
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
@@ -1668,6 +1725,24 @@ const WsPreviewReportStatusRpc = Rpc.make(WS_METHODS.previewReportStatus, {
   error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
 });
 
+const WsPreviewGetWorkflowResultRpc = Rpc.make(WS_METHODS.previewGetWorkflowResult, {
+  payload: BrowserWorkflowResultInput,
+  success: BrowserWorkflowSavedResult,
+  error: Schema.Union([BrowserWorkflowResultError, EnvironmentAuthorizationError]),
+});
+
+const WsPreviewGetFigmaCanvasResultRpc = Rpc.make(WS_METHODS.previewGetFigmaCanvasResult, {
+  payload: FigmaCanvasResultInput,
+  success: FigmaCanvasReceipt,
+  error: Schema.Union([FigmaCanvasResultError, EnvironmentAuthorizationError]),
+});
+
+const WsPreviewPartnerCenterConnectionRpc = Rpc.make(WS_METHODS.previewPartnerCenterConnection, {
+  payload: PartnerCenterConnectionInput,
+  success: PartnerCenterConnectionStatus,
+  error: Schema.Union([BrowserWorkflowResultError, EnvironmentAuthorizationError]),
+});
+
 const WsPreviewAutomationConnectRpc = Rpc.make(WS_METHODS.previewAutomationConnect, {
   payload: PreviewAutomationHost,
   success: PreviewAutomationStreamEvent,
@@ -1679,6 +1754,15 @@ const WsPreviewAutomationRespondRpc = Rpc.make(WS_METHODS.previewAutomationRespo
   payload: PreviewAutomationResponse,
   error: Schema.Union([PreviewAutomationError, EnvironmentAuthorizationError]),
 });
+
+const WsPreviewAutomationAuthorizeDeviceScreenshotRpc = Rpc.make(
+  WS_METHODS.previewAutomationAuthorizeDeviceScreenshot,
+  {
+    payload: PreviewAutomationDeviceScreenshotAuthorization,
+    success: Schema.Boolean,
+    error: EnvironmentAuthorizationError,
+  },
+);
 
 const WsPreviewAutomationFocusHostRpc = Rpc.make(WS_METHODS.previewAutomationFocusHost, {
   payload: PreviewAutomationHostFocus,
@@ -1745,6 +1829,12 @@ const WsDeviceActionRpc = Rpc.make(WS_METHODS.deviceAction, {
   payload: DeviceActionInput,
   success: DeviceDetail,
   error: Schema.Union([DeviceError, EnvironmentAuthorizationError]),
+});
+
+const WsDeviceComparisonRpc = Rpc.make(WS_METHODS.deviceComparison, {
+  payload: DeviceComparisonInput,
+  success: DeviceComparisonStatus,
+  error: Schema.Union([DeviceComparisonError, EnvironmentAuthorizationError]),
 });
 
 const WsSubscribeDeviceStateRpc = Rpc.make(WS_METHODS.subscribeDeviceState, {
@@ -2187,6 +2277,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsServerDiscoverSourceControlRpc,
   WsServerCheckSecretSourceRpc,
   WsServerComputerUsePermissionsRpc,
+  WsServerNativeComputerRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,
@@ -2343,6 +2434,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsDeviceShutdownRpc,
   WsDeviceDetailRpc,
   WsDeviceActionRpc,
+  WsDeviceComparisonRpc,
   WsSubscribeDeviceStateRpc,
   WsSubscribeServerConfigRpc,
   WsSubscribeServerLifecycleRpc,
@@ -2369,10 +2461,21 @@ export const CoreWsRpcGroup = RpcGroup.make(
 ).middleware(RpcScopeAuthorization);
 
 export const TestingWsRpcGroup = RpcGroup.make(...TestingRpcs).middleware(RpcScopeAuthorization);
+export const BrowserWorkflowRpcGroup = RpcGroup.make(
+  WsPreviewAutomationAuthorizeDeviceScreenshotRpc,
+  WsPreviewGetWorkflowResultRpc,
+  WsPreviewGetFigmaCanvasResultRpc,
+  WsPreviewPartnerCenterConnectionRpc,
+).middleware(RpcScopeAuthorization);
+export const TerminalInputReviewRpcGroup = RpcGroup.make(WsTerminalAgentInputReviewRpc).middleware(
+  RpcScopeAuthorization,
+);
+export const TerminalInputDeclineRpcGroup = RpcGroup.make(
+  WsTerminalAgentInputDeclinePendingRpc,
+).middleware(RpcScopeAuthorization);
 export const WorkspaceCompatibilityRpcGroup = RpcGroup.make(
   ...WorkspaceCompatibilityRpcs,
 ).middleware(RpcScopeAuthorization);
-/** Kept apart from the core group: past a size, one group's handler type exceeds the compiler's instantiation depth. */
 export const TeammatesRpcGroup = RpcGroup.make(
   WsTeammatesListRpc,
   WsTeammatesSubscribeRpc,
@@ -2391,6 +2494,9 @@ export const TeammatesRpcGroup = RpcGroup.make(
   WsTeammatesSoulSetRpc,
 ).middleware(RpcScopeAuthorization);
 export const WsRpcGroup = CoreWsRpcGroup.merge(
+  BrowserWorkflowRpcGroup,
+  TerminalInputReviewRpcGroup,
+  TerminalInputDeclineRpcGroup,
   TestingWsRpcGroup,
   WorkspaceCompatibilityRpcGroup,
   TeammatesRpcGroup,

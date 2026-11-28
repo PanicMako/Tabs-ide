@@ -64,7 +64,12 @@ it("renders InterfaceStudyTopBar, toggles deck, and selects tools in browser", a
           pendingTabIds={[]}
           activePendingTabId={null}
           activeToolId="tool-launchpad"
-          availableTools={mockTools}
+          availableTools={mockTools.map((tool) =>
+            tool.id === "tool-docs" ? { ...tool, browserActivity: "Inspecting the page" } : tool,
+          )}
+          attachmentFor={(id) =>
+            new File([id], "target.tabs.json", { type: "application/vnd.tabs.surface+json" })
+          }
           threads={[]}
           onActivateProject={onActivateProject}
           onCloseProject={() => {}}
@@ -91,6 +96,15 @@ it("renders InterfaceStudyTopBar, toggles deck, and selects tools in browser", a
   await expect.element(page.getByRole("tab", { name: "Dock" })).toBeVisible();
   await expect.element(page.getByRole("tab", { name: "Git" })).toBeVisible();
   await expect.element(page.getByRole("tab", { name: "Browser" })).toBeVisible();
+  const privateApp = page.getByRole("tab", { name: "Docs" });
+  await expect.element(privateApp).toHaveAttribute("draggable", "true");
+  const transfer = new DataTransfer();
+  privateApp
+    .element()
+    .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+  expect(await transfer.files[0]?.text()).toBe("tool-docs");
+  await privateApp.getByTitle("Inspecting the page").click();
+  expect(onSelectTool).toHaveBeenCalledWith("tool-docs");
 
   // Switch tool
   await page.getByRole("tab", { name: "Agents" }).click();

@@ -21,6 +21,7 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationError,
   type PreviewAutomationOperation,
+  type PreviewAutomationSnapshot,
   type PreviewTabId,
 } from "@tabs/contracts";
 
@@ -46,7 +47,6 @@ import { hideTools } from "./toolVisibility.ts";
 import * as TeammateService from "../teammates/TeammateService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ComputerHandlers from "./toolkits/computer/handlers.ts";
-import * as ComputerUse from "../computerUse/ComputerUseService.ts";
 import * as ThemeHandlers from "./toolkits/theme/handlers.ts";
 import * as TerminalInputHandlers from "./toolkits/terminal/handlers.ts";
 import { TerminalInputToolkit } from "./toolkits/terminal/tools.ts";
@@ -61,12 +61,16 @@ import * as ThreadTools from "./toolkits/thread/tools.ts";
 import * as ThreadHandlers from "./toolkits/thread/handlers.ts";
 import * as ThreadMetadataMcpService from "./ThreadMetadataMcpService.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
+import * as ComputerUse from "../computerUse/ComputerUseService.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 import * as OrchestratorHandlers from "./toolkits/orchestrator/handlers.ts";
 import { OrchestratorToolkit } from "./toolkits/orchestrator/tools.ts";
 import { UpdateScheduledTaskTool } from "./toolkits/orchestrator/tools.ts";
 import * as PreviewTools from "./toolkits/preview/tools.ts";
 import * as PreviewHandlers from "./toolkits/preview/handlers.ts";
+import { PreviewWorkflowToolkit } from "./toolkits/browserWorkflow/tools.ts";
+import * as PreviewWorkflowHandlers from "./toolkits/browserWorkflow/handlers.ts";
+import * as FigmaCanvas from "./toolkits/figmaCanvas/tools.ts";
 import {
   PreviewSnapshotTool,
   PreviewSnapshotToolkit,
@@ -78,6 +82,7 @@ import * as WorktreeMcpService from "./WorktreeMcpService.ts";
 import * as PullRequestsHandlers from "./toolkits/pullRequests/handlers.ts";
 import { PullRequestsToolkit } from "./toolkits/pullRequests/tools.ts";
 import * as DeviceHandlers from "./toolkits/device/handlers.ts";
+import * as DeviceComparison from "./toolkits/device/comparison.ts";
 import {
   DeviceScreenshotTool,
   DeviceScreenshotToolkit,
@@ -278,6 +283,7 @@ type SnapshotMetadata = {
   readonly consoleEntries: ReadonlyArray<unknown>;
   readonly networkEntries: ReadonlyArray<unknown>;
   readonly actionTimeline: ReadonlyArray<unknown>;
+  readonly textMatches?: PreviewAutomationSnapshot["textMatches"];
   readonly [key: string]: unknown;
 };
 
@@ -304,12 +310,7 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
     }
     return kept.map(cutEntryStrings);
   };
-  if (
-    metadata.url.length > MAX_SNAPSHOT_IDENTIFIER_CHARS ||
-    metadata.title.length > MAX_SNAPSHOT_IDENTIFIER_CHARS
-  ) {
-    omitted.push(`url or title after ${MAX_SNAPSHOT_IDENTIFIER_CHARS} characters`);
-  }
+  const identifierOmissionIndex = omitted.length;
   if (
     metadata.interactiveElements.some(
       (element) => element.name.length > MAX_SNAPSHOT_ELEMENT_NAME_CHARS,
@@ -319,8 +320,6 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   }
   const bounded = {
     ...withoutTree,
-    url: cutText(metadata.url, MAX_SNAPSHOT_IDENTIFIER_CHARS),
-    title: cutText(metadata.title, MAX_SNAPSHOT_IDENTIFIER_CHARS),
     interactiveElements: metadata.interactiveElements.map((element) => ({
       ...element,
       name: cutText(element.name, MAX_SNAPSHOT_ELEMENT_NAME_CHARS),
@@ -333,8 +332,8 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   // Per-field caps do not sum below the ceiling: three log arrays of 40 capped
   // entries alone can pass 60 KB, and the caps count characters, not bytes.
   // Halve one thing per round until the JSON fits: logs first, then page
-  // text, then the locators. The identifier caps bound the rest, so this
-  // terminates.
+  // text, then the locators. If escaped identifiers still push the JSON over
+  // the byte budget, shorten them further to preserve exact text matches.
   const shedOrder = [
     "actionTimeline",
     "networkEntries",
@@ -353,9 +352,12 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
     networkEntries: 0,
     actionTimeline: 0,
   };
+  let identifierChars = MAX_SNAPSHOT_IDENTIFIER_CHARS;
   let visibleTextChars = Math.min(metadata.visibleText.length, MAX_SNAPSHOT_VISIBLE_TEXT_CHARS);
   const value = () => ({
     ...bounded,
+    url: cutText(metadata.url, identifierChars),
+    title: cutText(metadata.title, identifierChars),
     visibleText: cutText(metadata.visibleText, visibleTextChars),
     ...lists,
   });
@@ -371,8 +373,10 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
         : lists.interactiveElements.length > 0
           ? "interactiveElements"
           : undefined);
-    if (key === undefined) break;
-    if (key === "visibleText") {
+    if (key === undefined) {
+      if (identifierChars === 0) break;
+      identifierChars = Math.floor(identifierChars / 2);
+    } else if (key === "visibleText") {
       visibleTextChars = Math.floor(visibleTextChars / 2);
     } else {
       const keep = Math.floor(lists[key].length / 2);
@@ -386,6 +390,9 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
             : lists[key].slice(-keep);
     }
     text = encodeJsonText(value());
+  }
+  if (metadata.url.length > identifierChars || metadata.title.length > identifierChars) {
+    omitted.splice(identifierOmissionIndex, 0, `url or title after ${identifierChars} characters`);
   }
   if (visibleTextChars < metadata.visibleText.length) {
     omitted.push(
@@ -525,16 +532,8 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
           Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
           Effect.flatMap(({ encodedResult }) =>
             Effect.gen(function* () {
-              const snapshot = encodedResult as SnapshotMetadata & {
-                readonly url: string;
-                readonly screenshot: {
-                  readonly mimeType: "image/png";
-                  readonly data: string;
-                  readonly width: number;
-                  readonly height: number;
-                };
-              };
-              const { screenshot, ...page } = snapshot;
+              const snapshot = encodedResult as PreviewAutomationSnapshot;
+              const { screenshot, textMatches, ...page } = snapshot;
               const png = new Uint8Array(Buffer.from(screenshot.data, "base64"));
               const screenshotPath =
                 payload?.save === true ? yield* saveScreenshot(snapshot.url, png) : undefined;
@@ -552,6 +551,9 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
               }
               const metadata = {
                 ...page,
+                ...(payload?.findText !== undefined && textMatches !== undefined
+                  ? { textMatches }
+                  : {}),
                 screenshot: {
                   mimeType: screenshot.mimeType,
                   width: screenshot.width,
@@ -571,7 +573,13 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
                   {
                     type: "text",
                     text: encodeJsonText({
-                      url: cutText(snapshot.url, MAX_SNAPSHOT_IDENTIFIER_CHARS),
+                      url: bounded.value.url,
+                      ...(snapshot.verifiedEvidenceDraft !== undefined && {
+                        verifiedEvidenceDraft: snapshot.verifiedEvidenceDraft,
+                      }),
+                      ...(snapshot.verifiedScreenshotDraft !== undefined && {
+                        verifiedScreenshotDraft: snapshot.verifiedScreenshotDraft,
+                      }),
                     }),
                   },
                   { type: "text", text: bounded.text },
@@ -932,6 +940,8 @@ const layerPreviewSnapshotRegistration = Layer.effectDiscard(registerPreviewSnap
 export const layerPreviewToolkit = Layer.mergeAll(
   layerPreviewStandardToolkitRegistration,
   layerPreviewSnapshotRegistration,
+  toolkit(PreviewWorkflowToolkit).pipe(Layer.provide(PreviewWorkflowHandlers.layer)),
+  toolkit(FigmaCanvas.FigmaCanvasToolkit).pipe(Layer.provide(FigmaCanvas.layer)),
 );
 
 export const layerOrchestratorToolkit = toolkit(OrchestratorToolkit).pipe(
@@ -991,6 +1001,7 @@ const layerDeviceScreenshotRegistration = Layer.effectDiscard(registerDeviceScre
 export const layerDeviceToolkit = Layer.mergeAll(
   layerDeviceStandardToolkitRegistration,
   layerDeviceScreenshotRegistration,
+  toolkit(DeviceComparison.DeviceComparisonToolkit).pipe(Layer.provide(DeviceComparison.layer)),
 );
 
 export const LEGACY_TOOL_ALIASES: Record<string, (args: any) => { name: string; arguments: any }> =
@@ -1067,6 +1078,7 @@ export const layerTools = Layer.mergeAll(
   layerThreadToolkit,
   layerTeammateToolkit,
   layerAttachmentRegistration,
+  layerTerminalInputToolkit,
   layerProjectRegistration,
   layerEnvironmentRegistration,
   layerThemeRegistration,

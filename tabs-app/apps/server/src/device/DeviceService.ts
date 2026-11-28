@@ -6,11 +6,11 @@
  * shelling out to simctl and adb here: the hub already normalizes both
  * platforms into one device shape and is the process that has to know a
  * device is booted before it can stream it. Sessions are the server's own
- * bookkeeping — which thread is looking at which device — so the panel and
- * the `device_*` tools agree, and so a `device_open` from an agent surfaces in
- * every connected client the way `preview_open` does.
+ * bookkeeping for which thread is looking at which device. A user attachment
+ * in the Device panel authorizes device tools in that thread.
  */
 import {
+  type AuthSessionId,
   type DeviceActionInput,
   type DeviceCloseInput,
   type DeviceConfigureInput,
@@ -28,10 +28,16 @@ import {
   DevicePlatformUnavailableError,
   type DeviceServiceState,
   type DeviceSession,
+  DeviceComparisonError,
+  type DeviceComparisonFrame,
+  type DeviceComparisonInput,
+  type DeviceComparisonRecording,
+  type DeviceComparisonStatus,
   type DeviceShutdownInput,
   type DeviceSummary,
   type SshDeviceHostConfig,
   type DeviceHostSummary,
+  type ServerSettings as ServerSettingsSnapshot,
   LOCAL_DEVICE_HOST_ID,
   type ThreadId,
 } from "@tabs/contracts";
@@ -41,8 +47,8 @@ import * as Path from "effect/Path";
 import { ensureAgentDevice, ensureDeviceHub } from "./DeviceToolchain.ts";
 import * as ServerConfig from "../config.ts";
 import {
-  agentDeviceConfigPath,
-  agentDeviceSession,
+  agentDeviceGrantDirectory,
+  legacyAgentDeviceConfigPath,
   writeAgentDeviceConfig,
 } from "./AgentDeviceTarget.ts";
 import * as Context from "effect/Context";
@@ -50,7 +56,9 @@ import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
@@ -62,11 +70,27 @@ import * as ServerSettings from "../serverSettings.ts";
 import { isLocalSshDeviceHost, remoteSshDeviceHosts } from "./localSshDeviceHost.ts";
 
 import { readDeviceDetail, runDeviceAction } from "./DeviceActions.ts";
+import { runIosDeviceInput } from "./DeviceIosInput.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as DeviceHost from "./DeviceHost.ts";
 import * as SshDeviceHost from "./SshDeviceHost.ts";
 import * as Exit from "effect/Exit";
 import * as LocalDeviceHost from "./LocalDeviceHost.ts";
+import { makeDeviceComparison } from "./DeviceComparison.ts";
+import { makeDeviceComparisonStore, type DeviceComparisonStore } from "./DeviceComparisonStore.ts";
+import {
+  isLiveDeviceAttachment,
+  type AgentDeviceGrant,
+  type DispatchDeviceReturn,
+} from "./AgentDeviceControl.ts";
+import { startAgentDeviceProxy } from "./AgentDeviceProxy.ts";
+import { rememberDeviceIdentity, sameDeviceIdentity } from "./DeviceIdentity.ts";
+import { ensureAgentDeviceShim } from "./AgentDeviceShim.ts";
+import { checkDeviceScreen } from "./AgentDevicePrivacy.ts";
+import { closeAgentDeviceSession } from "./AgentDeviceSessionCleanup.ts";
+import type { McpThreadCaller } from "../mcp/McpInvocationContext.ts";
+import { hasActiveMcpDeviceSession } from "../mcp/McpSessionRegistry.ts";
+import { makeDeviceSemanticDriver } from "./DeviceSemanticDriver.ts";
 
 /** Origin-relative prefix the hub is proxied under. See DeviceHubProxy. */
 export const DEVICE_HUB_ROUTE_PREFIX = "/api/device-hub";
@@ -114,11 +138,21 @@ export class DeviceService extends Context.Service<
     readonly testHost: (
       config: SshDeviceHostConfig,
     ) => Effect.Effect<DeviceHostSummary, DeviceError>;
-    readonly agentTarget: (input: {
-      threadId: ThreadId;
-      hostId: DeviceHostId;
-      deviceId: DeviceId;
-    }) => Effect.Effect<ReadonlyArray<string>, DeviceError>;
+    readonly agentTarget: (
+      attachment: DeviceSession,
+      caller: McpThreadCaller,
+      entryPath: string,
+      access?: { readonly appId?: string; readonly approvalId?: string },
+    ) => Effect.Effect<
+      {
+        command: string;
+        configPath: string;
+        session: string;
+        appId?: string;
+        approvedAppId?: string;
+      },
+      DeviceError
+    >;
     readonly state: Effect.Effect<DeviceServiceState>;
     readonly subscribe: Effect.Effect<PubSub.Subscription<DeviceServiceState>, never, Scope.Scope>;
     readonly configure: (
@@ -140,6 +174,23 @@ export class DeviceService extends Context.Service<
       readonly hostId?: DeviceHostId | undefined;
       readonly deviceId: DeviceId;
     }) => Effect.Effect<DeviceScreenshot, DeviceError>;
+    readonly agentScreenshot: (
+      attachment: DeviceSession,
+      caller: McpThreadCaller,
+    ) => Effect.Effect<DeviceScreenshot, DeviceError>;
+    readonly authorizeScreenshotTransfer: (
+      caller: McpThreadCaller,
+      source?:
+        | { readonly kind: "live" | "comparison"; readonly attachment: DeviceSession }
+        | {
+            readonly kind: "firstDifference";
+            readonly frame: DeviceComparisonFrame;
+            readonly hostId: DeviceHostId;
+            readonly deviceId: DeviceId;
+            readonly tabId: string;
+            readonly grantId: string;
+          },
+    ) => Effect.Effect<() => boolean, DeviceComparisonError>;
     /** Host endpoints for the proxy and the provider environment. */
     readonly readiness: (hostId?: DeviceHostId) => Effect.Effect<DeviceReadiness, DeviceError>;
     /**
@@ -153,6 +204,17 @@ export class DeviceService extends Context.Service<
       hostId?: DeviceHostId,
     ) => Effect.Effect<DeviceAgentReadiness | null, DeviceError>;
     readonly currentReadiness: (hostId?: DeviceHostId) => Effect.Effect<DeviceReadiness | null>;
+    readonly comparison: (
+      input: DeviceComparisonInput,
+      sessionId?: AuthSessionId,
+      caller?: McpThreadCaller,
+      dispatchReturn?: DispatchDeviceReturn,
+    ) => Effect.Effect<DeviceComparisonStatus, DeviceComparisonError>;
+    readonly comparisonRecording: (
+      input: DeviceComparisonRecording,
+      caller: McpThreadCaller,
+    ) => Effect.Effect<DeviceComparisonStatus, DeviceComparisonError>;
+    readonly streamInputAllowed: (hostId: string, deviceId?: string) => Effect.Effect<boolean>;
     readonly sessionsForThread: (threadId: ThreadId) => Effect.Effect<ReadonlyArray<DeviceSession>>;
   }
 >()("t3/device/DeviceService") {}
@@ -164,6 +226,12 @@ interface ServiceState {
 const vendorPrefix = (platform: DevicePlatform) =>
   platform === "ios" ? "/vendor/serve-sim" : "/vendor/serve-emu";
 
+const deviceSettings = (settings: ServerSettingsSnapshot) => ({
+  enabled: settings.enableDeviceSupport,
+  agentAccessEnabled: settings.enableAgentDeviceAccess,
+  onboardingCompleted: settings.deviceOnboardingCompleted,
+});
+
 export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* (
   hosts: ReadonlyMap<DeviceHostId, DeviceHost.DeviceHost["Service"]>,
   testHost: DeviceService["Service"]["testHost"] = (host) =>
@@ -173,32 +241,50 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
         reason: "SSH probing is unavailable in this device service.",
       }),
     ),
-  configureAgent: (
-    hostId: DeviceHostId,
-    ready: DeviceHost.DeviceHostAgentReady,
-  ) => Effect.Effect<string, DeviceError> = (hostId) =>
-    Effect.fail(
-      new DeviceHostUnavailableError({
-        hostId,
-        reason: "Agent configuration is unavailable in this device service.",
-      }),
-    ),
+  agentControl?: {
+    readonly providerActive: (caller: McpThreadCaller) => boolean;
+    readonly configForGrant: (
+      grant: AgentDeviceGrant,
+      proxy: Parameters<typeof startAgentDeviceProxy>[0],
+      entryPath: string,
+    ) => Effect.Effect<{ command: string; configPath: string }, DeviceError>;
+  },
   installTool?: (tool: "hub" | "agent") => Effect.Effect<unknown, DeviceError>,
+  comparisonStore?: DeviceComparisonStore,
 ) {
   const settings = yield* ServerSettings.ServerSettingsService;
+  const settingsScope = yield* Effect.serviceOption(Scope.Scope);
+  const observeSettings = Option.isSome(settingsScope) ? settings.observeCommits : undefined;
   const lifecycleLock = yield* Semaphore.make(1);
-  const readDeviceSettings = settings.getSettings.pipe(
-    Effect.map((value) => ({
-      enabled: value.enableDeviceSupport,
-      agentAccessEnabled: value.enableAgentDeviceAccess,
-      onboardingCompleted: value.deviceOnboardingCompleted,
-    })),
+  const readPersistedDeviceSettings = settings.getSettings.pipe(
+    Effect.map(deviceSettings),
     Effect.mapError(
       (cause) =>
         new DeviceOperationError({ operation: "settings", reason: "settings_failed", cause }),
     ),
   );
-  const initialSettings = yield* readDeviceSettings;
+  const initialSettings = yield* readPersistedDeviceSettings;
+  let committedSettings = initialSettings;
+  let supportEpoch = 0;
+  let accessEpoch = 0;
+  let pendingHostStops = 0;
+  let pendingAgentStops = 0;
+  const supportAllowed = () => committedSettings.enabled && pendingHostStops === 0;
+  const agentAccessAllowed = () =>
+    supportAllowed() && committedSettings.agentAccessEnabled && pendingAgentStops === 0;
+  const readDeviceSettings = observeSettings
+    ? Effect.sync(() => ({
+        ...committedSettings,
+        enabled: supportAllowed(),
+        agentAccessEnabled: agentAccessAllowed(),
+      }))
+    : readPersistedDeviceSettings;
+
+  const controlState = (state: DeviceServiceState): DeviceServiceState => ({
+    ...state,
+    hostStatus: supportAllowed() ? state.hostStatus : "disabled",
+    agentAccessEnabled: agentAccessAllowed(),
+  });
 
   const httpClient = (yield* HttpClient.HttpClient).pipe(HttpClient.withScope);
   const statePubSub = yield* PubSub.unbounded<DeviceServiceState>();
@@ -221,11 +307,16 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     },
   });
 
+  const publishSnapshot = (state: DeviceServiceState, revision: number) => {
+    const next = { ...state, revision };
+    comparison.reconcile(controlState(next));
+    return PubSub.publish(statePubSub, next).pipe(Effect.as({ state: next }));
+  };
+
   const publish = (update: (state: DeviceServiceState) => DeviceServiceState) =>
-    SynchronizedRef.updateAndGetEffect(stateRef, ({ state }) => {
-      const next = { ...update(state), revision: state.revision + 1 };
-      return PubSub.publish(statePubSub, next).pipe(Effect.as({ state: next }));
-    }).pipe(Effect.map(({ state }) => state));
+    SynchronizedRef.updateAndGetEffect(stateRef, ({ state }) =>
+      publishSnapshot(update(state), state.revision + 1),
+    ).pipe(Effect.map(({ state }) => state));
 
   const resolveHost = (hostId: DeviceHostId | undefined) =>
     Effect.gen(function* () {
@@ -255,6 +346,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const readiness: DeviceService["Service"]["readiness"] = Effect.fn("DeviceService.readiness")(
     function* (hostId) {
+      const epoch = supportEpoch;
       const host = yield* resolveHost(hostId);
       if (!(yield* readDeviceSettings).enabled) {
         return yield* new DeviceHostUnavailableError({
@@ -294,6 +386,11 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
       if (state.hostStatuses[host.id]?.status !== "ready") {
         yield* setHostStatus(host.id, { status: "ready" });
       }
+      if (epoch !== supportEpoch)
+        return yield* new DeviceHostUnavailableError({
+          hostId: host.id,
+          reason: "Device support was turned off while the device host was starting.",
+        });
       return { hostId: host.id, ...ready };
     },
     lifecycleLock.withPermit,
@@ -312,6 +409,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const agentReadinessIfSupported: DeviceService["Service"]["agentReadinessIfSupported"] =
     Effect.fn("DeviceService.agentReadinessIfSupported")(function* (hostId) {
+      const epoch = accessEpoch;
       const deviceSettings = yield* readDeviceSettings;
       if (!deviceSettings.enabled || !deviceSettings.agentAccessEnabled) return null;
       const host = yield* resolveHost(hostId);
@@ -342,19 +440,23 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
               }),
           ),
         );
+      if (epoch !== accessEpoch) return null;
       const hostSummaries = yield* Effect.forEach(hosts.values(), (candidate) => candidate.summary);
       yield* publish((state) => ({ ...state, hosts: hostSummaries }));
       yield* setHostStatus(host.id, { status: "ready" });
-      return { hostId: host.id, ...ready };
+      return epoch === accessEpoch ? { hostId: host.id, ...ready } : null;
     }, lifecycleLock.withPermit);
 
   const currentReadiness: DeviceService["Service"]["currentReadiness"] = (hostId) =>
-    resolveHost(hostId).pipe(
-      Effect.flatMap((host) =>
-        host.current.pipe(Effect.map((ready) => (ready ? { hostId: host.id, ...ready } : null))),
-      ),
-      Effect.orElseSucceed(() => null),
-    );
+    Effect.gen(function* () {
+      const epoch = supportEpoch;
+      if (!(yield* readDeviceSettings).enabled) return null;
+      const host = yield* resolveHost(hostId);
+      const ready = yield* host.current;
+      return ready && (yield* readDeviceSettings).enabled && epoch === supportEpoch
+        ? { hostId: host.id, ...ready }
+        : null;
+    }).pipe(Effect.orElseSucceed(() => null));
 
   const hubJson = <A, I>(
     request: HttpClientRequest.HttpClientRequest,
@@ -424,13 +526,21 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     return { devices, detail: list.errors?.map((error) => error.message).join("\n") || undefined };
   });
 
-  const refresh = Effect.fn("DeviceService.refresh")(function* (ready: DeviceReadiness) {
+  const refresh = Effect.fn("DeviceService.refresh")(function* (
+    ready: DeviceReadiness,
+    epoch = supportEpoch,
+  ) {
     const host = hosts.get(ready.hostId);
     const { devices, detail } = yield* fetchDevices(ready);
     const hostSummaries = yield* Effect.forEach(hosts.values(), (host) => host.summary);
     return yield* lifecycleLock.withPermit(
       Effect.gen(function* () {
-        if (!(yield* readDeviceSettings).enabled || !host || hosts.get(ready.hostId) !== host)
+        if (
+          !(yield* readDeviceSettings).enabled ||
+          epoch !== supportEpoch ||
+          !host ||
+          hosts.get(ready.hostId) !== host
+        )
           return (yield* SynchronizedRef.get(stateRef)).state;
         return yield* publish((state) => ({
           ...state,
@@ -440,6 +550,18 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             ...state.devices.filter((device) => device.hostId !== ready.hostId),
             ...devices,
           ],
+          // A device that vanished (or whose serial now belongs to another device) cannot
+          // keep a session; publishing the pruned state also revokes its agent grants.
+          sessions: state.sessions.filter(
+            (session) =>
+              session.hostId !== ready.hostId ||
+              devices.some(
+                (device) =>
+                  device.id === session.deviceId &&
+                  device.platform === session.platform &&
+                  sameDeviceIdentity(session, device),
+              ),
+          ),
           hostStatuses: {
             ...state.hostStatuses,
             [ready.hostId]: { status: "ready", ...(detail ? { detail } : {}) },
@@ -524,52 +646,29 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const configure: DeviceService["Service"]["configure"] = Effect.fn("DeviceService.configure")(
     function* (input) {
-      const currentSettings = yield* readDeviceSettings;
-      const nextEnabled = input.enabled ?? currentSettings.enabled;
-      const nextAgentAccess = input.agentAccessEnabled ?? currentSettings.agentAccessEnabled;
-      yield* lifecycleLock.withPermit(
-        Effect.gen(function* () {
-          yield* settings
-            .updateSettings({
-              ...(input.enabled === undefined ? {} : { enableDeviceSupport: input.enabled }),
-              ...(input.agentAccessEnabled === undefined
-                ? {}
-                : { enableAgentDeviceAccess: input.agentAccessEnabled }),
-              ...(input.onboardingCompleted === undefined
-                ? {}
-                : { deviceOnboardingCompleted: input.onboardingCompleted }),
-            })
-            .pipe(
-              Effect.mapError(
-                (cause) =>
-                  new DeviceOperationError({
-                    operation: "configure",
-                    reason: "settings_failed",
-                    cause,
-                  }),
-              ),
-            );
-          if (!nextEnabled) {
-            yield* Effect.forEach(hosts.values(), (host) => host.stop, { discard: true });
-          } else if (input.agentAccessEnabled === false) {
-            yield* Effect.forEach(hosts.values(), (host) => host.stopAgent, { discard: true });
-          }
-          yield* publish((state) => ({
-            ...state,
-            hostStatus: nextEnabled ? "idle" : "disabled",
-            hostStatusDetail: undefined,
-            hostStatuses: {},
-            devices: nextEnabled ? state.devices : [],
-            sessions: nextEnabled ? state.sessions : [],
-            bootingDevices: nextEnabled ? state.bootingDevices : [],
-            agentAccessEnabled: nextAgentAccess,
-            onboardingCompleted: input.onboardingCompleted ?? state.onboardingCompleted,
-          }));
-        }),
-      );
-      if (nextEnabled && nextAgentAccess && input.agentAccessEnabled === true) {
-        yield* agentReadinessIfSupported();
-      }
+      const updated = yield* settings
+        .updateSettings({
+          ...(input.enabled === undefined ? {} : { enableDeviceSupport: input.enabled }),
+          ...(input.agentAccessEnabled === undefined
+            ? {}
+            : { enableAgentDeviceAccess: input.agentAccessEnabled }),
+          ...(input.onboardingCompleted === undefined
+            ? {}
+            : { deviceOnboardingCompleted: input.onboardingCompleted }),
+        })
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new DeviceOperationError({
+                operation: "configure",
+                reason: "settings_failed",
+                cause,
+              }),
+          ),
+        );
+      if (!observeSettings) onSettingsCommit(updated);
+      yield* applySettingsChanges;
+      if (input.agentAccessEnabled === true) yield* agentReadinessIfSupported();
       return yield* list;
     },
   );
@@ -646,10 +745,72 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
   });
 
   const open: DeviceService["Service"]["open"] = Effect.fn("DeviceService.open")(function* (input) {
+    const epoch = supportEpoch;
     const host = yield* resolveHost(input.hostId);
+    const checkSupport = Effect.gen(function* () {
+      if (!(yield* readDeviceSettings).enabled || epoch !== supportEpoch)
+        return yield* new DeviceHostUnavailableError({
+          hostId: host.id,
+          reason: "Device support was turned off while the device was opening.",
+        });
+    });
+    if (input.fromThreadId !== undefined) {
+      return yield* lifecycleLock.withPermit(
+        Effect.gen(function* () {
+          yield* checkSupport;
+          if (hosts.get(host.id) !== host)
+            return yield* new DeviceHostUnavailableError({
+              hostId: host.id,
+              reason: "Device support or the host configuration changed.",
+            });
+          return yield* SynchronizedRef.modifyEffect(stateRef, (snapshot) =>
+            Effect.gen(function* () {
+              const { state } = snapshot;
+              const device = findDevice(state, host.id, input.deviceId);
+              const matches = (session: DeviceSession) =>
+                session.hostId === host.id &&
+                session.deviceId === input.deviceId &&
+                session.platform === input.platform;
+              if (
+                !device?.booted ||
+                device.platform !== input.platform ||
+                !state.sessions.some(
+                  (session) => session.threadId === input.fromThreadId && matches(session),
+                )
+              )
+                return yield* new DeviceNotFoundError({
+                  hostId: host.id,
+                  deviceId: input.deviceId,
+                });
+              const existing = state.sessions.find(
+                (session) => session.threadId === input.threadId && matches(session),
+              );
+              if (existing) return [existing, snapshot] as const;
+              const session: DeviceSession = rememberDeviceIdentity(
+                {
+                  threadId: input.threadId,
+                  hostId: host.id,
+                  deviceId: device.id,
+                  platform: device.platform,
+                  openedAt: DateTime.formatIso(yield* DateTime.now),
+                },
+                device,
+              );
+              yield* checkSupport;
+              const next = yield* publishSnapshot(
+                { ...state, sessions: [...state.sessions, session] },
+                state.revision + 1,
+              );
+              return [session, next] as const;
+            }),
+          );
+        }),
+      );
+    }
     yield* ensurePlatform(host, input.platform);
     const ready = yield* readiness(host.id);
-    let state = yield* refresh(ready);
+    let state = yield* refresh(ready, epoch);
+    yield* checkSupport;
     let device = findDevice(state, host.id, input.deviceId);
     if (!device) {
       return yield* new DeviceNotFoundError({ hostId: host.id, deviceId: input.deviceId });
@@ -675,7 +836,8 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           })),
         ),
       );
-      state = yield* refresh(ready);
+      yield* checkSupport;
+      state = yield* refresh(ready, epoch);
       device = findDevice(state, host.id, bootedId) ?? findDevice(state, host.id, device.id);
       if (!device) {
         return yield* new DeviceNotFoundError({ hostId: host.id, deviceId: bootedId });
@@ -701,20 +863,19 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
         reason: "Host configuration changed. Retry the operation.",
       });
     const openedAt = DateTime.formatIso(yield* DateTime.now);
-    const session: DeviceSession = {
-      threadId: input.threadId,
-      hostId: host.id,
-      deviceId: device.id,
-      platform: device.platform,
-      openedAt,
-    };
+    const session: DeviceSession = rememberDeviceIdentity(
+      {
+        threadId: input.threadId,
+        hostId: host.id,
+        deviceId: device.id,
+        platform: device.platform,
+        openedAt,
+      },
+      device,
+    );
     yield* lifecycleLock.withPermit(
       Effect.gen(function* () {
-        if (!(yield* readDeviceSettings).enabled)
-          return yield* new DeviceHostUnavailableError({
-            hostId: host.id,
-            reason: "Device support was turned off while the device was opening.",
-          });
+        yield* checkSupport;
         yield* publish((current) => ({
           ...current,
           sessions: [
@@ -808,6 +969,16 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           (input.deviceId === undefined || session.deviceId === input.deviceId),
       );
       if (closing.length === 0) return;
+      if (
+        input.shutdown &&
+        closing.some((session) => !comparison.inputAllowed(session.hostId, session.deviceId))
+      ) {
+        return yield* comparisonDeviceError(
+          new DeviceComparisonError({
+            reason: "Stop the managed comparison before shutting down this device.",
+          }),
+        );
+      }
       yield* publish((current) => ({
         ...current,
         sessions: current.sessions.filter((session) => !closing.includes(session)),
@@ -815,7 +986,10 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
       if (input.shutdown) {
         yield* Effect.forEach(
           closing,
-          (session) => shutdownDevice(session.hostId, session.deviceId, session.platform),
+          (session) =>
+            comparison
+              .manual(session, shutdownDevice(session.hostId, session.deviceId, session.platform))
+              .pipe(Effect.mapError(mapComparisonDeviceError)),
           { discard: true },
         );
       }
@@ -825,7 +999,12 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
   const shutdown: DeviceService["Service"]["shutdown"] = Effect.fn("DeviceService.shutdown")(
     function* (input) {
       const host = yield* resolveHost(input.hostId);
-      yield* shutdownDevice(host.id, input.deviceId, input.platform);
+      yield* comparison
+        .manual(
+          { hostId: host.id, deviceId: input.deviceId },
+          shutdownDevice(host.id, input.deviceId, input.platform),
+        )
+        .pipe(Effect.mapError(mapComparisonDeviceError));
       // Sessions on a powered-off device are stale in every thread.
       yield* publish((current) => ({
         ...current,
@@ -836,10 +1015,14 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     },
   );
 
-  const screenshot: DeviceService["Service"]["screenshot"] = Effect.fn("DeviceService.screenshot")(
-    function* (input) {
+  const captureScreenshot = <E>(
+    input: Parameters<DeviceService["Service"]["screenshot"]>[0],
+    guard: Effect.Effect<void, E>,
+  ) =>
+    Effect.gen(function* () {
       const { ready, device } = yield* resolveDevice(input.hostId, input.deviceId);
       const url = `${ready.hub.origin}${vendorPrefix(device.platform)}/api/screenshot?device=${encodeURIComponent(device.id)}`;
+      yield* guard;
       const png = yield* httpClient.execute(HttpClientRequest.post(url)).pipe(
         Effect.flatMap(HttpClientResponse.filterStatusOk),
         Effect.flatMap((response) => response.arrayBuffer),
@@ -856,8 +1039,10 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
         ),
       );
       return { device, png };
-    },
-  );
+    }).pipe(Effect.withSpan("DeviceService.screenshot"));
+
+  const screenshot: DeviceService["Service"]["screenshot"] = (input) =>
+    captureScreenshot(input, Effect.void);
 
   const resolveDevice = Effect.fn("DeviceService.resolveDevice")(function* (
     hostId: DeviceHostId | undefined,
@@ -889,15 +1074,382 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
   const action: DeviceService["Service"]["action"] = Effect.fn("DeviceService.action")(
     function* (input) {
       const { ready, device } = yield* resolveDevice(input.hostId, input.deviceId);
-      yield* runDeviceAction(ready, device.platform, input);
+      yield* comparison
+        .manual(
+          { hostId: ready.hostId, deviceId: device.id },
+          runDeviceAction(ready, device.platform, input),
+        )
+        .pipe(Effect.mapError(mapComparisonDeviceError));
       return yield* detail({ hostId: ready.hostId, deviceId: device.id });
     },
   );
+
+  const comparisonDeviceError = (cause: DeviceComparisonError) =>
+    new DeviceOperationError({ operation: cause.reason, reason: "hub_rejected", cause });
+  const mapComparisonDeviceError = (cause: DeviceError | DeviceComparisonError) =>
+    cause._tag === "DeviceComparisonError" ? comparisonDeviceError(cause) : cause;
+  const providerActive = agentControl?.providerActive ?? (() => false);
+  const comparison = makeDeviceComparison({
+    providerActive,
+    ...(comparisonStore === undefined ? {} : { store: comparisonStore }),
+    state: SynchronizedRef.get(stateRef).pipe(Effect.map(({ state }) => controlState(state))),
+    driver: makeDeviceSemanticDriver((hostId) =>
+      agentReadinessIfSupported(hostId).pipe(
+        Effect.mapError(
+          () =>
+            new DeviceComparisonError({ reason: "Device automation is unavailable on this host." }),
+        ),
+        Effect.flatMap((ready) =>
+          ready
+            ? Effect.succeed(ready.agentDevice)
+            : Effect.fail(
+                new DeviceComparisonError({
+                  reason: "Agent device access is off or unavailable on this host.",
+                }),
+              ),
+        ),
+      ),
+    ),
+    screenshot: (target, guard) =>
+      captureScreenshot(target, guard).pipe(
+        Effect.map((capture) => capture.png),
+        Effect.orElseSucceed(() => undefined),
+      ),
+    manualInput: (target, gesture, guard) =>
+      Effect.gen(function* () {
+        const ready = yield* currentReadiness(target.hostId);
+        if (!ready)
+          return yield* new DeviceComparisonError({ reason: "Live device input is unavailable." });
+        if (target.platform === "ios")
+          return yield* runIosDeviceInput(ready, target.deviceId, gesture, guard);
+        const button =
+          gesture.type === "back" || gesture.type === "home" || gesture.type === "recents";
+        const endpoint = button ? "key" : gesture.type;
+        const body = button ? { key: gesture.type } : { ...gesture };
+        if ("viewport" in body) delete body.viewport;
+        const url = `${ready.hub.origin}/vendor/serve-emu/api/${endpoint}?device=${encodeURIComponent(target.deviceId)}`;
+        const request = yield* HttpClientRequest.bodyJson(HttpClientRequest.post(url), {
+          ...body,
+          record: false,
+        }).pipe(
+          Effect.mapError(() => new DeviceComparisonError({ reason: "Invalid device input." })),
+        );
+        yield* guard;
+        const failed = () =>
+          new DeviceComparisonError({
+            reason:
+              "The device did not confirm the input. Check the live screen before continuing.",
+          });
+        const result = yield* hubJson(request, HubActionResult, "manual input").pipe(
+          Effect.mapError(failed),
+        );
+        if (!result.ok) return yield* failed();
+      }),
+  });
+
+  const controlError = (reason: string) => new DeviceComparisonError({ reason });
+  const grantEnded = () =>
+    controlError("Device access ended. Open the device again from its thread.");
+  const grantIsCurrent = (grant: AgentDeviceGrant) => {
+    if (comparison.agent.lookup(grant.token) !== grant) return false;
+    return (
+      providerActive(grant.caller) &&
+      isLiveDeviceAttachment(
+        controlState(SynchronizedRef.getUnsafe(stateRef).state),
+        grant.attachment,
+      )
+    );
+  };
+  const checkGrant = (grant: AgentDeviceGrant) =>
+    Effect.suspend(() => {
+      if (grantIsCurrent(grant)) return Effect.void;
+      comparison.agent.release(grant);
+      return Effect.fail(grantEnded());
+    });
+
+  const dispatch: Parameters<typeof startAgentDeviceProxy>[0]["dispatch"] = (
+    grant,
+    operation,
+    usesSession,
+  ) =>
+    Effect.gen(function* () {
+      yield* checkGrant(grant);
+      const host = hosts.get(grant.attachment.hostId);
+      const ready = yield* agentReadinessIfSupported(grant.attachment.hostId).pipe(
+        Effect.mapError(() =>
+          controlError("Device automation is unavailable on the selected host."),
+        ),
+      );
+      if (!ready || !host) return yield* grantEnded();
+      yield* checkGrant(grant);
+      const sameEndpoint = (endpoint: DeviceHost.AgentDeviceEndpoint) =>
+        endpoint.baseUrl === ready.agentDevice.baseUrl &&
+        endpoint.token === ready.agentDevice.token;
+      const scope = grant.resumedApp ?? grant.approvedApp;
+      if (scope && !sameEndpoint(scope.endpoint)) {
+        comparison.agent.release(grant);
+        return yield* grantEnded();
+      }
+      return yield* comparison.agent.dispatch(
+        grant,
+        operation(
+          ready.agentDevice,
+          () => hosts.get(grant.attachment.hostId) === host && grantIsCurrent(grant),
+        ),
+        usesSession
+          ? {
+              endpoint: ready.agentDevice,
+              close: closeAgentDeviceSession(
+                ready.agentDevice,
+                grant.daemonSession,
+                grant.attachment.platform,
+                grant.attachment.deviceId,
+              ),
+              observe: (retained, appId, current) =>
+                Effect.gen(function* () {
+                  const live = yield* agentReadinessIfSupported(host.id).pipe(
+                    Effect.mapError(grantEnded),
+                  );
+                  const valid = () =>
+                    current() &&
+                    hosts.get(host.id) === host &&
+                    isLiveDeviceAttachment(
+                      controlState(SynchronizedRef.getUnsafe(stateRef).state),
+                      retained.attachment,
+                    );
+                  if (!live || !sameEndpoint(live.agentDevice) || !valid())
+                    return yield* grantEnded();
+                  return yield* checkDeviceScreen(
+                    live.agentDevice,
+                    retained,
+                    valid,
+                    appId,
+                    false,
+                  ).pipe(
+                    Effect.mapError(() =>
+                      controlError(
+                        `Open ${appId} on the device and finish any protected prompts before returning control.`,
+                      ),
+                    ),
+                  );
+                }).pipe(
+                  Effect.timeoutOrElse({
+                    duration: "10 seconds",
+                    orElse: () =>
+                      Effect.fail(
+                        controlError(
+                          "Could not verify the current app. Check the live device and try again.",
+                        ),
+                      ),
+                  }),
+                ),
+            }
+          : undefined,
+      );
+    });
+
+  const agentTarget: DeviceService["Service"]["agentTarget"] = Effect.fn(
+    "DeviceService.agentTarget",
+  )(function* (attachment, caller, entryPath, access) {
+    if (!agentControl || caller.threadId !== attachment.threadId || !agentAccessAllowed())
+      return yield* comparisonDeviceError(grantEnded());
+    const epoch = accessEpoch;
+    const checkApproval = () =>
+      !access || comparison.agent.permitsApp(attachment, caller, access.appId, access.approvalId);
+    if (!checkApproval())
+      return yield* comparisonDeviceError(
+        controlError("Request approval for the exact app from the Device panel."),
+      );
+    const host = yield* resolveHost(attachment.hostId);
+    const ready = yield* agentReadinessIfSupported(host.id);
+    if (!ready) return yield* comparisonDeviceError(grantEnded());
+    return yield* lifecycleLock.withPermit(
+      Effect.gen(function* () {
+        comparison.agent.refresh(attachment);
+        if (!providerActive(caller) || hosts.get(host.id) !== host)
+          return yield* comparisonDeviceError(grantEnded());
+        if (
+          epoch !== accessEpoch ||
+          !isLiveDeviceAttachment(
+            controlState(SynchronizedRef.getUnsafe(stateRef).state),
+            attachment,
+          )
+        )
+          return yield* comparisonDeviceError(grantEnded());
+        if (!checkApproval())
+          return yield* comparisonDeviceError(
+            controlError("The app approval changed. Request it again."),
+          );
+        const grant = comparison.claimAgent(
+          attachment,
+          caller,
+          access && { ...access, endpoint: ready.agentDevice },
+        );
+        if (!grant)
+          return yield* comparisonDeviceError(
+            controlError(
+              "The device is busy or controlled from its Device panel. Stop or hand back control first.",
+            ),
+          );
+        const config = yield* agentControl
+          .configForGrant(grant, { lookup: comparison.agent.lookup, dispatch }, entryPath)
+          .pipe(
+            Effect.onExit((exit) =>
+              Exit.isSuccess(exit)
+                ? Effect.void
+                : Effect.sync(() => comparison.agent.release(grant)),
+            ),
+          );
+        yield* checkGrant(grant).pipe(Effect.mapError(comparisonDeviceError));
+        return {
+          ...config,
+          session: grant.daemonSession,
+          ...(grant.resumedApp ? { appId: grant.resumedApp.appId } : {}),
+          ...(grant.approvedApp ? { approvedAppId: grant.approvedApp.appId } : {}),
+        };
+      }),
+    );
+  });
+
+  const agentScreenshot: DeviceService["Service"]["agentScreenshot"] = (attachment, caller) =>
+    Effect.gen(function* () {
+      const grant = comparison.agent.currentGrant(attachment, caller);
+      if (!grant || ((grant.resumedApp || grant.approvedApp) && !grant.lastSnapshot))
+        return yield* comparisonDeviceError(
+          controlError("Call device_open and open the app before capturing its screen."),
+        );
+      return yield* dispatch(
+        grant,
+        (endpoint, canDispatch) =>
+          Effect.gen(function* () {
+            yield* checkDeviceScreen(endpoint, grant, canDispatch);
+            yield* checkGrant(grant);
+            const shot = yield* captureScreenshot(attachment, checkGrant(grant)).pipe(
+              Effect.mapError((cause) =>
+                cause._tag === "DeviceComparisonError"
+                  ? cause
+                  : controlError("The device could not capture its screen."),
+              ),
+            );
+            yield* checkDeviceScreen(endpoint, grant, canDispatch);
+            yield* checkGrant(grant);
+            return shot;
+          }),
+        false,
+      ).pipe(Effect.mapError(comparisonDeviceError));
+    });
+
+  const authorizeScreenshotTransfer: DeviceService["Service"]["authorizeScreenshotTransfer"] = (
+    caller,
+    source,
+  ) =>
+    Effect.suspend(() => {
+      const epoch = accessEpoch;
+      const grant =
+        source?.kind === "live"
+          ? comparison.agent.currentGrant(source.attachment, caller)
+          : undefined;
+      const isCurrent = () => {
+        const state = controlState(SynchronizedRef.getUnsafe(stateRef).state);
+        if (epoch !== accessEpoch || !state.agentAccessEnabled || !providerActive(caller))
+          return false;
+        if (!source) return true;
+        if (source.kind === "firstDifference")
+          return comparison.approvedScreenshotIsCurrent(state, caller, source);
+        return (
+          source.attachment.threadId === caller.threadId &&
+          isLiveDeviceAttachment(state, source.attachment) &&
+          (source.kind !== "live" || (grant !== undefined && grantIsCurrent(grant)))
+        );
+      };
+      return isCurrent() ? Effect.succeed(isCurrent) : Effect.fail(grantEnded());
+    });
 
   const sessionsForThread: DeviceService["Service"]["sessionsForThread"] = (threadId) =>
     SynchronizedRef.get(stateRef).pipe(
       Effect.map(({ state }) => state.sessions.filter((session) => session.threadId === threadId)),
     );
+
+  const settingsChanged = yield* Queue.sliding<void>(1);
+  const settingsChanges: Array<{
+    readonly next: ReturnType<typeof deviceSettings>;
+    readonly supportChanged: boolean;
+    readonly stop: "host" | "agent" | undefined;
+  }> = [];
+  const onSettingsCommit = (settings: ServerSettingsSnapshot) => {
+    const previous = committedSettings;
+    const next = deviceSettings(settings);
+    const supportChanged = previous.enabled !== next.enabled;
+    if (
+      !supportChanged &&
+      previous.agentAccessEnabled === next.agentAccessEnabled &&
+      previous.onboardingCompleted === next.onboardingCompleted
+    )
+      return;
+    committedSettings = next;
+    if (previous.enabled && !next.enabled) supportEpoch++;
+    const wasAllowed = previous.enabled && previous.agentAccessEnabled;
+    const isAllowed = next.enabled && next.agentAccessEnabled;
+    if (wasAllowed && !isAllowed) {
+      accessEpoch++;
+      comparison.revoke();
+    } else if (!wasAllowed && isAllowed) {
+      comparison.allowSavedResults();
+    }
+    const stop = !previous.enabled
+      ? undefined
+      : !next.enabled
+        ? "host"
+        : previous.agentAccessEnabled && !next.agentAccessEnabled
+          ? "agent"
+          : undefined;
+    if (stop === "host") pendingHostStops++;
+    if (stop === "agent") pendingAgentStops++;
+    settingsChanges.push({ next, supportChanged, stop });
+    Queue.offerUnsafe(settingsChanged, undefined);
+  };
+  const applySettingsChanges = lifecycleLock.withPermit(
+    Effect.gen(function* () {
+      for (let change = settingsChanges.shift(); change; change = settingsChanges.shift()) {
+        const { next, supportChanged, stop } = change;
+        if (stop) {
+          yield* Effect.forEach(
+            hosts.values(),
+            (host) => (stop === "host" ? host.stop : host.stopAgent),
+            { discard: true },
+          );
+        }
+        yield* publish((state) => ({
+          ...state,
+          ...(supportChanged
+            ? {
+                hostStatus: next.enabled ? "idle" : "disabled",
+                hostStatusDetail: undefined,
+                hostStatuses: {},
+              }
+            : {}),
+          ...(!next.enabled ? { devices: [], sessions: [], bootingDevices: [] } : {}),
+          agentAccessEnabled: next.agentAccessEnabled,
+          onboardingCompleted: next.onboardingCompleted,
+        }));
+        if (stop === "host") pendingHostStops--;
+        if (stop === "agent") pendingAgentStops--;
+      }
+    }).pipe(Effect.uninterruptible),
+  );
+
+  // Commits invalidate control synchronously. The worker can wait for device
+  // operations and stop helpers without holding the settings write lock.
+  if (observeSettings && Option.isSome(settingsScope)) {
+    yield* observeSettings(onSettingsCommit).pipe(
+      Effect.provideService(Scope.Scope, settingsScope.value),
+    );
+    yield* Queue.take(settingsChanged).pipe(
+      Effect.andThen(applySettingsChanges),
+      Effect.forever,
+      Effect.forkIn(settingsScope.value),
+    );
+  }
 
   return {
     ...DeviceService.of({
@@ -923,33 +1475,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           reason: "Agent CLI installation is unavailable in this device service.",
         }),
       ),
-      agentTarget: (input) =>
-        Effect.gen(function* () {
-          const host = yield* resolveHost(input.hostId);
-          const ready = yield* agentReadinessIfSupported(input.hostId);
-          if (!ready)
-            return yield* new DeviceHostUnavailableError({
-              hostId: input.hostId,
-              reason:
-                "Agent device access requires enabled device support, agent access, and an available simulator platform on this host.",
-            });
-          const configPath = yield* lifecycleLock.withPermit(
-            Effect.gen(function* () {
-              if (hosts.get(host.id) !== host)
-                return yield* new DeviceHostUnavailableError({
-                  hostId: host.id,
-                  reason: "Host configuration changed. Retry the operation.",
-                });
-              return yield* configureAgent(input.hostId, ready);
-            }),
-          );
-          return [
-            "--config",
-            configPath,
-            "--session",
-            agentDeviceSession(input.threadId, input.hostId, input.deviceId),
-          ];
-        }),
+      agentTarget,
       state: SynchronizedRef.get(stateRef).pipe(Effect.map(({ state }) => state)),
       subscribe: PubSub.subscribe(statePubSub),
       configure,
@@ -960,10 +1486,19 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
       detail,
       action,
       screenshot,
+      agentScreenshot,
+      authorizeScreenshotTransfer,
       readiness,
       readinessIfSupported,
       agentReadinessIfSupported,
       currentReadiness,
+      comparison: comparison.invoke,
+      comparisonRecording: comparison.record,
+      streamInputAllowed: (hostId, deviceId) =>
+        readDeviceSettings.pipe(
+          Effect.map(({ enabled }) => enabled && comparison.inputAllowed(hostId, deviceId)),
+          Effect.orElseSucceed(() => false),
+        ),
       sessionsForThread,
     }),
     setHostStatus,
@@ -998,22 +1533,46 @@ export const make = Effect.gen(function* () {
   const hosts = new Map<DeviceHostId, DeviceHost.DeviceHost["Service"]>([
     [localHost.id, localHost],
   ]);
-  const configureAgent = (hostId: DeviceHostId, ready: DeviceHost.DeviceHostAgentReady) => {
-    const file = agentDeviceConfigPath(config.stateDir, hostId, path);
-    return writeAgentDeviceConfig(file, ready.agentDevice).pipe(
+  const clearLegacyConfig = (hostId: DeviceHostId) =>
+    fs
+      .remove(legacyAgentDeviceConfigPath(config.stateDir, hostId, path), { force: true })
+      .pipe(Effect.ignore);
+  yield* clearLegacyConfig(localHost.id);
+  const comparisonDeviceErrorForConfig = (hostId: DeviceHostId) =>
+    new DeviceHostUnavailableError({ hostId, reason: "Could not prepare device control." });
+  let proxyConfig:
+    | { readonly origin: string; readonly directory: string; command?: string }
+    | undefined;
+  const configForGrant: NonNullable<Parameters<typeof makeWithHosts>[2]>["configForGrant"] = (
+    grant,
+    proxy,
+    entryPath,
+  ) =>
+    Effect.gen(function* () {
+      if (!proxyConfig) {
+        const root = agentDeviceGrantDirectory(config.stateDir, path);
+        yield* fs.makeDirectory(root, { recursive: true, mode: 0o700 });
+        const directory = yield* fs.makeTempDirectoryScoped({ directory: root, prefix: "grants-" });
+        const { origin } = yield* startAgentDeviceProxy(proxy);
+        proxyConfig = { origin, directory };
+      }
+      const configPath = path.join(proxyConfig.directory, `${grant.id}.json`);
+      yield* writeAgentDeviceConfig(configPath, {
+        baseUrl: proxyConfig.origin,
+        token: grant.token,
+      });
+      proxyConfig.command ??= yield* ensureAgentDeviceShim({
+        entryPath,
+        configDirectory: proxyConfig.directory,
+        proxyOrigin: proxyConfig.origin,
+      });
+      return { command: proxyConfig.command, configPath };
+    }).pipe(
+      Effect.provideService(Scope.Scope, scope),
       Effect.provideService(FileSystem.FileSystem, fs),
       Effect.provideService(Path.Path, path),
-      Effect.mapError(
-        (cause) =>
-          new DeviceOperationError({
-            operation: "configure agent",
-            reason: "settings_failed",
-            cause,
-          }),
-      ),
-      Effect.as(file),
+      Effect.mapError(() => comparisonDeviceErrorForConfig(grant.attachment.hostId)),
     );
-  };
   const probeContext =
     yield* Effect.context<Effect.Services<ReturnType<typeof SshDeviceHost.probe>>>();
   const localTargetContext =
@@ -1036,7 +1595,7 @@ export const make = Effect.gen(function* () {
             }),
         ),
       ),
-    configureAgent,
+    { configForGrant, providerActive: hasActiveMcpDeviceSession },
     (tool) =>
       (tool === "hub" ? ensureDeviceHub(config.baseDir) : ensureAgentDevice(config.baseDir)).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
@@ -1051,6 +1610,7 @@ export const make = Effect.gen(function* () {
             }),
         ),
       ),
+    makeDeviceComparisonStore(config.stateDir),
   );
   const hostContext =
     yield* Effect.context<Effect.Services<ReturnType<typeof SshDeviceHost.make>>>();
@@ -1089,9 +1649,7 @@ export const make = Effect.gen(function* () {
         ({ id, scope }) =>
           Effect.gen(function* () {
             yield* Scope.close(scope, Exit.void);
-            yield* fs
-              .remove(agentDeviceConfigPath(config.stateDir, id, path), { force: true })
-              .pipe(Effect.ignore);
+            yield* clearLegacyConfig(id);
           }),
         { concurrency: 4, discard: true },
       );
@@ -1099,25 +1657,12 @@ export const make = Effect.gen(function* () {
         Effect.gen(function* () {
           for (const host of next) {
             if (configured.has(host.id)) continue;
+            yield* clearLegacyConfig(host.id);
             const hostScope = yield* Scope.fork(scope);
-            const instance = yield* SshDeviceHost.make(
-              host,
-              (ready) =>
-                configureAgent(host.id, ready).pipe(
-                  Effect.asVoid,
-                  Effect.mapError(
-                    (error) =>
-                      new DeviceHost.DeviceHostError({
-                        hostId: host.id,
-                        step: "configuring agent access",
-                        cause: error,
-                      }),
-                  ),
-                ),
-              (status, detail) =>
-                service
-                  .setHostStatus(host.id, { status, ...(detail ? { detail } : {}) })
-                  .pipe(Effect.asVoid),
+            const instance = yield* SshDeviceHost.make(host, undefined, (status, detail) =>
+              service
+                .setHostStatus(host.id, { status, ...(detail ? { detail } : {}) })
+                .pipe(Effect.asVoid),
             ).pipe(Effect.provideService(Scope.Scope, hostScope), Effect.provide(hostContext));
             hosts.set(host.id, instance);
             configured.set(host.id, { config: host, scope: hostScope });

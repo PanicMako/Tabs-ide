@@ -1,4 +1,9 @@
 import { revertCodexThread } from "../../provider/CodexThreadRevert.ts";
+import {
+  openCodexFigmaMcp,
+  readCodexMcpRegistrations,
+  type CodexConfigClient,
+} from "./CodexFigmaMcp.ts";
 import { historyResponseItems } from "../ContextHandoffBudget.ts";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
 import {
@@ -73,6 +78,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Predicate from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -1273,37 +1279,41 @@ export class CodexAppServerClientFactory extends Context.Service<
  */
 export const CODEX_THREAD_CONFIG = { "tools.update_plan.enabled": true } as const;
 
-export function codexThreadRuntimeParams(input: {
-  readonly threadId: ThreadId | null;
-  readonly modelSelection?: { readonly model: string };
-  readonly runtimePolicy?: ProviderAdapterV2RuntimePolicy;
-}): {
-  readonly cwd?: string;
-  readonly model?: string;
-  readonly config: Readonly<Record<string, Schema.Json>>;
-} {
+export const codexThreadRuntimeParams = Effect.fn("codexThreadRuntimeParams")(function* (
+  client: CodexConfigClient,
+  input: {
+    readonly threadId: ThreadId | null;
+    readonly modelSelection?: { readonly model: string };
+    readonly runtimePolicy?: ProviderAdapterV2RuntimePolicy;
+  },
+) {
+  const cwd = input.runtimePolicy?.cwd ?? undefined;
   const mcpSession =
     input.threadId === null ? undefined : McpProviderSession.readMcpProviderSession(input.threadId);
-  return {
-    ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
-    ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
-    config: {
-      ...CODEX_THREAD_CONFIG,
-      ...(mcpSession === undefined
-        ? {}
-        : {
-            mcp_servers: {
-              "t3-code": {
-                url: mcpSession.endpoint,
-                http_headers: {
-                  Authorization: mcpSession.authorizationHeader,
-                },
-              },
+  const config: Readonly<Record<string, Schema.Json>> = mcpSession
+    ? {
+        ...CODEX_THREAD_CONFIG,
+        mcp_servers: {
+          // Codex still needs a transport for a disabled entry. Inherit it from
+          // the saved config when keeping Figma tools out of the model's inventory.
+          ...(Object.hasOwn(yield* readCodexMcpRegistrations(client, cwd), "figma")
+            ? { figma: { enabled: false } }
+            : {}),
+          "t3-code": {
+            url: mcpSession.endpoint,
+            http_headers: {
+              Authorization: mcpSession.authorizationHeader,
             },
-          }),
-    },
+          },
+        },
+      }
+    : CODEX_THREAD_CONFIG;
+  return {
+    ...(cwd === undefined ? {} : { cwd }),
+    ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
+    config,
   };
-}
+});
 
 const decodeCodexResumeMetadata = Schema.decodeUnknownEffect(
   Schema.Struct({ thread: Schema.Struct({ id: Schema.String, updatedAt: Schema.Number }) }),
@@ -1389,8 +1399,30 @@ export function makeCodexAppServerProtocolLogger(input: {
     return undefined;
   }
 
+  const privateConnectorRequests = new Set<string | number>();
   return (event) => {
     if (!shouldPersistProviderEvent("native", event)) return Effect.void;
+    if (event.stage === "decoded" && Predicate.isObject(event.payload)) {
+      const { id, method, params } = event.payload;
+      if (typeof id === "number" || typeof id === "string") {
+        if (
+          event.direction === "outgoing" &&
+          Predicate.isObject(params) &&
+          (method === "config/read" ||
+            (method === "mcpServer/tool/call" && params.server === "figma") ||
+            (method === "mcpServerStatus/list" && params.serverName === "figma"))
+        ) {
+          privateConnectorRequests.add(id);
+          return Effect.void;
+        }
+        if (
+          event.direction === "incoming" &&
+          method === undefined &&
+          privateConnectorRequests.delete(id)
+        )
+          return Effect.void;
+      }
+    }
     return nativeEventLogger
       .write(
         {
@@ -5991,6 +6023,11 @@ export function makeCodexAdapterV2(adapterOptions: CodexAdapterV2Options): Provi
           providerSessionId: input.providerSessionId,
           providerSession: session,
           events: Stream.fromEffectRepeat(Queue.take(events)),
+          figmaMcp: (providerThread) =>
+            getNativeThreadId(providerThread).pipe(
+              Effect.flatMap((threadId) => openCodexFigmaMcp(client, threadId)),
+              Effect.catch(() => Effect.succeed(undefined)),
+            ),
           canReuseContextUsage: canReuseCodexContextUsage,
           // Known gap: a subagent that Codex resumes later reads as completed
           // (not pending) between turns, so idle release can win the race
@@ -6038,15 +6075,13 @@ export function makeCodexAdapterV2(adapterOptions: CodexAdapterV2Options): Provi
           ensureThread: (threadInput) =>
             ensureInitialized.pipe(
               Effect.andThen(
-                client.request(
-                  "thread/start",
-                  codexThreadRuntimeParams({
-                    threadId: threadInput.threadId,
-                    modelSelection: threadInput.modelSelection,
-                    runtimePolicy: threadInput.runtimePolicy,
-                  }),
-                ),
+                codexThreadRuntimeParams(client, {
+                  threadId: threadInput.threadId,
+                  modelSelection: threadInput.modelSelection,
+                  runtimePolicy: threadInput.runtimePolicy,
+                }),
               ),
+              Effect.flatMap((params) => client.request("thread/start", params)),
               Effect.map(
                 (response): OrchestrationV2ProviderThread =>
                   providerThreadFromCodexThread({
@@ -6071,19 +6106,23 @@ export function makeCodexAdapterV2(adapterOptions: CodexAdapterV2Options): Provi
             Effect.gen(function* () {
               const nativeThreadId = yield* getNativeThreadId(threadInput.providerThread);
               // excludeTurns is not in the generated request schema yet.
-              const resume = client.raw.request("thread/resume", {
-                threadId: nativeThreadId,
-                excludeTurns: true,
-                ...codexThreadRuntimeParams({
-                  threadId: threadInput.threadId ?? threadInput.providerThread.appThreadId,
-                  ...(threadInput.modelSelection === undefined
-                    ? {}
-                    : { modelSelection: threadInput.modelSelection }),
-                  ...(threadInput.runtimePolicy === undefined
-                    ? {}
-                    : { runtimePolicy: threadInput.runtimePolicy }),
-                }),
-              });
+              const resume = codexThreadRuntimeParams(client, {
+                threadId: threadInput.threadId ?? threadInput.providerThread.appThreadId,
+                ...(threadInput.modelSelection === undefined
+                  ? {}
+                  : { modelSelection: threadInput.modelSelection }),
+                ...(threadInput.runtimePolicy === undefined
+                  ? {}
+                  : { runtimePolicy: threadInput.runtimePolicy }),
+              }).pipe(
+                Effect.flatMap((params) =>
+                  client.raw.request("thread/resume", {
+                    threadId: nativeThreadId,
+                    excludeTurns: true,
+                    ...params,
+                  }),
+                ),
+              );
               const response = yield* ensureInitialized.pipe(
                 Effect.andThen(
                   resume.pipe(
@@ -6798,11 +6837,11 @@ export function makeCodexAdapterV2(adapterOptions: CodexAdapterV2Options): Provi
                 yield* client.raw.request("thread/resume", {
                   threadId,
                   excludeTurns: true,
-                  ...codexThreadRuntimeParams({
+                  ...(yield* codexThreadRuntimeParams(client, {
                     threadId: threadInput.providerThread.appThreadId,
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
-                  }),
+                  })),
                 });
               }
               const response = yield* ensureInitialized.pipe(
@@ -6842,20 +6881,23 @@ export function makeCodexAdapterV2(adapterOptions: CodexAdapterV2Options): Provi
               const boundary = yield* resolveCodexForkBoundary(threadInput);
               const response = yield* ensureInitialized.pipe(
                 Effect.andThen(
+                  codexThreadRuntimeParams(client, {
+                    threadId: threadInput.targetThreadId,
+                    ...(threadInput.modelSelection === undefined
+                      ? {}
+                      : { modelSelection: threadInput.modelSelection }),
+                    ...(threadInput.runtimePolicy === undefined
+                      ? {}
+                      : { runtimePolicy: threadInput.runtimePolicy }),
+                  }),
+                ),
+                Effect.flatMap((params) =>
                   client.request("thread/fork", {
                     threadId,
                     ...(boundary.lastTurnId === undefined
                       ? {}
                       : { lastTurnId: boundary.lastTurnId }),
-                    ...codexThreadRuntimeParams({
-                      threadId: threadInput.targetThreadId,
-                      ...(threadInput.modelSelection === undefined
-                        ? {}
-                        : { modelSelection: threadInput.modelSelection }),
-                      ...(threadInput.runtimePolicy === undefined
-                        ? {}
-                        : { runtimePolicy: threadInput.runtimePolicy }),
-                    }),
+                    ...params,
                   }),
                 ),
                 Effect.mapError(

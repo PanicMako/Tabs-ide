@@ -13,11 +13,14 @@ import {
   orderedActions,
   placeAction,
   searchTarget,
+  withBuiltInSubActions,
+  DEFAULT_SUB_ACTIONS,
+  findBuiltInAction,
 } from "./actions";
 describe("quick actions", () => {
   it("keeps customization reachable and ignores obsolete preferences", () => {
-    const actions = orderedActions(["usage", "unknown", "usage"], ["new-tab", "customize"]);
-    expect(actions[0]!.id).toBe("usage");
+    const actions = orderedActions(["toggles", "unknown", "toggles"], ["new-tab", "customize"]);
+    expect(actions[0]!.id).toBe("toggles");
     expect(actions.some((a) => a.id === "new-tab")).toBe(false);
     expect(actions.some((a) => a.id === "customize")).toBe(true);
     expect(new Set(actions.map((a) => a.id)).size).toBe(actions.length);
@@ -53,11 +56,11 @@ describe("quick actions", () => {
     const apply = (
       ...args: [Parameters<typeof placeAction>[2], "ring" | "more" | "hidden", number]
     ) => ({ actionOrder: order, hiddenActions: hidden } = placeAction(order, hidden, ...args));
-    apply("usage", "ring", 0);
-    expect(ring()[0]).toBe("usage");
+    apply("toggles", "ring", 0);
+    expect(ring()[0]).toBe("toggles");
     expect(ring()).toHaveLength(7);
-    apply("usage", "more", 0);
-    expect(ring()).not.toContain("usage");
+    apply("toggles", "more", 0);
+    expect(ring()).not.toContain("toggles");
     expect(ring()).toHaveLength(7);
     apply("new-tab", "hidden", 0);
     expect(hidden).toEqual(["new-tab"]);
@@ -99,5 +102,44 @@ describe("quick actions", () => {
     expect(actionZones(placed.actionOrder, placed.hiddenActions, custom).ring[6]!.id).toBe(
       "custom:a",
     );
+  });
+  it("migrates saved arrangements that still list the per-target computer-use entries", () => {
+    const legacy = [
+      "new-tab",
+      "browser-my-turn",
+      "device-stop",
+      "native-window-my-turn",
+      "agent-stop-all",
+      "usage",
+    ];
+    const actions = orderedActions(legacy, ["browser-stop", "device-my-turn"]);
+    const ids = actions.map((a) => a.id);
+    for (const gone of legacy.filter((id) => id.includes("-") && id !== "new-tab")) {
+      if (["usage"].includes(gone)) continue;
+      expect(ids).not.toContain(gone);
+    }
+    // The two parents land after everything already placed, in More.
+    const zones = actionZones(legacy, ["browser-stop", "device-my-turn"]);
+    expect(zones.more.map((a) => a.id)).toEqual(
+      expect.arrayContaining(["add-to-conversation", "agent-control"]),
+    );
+    expect(zones.hidden).toEqual([]);
+    // The removed ids still resolve for shortcuts and commands.
+    expect(findBuiltInAction("device-my-turn")).toBeDefined();
+    expect(findBuiltInAction("agent-stop-all")).toBeDefined();
+  });
+  it("adds the two parents' sub-options to older saved sub-actions", () => {
+    const saved = [DEFAULT_SUB_ACTIONS.find((entry) => entry.parentId === "search")!];
+    const merged = withBuiltInSubActions(saved);
+    expect(merged.filter((e) => e.parentId === "agent-control").map((e) => e.actionId)).toEqual([
+      "agent-my-turn",
+      "agent-stop-all",
+    ]);
+    expect(merged.filter((e) => e.parentId === "add-to-conversation")).toHaveLength(4);
+    expect(withBuiltInSubActions(DEFAULT_SUB_ACTIONS)).toBe(DEFAULT_SUB_ACTIONS);
+  });
+  it("preserves existing actions in saved arrangements", () => {
+    const ids = orderedActions(["usage", "git", "inbox"], []).map((a) => a.id);
+    expect(ids.slice(0, 3)).toEqual(["usage", "git", "inbox"]);
   });
 });

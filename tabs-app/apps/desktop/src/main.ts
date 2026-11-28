@@ -45,6 +45,7 @@ import {
   screen,
   clipboard,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
@@ -1467,6 +1468,29 @@ function registerDesktopProtocol(): void {
   });
 
   desktopProtocolRegistered = true;
+}
+
+/**
+ * Emergency "stop all agent control" chord. It is global so the user can stop an
+ * agent that is driving another app while Tabs is in the background. It only
+ * notifies the renderer (without focusing a window); the renderer revokes the
+ * grants. Always registered because the renderer cannot report activity yet.
+ */
+const AGENT_STOP_ALL_ACCELERATOR = "CommandOrControl+Alt+Shift+X";
+function registerAgentStopAllShortcut(): void {
+  try {
+    const registered = globalShortcut.register(AGENT_STOP_ALL_ACCELERATOR, () => {
+      for (const window of [mainWindow, ...popoutWindows]) {
+        if (window && !window.isDestroyed()) {
+          window.webContents.send(MENU_ACTION_CHANNEL, "agent-stop-all");
+        }
+      }
+    });
+    if (!registered) console.warn("Could not register the stop-all-agent-control shortcut");
+    app.once("will-quit", () => globalShortcut.unregister(AGENT_STOP_ALL_ACCELERATOR));
+  } catch (error) {
+    console.warn("Could not register the stop-all-agent-control shortcut", error);
+  }
 }
 
 function dispatchMenuAction(action: string): void {
@@ -5881,6 +5905,7 @@ if (clerkBridge.isPrimaryInstance) {
         },
       });
       app.once("will-quit", disposeNativeQuickActions);
+      registerAgentStopAllShortcut();
       configureApplicationMenu();
       registerDesktopProtocol();
       if (dataRecoveryStartupError) {

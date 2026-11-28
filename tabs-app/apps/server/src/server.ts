@@ -73,7 +73,10 @@ import * as ProviderInstanceRegistryHydration from "./provider/ProviderInstanceR
 import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
+import * as ComputerUse from "./computerUse/ComputerUseService.ts";
+import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
+import * as BrowserWorkflowWatchWorker from "./mcp/toolkits/browserWorkflow/watchWorker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
 import * as SessionSearch from "./sessionSearch/SessionSearchService.ts";
 import * as DeviceHubProxy from "./device/DeviceHubProxy.ts";
@@ -729,7 +732,37 @@ const layerCommandReadiness = HttpRouter.middleware(
   { global: true },
 );
 
+const layerNativeComputer = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const computer = yield* ComputerUse.ComputerUse;
+    const events = yield* OrchestrationEventStore.OrchestrationEventStore;
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const subscription = yield* settings.subscribeChanges;
+    yield* subscription.pipe(
+      Stream.runForEach((current) =>
+        current.computerUseEnabled ? Effect.void : computer.revokeAll,
+      ),
+      Effect.forkScoped,
+    );
+    const sequence = yield* events.latestApplicationSequence.pipe(Effect.orDie);
+    yield* events.streamApplicationEvents({ afterSequence: sequence }).pipe(
+      Stream.runForEach((item) => {
+        if (!("event" in item)) return Effect.void;
+        const { threadId, type } = item.event;
+        return type === "thread.archived" || type === "thread.deleted"
+          ? computer.revokeThread(threadId)
+          : Effect.void;
+      }),
+      Effect.catch((cause) =>
+        Effect.logWarning("Native window grant lifecycle stream ended", cause),
+      ),
+      Effect.forkScoped,
+    );
+  }),
+).pipe(Layer.provideMerge(ComputerUse.layer));
+
 const layerMakeRoutes = Layer.mergeAll(
+  BrowserWorkflowWatchWorker.layer,
   Layer.mergeAll(
     HttpApiBuilder.layer(EnvironmentHttpApi).pipe(
       Layer.provide(AuthHttp.layer),
@@ -777,6 +810,7 @@ const layerMakeRoutes = Layer.mergeAll(
   ),
   Layer.provide(CloudSpeech.layer),
   Layer.provide(PreviewAutomationBroker.layer),
+  Layer.provide(layerNativeComputer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),
   Layer.provide(layerCommandReadiness),
   Layer.provide(ServerHttp.layerBrowserApiCors),

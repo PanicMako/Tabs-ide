@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 import { QUICK_ACTION_ICONS } from "../quick-actions/RadialActions";
 import {
   CUSTOM_ACTION_ICONS,
-  QUICK_ACTIONS,
+  ALL_BUILT_IN_ACTIONS,
   customActionFromDraft,
   customActionProblem,
   type CustomActionDraft,
@@ -138,11 +138,11 @@ export function QuickCustomActionForm({
           >
             <SelectTrigger aria-label="Built-in action" className="w-full">
               <SelectValue>
-                {QUICK_ACTIONS.find((action) => action.id === draft.builtin)?.label}
+                {ALL_BUILT_IN_ACTIONS.find((action) => action.id === draft.builtin)?.label}
               </SelectValue>
             </SelectTrigger>
             <SelectPopup>
-              {QUICK_ACTIONS.map((action) => (
+              {ALL_BUILT_IN_ACTIONS.map((action) => (
                 <SelectItem key={action.id} value={action.id}>
                   {action.label}
                 </SelectItem>

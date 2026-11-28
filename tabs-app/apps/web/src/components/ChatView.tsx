@@ -19,6 +19,12 @@ import {
   workspaceFileMention,
   type WorkspaceFileContext,
 } from "~/lib/workspaceFileContext";
+import { BROWSER_SELECTION_DRAG_MIME } from "@tabs/shared/preview";
+import { browserQuickActionPage } from "@tabs/shared/browserQuickAction";
+import {
+  BROWSER_SELECTION_DROP_EVENT,
+  type BrowserSelectionDrop,
+} from "~/lib/browserSelectionDrag";
 import {
   type ApprovalRequestId,
   type ClaudeCodeEffort,
@@ -48,6 +54,13 @@ import {
   type ProviderOptionSelection,
   type ServerProviderSkill,
   type AssistantCitation,
+  type DeviceAccessRequestRef,
+  type DeviceComparisonViewRef,
+  type BrowserQuickAction,
+  type BrowserQuickActionRequestRef,
+  type BrowserQuickActionFileResultRef,
+  type BrowserWorkflowResultRef,
+  type FigmaCanvasResultRef,
   type OrchestrationV2ThreadProjection,
   isProviderNativeSubagentThread,
 } from "@tabs/contracts";
@@ -82,6 +95,12 @@ import {
 import { requestQueueShortcut } from "~/lib/queueShortcuts";
 import { previousWorktreeChoice } from "~/lib/previousWorktree";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
+import { openDeviceComparisonRequest, openDeviceComparisonResult } from "~/device/comparisonResult";
+import { openSavedBrowserWorkflowResult } from "~/lib/browserWorkflowResult";
+import { openSavedFigmaCanvasResult } from "~/lib/figmaCanvasResult";
+import { revealSavedBrowserResult } from "~/lib/savedBrowserResult";
+import { RunBrowserQuickActionDialog } from "./browser/RunBrowserQuickActionDialog";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
 import { stepEffort } from "~/lib/effortStep";
 import { ChatFindBar } from "./ChatFindBar";
 import { useAtomValue } from "@effect/atom-react";
@@ -210,6 +229,14 @@ import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { RuntimeModePicker } from "./chat/RuntimeModePicker";
 import { ComposerLayout } from "./chat/composer/ComposerLayout";
+import { NativeWindowAccess } from "./chat/NativeWindowAccess";
+import { NATIVE_WINDOW_DRAG_MIME, takeNativeWindowDrop } from "~/lib/nativeWindowHandoff";
+import {
+  addSurfaceFileToDraft,
+  SURFACE_ATTACHMENT_TYPE,
+  terminalSurfaceAttachmentFile,
+  prepareDroppedSurfaceAttachment,
+} from "~/lib/threadSurfaceAttachment";
 import { SettingsNavIcon } from "./settings/SettingsNavIcon";
 import { SchedulePicker } from "./ui/SchedulePicker";
 import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "./ui/dialog";
@@ -234,6 +261,7 @@ import {
   connectedEnvironmentIds,
   environmentApi,
   environmentConfig,
+  isPrimaryEnvironment,
 } from "~/connection/environmentApiRegistry";
 import {
   justSwitchedMachine,
@@ -309,6 +337,7 @@ import {
 } from "../lib/previewAnnotation";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { MessagesTimeline } from "./chat/MessagesTimeline";
+import { browserWorkflowResultSupersedes } from "./chat/MessagesTimeline.logic";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { assistantCitationFromLocation } from "~/lib/assistantCitationNavigation";
 import { type AssistantCitationRequest } from "./chat/AssistantCitationSource";
@@ -1809,6 +1838,10 @@ export default function ChatView({
     [threadActivities],
   );
   const activePendingUserInput = pendingUserInputs[0] ?? null;
+  const hasPendingUserInputRef = useRef(false);
+  useLayoutEffect(() => {
+    hasPendingUserInputRef.current = pendingUserInputs.length > 0;
+  }, [pendingUserInputs.length]);
   useWindowTitle(
     activeThread && isActivePane
       ? windowTitleFor({
@@ -2055,6 +2088,204 @@ export default function ChatView({
   const activeThreadKey = activeThreadId
     ? scopedThreadKey(scopeThreadRef(activeEnvironmentId, activeThreadId))
     : null;
+  const [observedBrowserWorkflowResultsByThread, setObservedBrowserWorkflowResultsByThread] =
+    useState<ReadonlyMap<string, ReadonlyMap<string, BrowserWorkflowResultRef>>>(() => new Map());
+  const surfaceRevealRequest = useRef<symbol | null>(null);
+  useLayoutEffect(
+    () => () => {
+      surfaceRevealRequest.current = null;
+    },
+    [activeThreadKey, activeProject?.id],
+  );
+  const [quickActionReview, setQuickActionReview] = useState<{
+    threadKey: string;
+    projectId: string;
+    action: BrowserQuickAction;
+    pause?: BrowserQuickActionRequestRef["pause"];
+  } | null>(null);
+  const reviewCurrentQuickAction = useCallback(
+    ({ actionId, pause }: BrowserQuickActionRequestRef) => {
+      if (!activeThreadId || !activeThreadKey || !activeProject?.id) return;
+      const action = useWorkspaceShellStore
+        .getState()
+        .projectSettingsByProjectId[activeProject.id]?.browserQuickActions?.find(
+          (entry) => entry.id === actionId,
+        );
+      if (!action) {
+        toastManager.add({
+          type: "error",
+          title: "This Quick Action is no longer available in the project",
+        });
+        return;
+      }
+      const review = { threadKey: activeThreadKey, projectId: activeProject.id, action };
+      const token = Symbol();
+      surfaceRevealRequest.current = token;
+      if (!pause) {
+        setQuickActionReview(review);
+        return;
+      }
+      const bridge = window.desktopBridge;
+      if (!bridge || !isPrimaryEnvironment(activeEnvironmentId)) return;
+      const isCurrent = () => surfaceRevealRequest.current === token;
+      void revealSavedBrowserResult({
+        bridge,
+        environmentId: activeEnvironmentId,
+        threadId: activeThreadId,
+        projectId: activeProject.id,
+        tabId: pause.tabId,
+        profileId: pause.profileId,
+        operation: "enterQuickActionPause",
+        input: { actionId, pauseId: pause.pauseId },
+        restoreGuest: false,
+        validateUrl: (url, originalUrl) => url === originalUrl,
+        invalidResultMessage: "The original paused page is no longer available.",
+        isCurrent,
+      })
+        .then(() => {
+          if (isCurrent()) setQuickActionReview({ ...review, pause });
+        })
+        .catch((cause: unknown) => {
+          if (isCurrent())
+            toastManager.add({
+              type: "error",
+              title: "Could not open the paused Quick Action",
+              description: cause instanceof Error ? cause.message : String(cause),
+            });
+        });
+    },
+    [activeEnvironmentId, activeProject?.id, activeThreadId, activeThreadKey],
+  );
+  const openCurrentDeviceComparison = useCallback(
+    (result: DeviceComparisonViewRef) => {
+      if (activeThreadId) openDeviceComparisonResult(activeEnvironmentId, activeThreadId, result);
+    },
+    [activeEnvironmentId, activeThreadId],
+  );
+  const reviewCurrentDeviceComparison = useCallback(
+    (request: DeviceAccessRequestRef) => {
+      if (!activeThreadId) return;
+      const token = Symbol();
+      surfaceRevealRequest.current = token;
+      const isCurrent = () => surfaceRevealRequest.current === token;
+      void openDeviceComparisonRequest(
+        activeEnvironmentId,
+        activeThreadId,
+        request,
+        isCurrent,
+      ).catch((cause: unknown) => {
+        if (isCurrent())
+          toastManager.add({
+            type: "error",
+            title: "Could not open the device access request",
+            description: cause instanceof Error ? cause.message : String(cause),
+          });
+      });
+    },
+    [activeEnvironmentId, activeThreadId],
+  );
+  const openCurrentBrowserWorkflow = useCallback(
+    (result: BrowserWorkflowResultRef) => {
+      if (!activeThreadId || !activeThreadKey || !activeProject?.id) return;
+      const token = Symbol();
+      surfaceRevealRequest.current = token;
+      const isCurrent = () => surfaceRevealRequest.current === token;
+      void openSavedBrowserWorkflowResult(
+        activeEnvironmentId,
+        activeThreadId,
+        activeProject.id,
+        result,
+        isCurrent,
+      )
+        .then((observed) => {
+          if (!observed || !isCurrent() || !browserWorkflowResultSupersedes(observed, result))
+            return;
+          setObservedBrowserWorkflowResultsByThread((current) => {
+            const previous = current.get(activeThreadKey);
+            const previousResult = previous?.get(observed.workflowId);
+            if (previousResult && !browserWorkflowResultSupersedes(observed, previousResult))
+              return current;
+            const threadResults = new Map(previous);
+            threadResults.set(observed.workflowId, observed);
+            const next = new Map(current);
+            next.set(activeThreadKey, threadResults);
+            return next;
+          });
+        })
+        .catch((cause) => {
+          if (isCurrent())
+            toastManager.add({
+              type: "error",
+              title: "Could not open the browser result",
+              description: cause instanceof Error ? cause.message : String(cause),
+            });
+        });
+    },
+    [activeEnvironmentId, activeProject?.id, activeThreadId, activeThreadKey],
+  );
+
+  const openCurrentFigmaCanvasResult = useCallback(
+    (result: FigmaCanvasResultRef) => {
+      if (!activeThreadId || !activeThreadKey || !activeProject?.id) return;
+      const token = Symbol();
+      surfaceRevealRequest.current = token;
+      const isCurrent = () => surfaceRevealRequest.current === token;
+      void openSavedFigmaCanvasResult(
+        activeEnvironmentId,
+        activeThreadId,
+        activeProject.id,
+        result,
+        isCurrent,
+      ).catch((cause: unknown) => {
+        if (isCurrent())
+          toastManager.add({
+            type: "error",
+            title: "Could not open the Figma frame",
+            description: cause instanceof Error ? cause.message : String(cause),
+          });
+      });
+    },
+    [activeEnvironmentId, activeProject?.id, activeThreadId, activeThreadKey],
+  );
+  const openCurrentQuickActionFile = useCallback(
+    ({ resultId, tabId, profileId, restorable }: BrowserQuickActionFileResultRef) => {
+      const bridge = window.desktopBridge;
+      if (
+        !bridge ||
+        !isPrimaryEnvironment(activeEnvironmentId) ||
+        !activeThreadId ||
+        !activeThreadKey ||
+        !activeProject?.id
+      )
+        return;
+      const token = Symbol();
+      surfaceRevealRequest.current = token;
+      const isCurrent = () => surfaceRevealRequest.current === token;
+      void revealSavedBrowserResult({
+        bridge,
+        environmentId: activeEnvironmentId,
+        threadId: activeThreadId,
+        projectId: activeProject.id,
+        tabId,
+        profileId,
+        operation: "enterQuickActionFileResult",
+        input: { resultId },
+        restoreGuest: restorable === true,
+        validateUrl: (url, originalUrl) =>
+          url === originalUrl || (restorable === true && browserQuickActionPage(url)?.href === url),
+        invalidResultMessage: "The browser did not confirm the verified file.",
+        isCurrent,
+      }).catch((cause: unknown) => {
+        if (isCurrent())
+          toastManager.add({
+            type: "error",
+            title: "Could not open the verified file",
+            description: cause instanceof Error ? cause.message : String(cause),
+          });
+      });
+    },
+    [activeEnvironmentId, activeProject?.id, activeThreadId, activeThreadKey],
+  );
 
   const timelineEntries = useMemo(
     () =>
@@ -4091,37 +4322,39 @@ export default function ChatView({
     addComposerImages(files);
   };
 
+  const isComposerAttachmentDrag = (dataTransfer: DataTransfer) =>
+    dataTransfer.types.some(
+      (type) =>
+        type === "Files" ||
+        type === WORKSPACE_FILE_MIME ||
+        type === BROWSER_SELECTION_DRAG_MIME ||
+        type === NATIVE_WINDOW_DRAG_MIME,
+    );
+  const composerAttachmentLocation =
+    activeProject && activeThreadId
+      ? {
+          environmentId: environmentId ?? activeThread?.environmentId ?? null,
+          projectId: activeProject.id,
+          threadId: activeThreadId,
+        }
+      : null;
+
   const onComposerDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-    if (
-      !event.dataTransfer.types.includes("Files") &&
-      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
-    ) {
-      return;
-    }
+    if (!isComposerAttachmentDrag(event.dataTransfer)) return;
     event.preventDefault();
     dragDepthRef.current += 1;
     setIsDragOverComposer(true);
   };
 
   const onComposerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (
-      !event.dataTransfer.types.includes("Files") &&
-      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
-    ) {
-      return;
-    }
+    if (!isComposerAttachmentDrag(event.dataTransfer)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     setIsDragOverComposer(true);
   };
 
   const onComposerDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    if (
-      !event.dataTransfer.types.includes("Files") &&
-      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
-    ) {
-      return;
-    }
+    if (!isComposerAttachmentDrag(event.dataTransfer)) return;
     event.preventDefault();
     const nextTarget = event.relatedTarget;
     if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
@@ -4143,18 +4376,95 @@ export default function ChatView({
       if (context) addWorkspaceFileContext(context);
       return;
     }
-    if (
-      !event.dataTransfer.types.includes("Files") &&
-      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
-    ) {
-      return;
-    }
+    const nativeWindowDrop = event.dataTransfer.types.includes(NATIVE_WINDOW_DRAG_MIME);
+    if (!nativeWindowDrop && !event.dataTransfer.types.includes("Files")) return;
     event.preventDefault();
     dragDepthRef.current = 0;
     setIsDragOverComposer(false);
-    const files = Array.from(event.dataTransfer.files);
-    addComposerImages(files);
-    focusComposer();
+    const files = nativeWindowDrop ? [] : Array.from(event.dataTransfer.files);
+    if (!nativeWindowDrop) focusComposer();
+    const surfaceFiles = files.filter((file) => file.type === SURFACE_ATTACHMENT_TYPE);
+    if (!nativeWindowDrop && surfaceFiles.length === 0) {
+      addComposerImages(files);
+      return;
+    }
+    if (!composerAttachmentLocation) return;
+    if (
+      pendingUserInputs.length > 0 ||
+      composerFilesRef.current.length +
+        composerImagesRef.current.length +
+        (nativeWindowDrop ? 1 : files.length) >
+        PROVIDER_SEND_TURN_MAX_ATTACHMENTS
+    ) {
+      toastManager.add({
+        type: "error",
+        title: pendingUserInputs.length
+          ? "Attach files after answering plan questions."
+          : `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
+      });
+      return;
+    }
+    const approveWindow = nativeWindowDrop
+      ? takeNativeWindowDrop(event.dataTransfer, composerAttachmentLocation)
+      : undefined;
+    if (nativeWindowDrop && !approveWindow) return;
+    const attachmentRequest = Symbol();
+    surfaceRevealRequest.current = attachmentRequest;
+    const isCurrent = () => surfaceRevealRequest.current === attachmentRequest;
+    if (approveWindow) {
+      void approveWindow(() => isCurrent() && !hasPendingUserInputRef.current);
+      return;
+    }
+    void (async () => {
+      // Confirm sequentially: the custom confirm dialog can display one resource at a time.
+      const prepared: File[] = [];
+      for (const file of files) {
+        const attachment =
+          file.type === SURFACE_ATTACHMENT_TYPE
+            ? await prepareDroppedSurfaceAttachment(composerAttachmentLocation, file, isCurrent)
+            : file;
+        if (!attachment) return;
+        prepared.push(attachment);
+      }
+      if (isCurrent()) addComposerImages(prepared);
+    })().catch((error: unknown) =>
+      toastManager.add({
+        type: "error",
+        title: error instanceof Error ? error.message : "Could not attach target.",
+      }),
+    );
+  };
+
+  const onComposerDropCapture = (event: React.DragEvent<HTMLDivElement>) => {
+    const { dataTransfer } = event;
+    if (dataTransfer.types.includes(WORKSPACE_FILE_MIME)) {
+      onComposerDrop(event);
+      return;
+    }
+    if (dataTransfer.types.includes(NATIVE_WINDOW_DRAG_MIME)) {
+      event.stopPropagation();
+      onComposerDrop(event);
+      return;
+    }
+    if (
+      dataTransfer.types.includes("Files") ||
+      !dataTransfer.types.includes(BROWSER_SELECTION_DRAG_MIME)
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
+    setIsDragOverComposer(false);
+    if (!composerAttachmentLocation) return;
+    window.dispatchEvent(
+      new CustomEvent<BrowserSelectionDrop>(BROWSER_SELECTION_DROP_EVENT, {
+        detail: {
+          dragToken: dataTransfer.getData(BROWSER_SELECTION_DRAG_MIME),
+          droppedText: dataTransfer.getData("text/plain"),
+          location: composerAttachmentLocation,
+        },
+      }),
+    );
   };
 
   const onRevertToTurnCount = useCallback(
@@ -6773,14 +7083,49 @@ export default function ChatView({
             </div>
           </div>
         )}
+        {(isServerThread || isLocalDraftThread) &&
+        activeProject &&
+        composerAttachmentLocation &&
+        threadApi &&
+        typeof window !== "undefined" &&
+        window.desktopBridge &&
+        isPrimaryEnvironment(environmentId) ? (
+          <NativeWindowAccess
+            key={JSON.stringify(composerAttachmentLocation)}
+            enabled={settings.computerUseEnabled}
+            location={composerAttachmentLocation}
+            isActivePane={isActivePane}
+            activeAgentTurn={phase === "running" || activeLatestTurn?.state === "running"}
+            request={threadApi.server.nativeComputer}
+            {...(!isServerThread
+              ? {
+                  prepareThread: () =>
+                    ensureDraftThreadExists(threadApi.orchestration, threadId, {
+                      title: "New thread",
+                      projectId: activeProject.id,
+                      modelSelection: makeAppModelSelection(
+                        selectedProvider,
+                        selectedModel ||
+                          activeProject.defaultModelSelection?.model ||
+                          DEFAULT_MODEL,
+                        selectedModelSelection.options,
+                      ),
+                      runtimeMode,
+                      interactionMode,
+                      branch: activeThread.branch,
+                      worktreePath: activeThread.worktreePath,
+                    }),
+                }
+              : {})}
+            attachToDraft={(file) => addSurfaceFileToDraft(composerAttachmentLocation, file)}
+          />
+        ) : null}
         <div
           className={cn("group relative isolate rounded-2xl p-0.5 transition duration-200")}
           onDragEnter={onComposerDragEnter}
           onDragOver={onComposerDragOver}
           onDragLeave={onComposerDragLeave}
-          onDropCapture={(event) => {
-            if (event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)) onComposerDrop(event);
-          }}
+          onDropCapture={onComposerDropCapture}
           onDrop={onComposerDrop}
         >
           {composerMenuOpen && !isComposerApprovalState && (
@@ -7078,6 +7423,7 @@ export default function ChatView({
                   onTouchCancel={onMessagesTouchEnd}
                 >
                   <MessagesTimeline
+                    projectId={activeProject?.id}
                     key={displayedTimelineKey ?? activeThread.id}
                     hasMessages={hasTimelineEntries}
                     isWorking={!paintOnlyDisplayedTimeline && isWorking}
@@ -7100,6 +7446,46 @@ export default function ChatView({
                     expandedWorkGroups={expandedWorkGroups}
                     onToggleWorkGroup={onToggleWorkGroup}
                     onOpenTurnDiff={paintOnlyDisplayedTimeline ? noop : onOpenTurnDiff}
+                    onOpenDeviceComparison={
+                      paintOnlyDisplayedTimeline ? undefined : openCurrentDeviceComparison
+                    }
+                    onOpenDeviceComparisonRequest={
+                      paintOnlyDisplayedTimeline ? undefined : reviewCurrentDeviceComparison
+                    }
+                    terminalInputEnvironmentId={
+                      paintOnlyDisplayedTimeline ? undefined : activeEnvironmentId
+                    }
+                    observedBrowserWorkflowResults={
+                      paintOnlyDisplayedTimeline || !activeThreadKey
+                        ? undefined
+                        : observedBrowserWorkflowResultsByThread.get(activeThreadKey)
+                    }
+                    onOpenBrowserWorkflow={
+                      paintOnlyDisplayedTimeline || !isPrimaryEnvironment(activeEnvironmentId)
+                        ? undefined
+                        : openCurrentBrowserWorkflow
+                    }
+                    onOpenFigmaCanvasResult={
+                      paintOnlyDisplayedTimeline ||
+                      !window.desktopBridge ||
+                      !isPrimaryEnvironment(activeEnvironmentId)
+                        ? undefined
+                        : openCurrentFigmaCanvasResult
+                    }
+                    onOpenBrowserQuickActionRequest={
+                      paintOnlyDisplayedTimeline ||
+                      !window.desktopBridge ||
+                      !isPrimaryEnvironment(activeEnvironmentId)
+                        ? undefined
+                        : reviewCurrentQuickAction
+                    }
+                    onOpenBrowserQuickActionFile={
+                      paintOnlyDisplayedTimeline ||
+                      !window.desktopBridge ||
+                      !isPrimaryEnvironment(activeEnvironmentId)
+                        ? undefined
+                        : openCurrentQuickActionFile
+                    }
                     revertTurnCountByUserMessageId={
                       paintOnlyDisplayedTimeline
                         ? (EMPTY_MAP as Map<MessageId, number>)
@@ -7255,10 +7641,29 @@ export default function ChatView({
         ) {
           return null;
         }
+        const terminalLocation = {
+          environmentId: environmentId ?? activeThread.environmentId ?? null,
+          projectId: activeProject.id,
+          threadId: activeThread.id,
+        };
         return (
           <ThreadTerminalDrawer
             key={activeThread.id}
             threadId={activeThread.id}
+            environmentId={terminalLocation.environmentId}
+            attachmentFor={(id) => terminalSurfaceAttachmentFile(terminalLocation, id)}
+            onAttachFile={(file) => {
+              try {
+                if (!file) throw new Error("Wait for the terminal session to start.");
+                addSurfaceFileToDraft(terminalLocation, file);
+                focusComposer();
+              } catch (error) {
+                toastManager.add({
+                  type: "error",
+                  title: error instanceof Error ? error.message : "Could not attach terminal.",
+                });
+              }
+            }}
             cwd={gitCwd ?? activeProject.cwd}
             runtimeEnv={threadTerminalRuntimeEnv}
             height={terminalState.terminalHeight}
@@ -7283,6 +7688,21 @@ export default function ChatView({
       {expandedImage && (
         <ExpandedImageDialog preview={expandedImage} onClose={closeExpandedImage} />
       )}
+      {quickActionReview &&
+        activeThreadId &&
+        activeThreadKey === quickActionReview.threadKey &&
+        activeProject?.id === quickActionReview.projectId && (
+          <RunBrowserQuickActionDialog
+            key={quickActionReview.pause?.pauseId ?? quickActionReview.action.id}
+            projectId={quickActionReview.projectId}
+            initialAction={quickActionReview.action}
+            threads={[{ id: activeThreadId, title: activeThread?.title ?? "This conversation" }]}
+            currentThreadId={activeThreadId}
+            requestEnvironmentId={activeEnvironmentId}
+            pauseRequest={quickActionReview.pause}
+            onClose={() => setQuickActionReview(null)}
+          />
+        )}
       <Dialog open={isSchedulePopoverOpen} onOpenChange={setIsSchedulePopoverOpen}>
         <DialogPopup
           showCloseButton={false}

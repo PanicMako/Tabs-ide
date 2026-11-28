@@ -43,6 +43,7 @@ import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
 import { useDraftThread } from "../state/composerDrafts";
+import { rememberedThreadTarget } from "../hooks/useActiveProjectTarget";
 import { interfaceStudyAccent } from "../lib/interfaceStudy";
 import { useSettingsLabsStore } from "../stores/settingsLabsStore";
 import { InterfaceStudyTopBar } from "./InterfaceStudyTopBar";
@@ -65,6 +66,7 @@ import { playScreenEnter, type ScreenPart } from "../lib/motion";
 import { useSurfaceMotionSettings } from "../panelAnimations";
 import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { BrowserToolbar } from "./browser/BrowserToolbar";
+import { BrowserHandoffControls, BrowserToolActivity } from "./browser/BrowserHandoffControls";
 import { BrowserViewPanel } from "./browser/BrowserViewPanel";
 import { showCustomConfirm } from "../lib/customConfirm";
 import { useOpenExtensionToolRequests } from "../extensionToolRequests";
@@ -107,6 +109,7 @@ import {
 import { PreviewAnnotationEditor } from "./PreviewAnnotationEditor";
 import { BrowserComparisonView } from "./browser/BrowserComparisonView";
 import { RecordIssueDialog } from "./browser/RecordIssueDialog";
+import { RunBrowserQuickActionDialog } from "./browser/RunBrowserQuickActionDialog";
 import { ServerReadinessBadge } from "./browser/ServerReadinessBadge";
 import {
   type ProjectToolKind,
@@ -214,6 +217,7 @@ import {
   lazy,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -278,6 +282,24 @@ import {
 } from "../lib/utils";
 import { APP_VERSION } from "../branding";
 import { environmentApi, isPrimaryEnvironment } from "../connection/environmentApiRegistry";
+import {
+  BROWSER_SELECTION_REVIEW_EVENT,
+  type BrowserSelectionReviewTarget,
+} from "~/lib/browserSelectionDrag";
+import { AGENT_HANDOFF_LABELS } from "~/lib/agentHandoffLabels";
+import {
+  AGENT_CONTROL_EVENT,
+  OPEN_THREAD_EVENT,
+  agentControlRequestForCommand,
+  dispatchAgentControl,
+  type AgentControlRequest,
+} from "~/lib/agentControl";
+import { runDeviceHandoff } from "~/lib/deviceHandoff";
+import {
+  NATIVE_WINDOW_UPDATED_EVENT,
+  runNativeWindowHandoff,
+  type NativeWindowUpdate,
+} from "~/lib/nativeWindowHandoff";
 
 // On Windows the native title bar is hidden and the caption buttons are overlaid
 // (Window Controls Overlay) at the top-right, so the top bar reserves space on
@@ -388,6 +410,7 @@ import { projectScriptRuntimeEnv } from "../projectScripts";
 import { PatchViewer } from "./PatchViewer";
 import { MercuryChromeLoader } from "./MercuryChromeLoader";
 import { Spinner } from "./ui/spinner";
+import { AgentPhysicalInputIndicator } from "./chat/AgentPhysicalInputIndicator";
 import { NotificationHistoryPanel } from "./NotificationHistoryPanel";
 import { resolveTabActivityIndicator } from "../lib/tabActivityIndicator";
 import { ProjectFavicon } from "./ProjectFavicon";
@@ -419,7 +442,36 @@ import { clearThreadUndo, keyEndsThreadUndo, takeThreadUndo } from "~/lib/thread
 import { applyUsageCommand } from "~/state/usage";
 import { useThemeStudioStore } from "~/stores/themeStudioStore";
 import { isUsageCommand } from "~/state/usageCommands";
-import { runRightPanelCommand } from "~/stores/rightPanelStore";
+import {
+  addSurfaceFileToDraft,
+  prepareDroppedSurfaceAttachment,
+  projectToolSurfaceAttachmentFile,
+  selectedNativeWindowAttachmentFile,
+  selectedTerminalSurfaceAttachmentFile,
+  surfaceAttachmentFile,
+  surfaceScope,
+  writeSurfaceDrag,
+  type SurfaceLocation,
+} from "~/lib/threadSurfaceAttachment";
+import { AttachRunningDeviceDialog } from "./device/AttachRunningDeviceDialog";
+import { AttachOpenBrowserDialog } from "./browser/AttachOpenBrowserDialog";
+import {
+  projectBrowserAttachmentTarget,
+  projectBrowserSessionId,
+  projectToolAttachmentTarget,
+  useProjectBrowserAttachmentTargets,
+} from "~/lib/projectToolAttachmentTargets";
+import {
+  browserHandoffOptions,
+  runBrowserHandoff,
+  type BrowserHandoffCandidate,
+} from "~/lib/browserHandoff";
+import {
+  terminalAttachmentTarget,
+  useTerminalAttachmentTargets,
+} from "~/lib/terminalAttachmentTargets";
+import { useCompanionSurfaceStore } from "~/stores/companionSurfaceStore";
+import { runRightPanelCommand, useRightPanelStore } from "~/stores/rightPanelStore";
 import { CodeGlyphIcon } from "./CodeGlyphIcon";
 import { DockUfoIcon } from "./DockUfoIcon";
 import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
@@ -1009,21 +1061,86 @@ function normalizeBrowserUrl(rawUrl: string): string {
 
 function isSameWebUrl(urlA: string | null | undefined, urlB: string | null | undefined): boolean {
   if (!urlA || !urlB) return false;
-  const normA = normalizeBrowserUrl(urlA).replace(/\/+$/, "");
-  const normB = normalizeBrowserUrl(urlB).replace(/\/+$/, "");
+  const normA = normalizeBrowserUrl(urlA);
+  const normB = normalizeBrowserUrl(urlB);
   if (normA === normB) return true;
   try {
     const parsedA = new URL(normA);
     const parsedB = new URL(normB);
     return (
+      parsedA.protocol === parsedB.protocol &&
       parsedA.hostname.toLowerCase() === parsedB.hostname.toLowerCase() &&
       parsedA.pathname.replace(/\/+$/, "") === parsedB.pathname.replace(/\/+$/, "") &&
       parsedA.search === parsedB.search &&
+      parsedA.hash === parsedB.hash &&
       parsedA.port === parsedB.port
     );
   } catch {
     return false;
   }
+}
+
+function useDesktopBrowserNavigation({
+  bridge,
+  ready,
+  projectId,
+  sessionId,
+  currentUrl,
+  url,
+  lastRequestedUrl,
+  adoptSession,
+  preserveInitialLiveUrl = false,
+}: {
+  bridge: Window["desktopBridge"];
+  ready: boolean;
+  projectId: ProjectId;
+  sessionId: string;
+  currentUrl: string | null;
+  url: string;
+  lastRequestedUrl: { current: string | null };
+  adoptSession: (state: DesktopBrowserSessionState) => void;
+  preserveInitialLiveUrl?: boolean;
+}) {
+  useEffect(() => {
+    if (!bridge || !ready || !url) return;
+    if (isSameWebUrl(currentUrl, url)) {
+      lastRequestedUrl.current = url;
+      return;
+    }
+    if (isSameWebUrl(lastRequestedUrl.current, url)) return;
+
+    let disposed = false;
+    const target = { projectId, sessionId };
+    void bridge
+      .getBrowserSessionState(target)
+      .then((current) => {
+        if (disposed) return;
+        const initialLiveUrl = preserveInitialLiveUrl && lastRequestedUrl.current === null;
+        lastRequestedUrl.current = url;
+        // Re-entry may have already verified the destination in native before its event renders.
+        if ((initialLiveUrl && current.currentUrl) || isSameWebUrl(current.currentUrl, url)) {
+          adoptSession(current);
+          return;
+        }
+        return bridge.navigateBrowserSession({ ...target, url });
+      })
+      .catch(() => {
+        if (!disposed && lastRequestedUrl.current === url) lastRequestedUrl.current = null;
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [
+    adoptSession,
+    bridge,
+    currentUrl,
+    lastRequestedUrl,
+    preserveInitialLiveUrl,
+    projectId,
+    ready,
+    sessionId,
+    url,
+  ]);
 }
 
 function resolveProjectById(
@@ -1362,6 +1479,7 @@ function ProjectTabs(props: {
         <div className="no-drag mb-1 flex shrink-0 items-center gap-1">
           <div id="project-toolbar-extra-controls" className="flex items-center empty:hidden" />
           <TeammateDock />
+          <AgentPhysicalInputIndicator />
           <TitlebarNotificationBell
             {...(props.onOpenSettings ? { onOpenSettings: props.onOpenSettings } : {})}
           />
@@ -1391,9 +1509,11 @@ function ProjectToolBar(props: {
     icon?: React.ReactNode;
     temporary?: boolean;
     closable?: boolean;
+    browserActivity?: string | undefined;
   }>;
   onCloseTool?: (id: string) => void;
   onKeepTool?: (id: string) => void;
+  attachmentFor?: ((id: string) => File | null) | undefined;
   threads?: ReadonlyArray<Thread>;
   activeProjectId?: ProjectId | null;
   onSelectTool: (toolId: string) => void;
@@ -1479,6 +1599,12 @@ function ProjectToolBar(props: {
                 role="tab"
                 data-tool-kind={tool.kind}
                 data-workspace-tool-id={tool.id}
+                draggable={!isAgentsTool && Boolean(props.attachmentFor)}
+                onDragStart={
+                  props.attachmentFor && !isAgentsTool
+                    ? (event) => writeSurfaceDrag(event, props.attachmentFor?.(tool.id) ?? null)
+                    : undefined
+                }
                 data-slot={`workspace-tool-${tool.kind}`}
                 style={interfaceStudyAccent(tool.kind)}
                 aria-selected={active}
@@ -1510,6 +1636,7 @@ function ProjectToolBar(props: {
                     aria-label={toolActivityIndicator.label}
                   />
                 )}
+                {tool.browserActivity && <BrowserToolActivity label={tool.browserActivity} />}
               </button>
               <WorkspaceToolActions
                 tool={tool}
@@ -8340,6 +8467,7 @@ function DesktopBrowserChrome(props: {
   /** The controls cannot be folded away (a blank page). */
   chromePinned?: boolean | undefined;
   projectId: ProjectId;
+  environmentId: Project["environmentId"];
   projectCwd: string;
   sessionId?: string | undefined;
   title: string;
@@ -8369,7 +8497,12 @@ function DesktopBrowserChrome(props: {
   const [recordIssueDialogOpen, setRecordIssueDialogOpen] = useState(false);
   const [issueRecording, setIssueRecording] = useState(false);
   const reproductionTasks = useAtomValue(threadsAtom, (threads) =>
-    threads.filter((thread) => thread.projectId === props.projectId && !thread.archivedAt),
+    threads.filter(
+      (thread) =>
+        thread.projectId === props.projectId &&
+        thread.environmentId === props.environmentId &&
+        !thread.archivedAt,
+    ),
   );
   const [comparisonOpen, setComparisonOpen] = useState(false);
   const [pendingAnnotation, setPendingAnnotation] = useState<PreviewAnnotationPayload | null>(null);
@@ -8560,7 +8693,7 @@ function DesktopBrowserChrome(props: {
       {issueRecording && (
         <Button size="xs" variant="destructive" onClick={() => setRecordIssueDialogOpen(true)}>
           <SquareIcon className="size-3" />
-          Stop & review issue
+          Review recording
         </Button>
       )}
     </>
@@ -8713,8 +8846,8 @@ function DesktopBrowserChrome(props: {
                   onClick: () => void toggleRecording(),
                 },
                 {
-                  label: issueRecording ? "Stop & review issue" : "Record issue",
-                  description: "Reproduce a bug and send it to a task",
+                  label: issueRecording ? "Review recording" : "Record issue or Quick Action",
+                  description: "Capture a bug or teach a reusable browser action",
                   icon: <BugIcon className="size-4" />,
                   active: issueRecording,
                   onClick: () => setRecordIssueDialogOpen(true),
@@ -8826,8 +8959,6 @@ function DesktopBrowserChrome(props: {
                 />
               )}
               status={
-                props.sessionState.assignedTaskId ||
-                props.sessionState.controller === "agent" ||
                 (props.sessionState.temporaryAgentTab && !props.sessionState.userRetained) ||
                 recordingBrowser ||
                 issueRecording ||
@@ -8855,52 +8986,6 @@ function DesktopBrowserChrome(props: {
                         Select an element on the page…
                       </span>
                     )}
-                    {props.sessionState.assignedTaskId ? (
-                      <Badge
-                        variant="outline"
-                        className="h-6 text-xs text-muted-foreground"
-                        title={`Assigned to task ${props.sessionState.assignedTaskId}`}
-                      >
-                        Task: {props.sessionState.assignedTaskId.slice(0, 8)}
-                      </Badge>
-                    ) : null}
-                    {props.sessionState.controller === "agent" ? (
-                      <Badge variant="default" aria-live="polite">
-                        Agent control
-                      </Badge>
-                    ) : props.sessionState.controller === "human" &&
-                      props.sessionState.assignedTaskId ? (
-                      <Badge variant="secondary" aria-live="polite">
-                        Human control
-                      </Badge>
-                    ) : null}
-                    {props.sessionState.controller === "agent" ? (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="secondary"
-                        className="h-6 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-400"
-                        onClick={() => void bridge?.takeBrowserControl?.(sessionArg)}
-                      >
-                        Take control
-                      </Button>
-                    ) : props.sessionState.controller === "human" &&
-                      props.sessionState.assignedTaskId ? (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="secondary"
-                        className="h-6 text-xs"
-                        onClick={() =>
-                          void bridge?.resumeBrowserAgent?.({
-                            ...sessionArg,
-                            taskId: props.sessionState.assignedTaskId ?? undefined,
-                          })
-                        }
-                      >
-                        Resume agent
-                      </Button>
-                    ) : null}
                     {props.sessionState.temporaryAgentTab && !props.sessionState.userRetained ? (
                       <Button
                         type="button"
@@ -8923,41 +9008,6 @@ function DesktopBrowserChrome(props: {
         createPortal(
           <div className="flex items-center gap-1.5 pr-1">
             {activeRecordingControls}
-            {props.sessionState.assignedTaskId ? (
-              <Badge
-                variant="outline"
-                className="h-6 text-xs text-muted-foreground"
-                title={`Assigned to task ${props.sessionState.assignedTaskId}`}
-              >
-                Task: {props.sessionState.assignedTaskId.slice(0, 8)}
-              </Badge>
-            ) : null}
-            {props.sessionState.controller === "agent" ? (
-              <Button
-                type="button"
-                size="xs"
-                variant="secondary"
-                className="h-6 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-400"
-                onClick={() => void bridge?.takeBrowserControl?.(sessionArg)}
-              >
-                Take control
-              </Button>
-            ) : props.sessionState.controller === "human" && props.sessionState.assignedTaskId ? (
-              <Button
-                type="button"
-                size="xs"
-                variant="secondary"
-                className="h-6 text-xs"
-                onClick={() =>
-                  void bridge?.resumeBrowserAgent?.({
-                    ...sessionArg,
-                    taskId: props.sessionState.assignedTaskId ?? undefined,
-                  })
-                }
-              >
-                Resume
-              </Button>
-            ) : null}
             <div className="flex items-center rounded-lg border border-border/70 bg-card/60 p-0.5 shadow-2xs backdrop-blur-xs">
               <div className="flex items-center">
                 <Tooltip>
@@ -9083,6 +9133,17 @@ function DesktopBrowserChrome(props: {
           props.toolbarTarget,
         )
       ) : null}
+      {isPrimaryEnvironment(props.environmentId) && (
+        <BrowserHandoffControls
+          key={props.sessionState.assignedTaskId ?? ""}
+          state={props.sessionState}
+          ownerTitle={
+            reproductionTasks.find((thread) => thread.id === props.sessionState.assignedTaskId)
+              ?.title
+          }
+          className="shrink-0 border-b border-border/70 px-3 py-1"
+        />
+      )}
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden">
         {props.children}
         {pendingAnnotation ? (
@@ -9125,7 +9186,7 @@ function DesktopBrowserChrome(props: {
           isOpen={recordIssueDialogOpen}
           onOpenChange={setRecordIssueDialogOpen}
           projectId={props.projectId}
-          sessionId={props.sessionId}
+          sessionId={recordingSessionId}
           currentUrl={props.sessionState.currentUrl || props.normalizedUrl}
           viewport={
             props.browserState.customWidth && props.browserState.customHeight
@@ -9299,6 +9360,7 @@ function DesktopBrowserTool(props: {
     };
   }, [api, bridge, isTransientStartup, matchingRunningPreset, props.project.id]);
 
+  const getInitialBrowserUrl = useEffectEvent(() => normalizedUrl);
   useEffect(() => {
     if (!bridge) {
       return;
@@ -9332,7 +9394,7 @@ function DesktopBrowserTool(props: {
       .ensureBrowserSession({
         projectId: props.project.id,
         sessionId: "browser",
-        initialUrl: normalizedUrl,
+        initialUrl: getInitialBrowserUrl(),
         partition,
         // Show the page while it loads instead of a blank frame until it is done.
         waitForLoad: false,
@@ -9360,45 +9422,29 @@ function DesktopBrowserTool(props: {
     };
   }, [
     bridge,
-    normalizedUrl,
     props.project.id,
     props.projectSettings.browser?.partitionMode,
     props.projectSettings.browser?.partitionProfile,
   ]);
 
-  useEffect(() => {
-    if (!bridge || !hostState.available || normalizedUrl.length === 0) {
-      return;
-    }
-    if (isSameWebUrl(sessionState.currentUrl, normalizedUrl)) {
-      lastRequestedUrlRef.current = normalizedUrl;
-      return;
-    }
-    if (isSameWebUrl(lastRequestedUrlRef.current, normalizedUrl)) {
-      return;
-    }
-    lastRequestedUrlRef.current = normalizedUrl;
-    void bridge
-      .navigateBrowserSession({
-        projectId: props.project.id,
-        url: normalizedUrl,
-      })
-      .catch(() => {
-        if (lastRequestedUrlRef.current === normalizedUrl) {
-          lastRequestedUrlRef.current = null;
-        }
-      });
-  }, [bridge, hostState.available, normalizedUrl, props.project.id, sessionState.currentUrl]);
+  useDesktopBrowserNavigation({
+    bridge,
+    ready: hostState.available,
+    projectId: props.project.id,
+    sessionId: "browser",
+    currentUrl: sessionState.currentUrl,
+    url: normalizedUrl,
+    lastRequestedUrl: lastRequestedUrlRef,
+    adoptSession: setSessionState,
+  });
 
+  const persistNativeUrl = useEffectEvent((url: string | null) => {
+    if (url && !isSameWebUrl(url, browserState.currentUrl))
+      setBrowserCurrentUrl(props.project.id, url);
+  });
   useEffect(() => {
-    if (
-      !sessionState.currentUrl ||
-      isSameWebUrl(sessionState.currentUrl, browserState.currentUrl)
-    ) {
-      return;
-    }
-    setBrowserCurrentUrl(props.project.id, sessionState.currentUrl);
-  }, [browserState.currentUrl, props.project.id, sessionState.currentUrl, setBrowserCurrentUrl]);
+    persistNativeUrl(sessionState.currentUrl);
+  }, [sessionState.currentUrl]);
 
   const selectedPreset =
     BROWSER_DEVICE_PRESETS.find((preset) => preset.id === browserState.devicePreset) ??
@@ -9561,6 +9607,7 @@ function DesktopBrowserTool(props: {
     <DesktopBrowserChrome
       projectCwd={props.project.cwd}
       projectId={props.project.id}
+      environmentId={props.project.environmentId}
       sessionId="browser"
       title="Browser"
       isChromeExpanded={isChromeExpanded}
@@ -10109,6 +10156,7 @@ export function DesktopCustomEmbedTool(props: {
   // A custom tab optionally reopens at the URL the user last navigated to (persisted),
   // falling back to its configured URL; editing the configured URL takes over.
   const configuredUrl = normalizeBrowserUrl(initialUrl);
+  const startupConfiguredUrl = useRef(configuredUrl);
   const normalizedUrl = normalizeBrowserUrl(
     props.resumeLastVisitedPage ? (storedUrl ?? props.lastVisitedUrl ?? initialUrl) : initialUrl,
   );
@@ -10167,9 +10215,8 @@ export function DesktopCustomEmbedTool(props: {
     }
   }, [isClosing, currentUrlDebouncer]);
 
-  useEffect(() => {
-    const current = debouncedCurrentUrl;
-    if (current && current !== storedUrl) {
+  const persistNativeUrl = useEffectEvent((current: string | null) => {
+    if (current && current === sessionState.currentUrl && current !== storedUrl) {
       setBrowserSessionUrl(props.project.id, props.sessionId, current);
       if (props.resumeLastVisitedPage) {
         workspaceShellActions.upsertProjectSettings(props.project.id, (settings) => {
@@ -10186,14 +10233,12 @@ export function DesktopCustomEmbedTool(props: {
         });
       }
     }
-  }, [
-    debouncedCurrentUrl,
-    storedUrl,
-    setBrowserSessionUrl,
-    props.project.id,
-    props.sessionId,
-    props.resumeLastVisitedPage,
-  ]);
+  });
+  useEffect(() => {
+    // Persist a native URL observation once it settles. A stored address can also
+    // be an explicit destination, including a result that native already verified.
+    persistNativeUrl(debouncedCurrentUrl);
+  }, [debouncedCurrentUrl]);
   // Keep the address bar reflecting where the embed actually is (e.g. after the
   // user clicks a link inside it or navigates), like a real browser URL bar.
   useEffect(() => {
@@ -10238,6 +10283,7 @@ export function DesktopCustomEmbedTool(props: {
         });
         if (disposed) return;
         if (session) {
+          if (session.currentUrl) lastRequestedUrlRef.current = normalizedUrl;
           setSessionState(session);
           if (props.companion && session.currentUrl) {
             setBrowserSessionUrl(props.project.id, props.sessionId, session.currentUrl);
@@ -10286,33 +10332,18 @@ export function DesktopCustomEmbedTool(props: {
     props.partitionProfile,
   ]);
 
-  useEffect(() => {
-    if (!bridge || !hostState.available || normalizedUrl.length === 0) {
-      return;
-    }
-    if (isSameWebUrl(sessionState.currentUrl, normalizedUrl)) {
-      lastRequestedUrlRef.current = normalizedUrl;
-      return;
-    }
-    if (isSameWebUrl(lastRequestedUrlRef.current, normalizedUrl)) {
-      return;
-    }
-    lastRequestedUrlRef.current = normalizedUrl;
-    // A custom embed is pinned to its configured URL — it must NOT write into
-    // the shared per-project browser state (that would clobber the main
-    // Browser tab's persisted URL on relaunch).
-    void bridge
-      .navigateBrowserSession({
-        projectId: props.project.id,
-        sessionId: props.sessionId,
-        url: normalizedUrl,
-      })
-      .catch(() => {
-        if (lastRequestedUrlRef.current === normalizedUrl) {
-          lastRequestedUrlRef.current = null;
-        }
-      });
-  }, [bridge, hostState.available, normalizedUrl, props.project.id, sessionState.currentUrl]);
+  useDesktopBrowserNavigation({
+    bridge,
+    ready: !hostStarting && hostState.available,
+    projectId: props.project.id,
+    sessionId: props.sessionId,
+    currentUrl: sessionState.currentUrl,
+    url: normalizedUrl,
+    lastRequestedUrl: lastRequestedUrlRef,
+    adoptSession: setSessionState,
+    preserveInitialLiveUrl:
+      !props.resumeLastVisitedPage && configuredUrl === startupConfiguredUrl.current,
+  });
 
   const selectedPreset =
     BROWSER_DEVICE_PRESETS.find((preset) => preset.id === browserState.devicePreset) ??
@@ -10470,6 +10501,7 @@ export function DesktopCustomEmbedTool(props: {
       companion={props.companion}
       projectCwd={props.project.cwd}
       projectId={props.project.id}
+      environmentId={props.project.environmentId}
       sessionId={props.sessionId}
       title={props.title}
       isChromeExpanded={props.companion || isChromeExpanded}
@@ -10703,6 +10735,11 @@ function CustomProcessTool(props: {
     if (
       (!props.process.interactiveShell && commands.length === 0) ||
       isRunning ||
+      terminalAttachmentTarget(
+        props.project.environmentId ?? null,
+        props.threadId,
+        props.process.id,
+      ) ||
       autoStartedRef.current
     ) {
       return;
@@ -10715,6 +10752,8 @@ function CustomProcessTool(props: {
     props.onRunProcess,
     props.process.id,
     props.process.interactiveShell,
+    props.project.environmentId,
+    props.threadId,
   ]);
 
   if (commands.length === 0 && !props.process.interactiveShell) {
@@ -11959,12 +11998,54 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     ? (resolvedTools.find((tool) => tool.id === activeToolId) ?? null)
     : null;
   const activeToolSettings = resolvedTools;
+  useTerminalAttachmentTargets(activeProject ? (activeProject.environmentId ?? null) : undefined);
+  const projectBrowser = useProjectBrowserAttachmentTargets(
+    activeProject && isPrimaryEnvironment(activeProject.environmentId)
+      ? activeProject.id
+      : undefined,
+    resolvedTools,
+  );
+  const attachmentLocation = (() => {
+    if (!activeProject || isActivePendingTab) return null;
+    const environmentId = activeProject.environmentId ?? null;
+    const projectId = activeProject.id;
+    if (routeThreadId) {
+      if ((routeEnvironmentId ?? null) !== environmentId) return null;
+      const remembered = rememberedThreadTarget(routeThreadId, environmentId);
+      const owner = activeThread ?? routeDraft ?? remembered;
+      return owner?.projectId === projectId
+        ? { environmentId, projectId, threadId: routeThreadId }
+        : null;
+    }
+    // Project tools can keep the chat mounted while the router is at the project root.
+    const rememberedId = workspaceState.session.rememberedThreadIdByProjectId[projectId];
+    const remembered = rememberedId && resolveRouteThread(threads, rememberedId, environmentId);
+    return remembered &&
+      remembered.projectId === projectId &&
+      (remembered.environmentId ?? null) === environmentId
+      ? { environmentId, projectId, threadId: remembered.id }
+      : null;
+  })();
+  const currentAttachmentLocation = useRef(attachmentLocation);
+  currentAttachmentLocation.current = attachmentLocation;
+  const projectToolAttachmentFor = (toolId: string) => {
+    if (!attachmentLocation) return null;
+    const cache = projectBrowser.cache.current;
+    const attachment = projectToolAttachmentTarget(
+      attachmentLocation,
+      toolId,
+      installedExtensions,
+      cache?.projectId === attachmentLocation.projectId ? cache.targets : undefined,
+    );
+    return attachment ? projectToolSurfaceAttachmentFile(attachmentLocation, attachment) : null;
+  };
   const availableTools = resolvedTools.map((tool) => ({
     id: tool.id,
     kind: tool.kind,
     label: tool.label,
     temporary: isTemporaryWorkspaceTool(tool),
     closable: canCloseWorkspaceTool(tool),
+    browserActivity: projectBrowser.activity?.get(projectBrowserSessionId(tool) ?? ""),
     icon:
       tool.kind === "extension" ? (
         <InstalledExtensionToolIcon
@@ -12658,6 +12739,13 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               }),
           );
         }
+        return;
+      }
+      const agentRequest = agentControlRequestForCommand(command);
+      if (agentRequest) {
+        event.preventDefault();
+        event.stopPropagation();
+        dispatchAgentControl(agentRequest);
         return;
       }
       if (command === "workspace.focusNext" || command === "workspace.focusPrevious") {
@@ -14157,6 +14245,42 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
 
   const { confirm: confirmToolClose, confirmDialog: toolCloseDialog } = useConfirm();
   const [clipboardOpen, setClipboardOpen] = useState(false);
+  const [attachmentPicker, setAttachmentPicker] = useState<{
+    kind: "browser" | "device";
+    location: SurfaceLocation;
+  } | null>(null);
+  useEffect(() => {
+    const current = currentAttachmentLocation.current;
+    setAttachmentPicker((picker) =>
+      picker &&
+      current &&
+      picker.location.projectId === current.projectId &&
+      picker.location.threadId === current.threadId &&
+      picker.location.environmentId === current.environmentId
+        ? picker
+        : null,
+    );
+  }, [
+    attachmentLocation?.projectId,
+    attachmentLocation?.threadId,
+    attachmentLocation?.environmentId,
+  ]);
+  const [browserActionToRun, setBrowserActionToRun] = useState<{
+    projectId: ProjectId;
+    actionId: string;
+  } | null>(null);
+  const [browserHandoffChoice, setBrowserHandoffChoice] = useState<{
+    projectId: ProjectId;
+    scope: string | undefined;
+    action: "browser-my-turn" | "browser-stop";
+    options: Awaited<ReturnType<typeof browserHandoffOptions>>;
+  } | null>(null);
+  const selectedBrowserAction =
+    browserActionToRun?.projectId === activeProject?.id
+      ? activeProjectSettings?.browserQuickActions?.find(
+          (action) => action.id === browserActionToRun?.actionId,
+        )
+      : undefined;
   const [toolToKeep, setToolToKeep] = useState<WorkspaceToolActionTarget | null>(null);
   const requestKeepTool = (id: string) =>
     setToolToKeep(availableTools.find((tool) => tool.id === id) ?? null);
@@ -14187,6 +14311,34 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   };
 
   const quickActionDisabled = (id: QuickActionId): string | undefined => {
+    if (
+      (id === "attach-surface" ||
+        id === "attach-open-browser" ||
+        id === "attach-running-device" ||
+        id === "review-browser-selection" ||
+        id === "device-my-turn" ||
+        id === "device-stop" ||
+        id === "native-window-my-turn" ||
+        id === "native-window-stop" ||
+        id === "agent-my-turn" ||
+        id === "agent-stop-all" ||
+        id === "add-to-conversation" ||
+        id === "agent-control") &&
+      !attachmentLocation
+    )
+      return "Open a conversation in this project";
+    if (
+      (id === "browser-my-turn" ||
+        id === "browser-stop" ||
+        id === "attach-open-browser" ||
+        id === "review-browser-selection" ||
+        id === "native-window-my-turn" ||
+        id === "native-window-stop") &&
+      (!activeProject ||
+        !window.desktopBridge ||
+        !isPrimaryEnvironment(activeProject.environmentId))
+    )
+      return "Open a project in Tabs on this desktop";
     if (
       [
         "new-agent",
@@ -14227,10 +14379,361 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     await navigate({ to: "/" });
   };
   useOpenExtensionToolRequests(openExtensionTool);
-  const runQuickAction = async (id: QuickActionId, query: string) => {
+  const runSelectedBrowserHandoff = async (
+    option: Awaited<ReturnType<typeof browserHandoffOptions>>[number],
+    action: "browser-my-turn" | "browser-stop",
+    scope?: string,
+  ) => {
+    const bridge = window.desktopBridge;
+    if (
+      !bridge ||
+      useWorkspaceShellStore.getState().session.activeProjectId !== option.state.projectId
+    )
+      throw new Error("Switch back to the project with this browser tab.");
+    await runBrowserHandoff(bridge, option.state, action);
+    if (
+      action === "browser-stop" ||
+      useWorkspaceShellStore.getState().session.activeProjectId !== option.state.projectId
+    )
+      return;
+    if (option.toolId) await handleSelectTool(option.toolId);
+    if (option.surfaceId && scope) {
+      const surfaces = useCompanionSurfaceStore.getState();
+      surfaces.activate(scope, option.surfaceId);
+      useRightPanelStore.getState().openPanel("browser");
+      if (activeTool?.kind !== "agents") await handleSelectTool("agents");
+    }
+  };
+  const collectBrowserCandidates = (
+    tabs: ReadonlyArray<{ id: string; kind: string; title?: string | undefined }> | undefined,
+  ) => {
+    const candidates: BrowserHandoffCandidate[] = resolvedTools.flatMap((entry) => {
+      const sessionId = projectBrowserSessionId(entry);
+      return sessionId ? [{ sessionId, toolId: entry.id, label: entry.label }] : [];
+    });
+    for (const entry of tabs ?? []) {
+      if (entry.kind !== "browser") continue;
+      candidates.push({
+        sessionId: `agents-surface-${entry.id}`,
+        surfaceId: entry.id,
+        label: entry.title ?? "Companion browser",
+      });
+    }
+    return candidates;
+  };
+  const runQuickAction = async (id: QuickActionId, query: string, source?: HTMLElement | null) => {
     const reason = quickActionDisabled(id);
     if (reason) throw new Error(reason);
-    if (id === "new-tab") {
+    const focusedToolId = source?.closest<HTMLElement>("[data-workspace-tool-id]")?.dataset
+      .workspaceToolId;
+    const scope = attachmentLocation ? surfaceScope(attachmentLocation) : undefined;
+    const focusedCompanion =
+      source?.closest<HTMLElement>("[data-companion-scope]")?.dataset.companionScope;
+    const focusedSurfaceId =
+      scope && focusedCompanion === scope
+        ? source?.closest<HTMLElement>("[data-companion-surface-id]")?.dataset.companionSurfaceId
+        : undefined;
+    const workspace = scope ? useCompanionSurfaceStore.getState().workspaces[scope] : undefined;
+    const panel = useRightPanelStore.getState();
+    const selectedCompanion =
+      focusedSurfaceId || (panel.isOpen && !panel.choosingSurface)
+        ? workspace?.tabs.find((tab) => tab.id === (focusedSurfaceId ?? workspace.activeId))
+        : undefined;
+    const tool = resolvedTools.find((entry) => entry.id === (focusedToolId ?? activeToolId));
+    const companionSelected =
+      !focusedToolId && ((focusedCompanion === scope && !!scope) || tool?.kind === "agents");
+    if (id === "review-browser-selection") {
+      if (!attachmentLocation || !companionSelected || selectedCompanion?.kind !== "browser")
+        throw new Error("Select text in the conversation browser first.");
+      const event = new CustomEvent<BrowserSelectionReviewTarget>(BROWSER_SELECTION_REVIEW_EVENT, {
+        cancelable: true,
+        detail: {
+          location: attachmentLocation,
+          sessionId: `agents-surface-${selectedCompanion.id}`,
+        },
+      });
+      if (window.dispatchEvent(event))
+        throw new Error("Open the selected conversation browser first.");
+      return;
+    }
+    const stillInConversation = () => {
+      const current = currentAttachmentLocation.current;
+      return (
+        !!attachmentLocation &&
+        !!current &&
+        current.threadId === attachmentLocation.threadId &&
+        current.environmentId === attachmentLocation.environmentId &&
+        current.projectId === attachmentLocation.projectId &&
+        useWorkspaceShellStore.getState().session.activeProjectId === attachmentLocation.projectId
+      );
+    };
+    if (id === "attach-running-device" || id === "attach-open-browser") {
+      if (!attachmentLocation || !stillInConversation())
+        throw new Error("Open a conversation in this project.");
+      setAttachmentPicker({
+        kind: id === "attach-open-browser" ? "browser" : "device",
+        location: attachmentLocation,
+      });
+      return;
+    }
+    if (id === "agent-my-turn" || id === "agent-stop-all") {
+      if (!attachmentLocation || !stillInConversation())
+        throw new Error("Open a conversation in this project.");
+      const stopping = id === "agent-stop-all";
+      const handled: string[] = [];
+      const tabs = workspace?.tabs ?? [];
+      const { device, server, terminal } = await environmentApi(attachmentLocation.environmentId);
+      for (const surface of tabs) {
+        if (
+          !device ||
+          surface.kind !== "device" ||
+          !surface.deviceId ||
+          !surface.platform ||
+          surface.deviceComparisonResult
+        )
+          continue;
+        const target = { hostId: surface.hostId ?? "local", deviceId: surface.deviceId };
+        try {
+          await runDeviceHandoff(
+            device,
+            attachmentLocation.threadId,
+            target,
+            stopping ? "device-stop" : "device-my-turn",
+            stillInConversation,
+          );
+          handled.push("device");
+          if (!stopping && scope) {
+            useCompanionSurfaceStore.getState().activate(scope, surface.id);
+            useRightPanelStore.getState().openPanel("device");
+          }
+        } catch {
+          // No agent control on this device.
+        }
+        if (!stopping && handled.length > 0) break;
+      }
+      if (stopping || handled.length === 0) {
+        try {
+          const state = await runNativeWindowHandoff(
+            server.nativeComputer,
+            attachmentLocation.threadId,
+            stopping ? "revoke" : "take",
+            undefined,
+            stillInConversation,
+          );
+          window.dispatchEvent(
+            new CustomEvent<NativeWindowUpdate>(NATIVE_WINDOW_UPDATED_EVENT, {
+              detail: { location: attachmentLocation, state },
+            }),
+          );
+          handled.push("desktop window");
+        } catch {
+          // No attached desktop window.
+        }
+      }
+      const bridge = window.desktopBridge;
+      if (bridge && activeProject && (stopping || handled.length === 0)) {
+        const options = await browserHandoffOptions(
+          bridge,
+          activeProject.id,
+          collectBrowserCandidates(tabs),
+          undefined,
+          stopping ? "browser-stop" : "browser-my-turn",
+        ).catch(() => []);
+        // Several browser tabs hand over control: ask which one rather than guessing.
+        if (!stopping && options.length > 1) {
+          setBrowserHandoffChoice({
+            projectId: activeProject.id,
+            scope,
+            action: "browser-my-turn",
+            options,
+          });
+          return;
+        }
+        for (const option of stopping ? options : options.slice(0, 1)) {
+          try {
+            await runSelectedBrowserHandoff(
+              option,
+              stopping ? "browser-stop" : "browser-my-turn",
+              scope,
+            );
+            handled.push("browser tab");
+          } catch {
+            // Already stopped.
+          }
+        }
+      }
+      if (stopping && terminal.declinePendingAgentInput) {
+        try {
+          const { declined } = await terminal.declinePendingAgentInput({
+            threadId: attachmentLocation.threadId,
+          });
+          if (declined.length > 0) handled.push("terminal input");
+        } catch {
+          // The thread may have no terminal requests.
+        }
+      }
+      toastManager.add({
+        type: handled.length > 0 ? "success" : "info",
+        title:
+          handled.length > 0
+            ? stopping
+              ? `${AGENT_HANDOFF_LABELS.stopAgent}: ${[...new Set(handled)].join(", ")}`
+              : `${AGENT_HANDOFF_LABELS.takeOver}: you have the ${handled[0]}`
+            : "The agent is not controlling anything in this conversation",
+      });
+      return;
+    }
+    if (id === "device-my-turn" || id === "device-stop") {
+      const surface =
+        selectedCompanion ?? workspace?.tabs.find((tab) => tab.id === workspace.activeId);
+      if (
+        !attachmentLocation ||
+        !scope ||
+        !surface ||
+        surface.kind !== "device" ||
+        !surface.deviceId ||
+        !surface.platform ||
+        surface.deviceComparisonResult
+      )
+        throw new Error("Select a live device in this conversation first.");
+      const target = { hostId: surface.hostId ?? "local", deviceId: surface.deviceId };
+      const stillSelected = () => {
+        if (!stillInConversation()) return false;
+        const current = useCompanionSurfaceStore.getState().workspaces[scope];
+        const tab = current?.tabs.find((candidate) => candidate.id === surface.id);
+        return (
+          current?.activeId === workspace?.activeId &&
+          tab?.kind === "device" &&
+          !tab.deviceComparisonResult &&
+          tab.platform === surface.platform &&
+          tab.deviceId === target.deviceId &&
+          (tab.hostId ?? "local") === target.hostId
+        );
+      };
+      const { device } = await environmentApi(attachmentLocation.environmentId);
+      if (!device) throw new Error("Device control is unavailable in this environment.");
+      await runDeviceHandoff(device, attachmentLocation.threadId, target, id, stillSelected);
+      if (id === "device-my-turn" && stillSelected()) {
+        useCompanionSurfaceStore.getState().activate(scope, surface.id);
+        useRightPanelStore.getState().openPanel("device");
+        if (activeTool?.kind !== "agents") await handleSelectTool("agents");
+      }
+      return;
+    }
+    if (id === "native-window-my-turn" || id === "native-window-stop") {
+      if (!attachmentLocation)
+        throw new Error("Open a conversation with an attached desktop window.");
+      const selector = source?.closest<HTMLElement>("[data-native-window-selector]")?.dataset
+        .nativeWindowSelector;
+      const { server } = await environmentApi(attachmentLocation.environmentId);
+      const state = await runNativeWindowHandoff(
+        server.nativeComputer,
+        attachmentLocation.threadId,
+        id === "native-window-my-turn" ? "take" : "revoke",
+        selector,
+        stillInConversation,
+      );
+      window.dispatchEvent(
+        new CustomEvent<NativeWindowUpdate>(NATIVE_WINDOW_UPDATED_EVENT, {
+          detail: { location: attachmentLocation, state },
+        }),
+      );
+      return;
+    }
+    if (id === "browser-my-turn" || id === "browser-stop") {
+      const bridge = window.desktopBridge;
+      if (!activeProject || !bridge) throw new Error("Open a project in Tabs on this desktop.");
+      const candidates = collectBrowserCandidates(workspace?.tabs);
+      const selectedSessionId =
+        companionSelected && selectedCompanion?.kind === "browser"
+          ? `agents-surface-${selectedCompanion.id}`
+          : tool && !companionSelected
+            ? (projectBrowserSessionId(tool) ?? undefined)
+            : undefined;
+      const options = await browserHandoffOptions(
+        bridge,
+        activeProject.id,
+        candidates,
+        selectedSessionId,
+        id,
+      );
+      if (options.length === 0)
+        throw new Error(
+          selectedSessionId
+            ? "This browser tab has no active handoff for this action."
+            : "There are no browser tabs with this action available in the project.",
+        );
+      if (options.length === 1) await runSelectedBrowserHandoff(options[0]!, id, scope);
+      else
+        setBrowserHandoffChoice({
+          projectId: activeProject.id,
+          scope,
+          action: id,
+          options,
+        });
+      return;
+    }
+    if (id === "browser-quick-action") {
+      if (
+        !activeProject ||
+        !activeProjectSettings?.browserQuickActions?.some((action) => action.id === query)
+      )
+        throw new Error("This browser action is no longer available in the active project.");
+      setBrowserActionToRun({ projectId: activeProject.id, actionId: query });
+    } else if (id === "attach-surface") {
+      if (!attachmentLocation) throw new Error("Open a conversation in this project.");
+      let file: File | null = null;
+      const windowSelector = source?.closest<HTMLElement>("[data-native-window-selector]")?.dataset
+        .nativeWindowSelector;
+      const focusedTerminal = source?.closest<HTMLElement>("[data-terminal-thread-id]");
+      if (windowSelector) {
+        file = await selectedNativeWindowAttachmentFile(attachmentLocation, windowSelector);
+      } else if (focusedTerminal) {
+        if (
+          focusedTerminal.dataset.terminalThreadId !== attachmentLocation.threadId ||
+          focusedTerminal.dataset.terminalEnvironmentId !== (attachmentLocation.environmentId ?? "")
+        )
+          throw new Error("Select a terminal in this conversation.");
+        const terminalId =
+          source?.closest<HTMLElement>("[data-terminal-id]")?.dataset.terminalId ??
+          focusedSurfaceId;
+        file = selectedTerminalSurfaceAttachmentFile(attachmentLocation, terminalId);
+      } else if (tool && !companionSelected && tool.kind !== "agents") {
+        const sessionId = projectBrowserSessionId(tool);
+        const bridge = window.desktopBridge;
+        if (
+          sessionId &&
+          bridge &&
+          isPrimaryEnvironment(attachmentLocation.environmentId ?? undefined)
+        ) {
+          const state = await bridge.getBrowserSessionState({
+            projectId: attachmentLocation.projectId,
+            sessionId,
+          });
+          const target = projectBrowserAttachmentTarget(state);
+          const attachment = projectToolAttachmentTarget(
+            attachmentLocation,
+            tool.id,
+            installedExtensions,
+            new Map([[sessionId, target]]),
+          );
+          if (attachment) file = projectToolSurfaceAttachmentFile(attachmentLocation, attachment);
+        } else file = projectToolAttachmentFor(tool.id);
+      } else {
+        const tab = selectedCompanion;
+        const terminal = getThreadTerminalState(attachmentLocation.threadId);
+        if (tab?.kind === "terminal" || (!panel.isOpen && terminal.terminalOpen)) {
+          file = selectedTerminalSurfaceAttachmentFile(attachmentLocation);
+        } else if (tab) file = surfaceAttachmentFile(attachmentLocation, tab);
+      }
+      if (!file) {
+        throw new Error("Select an available project tool, terminal, browser tab, or device.");
+      }
+      const attachment = await prepareDroppedSurfaceAttachment(attachmentLocation, file);
+      if (!attachment) return;
+      addSurfaceFileToDraft(attachmentLocation, attachment);
+      toastManager.add({ type: "success", title: "Target attached to composer" });
+    } else if (id === "new-tab") {
       openPendingTab(randomUUID());
       await navigate({ to: "/" });
     } else if (id === "usage" || id === "customize" || id === "worktrees") {
@@ -14337,6 +14840,55 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     }
   };
 
+  useEffect(() => {
+    const run = (request: AgentControlRequest) =>
+      void runQuickAction(request === "stopAll" ? "agent-stop-all" : "agent-my-turn", "").catch(
+        (error) =>
+          toastManager.add({
+            type: "error",
+            title: "Could not change agent control",
+            description: error instanceof Error ? error.message : String(error),
+          }),
+      );
+    const onEvent = (event: Event) => run((event as CustomEvent<AgentControlRequest>).detail);
+    const onOpenThread = (event: Event) => {
+      const { environmentId, threadId } = (
+        event as CustomEvent<{ environmentId: string; threadId: string }>
+      ).detail;
+      void runQuickAction("open-thread", `${environmentId}:${threadId}`).catch(() =>
+        toastManager.add({ type: "error", title: "That conversation is no longer available" }),
+      );
+    };
+    window.addEventListener(AGENT_CONTROL_EVENT, onEvent);
+    window.addEventListener(OPEN_THREAD_EVENT, onOpenThread);
+    const removeBridge = window.desktopBridge?.onMenuAction((action) => {
+      if (action === "agent-stop-all") run("stopAll");
+    });
+    return () => {
+      window.removeEventListener(AGENT_CONTROL_EVENT, onEvent);
+      window.removeEventListener(OPEN_THREAD_EVENT, onOpenThread);
+      removeBridge?.();
+    };
+  });
+  const handoffChoice =
+    browserHandoffChoice?.projectId === activeProject?.id &&
+    browserHandoffChoice?.scope ===
+      (attachmentLocation ? surfaceScope(attachmentLocation) : undefined)
+      ? browserHandoffChoice
+      : null;
+  const isAttachmentPickerCurrent = () => {
+    const current = currentAttachmentLocation.current;
+    return (
+      !!current &&
+      !!attachmentPicker &&
+      current.projectId === attachmentPicker.location.projectId &&
+      current.environmentId === attachmentPicker.location.environmentId &&
+      current.threadId === attachmentPicker.location.threadId &&
+      useWorkspaceShellStore.getState().session.activeProjectId === current.projectId
+    );
+  };
+  const AttachmentPicker =
+    attachmentPicker?.kind === "browser" ? AttachOpenBrowserDialog : AttachRunningDeviceDialog;
   return (
     <QuickActionsHost execute={runQuickAction} disabled={quickActionDisabled}>
       <div
@@ -14344,7 +14896,96 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground"
       >
         {toolCloseDialog}
+        {attachmentPicker && isAttachmentPickerCurrent() && (
+          <AttachmentPicker
+            location={attachmentPicker.location}
+            threads={
+              new Map(
+                threads
+                  .filter(
+                    (thread) =>
+                      thread.projectId === attachmentPicker.location.projectId &&
+                      (thread.environmentId ?? null) === attachmentPicker.location.environmentId &&
+                      !thread.archivedAt,
+                  )
+                  .map((thread) => [thread.id, thread.title]),
+              )
+            }
+            isCurrent={isAttachmentPickerCurrent}
+            onClose={() => setAttachmentPicker(null)}
+          />
+        )}
+        {handoffChoice && (
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setBrowserHandoffChoice(null);
+            }}
+          >
+            <DialogPopup>
+              <DialogHeader>
+                <DialogTitle>
+                  {handoffChoice.action === "browser-my-turn"
+                    ? `${AGENT_HANDOFF_LABELS.takeOver} — choose a browser tab`
+                    : `${AGENT_HANDOFF_LABELS.stopAgent} — choose a browser tab`}
+                </DialogTitle>
+                <DialogDescription>Choose the exact tab and profile.</DialogDescription>
+              </DialogHeader>
+              <DialogPanel className="grid gap-2">
+                {handoffChoice.options.map((option) => {
+                  const profileId = option.state.profileId ?? "default";
+                  const profile =
+                    settings.browserProfiles.find((entry) => entry.id === profileId)?.label ??
+                    profileId;
+                  const origin = projectBrowserAttachmentTarget(option.state)?.origin;
+                  return (
+                    <Button
+                      key={option.sessionId}
+                      type="button"
+                      variant="outline"
+                      className="h-auto min-w-0 flex-col items-start gap-0.5 whitespace-normal py-2 text-left"
+                      onClick={() => {
+                        setBrowserHandoffChoice(null);
+                        void runSelectedBrowserHandoff(
+                          option,
+                          handoffChoice.action,
+                          handoffChoice.scope,
+                        ).catch((error: unknown) => {
+                          toastManager.add({
+                            type: "error",
+                            title: "Could not change browser control",
+                            description: error instanceof Error ? error.message : String(error),
+                          });
+                        });
+                      }}
+                    >
+                      <span>{option.label}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {[profile, origin, option.sessionId].filter(Boolean).join(" · ")}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </DialogPanel>
+            </DialogPopup>
+          </Dialog>
+        )}
         <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
+        {activeProject && selectedBrowserAction && (
+          <RunBrowserQuickActionDialog
+            key={selectedBrowserAction.id}
+            projectId={activeProject.id}
+            initialAction={selectedBrowserAction}
+            threads={threads.filter(
+              (thread) =>
+                thread.projectId === activeProject.id &&
+                thread.environmentId === activeProject.environmentId &&
+                !thread.archivedAt,
+            )}
+            currentThreadId={routeThreadId ?? null}
+            onClose={() => setBrowserActionToRun(null)}
+          />
+        )}
         <SessionSearchPanel
           runInTerminal={
             activeProject ? (command) => runQuickAction("scratch-terminal", command) : undefined
@@ -14372,6 +15013,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               activePendingTabId={activePendingTabId}
               activeToolId={activeTool?.id ?? ""}
               availableTools={availableTools}
+              attachmentFor={attachmentLocation ? projectToolAttachmentFor : undefined}
               threads={threads}
               onActivateProject={(projectId) => void focusProject(projectId)}
               onCloseProject={(projectId) => {
@@ -14492,6 +15134,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               <ProjectToolBar
                 activeToolId={activeTool?.id ?? ""}
                 availableTools={availableTools}
+                attachmentFor={attachmentLocation ? projectToolAttachmentFor : undefined}
                 threads={threads}
                 activeProjectId={activeProject?.id ?? null}
                 onSelectTool={(toolId) => void handleSelectTool(toolId)}

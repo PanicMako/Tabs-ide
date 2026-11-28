@@ -1,4 +1,9 @@
 import {
+  PreviewTabId,
+  DeviceComparisonFrame,
+  TrimmedNonEmptyString,
+  DeviceId,
+  DeviceHostId,
   DeviceToolCloseInput,
   DeviceToolError,
   DeviceToolListResult,
@@ -8,11 +13,9 @@ import {
   DeviceToolTargetInput,
 } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
-import * as ServerConfig from "../../../config.ts";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
+import { PreviewAutomationBroker } from "../../PreviewAutomationBroker.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as DeviceService from "../../../device/DeviceService.ts";
 
@@ -22,8 +25,8 @@ const dependencies = [McpInvocationContext.McpInvocationContext, DeviceService.D
  * Deliberately a small surface: lifecycle, visibility for the user, and one
  * image-returning verb. Driving the device (taps, typing, install, logs)
  * happens through the preconfigured `agent-device` CLI, which has the
- * semantic snapshot model agents need and stays current with its own
- * releases. Wrapping its commands here would only lag behind it.
+ * semantic snapshot model agents need. The Tabs launcher binds its supported
+ * commands to live device ownership.
  */
 const DeviceListTool = Tool.make("device_list", {
   description:
@@ -47,11 +50,11 @@ const DeviceListTool = Tool.make("device_list", {
 
 const DeviceOpenTool = Tool.make("device_open", {
   description:
-    "Open a simulator or emulator for this thread: boots it if needed, starts its live stream, and shows it in the user's Device panel so they can watch. Returns the agent-device CLI invocation pinned to the device; drive the device with that CLI afterwards.",
+    "Request access to an exact appId on a running device attached to this thread. Ask the user to review the request in the Device panel. Repeat with the same device, appId and approved approvalId to get the launcher. Omit appId to reacquire an existing approved launcher after handoff.",
   parameters: DeviceToolOpenInput,
   success: DeviceToolOpenResult,
   failure: DeviceToolError,
-  dependencies: [...dependencies, FileSystem.FileSystem, Path.Path, ServerConfig.ServerConfig],
+  dependencies,
 })
   .annotate(Tool.Title, "Open device")
   .annotate(Tool.Readonly, false)
@@ -61,7 +64,7 @@ const DeviceOpenTool = Tool.make("device_open", {
 
 export const DeviceScreenshotTool = Tool.make("device_screenshot", {
   description:
-    "Capture the current screen of an open device as a PNG image. Use it to see what the user sees; for taps and text use the agent-device CLI.",
+    "Capture the current app screen as a PNG after device_open and opening the app through its Tabs launcher. Private screens require user takeover. For taps and text use the Tabs launcher.",
   parameters: DeviceToolTargetInput,
   success: DeviceToolScreenshotResult,
   failure: DeviceToolError,
@@ -73,9 +76,35 @@ export const DeviceScreenshotTool = Tool.make("device_screenshot", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, true);
 
+const DeviceAttachScreenshotTool = Tool.make("device_attach_screenshot", {
+  description:
+    "Attach an approved PNG to one empty file input on the exact destination page. Pass a CSS selector and the tabId and grantId from the user's screenshot handoff or from approvedEvidence in device_comparison_status. For approvedEvidence, use the source and target grants on separate inputs. Each grant permits one attachment. After a lost reply retry with the same arguments to check the existing selection. A successful result verifies file selection. Inspect the page separately for a saved draft or submission.",
+  parameters: Schema.Struct({
+    tabId: PreviewTabId,
+    grantId: Schema.String.check(Schema.isUUID()),
+    selector: TrimmedNonEmptyString.check(Schema.isMaxLength(2048)),
+  }),
+  success: Schema.Struct({
+    tabId: PreviewTabId,
+    hostId: DeviceHostId,
+    deviceId: DeviceId,
+    fileName: Schema.String,
+    sha256: Schema.String,
+    sizeBytes: Schema.Int,
+    status: Schema.Literal("file_selected"),
+    frame: Schema.optional(DeviceComparisonFrame),
+  }),
+  failure: DeviceToolError,
+  dependencies: [...dependencies, PreviewAutomationBroker],
+})
+  .annotate(Tool.Title, "Attach device screenshot")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.OpenWorld, true);
+
 const DeviceCloseTool = Tool.make("device_close", {
   description:
-    "Remove a device from this thread's Device panel. Pass shutdown=true to also power the simulator or emulator off.",
+    "Remove a device from this thread's Device panel. Power-off is available to the user in the Device panel.",
   parameters: DeviceToolCloseInput,
   success: Schema.Record(Schema.String, Schema.Never).annotate({
     description: "The device was closed.",
@@ -89,7 +118,12 @@ const DeviceCloseTool = Tool.make("device_close", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, true);
 
-export const DeviceStandardToolkit = Toolkit.make(DeviceListTool, DeviceOpenTool, DeviceCloseTool);
+export const DeviceStandardToolkit = Toolkit.make(
+  DeviceListTool,
+  DeviceOpenTool,
+  DeviceCloseTool,
+  DeviceAttachScreenshotTool,
+);
 
 export const DeviceScreenshotToolkit = Toolkit.make(DeviceScreenshotTool);
 
@@ -97,5 +131,6 @@ export const DeviceToolkit = Toolkit.make(
   DeviceListTool,
   DeviceOpenTool,
   DeviceScreenshotTool,
+  DeviceAttachScreenshotTool,
   DeviceCloseTool,
 );

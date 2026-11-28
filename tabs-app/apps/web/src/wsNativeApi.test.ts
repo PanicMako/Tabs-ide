@@ -142,6 +142,16 @@ describe("wsNativeApi", () => {
     expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.serverGetConfig);
   });
 
+  it("requests saved Figma receipts by exact thread and operation ID", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const input = { threadId: ThreadId.make("figma-thread"), operationId: "a".repeat(64) };
+    const receipt = { frameNodeId: "12:34" };
+    requestMock.mockResolvedValueOnce(receipt);
+    await expect(api.preview.getFigmaCanvasResult(input)).resolves.toEqual(receipt);
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.previewGetFigmaCanvasResult, input);
+  });
+
   it("reads capacity from the execution host for Dock resource percentages", async () => {
     const { createWsNativeApi } = await import("./wsNativeApi");
     const api = createWsNativeApi();
@@ -306,6 +316,41 @@ describe("wsNativeApi", () => {
     unsubscribe();
     expect(unsubscribeRpc).toHaveBeenCalledOnce();
     expect(unsubscribePush).toHaveBeenCalled();
+  });
+
+  it("receives terminal process identity over the metadata RPC stream", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi({ singleton: false });
+    const receive = vi.fn();
+    const onResubscribe = vi.fn();
+    const stop = api.terminal.onMetadata(receive, { onResubscribe });
+    const subscription = (subscribeRpcMock.mock.calls as unknown[][]).find(
+      (call) => call[0] === WS_METHODS.subscribeTerminalMetadata,
+    ) as [string, () => unknown, (value: unknown) => unknown, (value: unknown) => void];
+    expect(subscription[1]()).toEqual({});
+    expect(onResubscribe).toHaveBeenCalledOnce();
+    const snapshot = {
+      type: "snapshot",
+      terminals: [
+        {
+          threadId: "thread",
+          terminalId: "default",
+          instanceId: "shell-instance",
+          cwd: "/workspace",
+          worktreePath: null,
+          status: "running",
+          pid: 1234,
+          exitCode: null,
+          exitSignal: null,
+          hasRunningSubprocess: false,
+          label: "Shell",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    };
+    subscription[3](subscription[2](snapshot));
+    expect(receive).toHaveBeenCalledWith(snapshot);
+    stop();
   });
 
   it("requests signed assets from the environment and resolves the actual server URL", async () => {
@@ -651,7 +696,7 @@ describe("wsNativeApi", () => {
     });
   });
 
-  it("connects preview automation hosts and forwards broker events", async () => {
+  it("subscribes and responds through the preview automation RPCs", async () => {
     requestMock.mockResolvedValue(undefined);
     const { createWsNativeApi } = await import("./wsNativeApi");
     const api = createWsNativeApi();
@@ -663,18 +708,12 @@ describe("wsNativeApi", () => {
     } as never;
 
     const unsubscribe = api.preview.automation.connect(host, listener);
-    emitPush(WS_CHANNELS.previewAutomationEvent, {
-      type: "connected",
-      connectionId: "connection-1",
-    });
-
-    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.previewAutomationConnect, host, {
-      timeoutMs: null,
-    });
-    expect(listener).toHaveBeenCalledWith({
-      type: "connected",
-      connectionId: "connection-1",
-    });
+    const subscription = (subscribeRpcMock.mock.calls as unknown[][]).find(
+      ([method]) => method === WS_METHODS.previewAutomationConnect,
+    );
+    if (!subscription) throw new Error("Missing preview automation subscription");
+    expect((subscription[1] as () => unknown)()).toBe(host);
+    expect(subscription[3]).toBe(listener);
 
     await api.preview.automation.respond({
       clientId: "desktop-client",
@@ -686,6 +725,20 @@ describe("wsNativeApi", () => {
     expect(requestMock).toHaveBeenLastCalledWith(
       WS_METHODS.previewAutomationRespond,
       expect.objectContaining({ requestId: "request-1", ok: true }),
+    );
+
+    const authorization = {
+      clientId: "desktop-client",
+      connectionId: "connection-1",
+      requestId: "request-2",
+    };
+    requestMock.mockResolvedValueOnce(true);
+    await expect(api.preview.automation.authorizeDeviceScreenshot(authorization)).resolves.toBe(
+      true,
+    );
+    expect(requestMock).toHaveBeenLastCalledWith(
+      WS_METHODS.previewAutomationAuthorizeDeviceScreenshot,
+      authorization,
     );
     unsubscribe();
   });

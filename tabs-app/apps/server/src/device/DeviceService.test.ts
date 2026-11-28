@@ -1,9 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
-  DEFAULT_SERVER_SETTINGS,
   DeviceId,
   DeviceOperationError,
   LOCAL_DEVICE_HOST_ID,
+  ProviderInstanceId,
   ThreadId,
   type DeviceServiceState,
 } from "@tabs/contracts";
@@ -11,16 +12,23 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as ServerSettings from "../serverSettings.ts";
+import * as ServerConfig from "../config.ts";
+import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import { ServerSecretStore } from "../auth/ServerSecretStore.ts";
 import * as DeviceHost from "./DeviceHost.ts";
 import { NodeRuntimeUnavailableError } from "@tabs/shared/nodeRuntime";
 
 import * as DeviceService from "./DeviceService.ts";
+import type { AgentDeviceGrant } from "./AgentDeviceControl.ts";
+import type { startAgentDeviceProxy } from "./AgentDeviceProxy.ts";
 
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
@@ -69,11 +77,21 @@ const fixture = Effect.fn("fixture")(function* (
   inspectError = false,
   installTool?: Parameters<typeof DeviceService.makeWithHosts>[3],
 ) {
-  const settings = yield* Ref.make(DEFAULT_SERVER_SETTINGS);
+  const settingsService = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+  const settings = Option.isSome(settingsService)
+    ? settingsService.value
+    : yield* ServerSettings.ServerSettingsService.pipe(Effect.provide(ServerSettings.layerTest()));
   const starts: string[] = [];
   const agentStarts: string[] = [];
   const agentStops: string[] = [];
   const requests: string[] = [];
+  const grants = new Map<
+    string,
+    {
+      readonly grant: AgentDeviceGrant;
+      readonly proxy: Parameters<typeof startAgentDeviceProxy>[0];
+    }
+  >();
   let booted = false;
   let shutDown = false;
   const ready: DeviceHost.DeviceHostReady = {
@@ -121,7 +139,7 @@ const fixture = Effect.fn("fixture")(function* (
           agentDevice: { baseUrl: "http://agent.test", token: "test", entryPath: "/agent" },
         };
       }),
-    current: Effect.succeed(null),
+    current: Effect.sync(() => (starts.at(-1) === "start" ? ready : null)),
     stopAgent: Effect.sync(() => {
       agentStops.push("stop");
     }),
@@ -132,31 +150,18 @@ const fixture = Effect.fn("fixture")(function* (
   const service = yield* DeviceService.makeWithHosts(
     new Map([[host.id, host]]),
     undefined,
-    undefined,
+    {
+      providerActive: () => true,
+      configForGrant: (grant, proxy) =>
+        Effect.sync(() => {
+          grants.set(grant.id, { grant, proxy });
+          return { command: "agent-device", configPath: grant.id };
+        }),
+    },
     installTool,
   ).pipe(
     Effect.provideService(DeviceHost.DeviceHost, host),
-    Effect.provideService(
-      ServerSettings.ServerSettingsService,
-      ServerSettings.ServerSettingsService.of({
-        updateProviderInstance: () => Effect.die("Unexpected provider mutation"),
-        withSettingsSnapshot: (use) => Effect.flatMap(Ref.get(settings), use),
-        start: Effect.void,
-        ready: Effect.void,
-        getSettings: Ref.get(settings),
-        updateSettings: (patch) =>
-          Ref.updateAndGet(settings, (current) => ({
-            ...current,
-            enableDeviceSupport: patch.enableDeviceSupport ?? current.enableDeviceSupport,
-            enableAgentDeviceAccess:
-              patch.enableAgentDeviceAccess ?? current.enableAgentDeviceAccess,
-            deviceOnboardingCompleted:
-              patch.deviceOnboardingCompleted ?? current.deviceOnboardingCompleted,
-          })),
-        streamChanges: Stream.empty,
-        subscribeChanges: Effect.succeed(Stream.empty),
-      }),
-    ),
+    Effect.provideService(ServerSettings.ServerSettingsService, settings),
     Effect.provideService(
       HttpClient.HttpClient,
       HttpClient.make((request) =>
@@ -211,7 +216,153 @@ const fixture = Effect.fn("fixture")(function* (
       ),
     ),
   );
-  return { service, starts, agentStarts, agentStops, requests, settings };
+  return { service, starts, agentStarts, agentStops, requests, settings, grants };
+});
+
+describe("device settings revocation", () => {
+  const liveSettings = ServerSettings.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        ServerConfig.layerTest(process.cwd(), { prefix: "tabs-device-settings-test-" }),
+        SqlitePersistence.layerMemory,
+        Layer.succeed(ServerSecretStore, {
+          get: () => Effect.succeed(Option.none()),
+          set: () => Effect.die("Unexpected secret write"),
+          create: () => Effect.die("Unexpected secret creation"),
+          getOrCreateRandom: () => Effect.die("Unexpected secret generation"),
+          remove: () => Effect.void,
+        }),
+      ),
+    ),
+    Layer.provide(NodeServices.layer),
+  );
+
+  it.effect.each(["agent", "support"] as const)(
+    "revokes %s access before general settings returns and keeps old grants revoked after re-enable",
+    (permission) =>
+      Effect.gen(function* () {
+        const { service, settings, starts, agentStops, grants } = yield* fixture();
+        const caller = {
+          threadId: ThreadId.make("settings-revocation"),
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          providerSessionId: "provider-session",
+        };
+        const open = (deviceId: DeviceId) =>
+          service.open({
+            threadId: caller.threadId,
+            platform: "android",
+            deviceId,
+          });
+        yield* service.configure({ enabled: true, agentAccessEnabled: true });
+        const attachment = yield* open(DeviceId.make("Pixel_API_35"));
+        const { configPath } = yield* service.agentTarget(attachment, caller, "/agent");
+        const { grant, proxy } = grants.get(configPath)!;
+        const checkAccess = yield* service.authorizeScreenshotTransfer(caller);
+        const checkLive = yield* service.authorizeScreenshotTransfer(caller, {
+          kind: "live",
+          attachment,
+        });
+        const checkComparison = yield* service.authorizeScreenshotTransfer(caller, {
+          kind: "comparison",
+          attachment,
+        });
+        expect(proxy.lookup(grant.token)).toBe(grant);
+        expect(yield* service.streamInputAllowed(attachment.hostId, attachment.deviceId)).toBe(
+          false,
+        );
+        const states = yield* service.subscribe;
+
+        // Keep host cleanup and its published state behind the lifecycle lock.
+        const acquired = yield* Deferred.make<void>();
+        const release = yield* Deferred.make<void>();
+        const locked = yield* service
+          .withLifecycleLock(
+            Deferred.succeed(acquired, undefined).pipe(Effect.andThen(Deferred.await(release))),
+          )
+          .pipe(Effect.forkChild);
+        yield* Deferred.await(acquired);
+        const persistedFlag =
+          permission === "agent" ? "enableAgentDeviceAccess" : "enableDeviceSupport";
+        if (permission === "agent") {
+          yield* settings.updateSettings({ [persistedFlag]: false });
+        } else {
+          yield* settings.updateProviderInstance(
+            { operation: "remove", instanceId: ProviderInstanceId.make("unused-test-provider") },
+            { [persistedFlag]: false },
+          );
+        }
+
+        expect((yield* service.state).agentAccessEnabled).toBe(true);
+        expect((yield* service.state).sessions).toEqual([attachment]);
+        expect(proxy.lookup(grant.token)).toBeUndefined();
+        expect(
+          (yield* Effect.result(
+            proxy.dispatch(grant, () => Effect.die("Revoked grant reached the host"), false),
+          ))._tag,
+        ).toBe("Failure");
+        expect(checkAccess()).toBe(false);
+        expect(checkLive()).toBe(false);
+        expect(checkComparison()).toBe(false);
+        expect(
+          (yield* Effect.result(
+            service.comparison(
+              {
+                action: "requestDeviceApp",
+                threadId: caller.threadId,
+                device: attachment,
+                appId: "com.example.app",
+              },
+              undefined,
+              caller,
+            ),
+          ))._tag,
+        ).toBe("Failure");
+        const manualAllowed = permission === "agent";
+        expect(yield* service.streamInputAllowed(attachment.hostId, attachment.deviceId)).toBe(
+          manualAllowed,
+        );
+        expect((yield* service.currentReadiness(attachment.hostId)) !== null).toBe(manualAllowed);
+        expect(agentStops).toEqual([]);
+        expect(starts).not.toContain("stop");
+
+        yield* settings.updateSettings({ [persistedFlag]: true });
+        expect(proxy.lookup(grant.token)).toBeUndefined();
+        expect(checkAccess()).toBe(false);
+        expect((yield* Effect.result(service.authorizeScreenshotTransfer(caller)))._tag).toBe(
+          "Failure",
+        );
+        yield* Deferred.succeed(release, undefined);
+        yield* Fiber.join(locked);
+        const disabled = yield* PubSub.take(states);
+        const reenabled = yield* PubSub.take(states);
+        expect(disabled.agentAccessEnabled).toBe(!manualAllowed);
+        expect(disabled.hostStatus === "disabled").toBe(!manualAllowed);
+        expect(disabled.sessions).toEqual(manualAllowed ? [attachment] : []);
+        expect(reenabled.agentAccessEnabled).toBe(true);
+        expect(reenabled.hostStatus).not.toBe("disabled");
+        expect(reenabled.sessions).toEqual(disabled.sessions);
+        const state = yield* service.configure({ onboardingCompleted: true });
+        expect(state.onboardingCompleted).toBe(true);
+        expect(state.sessions).toEqual(manualAllowed ? [attachment] : []);
+        expect(agentStops).toEqual(manualAllowed ? ["stop"] : []);
+        expect(starts.filter((entry) => entry === "stop")).toHaveLength(manualAllowed ? 0 : 1);
+        expect(checkLive()).toBe(false);
+        expect(checkComparison()).toBe(false);
+        const freshCheck = yield* service.authorizeScreenshotTransfer(caller);
+        expect(freshCheck()).toBe(true);
+
+        const freshAttachment = manualAllowed ? attachment : yield* open(attachment.deviceId);
+        const fresh = yield* service.agentTarget(freshAttachment, caller, "/agent");
+        expect(grants.get(fresh.configPath)?.grant.token).not.toBe(grant.token);
+        expect(proxy.lookup(grant.token)).toBeUndefined();
+
+        const disable = permission === "agent" ? { agentAccessEnabled: false } : { enabled: false };
+        yield* service.configure(disable);
+        yield* service.configure(disable);
+        expect(agentStops).toHaveLength(manualAllowed ? 2 : 0);
+        expect(starts.filter((entry) => entry === "stop")).toHaveLength(manualAllowed ? 0 : 2);
+      }).pipe(Effect.provide(liveSettings), Effect.scoped),
+  );
 });
 
 describe("device setup consent", () => {
@@ -230,11 +381,10 @@ describe("device setup consent", () => {
           false,
           runtimeFailure,
         );
-        yield* Ref.update(settings, (current) => ({
-          ...current,
+        yield* settings.updateSettings({
           enableDeviceSupport: true,
           enableAgentDeviceAccess: true,
-        }));
+        });
         for (const readiness of [service.readiness(), service.agentReadinessIfSupported()]) {
           const error = yield* readiness.pipe(Effect.flip);
           expect(error).toMatchObject({
@@ -270,7 +420,7 @@ describe("device setup consent", () => {
       Effect.gen(function* () {
         const { service, starts, settings } = yield* fixture();
         const state = yield* service.configure({ enabled: true });
-        expect((yield* Ref.get(settings)).enableDeviceSupport).toBe(true);
+        expect((yield* settings.getSettings).enableDeviceSupport).toBe(true);
         expect(state.devices.map((device) => [device.id, device.booted])).toEqual([
           ["Pixel_API_35", false],
         ]);
@@ -278,7 +428,7 @@ describe("device setup consent", () => {
         const disabled = yield* service.configure({ enabled: false });
         expect(disabled.hostStatus).toBe("disabled");
         expect(disabled.devices).toEqual([]);
-        expect((yield* Ref.get(settings)).enableDeviceSupport).toBe(false);
+        expect((yield* settings.getSettings).enableDeviceSupport).toBe(false);
         expect(yield* service.readinessIfSupported()).toBeNull();
         expect(starts).toEqual(["start", "stop"]);
       }).pipe(Effect.scoped),
@@ -310,48 +460,108 @@ describe("device setup consent", () => {
 
       yield* service.configure({ agentAccessEnabled: true });
       expect(agentStarts).toEqual(["start"]);
-      expect((yield* Ref.get(settings)).enableAgentDeviceAccess).toBe(true);
+      expect((yield* settings.getSettings).enableAgentDeviceAccess).toBe(true);
       expect((yield* service.state).agentAccessEnabled).toBe(true);
 
       yield* service.configure({ agentAccessEnabled: false, onboardingCompleted: true });
       expect(agentStops).toEqual(["stop"]);
       expect((yield* service.state).onboardingCompleted).toBe(true);
-      expect((yield* Ref.get(settings)).deviceOnboardingCompleted).toBe(true);
+      expect((yield* settings.getSettings).deviceOnboardingCompleted).toBe(true);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("shares the exact running view and reuses it without touching the hub", () =>
+    Effect.gen(function* () {
+      const { service, requests, agentStarts } = yield* fixture();
+      yield* service.configure({ enabled: true });
+      const source = yield* service.open({
+        threadId: ThreadId.make("source"),
+        deviceId: "Pixel_API_35",
+        platform: "android",
+      });
+      const threadId = ThreadId.make("checkout");
+      const input = {
+        threadId,
+        fromThreadId: source.threadId,
+        hostId: source.hostId,
+        deviceId: source.deviceId,
+        platform: source.platform,
+        boot: false,
+      } as const;
+      const before = requests.length;
+      const [copy, retry] = yield* Effect.all([service.open(input), service.open(input)], {
+        concurrency: 2,
+      });
+      expect(copy).toMatchObject({
+        threadId,
+        hostId: source.hostId,
+        deviceId: source.deviceId,
+        platform: source.platform,
+      });
+      expect(retry).toEqual(copy);
+      expect((yield* service.state).sessions).toEqual([source, copy]);
+      expect(requests).toHaveLength(before);
+      expect(agentStarts).toEqual([]);
+      expect(yield* Effect.flip(service.open({ ...input, platform: "ios" }))).toMatchObject({
+        _tag: "DeviceNotFoundError",
+      });
+      yield* service.close({
+        threadId: source.threadId,
+        hostId: source.hostId,
+        deviceId: source.deviceId,
+      });
+      expect(yield* Effect.flip(service.open(input))).toMatchObject({
+        _tag: "DeviceNotFoundError",
+      });
+      expect((yield* service.state).sessions).toEqual([copy]);
+      expect(requests).toHaveLength(before);
     }).pipe(Effect.scoped),
   );
 });
 
-it.effect("publishes boot progress and does not restore sessions after support is disabled", () =>
-  Effect.gen(function* () {
-    const started = yield* Deferred.make<void>();
-    const finish = yield* Deferred.make<void>();
-    const { service } = yield* fixture(
-      Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(finish))),
-    );
-    yield* service.configure({ enabled: true });
-    const opening = yield* service
-      .open({ threadId: ThreadId.make("thread-1"), deviceId: "Pixel_API_35", platform: "android" })
-      .pipe(Effect.result, Effect.forkChild);
-    yield* Deferred.await(started);
-    expect((yield* service.state).bootingDevices?.map((device) => device.name)).toEqual([
-      "Pixel_API_35",
-    ]);
-    yield* service.configure({ enabled: false });
-    yield* Deferred.succeed(finish, undefined);
-    expect((yield* Fiber.join(opening))._tag).toBe("Failure");
-    const state = yield* service.state;
-    expect(state.hostStatus).toBe("disabled");
-    expect(state.devices).toEqual([]);
-    expect(state.sessions).toEqual([]);
-    expect(state.bootingDevices).toEqual([]);
-  }).pipe(Effect.scoped),
+it.effect.each(["disabled", "quickly re-enabled"] as const)(
+  "publishes boot progress and discards the old open after support is %s",
+  (outcome) =>
+    Effect.gen(function* () {
+      const started = yield* Deferred.make<void>();
+      const finish = yield* Deferred.make<void>();
+      const { service, settings } = yield* fixture(
+        Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(finish))),
+      );
+      yield* service.configure({ enabled: true });
+      const opening = yield* service
+        .open({
+          threadId: ThreadId.make("thread-1"),
+          deviceId: "Pixel_API_35",
+          platform: "android",
+        })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Deferred.await(started);
+      expect((yield* service.state).bootingDevices?.map((device) => device.name)).toEqual([
+        "Pixel_API_35",
+      ]);
+      if (outcome === "disabled") {
+        yield* service.configure({ enabled: false });
+      } else {
+        yield* settings.updateSettings({ enableDeviceSupport: false });
+        yield* settings.updateSettings({ enableDeviceSupport: true });
+        yield* service.configure({});
+      }
+      yield* Deferred.succeed(finish, undefined);
+      expect((yield* Fiber.join(opening))._tag).toBe("Failure");
+      const state = yield* service.state;
+      expect(state.hostStatus).toBe(outcome === "disabled" ? "disabled" : "ready");
+      expect(state.devices.some((device) => device.booted)).toBe(false);
+      expect(state.sessions).toEqual([]);
+      expect(state.bootingDevices).toEqual([]);
+    }).pipe(Effect.scoped),
 );
 
 describe("device discovery after server restart", () => {
   it.effect("captures an explicit device before any client lists devices", () =>
     Effect.gen(function* () {
       const { service, settings, requests } = yield* fixture();
-      yield* Ref.update(settings, (current) => ({ ...current, enableDeviceSupport: true }));
+      yield* settings.updateSettings({ enableDeviceSupport: true });
       expect((yield* service.state).devices).toEqual([]);
       const capture = yield* service.screenshot({ deviceId: DeviceId.make("Pixel_API_35") });
       expect(capture.device.id).toBe("Pixel_API_35");
@@ -637,7 +847,7 @@ it.effect("host retry exposes actionable failure without internal IDs or diagnos
         cause: "private diagnostics",
       }),
     );
-    yield* Ref.update(settings, (current) => ({ ...current, enableDeviceSupport: true }));
+    yield* settings.updateSettings({ enableDeviceSupport: true });
     const state = yield* service.retryHost(LOCAL_DEVICE_HOST_ID);
     expect(state.supportsHostRetry).toBe(true);
     expect(state.hostStatuses[LOCAL_DEVICE_HOST_ID]).toEqual({

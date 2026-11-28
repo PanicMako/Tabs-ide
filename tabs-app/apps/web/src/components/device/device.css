@@ -1,15 +1,18 @@
 /* Device surface. Same vocabulary as the other side-panel surfaces: ledger rows, hairline rules,
    neutral cards and the shared radius tokens. Motion is transform and opacity only. */
-.dv-panel {
+.dv-panel,
+.dv-float-body {
   --dv-rule: var(--cd-rule, color-mix(in srgb, var(--border) 80%, transparent));
   --dv-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   --dv-press: color-mix(in srgb, var(--foreground) 10%, transparent);
   position: relative;
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   container-type: inline-size;
   color: var(--foreground);
 }
@@ -167,32 +170,27 @@
 /* Live screen */
 .dv-stage {
   display: flex;
-  min-height: 0;
-  flex: 1;
+  min-width: 0;
+  flex: 1 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 18px 14px;
+  gap: 16px;
+  padding: 20px 16px;
 }
 .dv-device {
   display: flex;
+  width: min(100%, 320px);
   min-width: 0;
   flex-direction: column;
   align-items: center;
   gap: 10px;
 }
 .dv-frame {
-  position: relative;
-  width: clamp(190px, 100%, 300px);
-  padding: 9px;
-  background: color-mix(in srgb, var(--foreground) 88%, var(--background));
+  width: 100%;
+  padding: 5px;
+  border: 1px solid var(--border);
+  background: var(--muted);
   border-radius: var(--radius-preview);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--foreground) 35%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--background) 25%, transparent);
-}
-.dv-frame[data-platform="android"] {
-  padding: 8px;
 }
 .dv-screen {
   position: relative;
@@ -207,23 +205,6 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.dv-frame::after {
-  content: "";
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  width: 52px;
-  height: 14px;
-  background: #000;
-  border-radius: var(--radius-control);
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.dv-frame[data-platform="android"]::after {
-  width: 10px;
-  height: 10px;
-  top: 15px;
-}
 .dv-image {
   display: block;
   width: 100%;
@@ -233,28 +214,54 @@
 }
 .dv-connecting {
   display: grid;
-  min-height: 320px;
+  aspect-ratio: 9 / 19;
   place-items: center;
   padding: 24px;
   color: var(--muted-foreground);
   font-size: 12px;
+  text-align: center;
 }
 .dv-status {
   display: flex;
-  max-width: 300px;
+  min-height: 18px;
+  max-width: 100%;
   flex-direction: column;
   gap: 2px;
+  overflow-wrap: anywhere;
   text-align: center;
 }
 .dv-rail {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   padding: 4px;
+  border: 1px solid var(--dv-rule);
   background: var(--card);
-  border-radius: var(--radius-joined);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: var(--radius-control);
+}
+.dv-control {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--muted-foreground);
+}
+.dv-control:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--dv-hover);
+}
+.dv-control[data-destructive]:hover:not(:disabled) {
+  color: var(--destructive);
+}
+.dv-control:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.dv-control:disabled {
+  opacity: 0.45;
 }
 .dv-rail-rule {
   width: 18px;
@@ -262,17 +269,19 @@
   margin: 3px 0;
   background: var(--dv-rule);
 }
-.dv-rail .cd-icon[aria-pressed="true"] {
+.dv-control[aria-pressed="true"] {
   color: var(--foreground);
   background: var(--dv-press);
 }
 @container (max-width: 400px) {
   .dv-stage {
     flex-direction: column;
-    justify-content: flex-start;
   }
   .dv-rail {
+    max-width: 100%;
     flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .dv-rail-rule {
     width: 1px;
@@ -448,13 +457,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dv-float-body {
-  position: relative;
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-}
 .dv-link {
   border: 0;
   background: transparent;
@@ -469,4 +471,76 @@
 }
 .dv-link:hover {
   opacity: 1;
+}
+
+.dv-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dv-comparison p,
+.dv-comparison figure {
+  margin: 0;
+}
+.dv-comparison-header,
+.dv-comparison-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.75rem;
+}
+.dv-comparison-form,
+.dv-comparison-evidence {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+}
+.dv-comparison-form label {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+.dv-comparison-form input:not([type="checkbox"]),
+.dv-comparison-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--background);
+  color: var(--foreground);
+}
+.dv-comparison-form .dv-comparison-check {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.dv-comparison-steps {
+  list-style: decimal;
+  padding-inline-start: 1.25rem;
+}
+.dv-comparison-breakpoint,
+.dv-comparison-screens {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.dv-comparison-screens figure {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+.dv-comparison-screens figcaption strong {
+  display: block;
+}
+.dv-comparison-screens img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  object-position: top;
 }

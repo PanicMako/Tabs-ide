@@ -11,13 +11,14 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsSection } from "./SettingsLayout";
-import { QUICK_ACTIONS, type QuickSubAction } from "../quick-actions/actions";
+import { QUICK_ACTIONS, ALL_BUILT_IN_ACTIONS, type QuickSubAction } from "../quick-actions/actions";
 
 function destination(entry: QuickSubAction) {
   if (!entry.query)
     return entry.actionId === "scratch-browser"
       ? "New blank browser"
-      : (QUICK_ACTIONS.find((action) => action.id === entry.actionId)?.label ?? "Run action");
+      : (ALL_BUILT_IN_ACTIONS.find((action) => action.id === entry.actionId)?.label ??
+          "Run action");
   try {
     return new URL(entry.query).hostname;
   } catch {
@@ -205,11 +206,11 @@ export function QuickSubActionsSettings({
             >
               <SelectTrigger aria-label="Shortcut action" className="w-full">
                 <SelectValue>
-                  {QUICK_ACTIONS.find((action) => action.id === draft.actionId)?.label}
+                  {ALL_BUILT_IN_ACTIONS.find((action) => action.id === draft.actionId)?.label}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup>
-                {QUICK_ACTIONS.map((action) => (
+                {ALL_BUILT_IN_ACTIONS.map((action) => (
                   <SelectItem key={action.id} value={action.id}>
                     {action.label}
                   </SelectItem>

@@ -176,6 +176,8 @@ export const DeviceOpenInput = Schema.Struct({
   hostId: Schema.optional(DeviceHostId),
   deviceId: DeviceId,
   platform: DevicePlatform,
+  /** Attach a view of a device already open in this thread, without starting the device or stream again. */
+  fromThreadId: Schema.optional(ThreadId),
   /** Boot the simulator or emulator when it is not running. Defaults to true. */
   boot: Schema.optional(Schema.Boolean),
 });
@@ -490,10 +492,21 @@ export const DeviceAppApproval = Schema.Struct({
 export type DeviceAppApproval = typeof DeviceAppApproval.Type;
 
 export const DeviceToolOpenInput = Schema.Struct({
+  appId: Schema.optionalKey(
+    DeviceAppId.annotate({
+      description:
+        "Exact app bundle or package ID to approve. Omit only to reacquire an existing app grant.",
+    }),
+  ),
+  approvalId: Schema.optionalKey(
+    DeviceAppApproval.fields.id.annotate({
+      description: "Approval request ID from the Device panel. Pass the original app and device.",
+    }),
+  ),
   deviceId: Schema.optional(
     DeviceId.annotate({
       description:
-        "Simulator udid or emulator serial from device_list. Omit to use the booted device for the platform, or the most recently used one.",
+        "Simulator udid or emulator serial from device_list. Omit when exactly one open device in this thread matches.",
     }),
   ),
   platform: Schema.optional(
@@ -506,27 +519,33 @@ export const DeviceToolOpenInput = Schema.Struct({
   ),
 }).annotate({
   description:
-    "Boots the device if needed, starts its live stream, and opens the Device panel so the user can watch. Returns how to drive it with the agent-device CLI.",
+    "Requests approval for a specific app on an attached device or reacquires the approved launcher.",
 });
 export type DeviceToolOpenInput = typeof DeviceToolOpenInput.Type;
 
-export const DeviceToolOpenResult = Schema.Struct({
-  device: DeviceSummary,
-  /** Ready-to-run agent-device invocation pinned to this device. */
-  agentDevice: Schema.Struct({
-    command: Schema.String,
-    /** Flags that pin every command to this device, e.g. `--udid <id>`. */
-    targetArgs: Schema.Array(Schema.String),
+export const DeviceToolOpenResult = Schema.Union([
+  Schema.Struct({
+    device: DeviceSummary,
+    /** Ready-to-run agent-device invocation pinned to this device. */
+    agentDevice: Schema.Struct({
+      command: Schema.String,
+      /** Flags that pin every command to this device, e.g. `--udid <id>`. */
+      targetArgs: Schema.Array(Schema.String),
+    }),
+    quickStart: Schema.String,
   }),
-  quickStart: Schema.String,
-});
+  Schema.Struct({
+    status: Schema.Literal("approval_required"),
+    device: DeviceSummary,
+    approval: DeviceAppApproval,
+  }),
+]);
 export type DeviceToolOpenResult = typeof DeviceToolOpenResult.Type;
 
 export const DeviceToolTargetInput = Schema.Struct({
   deviceId: Schema.optional(
     DeviceId.annotate({
-      description:
-        "Device from device_list. Omit to use the device most recently opened in this thread.",
+      description: "Device open in this thread. Omit when exactly one open device matches.",
     }),
   ),
   hostId: Schema.optional(DeviceHostId),
@@ -553,7 +572,8 @@ export const DeviceToolCloseInput = Schema.Struct({
   hostId: Schema.optional(DeviceHostId),
   shutdown: Schema.optional(
     Schema.Boolean.annotate({
-      description: "Also power the simulator or emulator off. Defaults to false.",
+      description:
+        "Power-off requires the user to act in the Device panel. Omit or pass false to close.",
     }),
   ),
 });

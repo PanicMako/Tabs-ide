@@ -1,4 +1,5 @@
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@tabs/shared/keybindings";
+import { BROWSER_SELECTION_DRAG_MIME } from "@tabs/shared/preview";
 import { previewTheme, snapshotThemeState, restoreThemeSnapshot } from "../hooks/useTheme";
 import { useWorkspaceActionsState } from "./chat/workspaceActionsState";
 // Production CSS is part of the behavior under test because row height depends on it.
@@ -7,21 +8,26 @@ import { scopedThreadKey, scopeThreadRef } from "@tabs/client-runtime/environmen
 import { rememberThreadScrollTop } from "./ChatView.logic";
 
 import {
+  type DesktopBrowserAutomationInput,
+  EventId,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
+  type NativeComputerState,
   type OrchestrationReadModel,
   type ProjectId,
   type ServerConfig,
+  type TerminalSummary,
   type ThreadId,
   type WsWelcomePayload,
   WS_METHODS,
   OrchestrationSessionStatus,
   DEFAULT_SERVER_SETTINGS,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
 } from "@tabs/contracts";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { HttpResponse, http, ws } from "msw";
 import { setupWorker } from "msw/browser";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
@@ -30,7 +36,13 @@ import { makeAppModelSelection, typedOptionsToSelections } from "../modelSelecti
 import { initializeComposerDraftsState } from "../state/composerDrafts";
 import { initializeWorkspaceShellState } from "../state/workspaceShell";
 import { useRightPanelStore } from "../stores/rightPanelStore";
+import { useCompanionSurfaceStore } from "../stores/companionSurfaceStore";
 import { useWorkspaceShellStore } from "../workspaceShellStore";
+import {
+  BROWSER_SELECTION_DROP_EVENT,
+  type BrowserSelectionDrop,
+} from "../lib/browserSelectionDrag";
+import { emptyBrowserState } from "./agents/companion/browserSession";
 import {
   BROWSER_ENVIRONMENT_ID,
   attachBrowserRpcFixture,
@@ -50,8 +62,13 @@ import {
   setThreadErrorInAtoms,
 } from "../state/readModel";
 import { DEFAULT_CLIENT_SETTINGS } from "@tabs/contracts/settings";
-import { hydrateClientSettings, updateClientSettings } from "../state/settings";
+import {
+  hydrateClientSettings,
+  refreshServerConfig,
+  updateClientSettings,
+} from "../state/settings";
 import { scopedComposerThreadId } from "../state/composerDrafts";
+import { terminalActions } from "../state/terminal";
 
 const THREAD_ID = "thread-browser-test" as ThreadId;
 const SCOPED_THREAD_ID = scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, THREAD_ID);
@@ -74,6 +91,8 @@ interface TestFixture {
   snapshot: OrchestrationReadModel;
   serverConfig: ServerConfig;
   welcome: WsWelcomePayload;
+  terminalMetadata?: readonly TerminalSummary[];
+  nativeComputer?: (input: WsRequestEnvelope["body"]) => NativeComputerState;
 }
 
 let fixture: TestFixture;
@@ -516,6 +535,9 @@ function resolveWsRpc(body: WsRequestEnvelope["body"]): unknown {
   if (tag === WS_METHODS.serverGetConfig) {
     return fixture.serverConfig;
   }
+  if (tag === WS_METHODS.serverNativeComputer) {
+    return fixture.nativeComputer?.(body) ?? { grant: null };
+  }
   if (tag === WS_METHODS.gitListBranches) {
     return {
       isRepo: true,
@@ -579,6 +601,19 @@ const worker = setupWorker(
       resolveWsRpc,
       (body) => wsRequests.push(body),
     );
+    client.addEventListener("message", ({ data }) => {
+      if (typeof data !== "string" || !fixture.terminalMetadata) return;
+      const request = JSON.parse(data);
+      if (request._tag !== "Request" || request.tag !== WS_METHODS.subscribeTerminalMetadata)
+        return;
+      client.send(
+        JSON.stringify({
+          _tag: "Chunk",
+          requestId: request.id,
+          values: [{ type: "snapshot", terminals: fixture.terminalMetadata }],
+        }),
+      );
+    });
   }),
   http.get("*/attachments/:attachmentId", () =>
     HttpResponse.text(ATTACHMENT_SVG, {
@@ -913,6 +948,426 @@ describe("ChatView browser behavior (full app)", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+  });
+
+  it("attaches the focused companion terminal session through Quick Actions", async () => {
+    const scope = `${BROWSER_ENVIRONMENT_ID}:${THREAD_ID}`;
+    const previousWorkspaces = useCompanionSurfaceStore.getState().workspaces;
+    const mounted = await mountChatView({
+      viewport: { name: "wide desktop", width: 1440, height: 1100 },
+      snapshot: createEmptyThreadSnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          keybindings: [...DEFAULT_RESOLVED_KEYBINDINGS],
+        };
+        nextFixture.terminalMetadata = ["default", "second-pty"].map((terminalId) => ({
+          threadId: THREAD_ID,
+          terminalId,
+          instanceId: `instance-${terminalId}`,
+          cwd: "/repo/project",
+          worktreePath: null,
+          status: "running",
+          pid: 123,
+          exitCode: null,
+          exitSignal: null,
+          hasRunningSubprocess: false,
+          label: terminalId,
+          updatedAt: NOW_ISO,
+        }));
+      },
+    });
+    try {
+      const editor = await waitForComposerEditor();
+      terminalActions.new(THREAD_ID, "second-pty");
+      useCompanionSurfaceStore.getState().open(scope, "terminal");
+      useRightPanelStore.getState().openPanel("terminal");
+      const tab = page.getByRole("tablist", { name: "Terminal sessions" }).getByRole("tab").first();
+      await expect.element(tab).toHaveAttribute("aria-selected", "false");
+      const element = tab.element() as HTMLElement;
+      const transfer = new DataTransfer();
+      await expect
+        .poll(() => {
+          element.dispatchEvent(
+            new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }),
+          );
+          return transfer.files.length;
+        })
+        .toBe(1);
+      editor.dispatchEvent(
+        new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+      );
+      const files = () =>
+        useComposerDraftStore.getState().draftsByThreadId[SCOPED_THREAD_ID]?.files ?? [];
+      await expect.poll(() => files().length).toBe(1);
+      const dragged = JSON.parse(await files()[0]!.file.text());
+      expect(dragged).toMatchObject({
+        environmentId: BROWSER_ENVIRONMENT_ID,
+        projectId: PROJECT_ID,
+        threadId: THREAD_ID,
+        target: { kind: "terminal", terminalId: "default", instanceId: "instance-default" },
+      });
+
+      element.focus();
+      await userEvent.keyboard(
+        isMacPlatform(navigator.platform)
+          ? "{Meta>}{Alt>}k{/Alt}{/Meta}"
+          : "{Control>}{Alt>}k{/Alt}{/Control}",
+      );
+      await page.getByRole("button", { name: "More actions" }).click();
+      await page.getByRole("button", { name: "Add to conversation", exact: true }).click();
+      const useThis = page.getByRole("button", { name: "Use this here", exact: true });
+      await expect.element(useThis).toBeVisible();
+      (useThis.element() as HTMLElement).focus();
+      await userEvent.keyboard("{Enter}");
+      await expect.poll(() => files().length).toBe(2);
+      expect(JSON.parse(await files()[1]!.file.text())).toEqual(dragged);
+    } finally {
+      await mounted.cleanup();
+      terminalActions.clear(THREAD_ID);
+      useCompanionSurfaceStore.setState({ workspaces: previousWorkspaces });
+    }
+  });
+
+  it.each(["approval", "capacity", "plan questions"] as const)(
+    "handles a first-time native-window drag onto the composer with %s",
+    async (scenario) => {
+      const snapshot = createEmptyThreadSnapshot();
+      if (scenario === "capacity") {
+        useComposerDraftStore.getState().addFiles(
+          SCOPED_THREAD_ID,
+          Array.from({ length: PROVIDER_SEND_TURN_MAX_ATTACHMENTS }, (_, index) => {
+            const file = new File(["fixture"], `fixture-${index}.txt`, { type: "text/plain" });
+            return {
+              type: "file",
+              id: `fixture-${index}`,
+              name: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size,
+              file,
+            };
+          }),
+        );
+      }
+      const first = {
+        id: "first",
+        app: "Example",
+        title: "Duplicate title",
+        pid: 107,
+        frame: { x: 100, y: 100, width: 900, height: 640 },
+      };
+      const second = { ...first, id: "second" };
+      let grant: NativeComputerState["grant"] = null;
+      const request = vi.fn((input: WsRequestEnvelope["body"]): NativeComputerState => {
+        if (input.op === "list") return { grant, windows: [first, second] };
+        if (input.op === "attach") {
+          grant = {
+            window: input.windowId === second.id ? second : first,
+            selector: "window:approved",
+            mode: "agent",
+            foreground: input.foreground === true,
+          };
+        }
+        if (input.op === "revoke") grant = null;
+        return { grant };
+      });
+      const previousBridge = window.desktopBridge;
+      const mounted = await mountChatView({
+        viewport: { name: "wide desktop", width: 1440, height: 1100 },
+        snapshot,
+        configureFixture: (next) => {
+          next.nativeComputer = request;
+          next.serverConfig = {
+            ...next.serverConfig,
+            settings: { ...next.serverConfig.settings, computerUseEnabled: true },
+          };
+        },
+      });
+      try {
+        const composer = await waitForElement(
+          () => mounted.host.querySelector('[data-chat-composer-card="true"]'),
+          "Composer did not mount",
+        );
+        window.desktopBridge = {
+          getWsUrl: () => null,
+          setTheme: async () => {},
+          setIconTheme: async () => {},
+          getCodeHostState: async () => ({ available: false }),
+          hideCodeSession: async () => {},
+          hideBrowserSession: async () => {},
+          syncCodeSessions: async () => {},
+          syncBrowserSessions: async () => {},
+          listExtensions: async () => [],
+          onExtensionsChanged: () => () => {},
+          onBrowserSessionState: () => () => {},
+          getBrowserSessionState: async ({
+            projectId,
+            sessionId,
+          }: {
+            projectId: string;
+            sessionId?: string;
+          }) => emptyBrowserState(projectId, sessionId ?? "browser"),
+          onMenuAction: () => () => {},
+          onCodeChromeState: () => () => {},
+        } as unknown as NonNullable<Window["desktopBridge"]>;
+        await refreshServerConfig();
+        if (scenario === "plan questions") {
+          syncServerReadModelToAtoms(
+            {
+              ...snapshot,
+              threads: snapshot.threads.map((thread) => ({
+                ...thread,
+                activities: [
+                  {
+                    id: EventId.make("plan-question"),
+                    kind: "user-input.requested",
+                    tone: "info",
+                    summary: "User input requested",
+                    createdAt: NOW_ISO,
+                    turnId: null,
+                    payload: {
+                      requestId: "plan-question-request",
+                      questions: [
+                        {
+                          id: "format",
+                          header: "Format",
+                          question: "Which format should we use?",
+                          options: [{ label: "PDF", description: "Export as PDF" }],
+                        },
+                      ],
+                    },
+                  },
+                ],
+              })),
+            },
+            BROWSER_ENVIRONMENT_ID,
+          );
+          await expect.element(page.getByText("Which format should we use?")).toBeVisible();
+        }
+        const picker = page.getByRole("button", { name: "Attach desktop window" });
+        const approval = page.getByRole("dialog", { name: "Confirm" });
+        const calls = (op: string) =>
+          request.mock.calls.map(([input]) => input).filter((input) => input.op === op);
+        const files = () =>
+          useComposerDraftStore.getState().draftsByThreadId[SCOPED_THREAD_ID]?.files ?? [];
+
+        async function dragSecondWindow() {
+          await expect.element(picker).toBeVisible();
+          await picker.click();
+          const selected = page.getByRole("radio", { name: /Duplicate title.* · first/ });
+          await selected.click();
+          await expect.element(selected).toBeChecked();
+          const row = page
+            .getByRole("radio", { name: /Duplicate title.* · second/ })
+            .element()
+            .closest("label");
+          if (!row) throw new Error("Second window row did not mount");
+          expect(row.draggable).toBe(true);
+          const target = composer.getBoundingClientRect();
+          const x = target.left + target.width / 2;
+          const y = target.top + target.height / 2;
+          const hit = () => document.elementFromPoint(x, y);
+          expect(composer.contains(hit())).toBe(false);
+
+          const dataTransfer = new DataTransfer();
+          const drag = (type: string) =>
+            new DragEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y,
+              dataTransfer,
+            });
+          row.dispatchEvent(drag("dragstart"));
+          try {
+            await expect.poll(() => composer.contains(hit())).toBe(true);
+            expect(calls("attach")).toHaveLength(0);
+            const dropTarget = hit();
+            if (!dropTarget) throw new Error("Composer did not receive the drag");
+            expect(dropTarget.dispatchEvent(drag("dragover"))).toBe(false);
+            dropTarget.dispatchEvent(drag("drop"));
+          } finally {
+            row.dispatchEvent(drag("dragend"));
+          }
+        }
+
+        await dragSecondWindow();
+        if (scenario !== "approval") {
+          await expect
+            .element(
+              page.getByText(
+                scenario === "capacity"
+                  ? `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`
+                  : "Attach files after answering plan questions.",
+              ),
+            )
+            .toBeVisible();
+          await expect.element(approval).not.toBeInTheDocument();
+          expect(calls("attach")).toHaveLength(0);
+          return;
+        }
+
+        await expect
+          .element(approval.getByText(/Duplicate title.*PID 107.* · second/))
+          .toBeVisible();
+        expect(calls("attach")).toHaveLength(0);
+        expect(files()).toHaveLength(0);
+        await approval.getByRole("button", { name: "Cancel" }).click();
+        await expect.element(picker).toBeEnabled();
+        expect(calls("attach")).toHaveLength(0);
+        expect(files()).toHaveLength(0);
+
+        await dragSecondWindow();
+        await approval.getByRole("button", { name: "Confirm" }).click();
+        await expect.poll(() => files().length).toBe(1);
+        expect(calls("attach")).toEqual([
+          expect.objectContaining({ threadId: THREAD_ID, windowId: "second", foreground: false }),
+        ]);
+        expect(JSON.parse(await files()[0]!.file.text())).toMatchObject({
+          environmentId: BROWSER_ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          threadId: THREAD_ID,
+          target: { kind: "native-window", selector: "window:approved" },
+        });
+        await page.getByRole("button", { name: "Stop agent" }).click();
+        await expect.element(picker).toBeVisible();
+        expect(calls("revoke")).toEqual([
+          expect.objectContaining({ threadId: THREAD_ID, selector: "window:approved" }),
+        ]);
+      } finally {
+        if (previousBridge) window.desktopBridge = previousBridge;
+        else delete window.desktopBridge;
+        await mounted.cleanup();
+      }
+    },
+  );
+
+  it("reviews a browser selection dropped on the composer before attaching it to the thread", async () => {
+    const previousBridge = window.desktopBridge;
+    const previousWorkspaces = useCompanionSurfaceStore.getState().workspaces;
+    const mounted = await mountChatView({
+      viewport: { name: "wide desktop", width: 1440, height: 1100 },
+      snapshot: createAssistantHeavySnapshot({ includeProposedPlan: false }),
+    });
+    try {
+      await waitForComposerEditor();
+      const location = {
+        environmentId: BROWSER_ENVIRONMENT_ID,
+        projectId: PROJECT_ID,
+        threadId: THREAD_ID,
+      };
+      const currentUrl = "https://example.test/selection";
+      const surfaceId = useCompanionSurfaceStore
+        .getState()
+        .open(`${BROWSER_ENVIRONMENT_ID}:${THREAD_ID}`, "browser", { url: currentUrl });
+      const sessionId = `agents-surface-${surfaceId}`;
+      const state = {
+        ...emptyBrowserState(PROJECT_ID, sessionId),
+        currentUrl,
+        pageRef: "a".repeat(64),
+        instanceId: "selection-browser",
+        profileId: "work",
+      };
+      const text = "  Selected total\n$20.00  ";
+      const drag = { dragToken: crypto.randomUUID(), droppedText: text.replace("\n", "\r\n") };
+      const runBrowserAutomation = vi.fn(async (_input: DesktopBrowserAutomationInput) => ({
+        text,
+      }));
+      const setBrowserBounds = vi.fn(async () => {});
+      window.desktopBridge = {
+        onBrowserSessionState: () => () => {},
+        getBrowserHostState: async () => ({ available: true }),
+        ensureBrowserSession: async () => {},
+        getBrowserSessionState: async () => state,
+        runBrowserAutomation,
+        activateBrowserSession: async () => {},
+        hideBrowserSession: async () => {},
+        setBrowserBounds,
+      } as unknown as NonNullable<Window["desktopBridge"]>;
+      useRightPanelStore.getState().openPanel("browser");
+      await vi.waitFor(() =>
+        expect(setBrowserBounds).toHaveBeenCalledWith(
+          expect.objectContaining({ sessionId, visible: true }),
+        ),
+      );
+      const editor = await waitForComposerEditor();
+      expect(editor.closest('[data-chat-composer-form="true"]')).not.toBeNull();
+
+      const review = page.getByRole("dialog", { name: "Review browser selection" });
+      const files = () =>
+        useComposerDraftStore.getState().draftsByThreadId[SCOPED_THREAD_ID]?.files ?? [];
+      for (const wrongLocation of [
+        { ...location, projectId: "other-project" },
+        { ...location, threadId: "other-thread" as ThreadId },
+      ]) {
+        window.dispatchEvent(
+          new CustomEvent<BrowserSelectionDrop>(BROWSER_SELECTION_DROP_EVENT, {
+            detail: { ...drag, location: wrongLocation },
+          }),
+        );
+      }
+      expect(runBrowserAutomation).not.toHaveBeenCalled();
+      await expect.element(review).not.toBeInTheDocument();
+      expect(files()).toHaveLength(0);
+
+      const editorDrop = vi.fn();
+      editor.addEventListener("drop", editorDrop);
+      function dropText(dragToken?: string) {
+        const dataTransfer = new DataTransfer();
+        if (dragToken) dataTransfer.setData(BROWSER_SELECTION_DRAG_MIME, dragToken);
+        dataTransfer.setData("text/plain", drag.droppedText);
+        editor.dispatchEvent(
+          new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }),
+        );
+      }
+      dropText();
+      expect(editorDrop).toHaveBeenCalledOnce();
+      expect(runBrowserAutomation).not.toHaveBeenCalled();
+      editorDrop.mockClear();
+
+      dropText(drag.dragToken);
+      expect(runBrowserAutomation).toHaveBeenCalledExactlyOnceWith({
+        projectId: PROJECT_ID,
+        sessionId,
+        taskId: THREAD_ID,
+        source: "human",
+        operation: "readBrowserSelection",
+        input: { pageRef: state.pageRef, instanceId: state.instanceId, profileId: "work", ...drag },
+      });
+      const excerpt = review.getByLabelText("Selected browser text");
+      await expect.element(excerpt).toBeVisible();
+      expect(excerpt.element().textContent).toBe(text);
+      expect(editorDrop).not.toHaveBeenCalled();
+      expect(editor.textContent).toBe("");
+      expect(files()).toHaveLength(0);
+      await review.getByRole("button", { name: "Cancel" }).click();
+      await expect.element(review).not.toBeInTheDocument();
+      expect(files()).toHaveLength(0);
+
+      dropText(drag.dragToken);
+      await review.getByRole("button", { name: "Add to draft" }).click();
+      await vi.waitFor(() => expect(files()).toHaveLength(1));
+      expect(runBrowserAutomation).toHaveBeenCalledTimes(3);
+      expect(runBrowserAutomation).toHaveBeenLastCalledWith({
+        projectId: PROJECT_ID,
+        sessionId,
+        taskId: THREAD_ID,
+        source: "human",
+        operation: "captureAttachedPage",
+        input: { pageRef: state.pageRef, instanceId: state.instanceId, profileId: "work" },
+      });
+      expect(JSON.parse(await files()[0]!.file.text())).toMatchObject({
+        ...location,
+        surfaceId,
+        target: { kind: "browser-excerpt", tabId: sessionId, profileId: "work" },
+        text,
+      });
+    } finally {
+      await mounted.cleanup();
+      if (previousBridge) window.desktopBridge = previousBridge;
+      else delete window.desktopBridge;
+      useCompanionSurfaceStore.setState({ workspaces: previousWorkspaces });
+    }
   });
 
   it("gives the composer's model picker a hook the shortcuts can open", async () => {

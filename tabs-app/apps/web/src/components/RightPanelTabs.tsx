@@ -5,6 +5,10 @@ import {
   EMPTY_COMPANION_WORKSPACE,
   useCompanionSurfaceStore,
 } from "~/stores/companionSurfaceStore";
+import {
+  selectedTerminalSurfaceAttachmentFile,
+  surfaceAttachmentFile,
+} from "~/lib/threadSurfaceAttachment";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { isElectron } from "~/env";
 import { useAtomValue } from "@effect/atom-react";
@@ -18,6 +22,7 @@ import { CompanionBrowserPanel } from "./agents/companion/CompanionBrowserPanel"
 import { CompanionFilesPanel } from "./agents/companion/CompanionFilesPanel";
 import { CompanionTerminalPanel } from "./agents/companion/CompanionTerminalPanel";
 import { CompanionDevicePanel, closeDeviceTab } from "./device/DevicePanel";
+import { DeviceComparisonResultPanel } from "./device/DeviceComparisonPanel";
 import { CompanionPRPanel } from "./agents/companion/CompanionPRPanel";
 import type { DiffPanelMode } from "./DiffPanelShell";
 import {
@@ -81,7 +86,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   });
   const disabledSurfaces = sideChatReason === null ? undefined : { sidechat: sideChatReason };
 
-  const target = useActiveProjectTarget(threadId);
+  const target = useActiveProjectTarget(threadId, environmentId);
   const scope = `${environmentId ?? target?.environmentId ?? "local"}:${threadId ?? target?.projectId ?? "projectless"}`;
   const workspace = useCompanionSurfaceStore(
     (state) => state.workspaces[scope] ?? EMPTY_COMPANION_WORKSPACE,
@@ -206,26 +211,46 @@ export const RightPanelTabs = memo(function RightPanelTabs({
     else handleSelectTab(kind);
   };
   const counts = { stash: stashes.length, queue: totalQueuedCount };
+  const panelEnvironmentId = environmentId ?? target?.environmentId;
 
   const body = !active ? null : active.kind === "diff" ? (
     <CompanionDiffPanel threadId={threadId} />
   ) : active.kind === "browser" ? (
     visible ? (
-      <CompanionBrowserPanel key={active.id} surface={active} scope={scope} threadId={threadId} />
+      <CompanionBrowserPanel
+        key={active.id}
+        surface={active}
+        scope={scope}
+        threadId={threadId}
+        environmentId={panelEnvironmentId}
+      />
     ) : null
   ) : active.kind === "device" ? (
-    <CompanionDevicePanel
-      key={active.id}
-      surface={active}
-      scope={scope}
-      threadId={threadId}
-      environmentId={environmentId ?? target?.environmentId}
-      visible={visible}
-    />
+    active.deviceComparisonResult ? (
+      threadId && panelEnvironmentId ? (
+        <DeviceComparisonResultPanel
+          key={active.id}
+          environmentId={panelEnvironmentId}
+          projectId={target?.projectId}
+          threadId={threadId}
+          reference={active.deviceComparisonResult}
+          visible={visible}
+        />
+      ) : null
+    ) : (
+      <CompanionDevicePanel
+        key={active.id}
+        surface={active}
+        scope={scope}
+        threadId={threadId}
+        environmentId={panelEnvironmentId}
+        visible={visible}
+      />
+    )
   ) : active.kind === "files" ? (
     <CompanionFilesPanel key={active.id} surface={active} scope={scope} threadId={threadId} />
   ) : active.kind === "terminal" ? (
-    <CompanionTerminalPanel threadId={threadId} />
+    <CompanionTerminalPanel threadId={threadId} environmentId={environmentId} />
   ) : active.kind === "pr" ? (
     <CompanionPRPanel key={threadId} threadId={threadId} />
   ) : active.kind === "sidechat" ? (
@@ -258,10 +283,26 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   return (
     <div
       data-companion-design="grouped"
+      data-companion-scope={scope}
       className="companion-frame flex h-full min-w-0 flex-col bg-background text-foreground"
     >
       <CompanionDesignShell
         instances={workspace.tabs}
+        attachmentFor={
+          target && threadId
+            ? (id) => {
+                const tab = workspace.tabs.find((item) => item.id === id);
+                const location = {
+                  environmentId: environmentId ?? target.environmentId,
+                  projectId: target.projectId,
+                  threadId,
+                };
+                if (tab?.kind === "terminal")
+                  return selectedTerminalSurfaceAttachmentFile(location);
+                return tab ? surfaceAttachmentFile(location, tab) : null;
+              }
+            : undefined
+        }
         activeId={workspace.activeId}
         choosing={choosing}
         counts={counts}

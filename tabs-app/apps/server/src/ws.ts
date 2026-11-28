@@ -1,4 +1,16 @@
 import { readThreadFamilyPage } from "./orchestration-v2/ThreadFamilyQuery.ts";
+import {
+  readPartnerCenterConnection,
+  writePartnerCenterConnection,
+} from "./mcp/toolkits/browserWorkflow/partnerCenterConnection.ts";
+import {
+  BrowserWorkflowError,
+  reconcileBrowserWorkflowSubmission,
+  resolveBrowserWorkflowPending,
+  readBrowserWorkflowResult,
+} from "./mcp/toolkits/browserWorkflow/workflow.ts";
+import { figmaCanvasJournal } from "./mcp/toolkits/figmaCanvas/journal.ts";
+import { isDeepStrictEqual } from "node:util";
 import type { OrchestrationV2ThreadStreamItem } from "@tabs/contracts";
 import * as nodePath from "node:path";
 import { deepSeekHarnessHome } from "./provider/deepSeekProfiles";
@@ -13,8 +25,15 @@ import { GitEnvironment } from "./git/Services/GitEnvironment.ts";
 import { GitEnvironmentLive } from "./git/Layers/GitEnvironment.ts";
 import { GitCommandError as LegacyGitCommandError } from "./git/Errors.ts";
 import {
+  BrowserWorkflowResultError,
+  BrowserWorkflowReceipt,
+  BrowserWorkflowRpcGroup,
   CoreWsRpcGroup,
+  FigmaCanvasResultError,
+  type FigmaCanvasResultInput,
   TeammatesRpcGroup,
+  TerminalInputDeclineRpcGroup,
+  TerminalInputReviewRpcGroup,
   TestingWsRpcGroup,
   WorkspaceCompatibilityRpcGroup,
 } from "@tabs/contracts";
@@ -36,6 +55,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -52,6 +72,7 @@ import {
   CommandId,
   AuthAccessStreamError,
   type AuthAccessStreamEvent,
+  NativeComputerError,
   AuthOrchestrationOperateScope,
   type AuthEnvironmentScope,
   type ScheduledTaskListResult,
@@ -62,13 +83,14 @@ import {
   ClientSurface,
   ClientWebDeployment,
   type DiscoveredLocalServerList,
+  DeviceComparisonError,
   type EditorId,
   type FileManagerRevealKind,
   type OrchestrationClientOrigin,
   type OrchestrationV2Command,
   type GitActionProgressEvent,
   type GitManagerServiceError,
-  type MessageId,
+  MessageId,
   type AcpRegistryImportSessionInput,
   type AcpRegistryDeleteSessionInput,
   type AcpRegistryDisableProviderInput,
@@ -118,10 +140,12 @@ import {
   type PersistChatAttachmentsInput,
   RpcClientId,
   EnvironmentAuthorizationError,
+  type EnvironmentId,
   type ProjectId,
   type ProviderDriverKind,
   type ProviderInstanceId,
   ThreadId,
+  TerminalAgentInputReviewUnavailableError,
   type TerminalAttachStreamEvent,
   type TerminalError,
   type TerminalEvent,
@@ -1255,6 +1279,33 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   },
 );
 
+export function readOwnedFigmaCanvasResult(
+  stateDir: string,
+  owner: { environmentId: EnvironmentId; projectId: ProjectId },
+  { operationId, threadId }: typeof FigmaCanvasResultInput.Type,
+) {
+  const unavailable = new FigmaCanvasResultError({
+    message: "The saved Figma frame is unavailable in this thread.",
+  });
+  return Effect.gen(function* () {
+    const saved = yield* Effect.tryPromise({
+      try: () =>
+        figmaCanvasJournal(stateDir, operationId).state({
+          environmentId: owner.environmentId,
+          threadId,
+        }),
+      catch: () => unavailable,
+    });
+    if (
+      !saved?.receipt ||
+      saved.target.projectId !== owner.projectId ||
+      !isDeepStrictEqual(saved.receipt.target, saved.target)
+    )
+      return yield* unavailable;
+    return saved.receipt;
+  });
+}
+
 const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientOrigin: OrchestrationClientOrigin,
@@ -1263,9 +1314,187 @@ const layerWsRpc = (
 ) =>
   Layer.mergeAll(
     WorkspaceCompatibilityRpcGroup.toLayer(makeWorkspaceCompatibilityHandlers),
+    TerminalInputDeclineRpcGroup.toLayer(
+      Effect.gen(function* () {
+        const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+        const terminalManager = yield* TerminalManager.TerminalManager;
+        return {
+          [WS_METHODS.terminalAgentInputDeclinePending]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.terminalAgentInputDeclinePending,
+              Effect.gen(function* () {
+                const unavailable = new TerminalAgentInputReviewUnavailableError();
+                const thread = yield* threadManagement
+                  .getThreadShell(ThreadId.make(input.threadId))
+                  .pipe(Effect.mapError(() => unavailable));
+                if (!thread || thread.deletedAt !== null || thread.archivedAt !== null) {
+                  return yield* unavailable;
+                }
+                return {
+                  declined: [...(yield* terminalManager.declinePendingAgentInput(input.threadId))],
+                };
+              }),
+              { "rpc.aggregate": "terminal" },
+            ),
+        };
+      }),
+    ),
+    TerminalInputReviewRpcGroup.toLayer(
+      Effect.gen(function* () {
+        const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+        const terminalManager = yield* TerminalManager.TerminalManager;
+        return {
+          [WS_METHODS.terminalAgentInputReview]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.terminalAgentInputReview,
+              Effect.gen(function* () {
+                const unavailable = new TerminalAgentInputReviewUnavailableError();
+                const thread = yield* threadManagement
+                  .getThreadShell(ThreadId.make(input.threadId))
+                  .pipe(Effect.mapError(() => unavailable));
+                if (!thread || thread.deletedAt !== null || thread.archivedAt !== null) {
+                  return yield* unavailable;
+                }
+                return yield* terminalManager.reviewAgentInput(input);
+              }),
+              { "rpc.aggregate": "terminal" },
+            ),
+        };
+      }),
+    ),
+    BrowserWorkflowRpcGroup.toLayer(
+      Effect.gen(function* () {
+        const config = yield* ServerConfig.ServerConfig;
+        const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
+        return {
+          [WS_METHODS.previewAutomationAuthorizeDeviceScreenshot]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.previewAutomationAuthorizeDeviceScreenshot,
+              previewAutomationBroker.authorizeDeviceScreenshot(input, currentSession.sessionId),
+              { "rpc.aggregate": "preview-automation" },
+            ),
+          [WS_METHODS.previewPartnerCenterConnection]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.previewPartnerCenterConnection,
+              Effect.gen(function* () {
+                if (currentSession.subject !== "desktop-bootstrap")
+                  return yield* new BrowserWorkflowResultError({
+                    message: "Manage the Partner Center connection in the local Tabs desktop app.",
+                  });
+                if (input.action !== "configure") {
+                  if (input.action === "read")
+                    return { configured: (yield* readPartnerCenterConnection) !== undefined };
+                  yield* writePartnerCenterConnection(null);
+                  return { configured: false };
+                }
+                const { clientSecret, ...registration } = input.connection;
+                const secret = Redacted.value(clientSecret);
+                if (!secret.trim())
+                  return yield* new BrowserWorkflowResultError({
+                    message: "Enter the Entra client secret.",
+                  });
+                yield* writePartnerCenterConnection({ ...registration, clientSecret: secret });
+                return { configured: true };
+              }),
+              { "rpc.aggregate": "preview" },
+            ),
+          [WS_METHODS.previewGetFigmaCanvasResult]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.previewGetFigmaCanvasResult,
+              Effect.gen(function* () {
+                if (currentSession.subject !== "desktop-bootstrap")
+                  return yield* new FigmaCanvasResultError({
+                    message: "Open this result in the Tabs desktop app on its original machine.",
+                  });
+                const unavailable = new FigmaCanvasResultError({
+                  message: "The saved Figma frame is unavailable in this thread.",
+                });
+                const thread = yield* threadManagement
+                  .getThreadShell(input.threadId)
+                  .pipe(Effect.mapError(() => unavailable));
+                if (!thread || thread.deletedAt !== null) return yield* unavailable;
+                const { environmentId } = yield* serverEnvironment.getDescriptor;
+                return yield* readOwnedFigmaCanvasResult(
+                  config.stateDir,
+                  { environmentId, projectId: thread.projectId },
+                  input,
+                );
+              }),
+              { "rpc.aggregate": "preview" },
+            ),
+          [WS_METHODS.previewGetWorkflowResult]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.previewGetWorkflowResult,
+              Effect.gen(function* () {
+                if (currentSession.subject !== "desktop-bootstrap")
+                  return yield* new BrowserWorkflowResultError({
+                    message: "Open this result in the Tabs desktop app on its original machine.",
+                  });
+                const unavailable = new BrowserWorkflowResultError({
+                  message: "The saved browser result is unavailable in this thread.",
+                });
+                const thread = yield* threadManagement
+                  .getThreadShell(input.threadId)
+                  .pipe(Effect.mapError(() => unavailable));
+                if (!thread || thread.deletedAt !== null) return yield* unavailable;
+                const { environmentId } = yield* serverEnvironment.getDescriptor;
+                const owner = { environmentId, threadId: input.threadId };
+                return yield* Effect.tryPromise({
+                  try: (signal) => {
+                    if (input.resolvePending)
+                      return resolveBrowserWorkflowPending(
+                        config.stateDir,
+                        owner,
+                        input,
+                        thread.projectId,
+                        input.resolvePending,
+                      );
+                    if (!input.reconcileSubmission)
+                      return readBrowserWorkflowResult(config.stateDir, owner, input);
+                    return reconcileBrowserWorkflowSubmission(
+                      config.stateDir,
+                      owner,
+                      input,
+                      thread.projectId,
+                      (saved) =>
+                        Effect.runPromise(
+                          previewAutomationBroker
+                            .invoke({
+                              scope: { environmentId, thread: { threadId: input.threadId } },
+                              desktopSessionId: currentSession.sessionId,
+                              tabId: saved.target.tabId,
+                              operation: "readWorkflowReceipt",
+                              input: saved,
+                            })
+                            .pipe(
+                              Effect.flatMap(Schema.decodeUnknownEffect(BrowserWorkflowReceipt)),
+                              Effect.mapError(
+                                () =>
+                                  new BrowserWorkflowError(
+                                    "The original browser could not verify the draft status. Check the draft again.",
+                                  ),
+                              ),
+                            ),
+                          { signal },
+                        ),
+                    );
+                  },
+                  catch: (cause) =>
+                    cause instanceof BrowserWorkflowError
+                      ? new BrowserWorkflowResultError({ message: cause.message })
+                      : unavailable,
+                });
+              }),
+              { "rpc.aggregate": "preview" },
+            ),
+        };
+      }),
+    ),
     CoreWsRpcGroup.toLayer(
       Effect.gen(function* () {
         const currentSessionId = currentSession.sessionId;
+        const computerUse = yield* ComputerUse.ComputerUse;
         const sql = yield* SqlClient.SqlClient;
         const threadManagement = yield* ThreadManagementService.ThreadManagementService;
         const nativeChildWork = yield* NativeChildWorkQuery.NativeChildWorkQuery;
@@ -2895,6 +3124,7 @@ const layerWsRpc = (
                 const settings = yield* providerInstanceMutation === undefined
                   ? serverSettings.updateSettings(nextPatch)
                   : serverSettings.updateProviderInstance(providerInstanceMutation, nextPatch);
+                if (!settings.computerUseEnabled) yield* computerUse.revokeAll;
                 return ServerSettings.redactServerSettingsForClient(settings);
               }),
               {
@@ -2909,6 +3139,59 @@ const layerWsRpc = (
             observeRpcEffect(WS_METHODS.serverComputerUsePermissions, ComputerUse.readPermissions, {
               "rpc.aggregate": "server",
             }),
+          [WS_METHODS.serverNativeComputer]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.serverNativeComputer,
+              Effect.gen(function* () {
+                if (currentSession.subject !== "desktop-bootstrap") {
+                  return yield* new NativeComputerError({
+                    code: "local_desktop_required",
+                    message:
+                      "Manage desktop window access from the Tabs desktop app on this machine.",
+                  });
+                }
+                if (["list", "attach", "resume", "reveal"].includes(input.op)) {
+                  const settings = yield* serverSettings.getSettings.pipe(
+                    Effect.mapError(
+                      () =>
+                        new NativeComputerError({
+                          code: "settings_unavailable",
+                          message: "Computer use settings are unavailable.",
+                        }),
+                    ),
+                  );
+                  if (!settings.computerUseEnabled)
+                    return yield* new NativeComputerError({
+                      code: "disabled",
+                      message: "Enable Computer use in Settings > Labs.",
+                    });
+                }
+                if (input.op === "attach" || input.op === "resume") {
+                  const thread = yield* threadManagement.getThreadShell(input.threadId).pipe(
+                    Effect.mapError(
+                      () =>
+                        new NativeComputerError({
+                          code: "thread_unavailable",
+                          message: "The thread could not be loaded.",
+                        }),
+                    ),
+                  );
+                  if (!thread || thread.deletedAt !== null || thread.archivedAt !== null)
+                    return yield* new NativeComputerError({
+                      code: "thread_unavailable",
+                      message: "Open a saved thread before attaching a desktop window.",
+                    });
+                }
+                return yield* computerUse
+                  .control(input)
+                  .pipe(
+                    Effect.mapError(
+                      ({ code, message }) => new NativeComputerError({ code, message }),
+                    ),
+                  );
+              }),
+              { "rpc.aggregate": "server" },
+            ),
           [WS_METHODS.serverDiscoverSourceControl]: (_input) =>
             observeRpcEffect(
               WS_METHODS.serverDiscoverSourceControl,
@@ -3998,6 +4281,65 @@ const layerWsRpc = (
             observeRpcEffect(WS_METHODS.deviceAction, deviceService.action(input), {
               "rpc.aggregate": "device",
             }),
+          [WS_METHODS.deviceComparison]: (input) => {
+            const returning = input.action === "returnAgentControl" || input.action === "resume";
+            const comparison = returning
+              ? deviceService.comparison(
+                  input,
+                  currentSessionId,
+                  undefined,
+                  (receipt, isCurrent) => {
+                    const change =
+                      receipt.changed === undefined
+                        ? ""
+                        : receipt.changed
+                          ? " Tabs observed a change in the app's accessibility structure."
+                          : " Tabs observed the same accessibility structure.";
+                    const meaning = receipt.meaning
+                      ? ` My description of the correction is ${JSON.stringify(receipt.meaning)}.`
+                      : "";
+                    const text = receipt.comparisonRunId
+                      ? `I returned control of the destination in comparison ${receipt.comparisonRunId}. Replay has resumed. Call device_comparison_status with this runId and waitForCheckpoint=true. Continue from that checkpoint and finish the requested work, including any outstanding approved evidence transfer. If replay pauses again, show the reason and ask for a correction.`
+                      : `I returned control of ${JSON.stringify({ ...receipt.target, appId: receipt.appId })} to this conversation.${change}${meaning} Call device_open for these exact host and device IDs. Take a fresh snapshot in the retained app and check whether the previous step already took effect before acting.`;
+                    return startup
+                      .enqueueCommand(
+                        Effect.gen(function* () {
+                          if (!isCurrent())
+                            return yield* new DeviceComparisonError({
+                              reason: "Device control changed before the continuation was queued.",
+                            });
+                          return yield* ThreadMessageIntake.dispatchCommand({
+                            type: "message.dispatch",
+                            commandId: CommandId.make(receipt.id),
+                            messageId: MessageId.make(receipt.id),
+                            threadId: receipt.threadId,
+                            text,
+                            attachments: [],
+                            dispatchMode: { type: "queue_after_active" },
+                          }).pipe(Effect.provide(intakeContext));
+                        }),
+                      )
+                      .pipe(
+                        Effect.asVoid,
+                        Effect.mapError(
+                          () =>
+                            new DeviceComparisonError({
+                              reason:
+                                "The device returned, but Tabs could not confirm the continuation. Retry from the Device panel.",
+                            }),
+                        ),
+                      );
+                  },
+                )
+              : deviceService.comparison(input, currentSessionId);
+            return observeRpcEffect(
+              WS_METHODS.deviceComparison,
+              input.action === "returnAgentControl"
+                ? comparison.pipe(Effect.uninterruptible)
+                : comparison,
+              { "rpc.aggregate": "device" },
+            );
+          },
           [WS_METHODS.subscribeDeviceState]: (_input) =>
             observeRpcStream(
               WS_METHODS.subscribeDeviceState,
@@ -4239,6 +4581,7 @@ const layerWsRpc = (
 export const layer = Layer.unwrap(
   Effect.gen(function* () {
     const previewAutomationBroker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+    const computerUse = yield* ComputerUse.ComputerUse;
     const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const pullRequests = yield* PullRequestService.PullRequestService;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
@@ -4295,6 +4638,7 @@ export const layer = Layer.unwrap(
               Layer.provide(AgentSessionScanner.layer),
               Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),
+              Layer.provide(Layer.succeed(ComputerUse.ComputerUse, computerUse)),
               // One server-lifetime service means clients share the same PR caches, and a WS
               // mutation invalidates the HTTP diff cache that every client reads from.
               Layer.provide(Layer.succeed(PullRequestService.PullRequestService, pullRequests)),

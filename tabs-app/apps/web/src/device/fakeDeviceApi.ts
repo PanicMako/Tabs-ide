@@ -56,6 +56,62 @@ export const fakeDeviceDetail = (overrides: Partial<DeviceDetail> = {}): DeviceD
     ...overrides,
   }) as DeviceDetail;
 
+export function fakeIosMjpegUrl(hubBasePath: string, hostId: string, deviceId: string): string {
+  const url = new URL(
+    `${hubBasePath}/vendor/serve-sim/helper/${encodeURIComponent(deviceId)}/stream.mjpeg`,
+    window.location.origin,
+  );
+  url.searchParams.set("hostId", hostId);
+  return url.href;
+}
+
+export async function fakeDeviceJpeg(
+  width: number,
+  height: number,
+  color = "black",
+): Promise<Uint8Array<ArrayBuffer>> {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d")!;
+  context.fillStyle = color;
+  context.fillRect(0, 0, width, height);
+  const jpeg = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not encode the device fixture as JPEG."));
+    }, "image/jpeg");
+  });
+  return new Uint8Array(await jpeg.arrayBuffer());
+}
+
+export function createFakeMjpegStream() {
+  const encoder = new TextEncoder();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(stream) {
+      controller = stream;
+    },
+  });
+  return {
+    response: new Response(body, {
+      headers: { "Content-Type": "multipart/x-mixed-replace; boundary=frame" },
+    }),
+    writeFrame(jpeg: Uint8Array) {
+      controller.enqueue(
+        encoder.encode(
+          `--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.byteLength}\r\n\r\n`,
+        ),
+      );
+      controller.enqueue(jpeg);
+      controller.enqueue(encoder.encode("\r\n"));
+    },
+    close() {
+      controller.close();
+    },
+  };
+}
+
 /** A recording fake for the device API. Never touches a real simulator. */
 export function createFakeDeviceApi(initial: DeviceServiceState = fakeDeviceState()) {
   let state = initial;
@@ -89,6 +145,7 @@ export function createFakeDeviceApi(initial: DeviceServiceState = fakeDeviceStat
     shutdown: (input) => record("shutdown", input, undefined),
     detail: (input) => record("detail", input, fakeDeviceDetail({ deviceId: input.deviceId })),
     action: (input) => record("action", input, fakeDeviceDetail({ deviceId: input.deviceId })),
+    comparison: (input) => record("comparison", input, {}),
     subscribe: (callback) => {
       listeners.add(callback);
       callback(state);

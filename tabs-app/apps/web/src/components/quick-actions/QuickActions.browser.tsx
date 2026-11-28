@@ -53,7 +53,9 @@ it("keeps secondary actions in one More group without page navigation or duplica
     />,
   );
   await page.getByRole("button", { name: "More actions" }).click();
-  await expect.element(page.getByRole("button", { name: /Usage & limits/ })).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "Add to conversation", exact: true }))
+    .toBeVisible();
   expect(document.querySelectorAll('[aria-label="Source control"]')).toHaveLength(1);
   expect(document.querySelectorAll(".qa-radial-surface button")).toHaveLength(
     QUICK_ACTIONS.length + 1,
@@ -80,8 +82,69 @@ it("rotates keyboard focus and opens More sub-options", async () => {
   await page.getByRole("button", { name: "More actions" }).click();
   await userEvent.keyboard("{ArrowDown}");
   await expect
-    .element(page.getByRole("button", { name: "Return to code", exact: true }))
+    .element(page.getByRole("button", { name: "Add to conversation", exact: true }))
     .toHaveFocus();
+});
+it("groups attach and agent-control entries into two More parents with sub-options", async () => {
+  const execute = vi.fn(async () => {});
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "More actions" }).click();
+  // The per-target entries are gone from More; two parents replace them.
+  for (const name of [
+    "My turn — selected device",
+    "Stop agent — selected device",
+    "My turn — attached desktop window",
+    "Review selected browser text",
+  ]) {
+    expect(document.querySelector(`[aria-label="${name}"]`)).toBeNull();
+  }
+  await expect.element(page.getByRole("button", { name: "Add to conversation" })).toBeVisible();
+  const agent = page.getByRole("button", { name: "Agent control", exact: true });
+  await expect.element(agent).toBeVisible();
+  // No More label is cut off at the flyout's width.
+
+  await page.getByRole("button", { name: "Add to conversation" }).click();
+  await page.getByRole("button", { name: "Selected browser text", exact: true }).click();
+  expect(execute).toHaveBeenCalledWith("review-browser-selection", "");
+
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Agent control", exact: true }).click();
+  await page.getByRole("button", { name: "Stop agent", exact: true }).click();
+  expect(execute).toHaveBeenLastCalledWith("agent-stop-all", "");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Worktrees & storage", exact: true }).click();
+  expect(execute).toHaveBeenLastCalledWith("worktrees", "");
+  // The Stop agent option has its own stop icon, not the hand.
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Agent control", exact: true }).click();
+  expect(
+    document.querySelector('[aria-label="Stop agent"] svg')?.classList.contains("lucide-square"),
+  ).toBe(true);
+});
+it("scrolls a long More list inside a bounded height", async () => {
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS.slice(0, 7).concat(
+        ...Array.from({ length: 14 }, (_, i) => ({ ...QUICK_ACTIONS[0]!, id: `x${i}` }) as never),
+      )}
+      execute={async () => {}}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "More actions" }).click();
+  const scroller = document.querySelector<HTMLElement>('[data-testid="qa-curved-scroll"]')!;
+  expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+  expect(scroller.clientHeight).toBeLessThanOrEqual(9 * 34);
 });
 it("uses one theme accent on a themed plate instead of per-action colours", async () => {
   await render(
@@ -147,14 +210,17 @@ it("uses custom sub-actions in saved order", async () => {
 });
 
 it("bends More's menu around the ring, on its parent's side", async () => {
+  await page.viewport(1000, 720);
   await render(
-    <LauncherSurface
-      design="compass"
-      actions={QUICK_ACTIONS}
-      execute={async () => {}}
-      disabled={() => undefined}
-      preview
-    />,
+    <div style={{ width: 1000, height: 720, display: "grid", placeItems: "center" }}>
+      <LauncherSurface
+        design="compass"
+        actions={QUICK_ACTIONS}
+        execute={async () => {}}
+        disabled={() => undefined}
+        preview
+      />
+    </div>,
   );
   await page.getByRole("button", { name: "More actions" }).click();
   const parent = document.querySelector<HTMLElement>('[aria-label="More actions"]')!;

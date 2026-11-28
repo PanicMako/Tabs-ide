@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import type { TerminalQuickCommand } from "@tabs/contracts";
+import type { BrowserQuickAction, TerminalQuickCommand } from "@tabs/contracts";
 import { useInstalledExtensions } from "../../state/extensions";
 import { useTerminalQuickCommands } from "../../hooks/useTerminalQuickCommands";
 import { quickCommandTitle } from "../../lib/terminalQuickCommands";
 import type { CustomLauncherAction, LauncherExtraAction } from "./actions";
+import { useWorkspaceShellStore } from "../../workspaceShellStore";
 import { extensionLauncherActions } from "./extensionQuickActions";
 
 export const TERMINAL_COMMAND_ACTION_PREFIX = "terminal-command:";
@@ -26,11 +27,27 @@ export function terminalQuickCommandLauncherActions(
 export function useLauncherExtraActions(): LauncherExtraAction[] {
   const installedExtensions = useInstalledExtensions();
   const { visible } = useTerminalQuickCommands();
+  const browserActions = useWorkspaceShellStore((state) => {
+    const projectId = state.session.activeProjectId;
+    return projectId ? state.projectSettingsByProjectId[projectId]?.browserQuickActions : undefined;
+  });
   return useMemo(
     () => [
       ...extensionLauncherActions(installedExtensions),
       ...terminalQuickCommandLauncherActions(visible),
+      ...(browserActions ?? []).map(browserQuickActionLauncherEntry),
     ],
-    [installedExtensions, visible],
+    [browserActions, installedExtensions, visible],
   );
+}
+
+function browserQuickActionLauncherEntry(action: BrowserQuickAction): CustomLauncherAction {
+  return {
+    id: `browser-quick-action:${action.id}`,
+    label: action.label,
+    detail: action.origin,
+    group: "Custom",
+    icon: "play",
+    custom: { actionId: "browser-quick-action", query: action.id },
+  };
 }

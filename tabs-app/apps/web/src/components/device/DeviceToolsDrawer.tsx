@@ -97,7 +97,10 @@ export function DeviceToolsDrawer({
   const [appId, setAppId] = useState("");
   const [coords, setCoords] = useState({ latitude: "", longitude: "" });
   const root = useRef<HTMLElement>(null);
-  useStaggerIn(root, ".dv-section", open ? "open" : "closed", { y: 10, stagger: 0.05 });
+  useStaggerIn(root, ".dv-section", open ? "open" : "closed", {
+    y: 10,
+    stagger: 0.05,
+  });
 
   // Read when opened, so a closed drawer costs nothing.
   useEffect(() => {
@@ -114,7 +117,11 @@ export function DeviceToolsDrawer({
   const act = useCallback(
     async (action: Record<string, unknown>) => {
       setBusy(true);
-      const next = await runDeviceAction(api, { hostId, deviceId, ...action } as never);
+      const next = await runDeviceAction(api, {
+        hostId,
+        deviceId,
+        ...action,
+      } as never);
       if (next) setDetail(next);
       setBusy(false);
     },
@@ -287,7 +294,12 @@ export function DeviceToolsDrawer({
                 disabled={busy || !appId.trim()}
                 aria-label={`Grant ${permission}`}
                 onClick={() =>
-                  run({ type: "setPermission", appId: appId.trim(), permission, decision: "grant" })
+                  run({
+                    type: "setPermission",
+                    appId: appId.trim(),
+                    permission,
+                    decision: "grant",
+                  })
                 }
               >
                 Grant
@@ -319,7 +331,11 @@ export function DeviceToolsDrawer({
             className="sl-secondary w-fit rounded-full"
             disabled={busy || !appId.trim()}
             onClick={() =>
-              run({ type: "sendPush", appId: appId.trim(), payload: "Test notification" })
+              run({
+                type: "sendPush",
+                appId: appId.trim(),
+                payload: "Test notification",
+              })
             }
           >
             Send a test push to the app id above

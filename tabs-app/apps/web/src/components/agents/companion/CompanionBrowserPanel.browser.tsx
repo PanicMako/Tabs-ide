@@ -2,14 +2,52 @@ import "../../../index.css";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import {
+  EnvironmentId,
+  ProjectId,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+  RunId,
+  ThreadId,
+  type DesktopBrowserAutomationInput,
+  type DesktopBrowserSessionState,
+  type DeviceComparisonInput,
+  type DeviceComparisonReport,
+  type DeviceComparisonStatus,
+} from "@tabs/contracts";
+import { GlobalConfirmDialog } from "../../GlobalConfirmDialog";
+import { useComposerDraftStore } from "~/composerDraftStore";
+import { scopedComposerThreadId } from "~/state/composerDrafts";
+import {
+  setPrimaryEnvironmentIdForTesting,
+  getPrimaryEnvironmentId,
+} from "~/connection/environmentApiRegistry";
 import { RightPanelTabs } from "../../RightPanelTabs";
+import { MessagesTimeline } from "../../chat/MessagesTimeline";
+import { DeviceComparisonDraftLink } from "../../device/DeviceComparisonDraftLink";
+import { DeviceComparisonResultPanel } from "../../device/DeviceComparisonPanel";
+import { openDeviceComparisonRequest, openDeviceComparisonResult } from "~/device/comparisonResult";
+import { deriveTimelineEntries, deriveWorkLogEntries } from "~/session-logic";
+import {
+  BROWSER_SELECTION_REVIEW_EVENT,
+  type BrowserSelectionReviewTarget,
+} from "~/lib/browserSelectionDrag";
+import { activitiesFromTurnItems } from "~/state/turnItemActivities";
 import { useCompanionSurfaceStore } from "~/stores/companionSurfaceStore";
 import { useRightPanelStore } from "~/stores/rightPanelStore";
+import { useWorkspaceShellStore } from "~/workspaceShellStore";
 import { emptyBrowserState } from "./browserSession";
+const comparison = vi.hoisted(() =>
+  vi.fn<(input: DeviceComparisonInput) => Promise<DeviceComparisonStatus>>(),
+);
+vi.mock("~/connection/environmentApiRegistry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/connection/environmentApiRegistry")>()),
+  environmentApi: async () => ({ device: { comparison } }),
+}));
 vi.mock("~/hooks/useActiveProjectTarget", () => ({
   useActiveProjectTarget: () => ({
     projectId: "project",
     projectName: "Project",
+    environmentId: testEnvironment,
     cwd: "/workspace",
   }),
 }));
@@ -27,7 +65,10 @@ vi.mock("~/components/NativePreviewAutomationHost", () => ({
   startNativeBrowserRecording: vi.fn(),
   stopNativeBrowserRecording: vi.fn(),
 }));
-const scope = "local:project";
+const testEnvironment = EnvironmentId.make("test-env");
+const scope = "test-env:project";
+const png =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jNioAAAAASUVORK5CYII=";
 const originalBridge = window.desktopBridge;
 const originalWorkspace = useCompanionSurfaceStore.getState().workspaces;
 const originalPanel = useRightPanelStore.getState();
@@ -35,15 +76,22 @@ let sessionId: string;
 let bridge: ReturnType<typeof mockBridge>;
 function mockBridge() {
   return {
-    onBrowserSessionState: vi.fn(() => vi.fn()),
+    onBrowserSessionState: vi.fn((_listener: (state: DesktopBrowserSessionState) => void) =>
+      vi.fn(),
+    ),
     getBrowserHostState: vi.fn(async () => ({ available: true })),
     ensureBrowserSession: vi.fn(async () => {}),
-    getBrowserSessionState: vi.fn(async () => ({
-      ...emptyBrowserState("project", sessionId),
-      currentUrl: "https://example.test/preserved",
-      pageTitle: "Preserved page",
-      canGoBack: true,
-    })),
+    getBrowserSessionState: vi.fn(
+      async (): Promise<DesktopBrowserSessionState> => ({
+        ...emptyBrowserState("project", sessionId),
+        currentUrl: "https://example.test/preserved",
+        pageTitle: "Preserved page",
+        canGoBack: true,
+      }),
+    ),
+    runBrowserAutomation: vi.fn<(input: DesktopBrowserAutomationInput) => Promise<unknown>>(
+      async () => ({ grantId: "selected-transfer" }),
+    ),
     activateBrowserSession: vi.fn(async () => {}),
     hideBrowserSession: vi.fn(async () => {}),
     setBrowserBounds: vi.fn(async () => {}),
@@ -52,6 +100,7 @@ function mockBridge() {
   };
 }
 beforeEach(() => {
+  comparison.mockReset().mockResolvedValue({});
   useCompanionSurfaceStore.setState({ workspaces: {} });
   const id = useCompanionSurfaceStore
     .getState()
@@ -74,6 +123,7 @@ function Harness({ visible = true }: { visible?: boolean }) {
     </div>
   );
 }
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
@@ -166,3 +216,138 @@ it("opens a new tab on the start page and only loads once an address is chosen",
     await view.unmount();
   }
 });
+
+async function renderSelectionBrowser(threadId: ThreadId) {
+  const surfaceId = useCompanionSurfaceStore
+    .getState()
+    .open(`${testEnvironment}:${threadId}`, "browser", {
+      url: "https://example.test/excerpt",
+      profileId: "work",
+    });
+  sessionId = `agents-surface-${surfaceId}`;
+  const state = {
+    ...emptyBrowserState("project", sessionId),
+    currentUrl: "https://example.test/excerpt",
+    profileId: "work",
+    instanceId: "original-browser",
+    pageRef: "a".repeat(64),
+  };
+  const text = "  Selected heading\n$20.00  ";
+  bridge.getBrowserSessionState.mockResolvedValue(state);
+  bridge.runBrowserAutomation.mockResolvedValue({ text });
+  const previousEnvironment = getPrimaryEnvironmentId();
+  setPrimaryEnvironmentIdForTesting(testEnvironment);
+  const view = await render(
+    <RightPanelTabs
+      mode="sidebar"
+      environmentId={testEnvironment}
+      threadId={threadId}
+      onClose={() => {}}
+    />,
+  );
+  const scoped = scopedComposerThreadId(testEnvironment, threadId);
+  return {
+    state,
+    surfaceId,
+    text,
+    files: () => useComposerDraftStore.getState().draftsByThreadId[scoped]?.files ?? [],
+    async close() {
+      setPrimaryEnvironmentIdForTesting(previousEnvironment);
+      await view.unmount();
+    },
+  };
+}
+
+async function openSelectionReview() {
+  await page.getByRole("button", { name: "Browser tools" }).click();
+  await page.getByRole("menuitem", { name: "Review browser selection" }).click();
+  const review = page.getByRole("dialog", { name: "Review browser selection" });
+  await expect.element(review.getByLabelText("Selected browser text")).toBeVisible();
+  return review;
+}
+
+const pairAction = "Attach both first-difference screenshots";
+const pairGrantIds = [
+  "692cb917-ea45-49cb-b0b5-cebec45d66ca",
+  "62976210-4a24-48ef-a66a-79e5a732afc8",
+];
+
+function savedComparison(runId: string, step: number) {
+  return {
+    runId,
+    phase: "stopped",
+    savedAt: "2026-11-25T00:00:00.000Z",
+    source: {
+      name: "Checkout iPhone",
+      hostId: "ios-lab",
+      deviceId: "ios-42",
+      platform: "ios",
+      appId: "com.apple.mobilesafari",
+    },
+    target: {
+      name: "Checkout Pixel",
+      hostId: "android-lab",
+      deviceId: "android-24",
+      platform: "android",
+      appId: "com.android.chrome",
+    },
+    firstDifference: { step, kind: "total", reason: "The totals differ." },
+    busy: false,
+    playing: false,
+    completedSteps: step - 1,
+    steps: Array.from({ length: step }, () => ({ label: "Continue" })),
+    canResume: false,
+    uncertainTap: false,
+  } satisfies DeviceComparisonReport;
+}
+
+async function renderScreenshotPairBrowser(threadId: ThreadId) {
+  const threadScope = `${testEnvironment}:${threadId}`;
+  const store = useCompanionSurfaceStore.getState();
+  const url = "https://example.test/evidence/draft?draft=24";
+  const surfaceId = store.open(threadScope, "browser", { url, profileId: "work" });
+  useRightPanelStore.getState().openPanel("browser");
+  sessionId = `agents-surface-${surfaceId}`;
+  const pageRef = "a".repeat(64);
+  const instanceId = "live-browser";
+  const pageApprovalToken = "reviewed-screenshot-pair";
+  bridge.getBrowserSessionState.mockResolvedValue({
+    ...emptyBrowserState("project", sessionId),
+    currentUrl: url,
+    pageRef,
+    instanceId,
+    pageApprovalToken,
+    pageTitle: "Upload evidence",
+    profileId: "work",
+  } as DesktopBrowserSessionState);
+  bridge.runBrowserAutomation.mockResolvedValue({ grantIds: pairGrantIds });
+  const previousEnvironment = getPrimaryEnvironmentId();
+  setPrimaryEnvironmentIdForTesting(testEnvironment);
+  const view = await render(
+    <>
+      <RightPanelTabs
+        mode="sidebar"
+        environmentId={testEnvironment}
+        threadId={threadId}
+        onClose={() => {}}
+      />
+      <GlobalConfirmDialog />
+    </>,
+  );
+  const scoped = scopedComposerThreadId(testEnvironment, threadId);
+  return {
+    url,
+    surfaceId,
+    instanceId,
+    pageApprovalToken,
+    pageRef,
+    scoped,
+    tools: page.getByRole("button", { name: "Browser tools" }),
+    files: () => useComposerDraftStore.getState().draftsByThreadId[scoped]?.files ?? [],
+    async close() {
+      setPrimaryEnvironmentIdForTesting(previousEnvironment);
+      await view.unmount();
+      useComposerDraftStore.getState().clearDraftThread(scoped);
+    },
+  };
+}

@@ -1,5 +1,8 @@
 import type {
+  EnvironmentId,
   ThreadId,
+  DeviceComparisonFrame,
+  DeviceComparisonReport,
   DesktopBrowserSessionState,
   PreviewAnnotationPayload,
 } from "@tabs/contracts";
@@ -19,14 +22,24 @@ import {
   MousePointer2,
   Radio,
   PictureInPicture2,
+  TextSelect,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  addSurfaceFileToDraft,
+  browserExcerptAttachmentFile,
+  comparisonScreenshotAttachmentFile,
+  rememberBrowserAttachment,
+  surfaceAttachmentFile,
+  surfaceScope,
+  type SurfaceLocation,
+} from "~/lib/threadSurfaceAttachment";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useSettings } from "~/hooks/useSettings";
 import { browserDefaultsToApply, newTabProfileId } from "./browserDefaults";
 import { useProjectWorkspaceSettings, useWorkspaceActiveProjectId } from "~/state/workspaceShell";
 import { useAtomValue } from "@effect/atom-react";
-import { projectsAtom } from "~/state/threads";
+import { projectsAtom, threadsAtom } from "~/state/threads";
 import { useNativeSurfaceOverlaySuspension } from "~/nativeSurfaceOverlay";
 import { useCompanionSurfaceStore, type CompanionSurface } from "~/stores/companionSurfaceStore";
 import { toastManager } from "~/components/ui/toast";
@@ -40,30 +53,95 @@ import {
   MenuRadioItem,
 } from "~/components/ui/menu";
 import { PreviewAnnotationEditor } from "~/components/PreviewAnnotationEditor";
+import { BrowserHandoffControls } from "~/components/browser/BrowserHandoffControls";
 import { BrowserComparisonView } from "~/components/browser/BrowserComparisonView";
+import {
+  BrowserSelectionReview,
+  type BrowserSelectionResult,
+} from "~/components/browser/BrowserSelectionReview";
 import {
   isNativeBrowserRecordingActive,
   startNativeBrowserRecording,
   stopNativeBrowserRecording,
 } from "~/components/NativePreviewAutomationHost";
+import { BROWSER_SELECTION_MAX_LENGTH } from "@tabs/shared/preview";
 import { PREVIEW_ANNOTATION_PICKED_EVENT } from "~/lib/previewAnnotation";
+import {
+  BROWSER_SELECTION_DROP_EVENT,
+  BROWSER_SELECTION_REVIEW_EVENT,
+  isBrowserSelectionDrag,
+  type BrowserSelectionDrag,
+  type BrowserSelectionDrop,
+  type BrowserSelectionReviewTarget,
+} from "~/lib/browserSelectionDrag";
 import { showCustomConfirm } from "~/lib/customConfirm";
-import { environmentApi } from "~/connection/environmentApiRegistry";
+import { environmentApi, isPrimaryEnvironment } from "~/connection/environmentApiRegistry";
 import { CompanionEmpty } from "./CompanionChrome";
 import { CompanionBrowserSession, emptyBrowserState } from "./browserSession";
 import { BrowserStartPage } from "./BrowserStartPage";
 import { displayAddress, resolveOmniboxInput } from "./browserOmnibox";
 
+interface BrowserSelectionRequest {
+  location: SurfaceLocation;
+  page: {
+    sessionId: string;
+    url: string;
+    pageRef: string;
+    instanceId: string;
+    profileId: string;
+    controlEpoch: number | undefined;
+  };
+  selection: Promise<BrowserSelectionResult>;
+}
+
+interface ComparisonScreenshotPair {
+  runId: string;
+  step: number;
+  source: DeviceComparisonReport["source"];
+  target: DeviceComparisonReport["source"];
+}
+
+function isOpenComparisonDevice(
+  surfaces: readonly CompanionSurface[] | undefined,
+  { hostId, deviceId }: { hostId: string; deviceId: string },
+) {
+  return surfaces?.some(
+    (tab) =>
+      tab.kind === "device" && (tab.hostId ?? "local") === hostId && tab.deviceId === deviceId,
+  );
+}
+
+function matchesSelectionPage(state: DesktopBrowserSessionState, request: BrowserSelectionRequest) {
+  const { location, page } = request;
+  return (
+    state.projectId === location.projectId &&
+    state.sessionId === page.sessionId &&
+    state.currentUrl === page.url &&
+    state.pageRef === page.pageRef &&
+    state.instanceId === page.instanceId &&
+    (state.profileId ?? "default") === page.profileId &&
+    state.controlEpoch === page.controlEpoch &&
+    (!state.assignedTaskId || state.assignedTaskId === location.threadId) &&
+    state.controller !== "agent" &&
+    !state.loading &&
+    !state.resting &&
+    !state.lastError &&
+    !state.transientError
+  );
+}
+
 export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   threadId,
+  environmentId: panelEnvironmentId,
   surface,
   scope,
 }: {
   threadId?: ThreadId | null | undefined;
+  environmentId?: EnvironmentId | null | undefined;
   surface: CompanionSurface;
   scope: string;
 }) {
-  const threadTarget = useActiveProjectTarget(threadId);
+  const threadTarget = useActiveProjectTarget(threadId, panelEnvironmentId);
   // When no thread-specific target is found (e.g. new-thread view) but the
   // surface has an external URL (e.g. a PR link), fall back to the globally
   // active project so we can still spin up a BrowserView.
@@ -127,9 +205,156 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const [recording, setRecording] = useState(
     () => !!target && isNativeBrowserRecordingActive(target.projectId, sessionId),
   );
+  const ownerTitle = useAtomValue(
+    threadsAtom,
+    (threads) =>
+      threads.find(
+        (thread) =>
+          thread.id === state.assignedTaskId &&
+          thread.projectId === target?.projectId &&
+          (thread.environmentId ?? null) === target?.environmentId,
+      )?.title,
+  );
   const editing = useRef(false);
   const controller = useRef<CompanionBrowserSession | null>(null);
   const host = useRef<HTMLDivElement>(null);
+  const surfaces = useCompanionSurfaceStore((store) => store.workspaces[scope]?.tabs);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsTrigger = useRef<HTMLButtonElement>(null);
+  const [selectionReview, setSelectionReview] = useState<BrowserSelectionRequest | null>(null);
+  const selectionRequest = useRef<BrowserSelectionRequest | null>(null);
+  const closeSelectionReview = useCallback(() => {
+    selectionRequest.current = null;
+    setSelectionReview(null);
+  }, []);
+  const [comparisonResults, setComparisonResults] = useState<{
+    scope: string;
+    threadId: ThreadId;
+    runs: DeviceComparisonReport[];
+    pairs: ComparisonScreenshotPair[];
+  }>();
+  const environmentId = target?.environmentId;
+  useEffect(() => {
+    if (!toolsOpen || !threadId || !isPrimaryEnvironment(environmentId ?? undefined)) return;
+    let current = true;
+    const load = async () => {
+      try {
+        const { device } = await environmentApi(environmentId ?? null);
+        if (!current || !device?.comparison) return;
+        const reports = await Promise.all([
+          device
+            .comparison({ action: "status", threadId })
+            .then(({ run }) => run)
+            .catch(() => undefined),
+          ...(surfaces ?? []).flatMap((tab) => {
+            const ref = tab.kind === "device" ? tab.deviceComparisonResult : undefined;
+            if (ref?.step === undefined) return [];
+            return [
+              device
+                .comparison({ action: "status", threadId, runId: ref.runId })
+                .then(({ run }) =>
+                  run?.runId === ref.runId && run.firstDifference?.step === ref.step
+                    ? run
+                    : undefined,
+                )
+                .catch(() => undefined),
+            ];
+          }),
+        ]);
+        if (!current) return;
+        const comparisons = new Map<string, DeviceComparisonReport>();
+        for (const run of reports) {
+          if (run?.firstDifference && !run.busy && !comparisons.has(run.runId))
+            comparisons.set(run.runId, run);
+        }
+        const runs = [...comparisons.values()];
+        setComparisonResults({ scope, threadId, runs, pairs: [] });
+
+        const pairs = await Promise.all(
+          runs.map(async (report): Promise<ComparisonScreenshotPair | undefined> => {
+            const { runId, source, target, firstDifference } = report;
+            if (!target || !firstDifference) return;
+            if (source.hostId === target.hostId && source.deviceId === target.deviceId) return;
+            if (
+              !report.savedAt &&
+              ![source, target].every((device) => isOpenComparisonDevice(surfaces, device))
+            )
+              return;
+            if (report.availableEvidence) {
+              return report.availableEvidence.source && report.availableEvidence.target
+                ? { runId, step: firstDifference.step, source, target }
+                : undefined;
+            }
+            const response = await device
+              .comparison({ action: "evidence", threadId, runId })
+              .catch(() => undefined);
+            const run = response?.run;
+            if (
+              run?.runId === runId &&
+              run.firstDifference?.step === firstDifference.step &&
+              !run.busy &&
+              run.source.hostId === source.hostId &&
+              run.source.deviceId === source.deviceId &&
+              run.target?.hostId === target.hostId &&
+              run.target.deviceId === target.deviceId &&
+              response?.evidence?.sourcePng &&
+              response.evidence.targetPng
+            ) {
+              return { runId, step: firstDifference.step, source: run.source, target: run.target };
+            }
+          }),
+        );
+        if (current)
+          setComparisonResults({ scope, threadId, runs, pairs: pairs.filter((pair) => !!pair) });
+      } catch {
+        if (current) setComparisonResults(undefined);
+      }
+    };
+    void load();
+    return () => {
+      current = false;
+    };
+  }, [toolsOpen, threadId, environmentId, surfaces, scope]);
+  const liveSources = (surfaces ?? []).flatMap((tab) =>
+    tab.kind === "device" && tab.deviceId
+      ? [
+          {
+            key: tab.id,
+            deviceId: tab.deviceId,
+            hostId: tab.hostId ?? "local",
+            name: tab.title ?? tab.deviceId,
+          },
+        ]
+      : [],
+  );
+  const screenshotSources: Array<
+    (typeof liveSources)[number] & { frame?: DeviceComparisonFrame; runLabel?: string }
+  > = [...liveSources];
+  const availableComparisons =
+    comparisonResults?.scope === scope && comparisonResults.threadId === threadId
+      ? comparisonResults
+      : undefined;
+  const comparisonRuns = availableComparisons?.runs ?? [];
+  const screenshotPairs = availableComparisons?.pairs ?? [];
+  for (const comparison of comparisonRuns) {
+    const step = comparison.firstDifference!.step;
+    const runLabel =
+      comparisonRuns.length > 1 ? ` · Run ${comparison.runId.slice(0, 8)}` : undefined;
+    for (const side of ["source", "target"] as const) {
+      const device = comparison[side];
+      if (device && (comparison.savedAt || isOpenComparisonDevice(surfaces, device))) {
+        screenshotSources.push({
+          key: `${comparison.runId}:${side}`,
+          deviceId: device.deviceId,
+          hostId: device.hostId,
+          name: device.name,
+          frame: { runId: comparison.runId, step, side },
+          ...(runLabel ? { runLabel } : {}),
+        });
+      }
+    }
+  }
+  const restoredProfileId = useRef(surface.profileId);
   const update = useCompanionSurfaceStore((store) => store.update);
   const command = useCallback((operation: () => Promise<unknown> | undefined) => {
     editing.current = false;
@@ -147,20 +372,30 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     let disposed = false;
     const session = new CompanionBrowserSession(bridge, target.projectId, sessionId, (next) => {
       if (disposed) return;
+      if (selectionRequest.current && !matchesSelectionPage(next, selectionRequest.current))
+        closeSelectionReview();
       setState(next);
       if (next.currentUrl && !next.loading) {
         if (!editing.current) setAddress(next.currentUrl);
-        update(scope, surface.id, { url: next.currentUrl, title: next.pageTitle ?? "Browser" });
+        update(scope, surface.id, {
+          url: next.currentUrl,
+          title: next.pageTitle ?? "Browser",
+          profileId: next.profileId,
+          pageRef: next.pageRef,
+          browserInstanceId: next.instanceId,
+        });
       }
     });
     controller.current = session;
     void session
       .start(initialUrl.current || "https://www.google.com", {
-        profileId: newTabProfileId({
-          isNewTab: startedAsNewTab.current,
-          defaultProfileId: browserDefaults.current.profileId,
-          profileIds: browserDefaults.current.profileIds,
-        }),
+        profileId:
+          restoredProfileId.current ??
+          newTabProfileId({
+            isNewTab: startedAsNewTab.current,
+            defaultProfileId: browserDefaults.current.profileId,
+            profileIds: browserDefaults.current.profileIds,
+          }),
       })
       .then(() => {
         if (disposed) return;
@@ -189,9 +424,19 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     return () => {
       disposed = true;
       controller.current = null;
+      if (selectionRequest.current) closeSelectionReview();
       session.dispose();
     };
-  }, [bridge, target?.projectId, sessionId, scope, surface.id, update, started]);
+  }, [
+    bridge,
+    target?.projectId,
+    sessionId,
+    scope,
+    surface.id,
+    update,
+    started,
+    closeSelectionReview,
+  ]);
   useLayoutEffect(() => {
     if (
       !bridge ||
@@ -266,6 +511,210 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
     },
   });
   const args = { projectId: target?.projectId ?? "", sessionId };
+  const selectionLocation =
+    threadId && target && isPrimaryEnvironment(target.environmentId ?? undefined)
+      ? { environmentId: target.environmentId, projectId: target.projectId, threadId }
+      : null;
+  async function confirmInSelectedTab(message: string) {
+    const session = controller.current;
+    const isSelected = () =>
+      session !== null &&
+      session === controller.current &&
+      host.current !== null &&
+      useCompanionSurfaceStore.getState().workspaces[scope]?.activeId === surface.id;
+    return isSelected() && (await showCustomConfirm(message)) && isSelected();
+  }
+  async function attachComparisonScreenshotPair(pair: ComparisonScreenshotPair) {
+    if (!bridge || !selectionLocation) return;
+    const location = selectionLocation;
+    const { currentUrl: url, pageRef, instanceId, pageApprovalToken } = state;
+    if (!url || !pageRef || !instanceId || state.loading)
+      throw new Error("Wait for the destination page to finish loading.");
+    const profileId = state.profileId ?? "default";
+    const profile = savedProfiles.find((item) => item.id === profileId)?.label ?? profileId;
+    const destination = new URL(url);
+    const { runId, step, source, target } = pair;
+    if (
+      !(await confirmInSelectedTab(
+        `Allow this thread to use this tab to attach both first-difference screenshots and verify the draft at ${destination.origin}${destination.pathname} in the ${profile} profile? Run ${runId}, step ${step}. The source is ${source.name} (${source.hostId} / ${source.deviceId}). The target is ${target.name} (${target.hostId} / ${target.deviceId}).`,
+      ))
+    )
+      return;
+    const frames = [
+      { hostId: source.hostId, deviceId: source.deviceId, frame: { runId, step, side: "source" } },
+      { hostId: target.hostId, deviceId: target.deviceId, frame: { runId, step, side: "target" } },
+    ] as const;
+    const request = { ...args, source: "human", taskId: location.threadId } as const;
+    const result = await bridge.runBrowserAutomation({
+      ...request,
+      operation: "authorizeDeviceScreenshotPair",
+      input: {
+        url,
+        profileId,
+        instanceId,
+        frames,
+        ...(pageApprovalToken !== undefined ? { pageApprovalToken } : {}),
+      },
+    });
+    if (
+      !result ||
+      typeof result !== "object" ||
+      !("grantIds" in result) ||
+      !Array.isArray(result.grantIds) ||
+      result.grantIds.length !== 2
+    )
+      throw new Error("The desktop did not approve both screenshots.");
+    const [sourceGrantId, targetGrantId] = result.grantIds;
+    if (typeof sourceGrantId !== "string" || typeof targetGrantId !== "string")
+      throw new Error("The desktop did not approve both screenshots.");
+    try {
+      const file = comparisonScreenshotAttachmentFile(
+        location,
+        { ...surface, url, profileId, pageRef, browserInstanceId: instanceId },
+        {
+          source: { ...frames[0], grantId: sourceGrantId },
+          target: { ...frames[1], grantId: targetGrantId },
+        },
+      );
+      if (!file) throw new Error("Reopen the destination tab and select the screenshots again.");
+      addSurfaceFileToDraft(location, file);
+    } catch (failure) {
+      await bridge.runBrowserAutomation({
+        ...request,
+        operation: "revokeDeviceScreenshot",
+        input: { grantIds: [sourceGrantId, targetGrantId] },
+      });
+      throw failure;
+    }
+    toastManager.add({ type: "success", title: "First-difference screenshots added to composer" });
+  }
+  const canReviewSelection = Boolean(
+    bridge &&
+    selectionLocation &&
+    scope === surfaceScope(selectionLocation) &&
+    ready &&
+    state.projectId === args.projectId &&
+    state.sessionId === sessionId &&
+    !error &&
+    !state.loading &&
+    !state.resting &&
+    !state.lastError &&
+    !state.transientError &&
+    state.currentUrl &&
+    state.pageRef &&
+    state.instanceId,
+  );
+  const reviewBrowserSelection = useCallback(
+    (drag?: BrowserSelectionDrag) => {
+      const { currentUrl: url, pageRef, instanceId, controlEpoch } = state;
+      if (
+        selectionRequest.current ||
+        !canReviewSelection ||
+        !bridge ||
+        !selectionLocation ||
+        !url ||
+        !pageRef ||
+        !instanceId
+      )
+        return;
+      const profileId = state.profileId ?? "default";
+      const read = async (): Promise<BrowserSelectionResult> => {
+        try {
+          const result = await bridge.runBrowserAutomation({
+            projectId: selectionLocation.projectId,
+            sessionId,
+            source: "human",
+            taskId: selectionLocation.threadId,
+            operation: "readBrowserSelection",
+            input: { pageRef, instanceId, profileId, ...drag },
+          });
+          if (
+            !result ||
+            typeof result !== "object" ||
+            !("text" in result) ||
+            typeof result.text !== "string" ||
+            !result.text.trim() ||
+            result.text.length > BROWSER_SELECTION_MAX_LENGTH
+          )
+            return { error: "Select up to 1,000 characters of page text and try again." };
+          return { text: result.text };
+        } catch (failure) {
+          return {
+            error:
+              failure instanceof Error ? failure.message : "Could not read the browser selection.",
+          };
+        }
+      };
+      const request = {
+        location: selectionLocation,
+        page: { sessionId, url, pageRef, instanceId, profileId, controlEpoch },
+        selection: read(),
+      };
+      selectionRequest.current = request;
+      setSelectionReview(request);
+    },
+    [bridge, canReviewSelection, selectionLocation, sessionId, state],
+  );
+  useLayoutEffect(() => {
+    if (!canReviewSelection || !selectionLocation) return;
+    const isActiveTarget = (location?: SurfaceLocation) =>
+      !!location &&
+      location.environmentId === selectionLocation.environmentId &&
+      location.projectId === selectionLocation.projectId &&
+      location.threadId === selectionLocation.threadId &&
+      useCompanionSurfaceStore.getState().workspaces[scope]?.activeId === surface.id &&
+      Boolean(host.current?.offsetParent);
+    const onDrop = (event: Event) => {
+      const { detail } = event as CustomEvent<BrowserSelectionDrop>;
+      if (!detail || !isActiveTarget(detail.location) || !isBrowserSelectionDrag(detail)) return;
+      reviewBrowserSelection({ dragToken: detail.dragToken, droppedText: detail.droppedText });
+    };
+    const onReview = (event: Event) => {
+      const { detail } = event as CustomEvent<BrowserSelectionReviewTarget>;
+      if (detail?.sessionId !== sessionId || !isActiveTarget(detail.location)) return;
+      event.preventDefault();
+      reviewBrowserSelection();
+    };
+    window.addEventListener(BROWSER_SELECTION_DROP_EVENT, onDrop);
+    window.addEventListener(BROWSER_SELECTION_REVIEW_EVENT, onReview);
+    return () => {
+      window.removeEventListener(BROWSER_SELECTION_DROP_EVENT, onDrop);
+      window.removeEventListener(BROWSER_SELECTION_REVIEW_EVENT, onReview);
+    };
+  }, [canReviewSelection, reviewBrowserSelection, scope, selectionLocation, sessionId, surface.id]);
+  async function addBrowserSelection(text: string, isOpen: () => boolean) {
+    if (!selectionReview || !bridge) return;
+    const { location, page } = selectionReview;
+    const isCurrent = () =>
+      isOpen() &&
+      selectionRequest.current === selectionReview &&
+      isPrimaryEnvironment(location.environmentId ?? undefined) &&
+      useCompanionSurfaceStore.getState().workspaces[scope]?.activeId === surface.id;
+    if (!isCurrent()) return;
+    const latest = await bridge.getBrowserSessionState({
+      projectId: location.projectId,
+      sessionId: page.sessionId,
+    });
+    if (!isCurrent()) return;
+    if (!matchesSelectionPage(latest, selectionReview))
+      throw new Error("The browser tab, page or profile changed. Select the text again.");
+    const file = browserExcerptAttachmentFile(
+      location,
+      {
+        ...surface,
+        url: page.url,
+        pageRef: page.pageRef,
+        profileId: page.profileId,
+        browserInstanceId: page.instanceId,
+      },
+      text,
+    );
+    if (!file) throw new Error("Reopen the browser tab and select the text again.");
+    const attachment = await rememberBrowserAttachment(location, file);
+    if (!isCurrent()) return;
+    addSurfaceFileToDraft(location, attachment);
+    toastManager.add({ type: "success", title: "Browser excerpt added to composer" });
+  }
   const closeFind = () => {
     setFindOpen(false);
     void bridge?.stopFindInBrowser?.(args);
@@ -369,10 +818,16 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
             <ArrowRight size={14} />
           </button>
         </form>
-        <Menu>
+        <Menu
+          onOpenChange={(open) => {
+            setToolsOpen(open);
+            if (!open) setComparisonResults(undefined);
+          }}
+        >
           <MenuTrigger
             render={
               <button
+                ref={toolsTrigger}
                 type="button"
                 className="companion-icon-button"
                 aria-label="Browser tools"
@@ -501,6 +956,12 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
               <MousePointer2 size={15} />
               Annotate an element
             </MenuItem>
+            {selectionLocation && bridge && (
+              <MenuItem disabled={!canReviewSelection} onClick={() => reviewBrowserSelection()}>
+                <TextSelect size={15} />
+                <span>Review browser selection</span>
+              </MenuItem>
+            )}
             <MenuItem
               onClick={() =>
                 command(async () => {
@@ -545,6 +1006,172 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
               <PictureInPicture2 size={15} />
               {state.pictureInPicture ? "Close floating preview" : "Floating preview"}
             </MenuItem>
+            {ready &&
+              bridge &&
+              threadId &&
+              isPrimaryEnvironment(target.environmentId ?? undefined) && (
+                <MenuItem
+                  onClick={() =>
+                    command(async () => {
+                      if (state.browserPageAuthorized) {
+                        await bridge.runBrowserAutomation({
+                          ...args,
+                          source: "human",
+                          taskId: threadId,
+                          operation: "revokeBrowserPage",
+                        });
+                        return;
+                      }
+                      const { currentUrl: url, instanceId, pageApprovalToken } = state;
+                      if (!url) return;
+                      const profileId = state.profileId ?? "default";
+                      const profile =
+                        savedProfiles.find((item) => item.id === profileId)?.label ?? profileId;
+                      const page = new URL(url);
+                      if (
+                        !(await confirmInSelectedTab(
+                          `Allow this thread to use ${page.origin}${page.pathname} in the ${profile} profile?`,
+                        ))
+                      )
+                        return;
+                      await bridge.runBrowserAutomation({
+                        ...args,
+                        source: "human",
+                        taskId: threadId,
+                        operation: "authorizeBrowserPage",
+                        input: {
+                          profileId,
+                          url,
+                          instanceId,
+                          ...(pageApprovalToken !== undefined ? { pageApprovalToken } : {}),
+                        },
+                      });
+                      toastManager.add({
+                        type: "success",
+                        title: "Browser access granted to this thread",
+                      });
+                    })
+                  }
+                >
+                  {state.browserPageAuthorized
+                    ? "Revoke thread access"
+                    : "Allow this thread to use this tab"}
+                </MenuItem>
+              )}
+            {ready &&
+              bridge &&
+              selectionLocation &&
+              screenshotPairs.map((pair) => (
+                <MenuItem
+                  key={pair.runId}
+                  onClick={() => command(() => attachComparisonScreenshotPair(pair))}
+                >
+                  <span>
+                    Attach both first-difference screenshots
+                    {screenshotPairs.length > 1 && (
+                      <span className="block break-all text-xs text-muted-foreground">
+                        Run {pair.runId} · Step {pair.step}
+                      </span>
+                    )}
+                  </span>
+                </MenuItem>
+              ))}
+            {ready &&
+              bridge &&
+              threadId &&
+              isPrimaryEnvironment(target.environmentId ?? undefined) &&
+              screenshotSources.map(({ key, deviceId, hostId, name, frame, runLabel }) => (
+                <MenuItem
+                  key={key}
+                  onClick={() =>
+                    command(async () => {
+                      const { currentUrl: url, pageRef, instanceId, pageApprovalToken } = state;
+                      if (!url || !pageRef || !instanceId || state.loading)
+                        throw new Error("Wait for the destination page to finish loading.");
+                      const profileId = state.profileId ?? "default";
+                      const profile =
+                        savedProfiles.find((item) => item.id === profileId)?.label ?? profileId;
+                      const destination = new URL(url);
+                      if (
+                        !(await confirmInSelectedTab(
+                          `Allow this thread to use ${frame ? `the frozen screen at step ${frame.step} from` : "one live screen from"} ${name} (${hostId} / ${deviceId}${runLabel ?? ""}) and operate this tab to attach it and verify the draft on ${destination.origin}${destination.pathname} in the ${profile} profile?`,
+                        ))
+                      )
+                        return;
+                      const result = (await bridge.runBrowserAutomation({
+                        ...args,
+                        source: "human",
+                        taskId: threadId,
+                        operation: "authorizeDeviceScreenshot",
+                        input: {
+                          deviceId,
+                          hostId,
+                          profileId,
+                          url,
+                          instanceId,
+                          ...(pageApprovalToken !== undefined ? { pageApprovalToken } : {}),
+                          ...(frame ? { frame } : {}),
+                          allowPageControl: true,
+                        },
+                      })) as { grantId: string };
+                      try {
+                        const location = {
+                          environmentId: target.environmentId,
+                          projectId: target.projectId,
+                          threadId,
+                        };
+                        const file = surfaceAttachmentFile(
+                          location,
+                          { ...surface, url, profileId, pageRef, browserInstanceId: instanceId },
+                          {
+                            hostId,
+                            deviceId,
+                            grantId: result.grantId,
+                            ...(frame ? { frame } : {}),
+                          },
+                        );
+                        if (!file) throw new Error("Reopen the destination tab.");
+                        addSurfaceFileToDraft(location, file);
+                      } catch (error) {
+                        await bridge.runBrowserAutomation({
+                          ...args,
+                          source: "human",
+                          taskId: threadId,
+                          operation: "revokeDeviceScreenshot",
+                          input: { grantId: result.grantId },
+                        });
+                        throw error;
+                      }
+                      toastManager.add({
+                        type: "success",
+                        title: "Screenshot transfer added to composer",
+                      });
+                    })
+                  }
+                >
+                  {frame
+                    ? `Attach first difference (step ${frame.step}) from`
+                    : "Attach screenshot from"}{" "}
+                  {name} · {hostId} / {deviceId}
+                  {runLabel}
+                </MenuItem>
+              ))}
+            {state.deviceScreenshotAuthorized && bridge && threadId && (
+              <MenuItem
+                onClick={() =>
+                  command(() =>
+                    bridge.runBrowserAutomation({
+                      ...args,
+                      source: "human",
+                      taskId: threadId,
+                      operation: "revokeDeviceScreenshot",
+                    }),
+                  )
+                }
+              >
+                Revoke screenshot transfer
+              </MenuItem>
+            )}
             <MenuItem onClick={() => setComparing(true)}>Compare pages</MenuItem>
             <MenuItem
               onClick={() =>
@@ -625,28 +1252,13 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
           </p>
         ) : null}
       </div>
-      {state.controller === "agent" && (
-        <div className="companion-note flex items-center gap-2">
-          <span className="flex-1">Agent is using this page</span>
-          <Button size="xs" onClick={() => command(() => bridge?.takeBrowserControl?.(args))}>
-            Take control
-          </Button>
-        </div>
-      )}
-      {state.controller === "human" && state.assignedTaskId && (
-        <div className="companion-note flex items-center gap-2">
-          <span className="flex-1">You’re controlling this page</span>
-          <Button
-            size="xs"
-            onClick={() =>
-              command(() =>
-                bridge?.resumeBrowserAgent?.({ ...args, taskId: state.assignedTaskId! }),
-              )
-            }
-          >
-            Return to agent
-          </Button>
-        </div>
+      {isPrimaryEnvironment(target.environmentId ?? undefined) && (
+        <BrowserHandoffControls
+          key={state.assignedTaskId ?? ""}
+          state={state}
+          ownerTitle={ownerTitle}
+          className="companion-note"
+        />
       )}
       {annotation && (
         <PreviewAnnotationEditor
@@ -664,6 +1276,24 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
           }}
         />
       )}
+      {selectionReview &&
+        bridge &&
+        selectionLocation &&
+        selectionReview.location.threadId === selectionLocation.threadId &&
+        selectionReview.location.environmentId === selectionLocation.environmentId &&
+        selectionReview.location.projectId === selectionLocation.projectId && (
+          <BrowserSelectionReview
+            selection={selectionReview.selection}
+            origin={new URL(selectionReview.page.url).origin}
+            profile={
+              savedProfiles.find(({ id }) => id === selectionReview.page.profileId)?.label ??
+              selectionReview.page.profileId
+            }
+            returnFocus={toolsTrigger}
+            onClose={closeSelectionReview}
+            onApprove={addBrowserSelection}
+          />
+        )}
       {comparing && (
         <BrowserComparisonView
           isOpen={comparing}

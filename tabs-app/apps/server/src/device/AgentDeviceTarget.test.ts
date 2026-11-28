@@ -13,7 +13,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { ensureAgentDeviceShim } from "./AgentDeviceShim.ts";
 import {
-  agentDeviceConfigPath,
+  agentDeviceGrantDirectory,
   agentDeviceSession,
   writeAgentDeviceConfig,
 } from "./AgentDeviceTarget.ts";
@@ -21,7 +21,7 @@ import {
 const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 
 describe("host-bound agent commands", () => {
-  it.effect("runs two hosts concurrently and only updates the reconnected host", () =>
+  it.effect("keeps per-grant configs independent and rejects unmanaged arguments", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -40,42 +40,60 @@ const args = process.argv.slice(2);
 console.log(readFileSync(args[args.indexOf('--config') + 1], 'utf8'));
 if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
       );
-      const shim = yield* ensureAgentDeviceShim({ entryPath, stateDir: dir });
-      const files = ["mini", "android"].map((host) => agentDeviceConfigPath(dir, host, path));
+      const root = agentDeviceGrantDirectory(dir, path);
+      yield* fs.makeDirectory(root, { recursive: true });
+      const grantDir = yield* fs.makeTempDirectoryScoped({ directory: root, prefix: "grants-" });
+      const proxyOrigin = "http://127.0.0.1:1000";
+      const command = yield* ensureAgentDeviceShim({
+        entryPath,
+        configDirectory: grantDir,
+        proxyOrigin,
+      });
+      const launcher = path.join(path.dirname(command), "agent-device-launcher.mjs");
+      const files = [
+        path.join(grantDir, "123e4567-e89b-12d3-a456-426614174000.json"),
+        path.join(grantDir, "123e4567-e89b-12d3-a456-426614174001.json"),
+      ];
       for (const [index, file] of files.entries())
         yield* writeAgentDeviceConfig(file, {
-          baseUrl: `http://127.0.0.1:${1000 + index}`,
+          baseUrl: proxyOrigin,
           token: `token-${index}`,
-          entryPath,
         });
       const invoke = (file: string) =>
         exec(
-          platform === "win32" ? process.execPath : path.join(shim, "agent-device"),
+          platform === "win32" ? process.execPath : command,
           [
-            ...(platform === "win32" ? [path.join(shim, "agent-device-launcher.mjs")] : []),
+            ...(platform === "win32" ? [launcher] : []),
             "snapshot",
             "--config",
             file,
             "--session",
-            "test-session",
+            agentDeviceSession("thread", "host", "device"),
           ],
           { env: { ...process.env, AGENT_DEVICE_DAEMON_BASE_URL: "http://wrong-host" } },
         ).then((result) => JSON.parse(result.stdout));
       expect(yield* Effect.promise(() => Promise.all(files.map(invoke)))).toEqual([
         { daemonBaseUrl: "http://127.0.0.1:1000", daemonAuthToken: "token-0" },
-        { daemonBaseUrl: "http://127.0.0.1:1001", daemonAuthToken: "token-1" },
+        { daemonBaseUrl: proxyOrigin, daemonAuthToken: "token-1" },
       ]);
       const second = yield* fs.readFileString(files[1]!);
       yield* writeAgentDeviceConfig(files[0]!, {
-        baseUrl: "http://127.0.0.1:2000",
+        baseUrl: proxyOrigin,
         token: "new",
-        entryPath,
       });
       expect((yield* Effect.promise(() => invoke(files[0]!))).daemonAuthToken).toBe("new");
       expect(yield* fs.readFileString(files[1]!)).toBe(second);
       expect(agentDeviceSession("thread", "mini", "same-id")).not.toBe(
         agentDeviceSession("thread", "android", "same-id"),
       );
+      yield* writeAgentDeviceConfig(files[1]!, {
+        baseUrl: "http://127.0.0.1:9999",
+        token: "other",
+      });
+      yield* Effect.promise(() =>
+        expect(invoke(files[1]!)).rejects.toThrow("get the current device configuration"),
+      );
+      const sessionArgs = ["--session", agentDeviceSession("thread", "host", "device")];
       for (const args of [
         ["snapshot"],
         ["snapshot", "--config", files[0]!],
@@ -83,9 +101,33 @@ if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
         ["snapshot", "--config", files[0]!, "--session"],
       ]) {
         yield* Effect.promise(() =>
-          expect(
-            exec(process.execPath, [path.join(shim, "agent-device-launcher.mjs"), ...args]),
-          ).rejects.toThrow("Call device_open first"),
+          expect(exec(process.execPath, [launcher, ...args])).rejects.toThrow(
+            "Call device_open first",
+          ),
+        );
+      }
+      for (const [args, error] of [
+        [
+          ["snapshot", "--config", entryPath, ...sessionArgs],
+          "get the current device configuration",
+        ],
+        [
+          [
+            "snapshot",
+            "--config",
+            files[0]!,
+            ...sessionArgs,
+            "--daemon-base-url=http://wrong-host",
+          ],
+          "exact device_open target",
+        ],
+        [
+          ["daemon", "stop", "--config", files[0]!, ...sessionArgs],
+          "supported single-device command",
+        ],
+      ] as const) {
+        yield* Effect.promise(() =>
+          expect(exec(process.execPath, [launcher, ...args])).rejects.toThrow(error),
         );
       }
     }).pipe(

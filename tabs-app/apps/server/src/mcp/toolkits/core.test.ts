@@ -30,6 +30,7 @@ import * as ScheduledTaskService from "../../scheduledTasks/ScheduledTaskService
 import * as McpHttpServer from "../McpHttpServer.ts";
 import * as McpInvocationContext from "../McpInvocationContext.ts";
 import { OrchestratorToolkit } from "./orchestrator/tools.ts";
+import { PreviewWorkflowToolkit } from "./browserWorkflow/tools.ts";
 import { PreviewToolkit } from "./preview/tools.ts";
 import { PreviewControlsToolkit } from "./previewControls/tools.ts";
 import { EnvironmentToolkit } from "./environment/tools.ts";
@@ -63,6 +64,7 @@ it("publishes unique tool names with reference-free object-root inputs", () => {
   for (const toolkit of [
     OrchestratorToolkit,
     PreviewToolkit,
+    PreviewWorkflowToolkit,
     WorktreeToolkit,
     ThreadToolkit,
     AttachmentToolkit,
@@ -536,6 +538,7 @@ it("keeps the complete built-in tool catalog compact without changing tool names
   const tools = [
     OrchestratorToolkit,
     PreviewToolkit,
+    PreviewWorkflowToolkit,
     WorktreeToolkit,
     ThreadToolkit,
     AttachmentToolkit,

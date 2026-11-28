@@ -14,10 +14,12 @@
 import {
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,
+  LOCAL_DEVICE_HOST_ID,
   type AuthEnvironmentScope,
 } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import {
   HttpClient,
   HttpClientRequest,
@@ -29,6 +31,7 @@ import * as Socket from "effect/unstable/socket/Socket";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as SessionStore from "../auth/SessionStore.ts";
 import {
   failEnvironmentAuthInvalid,
   failEnvironmentInternal,
@@ -107,6 +110,7 @@ const authenticate = (requiredScope: AuthEnvironmentScope) =>
     if (!session.scopes.includes(requiredScope)) {
       return yield* failEnvironmentScopeRequired(requiredScope);
     }
+    return session;
   });
 
 const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: string) => {
@@ -127,6 +131,8 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
 const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
+  inputAllowed: Effect.Effect<boolean>,
+  revoked: Effect.Effect<void>,
 ) {
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
@@ -136,11 +142,17 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
       const writeToUpstream = yield* upstream.writer;
-      // Whichever side closes first ends the other via scope teardown: a close
-      // fails the pull with a SocketError, which loses the race.
+      // A closed socket or a revoked session tears down both ends of the proxy.
       return yield* Effect.raceFirst(
-        upstream.runRaw((chunk) => writeToClient(chunk)),
-        client.runRaw((chunk) => writeToUpstream(chunk)),
+        revoked,
+        Effect.raceFirst(
+          upstream.runRaw((chunk) => writeToClient(chunk)),
+          client.runRaw((chunk) =>
+            Effect.flatMap(inputAllowed, (allowed) =>
+              allowed ? writeToUpstream(chunk) : Effect.void,
+            ),
+          ),
+        ),
       );
     }),
   ).pipe(Effect.ignoreCause);
@@ -151,6 +163,7 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   hubOrigin: string,
+  revoked: Effect.Effect<void>,
 ) {
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
   const method = request.method;
@@ -170,7 +183,7 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   }
   // Long-lived MJPEG and AVCC responses must not be buffered by compression.
   headers["cache-control"] = "no-store, no-transform";
-  return HttpServerResponse.stream(response.stream, {
+  return HttpServerResponse.stream(response.stream.pipe(Stream.interruptWhen(revoked)), {
     status: response.status,
     headers,
     ...(headers["content-type"] ? { contentType: headers["content-type"] } : {}),
@@ -198,11 +211,27 @@ const handler = Effect.gen(function* () {
   const controlsDevice =
     (upgrade && hubPath !== "/api/devices/ws") ||
     (!readOnly && /\/api\/(stream-(mode|settings)|fold)$/.test(hubPath));
-  yield* authenticate(controlsDevice ? AuthOrchestrationOperateScope : AuthOrchestrationReadScope);
+  // Subscribe before authenticating so a revocation during connection setup is observed.
+  const sessionChanges = yield* SessionStore.SessionStore.use((s) => s.subscribeChanges);
+  const session = yield* authenticate(
+    controlsDevice ? AuthOrchestrationOperateScope : AuthOrchestrationReadScope,
+  );
   const devices = yield* DeviceService.DeviceService;
-  const ready = yield* devices.currentReadiness(url.value.searchParams.get("hostId") ?? undefined);
+  const hostId = url.value.searchParams.get("hostId") ?? LOCAL_DEVICE_HOST_ID;
+  const deviceIds = url.value.searchParams.getAll("device");
+  if (controlsDevice && deviceIds.length > 1) {
+    return HttpServerResponse.text("Specify one device", { status: 400 });
+  }
+  const deviceId = deviceIds[0]?.trim() || undefined;
+  const inputAllowed = controlsDevice
+    ? devices.streamInputAllowed(hostId, deviceId)
+    : Effect.succeed(true);
+  const ready = yield* devices.currentReadiness(hostId);
   if (!ready) {
     return HttpServerResponse.text("Device hub is not running", { status: 503 });
+  }
+  if (!upgrade && !(yield* inputAllowed)) {
+    return HttpServerResponse.text("Device is in a managed comparison", { status: 409 });
   }
   // The hub runs in standalone mode at its origin root; the panel builds every
   // stream and socket URL itself, so nothing depends on the hub knowing the
@@ -213,13 +242,22 @@ const handler = Effect.gen(function* () {
   upstreamSearch.delete("hostId");
   const search = upstreamSearch.size > 0 ? `?${upstreamSearch.toString()}` : "";
   const upstreamPath = `${hubPath}${search}`;
+  const revoked = Stream.fromSubscription(sessionChanges).pipe(
+    Stream.filter(
+      (change) => change.type === "clientRemoved" && change.sessionId === session.sessionId,
+    ),
+    Stream.runHead,
+    Effect.asVoid,
+  );
   if (upgrade) {
     return yield* proxyWebSocket(
       request,
       `${ready.hub.origin.replace(/^http/, "ws")}${upstreamPath}`,
+      inputAllowed,
+      revoked,
     );
   }
-  return yield* proxyHttp(request, `${ready.hub.origin}${upstreamPath}`, ready.hub.origin);
+  return yield* proxyHttp(request, `${ready.hub.origin}${upstreamPath}`, ready.hub.origin, revoked);
 });
 
 export const layer = HttpRouter.add("*", `${DeviceService.DEVICE_HUB_ROUTE_PREFIX}/*`, handler);

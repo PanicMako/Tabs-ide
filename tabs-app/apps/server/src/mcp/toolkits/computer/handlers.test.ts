@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { EnvironmentId } from "@tabs/contracts";
+import { EnvironmentId, ProviderInstanceId, ThreadId } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
@@ -16,7 +16,9 @@ const call = <A>(
   options: {
     enabled: boolean;
     ceiling: "full-access" | "approval-required";
+    external?: boolean;
     execute?: ComputerUse.ComputerUse["Service"]["execute"];
+    permissions?: ComputerUse.ComputerUse["Service"]["permissions"];
   },
   use: (
     handle: (name: string, input: unknown) => Effect.Effect<unknown>,
@@ -25,6 +27,8 @@ const call = <A>(
 ) =>
   Effect.gen(function* () {
     const seen: ComputerRequest[] = [];
+    const threadId = ThreadId.make("thread-1");
+    const providerInstanceId = ProviderInstanceId.make("codex-test");
     const fake = ComputerUse.ComputerUse.of({
       control: () => Effect.die("unused"),
       grant: () => undefined,
@@ -37,23 +41,38 @@ const call = <A>(
           return Effect.succeed({ tree: "1 Window", treeIsDiff: false });
         }),
       wait: () => Effect.succeed({ tree: "1 Window", treeIsDiff: false }),
-      permissions: Effect.succeed({
-        platformSupported: true,
-        runtimeAvailable: true,
-        accessibility: true,
-        screenRecording: "granted" as const,
-      }),
+      permissions:
+        options.permissions ??
+        Effect.succeed({
+          platformSupported: true,
+          runtimeAvailable: true,
+          accessibility: true,
+          screenRecording: "granted" as const,
+        }),
       screenshot: () => Effect.die("unused"),
     });
     const layer = yield* Layer.build(
       Layer.mergeAll(
         Settings.layerTest({ computerUseEnabled: options.enabled }),
-        Layer.mock(ThreadManagement.ThreadManagementService)({}),
+        Layer.mock(ThreadManagement.ThreadManagementService)({
+          getThreadShell: () =>
+            Effect.succeed({
+              id: threadId,
+              archivedAt: null,
+              deletedAt: null,
+              activeRunId: "run-1",
+              runtimeMode: options.ceiling,
+              interactionMode: "default",
+              providerInstanceId,
+            } as never),
+        }),
         Layer.succeed(ComputerUse.ComputerUse, fake),
         Layer.succeed(McpInvocationContext.McpInvocationContext, {
           environmentId: EnvironmentId.make("environment"),
           requestNamespace: "session",
-          thread: undefined,
+          thread: options.external
+            ? undefined
+            : { threadId, providerInstanceId, providerSessionId: "ps-test" },
           client: {
             runtimeModeCeiling: options.ceiling,
             sessionId: "client-1",
@@ -83,17 +102,29 @@ it.effect("refuses every desktop action while the Labs switch is off", () =>
       for (const [name, input] of [
         ["computer_list_apps", {}],
         ["computer_snapshot", { app: "Notes" }],
-        ["computer_click", { app: "Notes", elementIndex: 1 }],
-        ["computer_type", { app: "Notes", text: "hi" }],
-        ["computer_key", { app: "Notes", key: "Return" }],
-        ["computer_scroll", { app: "Notes", direction: "down", elementIndex: 1 }],
+        ["computer_click", { app: "Notes", observationId: "current", elementIndex: 1 }],
+        ["computer_type", { app: "Notes", observationId: "current", text: "hi" }],
+        ["computer_key", { app: "Notes", observationId: "current", key: "Return" }],
+        [
+          "computer_scroll",
+          { app: "Notes", observationId: "current", direction: "down", elementIndex: 1 },
+        ],
         ["computer_focus_app", { app: "Notes" }],
-        ["computer_screenshot", { app: "Notes" }],
-        ["computer_right_click", { app: "Notes", elementIndex: 1 }],
-        ["computer_drag", { app: "Notes", fromElementIndex: 1, toElementIndex: 2 }],
-        ["computer_set_value", { app: "Notes", elementIndex: 1, value: "x" }],
-        ["computer_secondary_action", { app: "Notes", elementIndex: 1, action: "AXShowMenu" }],
-        ["computer_wait", { app: "Notes", text: "Saved" }],
+        ["computer_screenshot", { app: "Notes", observationId: "current" }],
+        ["computer_right_click", { app: "Notes", observationId: "current", elementIndex: 1 }],
+        [
+          "computer_drag",
+          { app: "Notes", observationId: "current", fromElementIndex: 1, toElementIndex: 2 },
+        ],
+        [
+          "computer_set_value",
+          { app: "Notes", observationId: "current", elementIndex: 1, value: "x" },
+        ],
+        [
+          "computer_secondary_action",
+          { app: "Notes", observationId: "current", elementIndex: 1, action: "AXShowMenu" },
+        ],
+        ["computer_wait", { app: "Notes", observationId: "current", text: "Saved" }],
       ] as const) {
         const refusal: any = yield* handle(name, input);
         expect(refusal).toMatchObject({ code: "capability_denied" });
@@ -104,23 +135,35 @@ it.effect("refuses every desktop action while the Labs switch is off", () =>
   ),
 );
 
-it.effect("requires a full-access caller even when the switch is on", () =>
-  call({ enabled: true, ceiling: "approval-required" }, (handle, seen) =>
+it.effect("denies external clients even with full access", () =>
+  call({ enabled: true, ceiling: "full-access", external: true }, (handle, seen) =>
     Effect.gen(function* () {
-      const refusal: any = yield* handle("computer_click", { app: "Notes", elementIndex: 1 });
+      const refusal: any = yield* handle("computer_click", {
+        app: "Notes",
+        observationId: "current",
+        elementIndex: 1,
+      });
       expect(refusal).toMatchObject({ code: "capability_denied" });
       expect(seen).toEqual([]);
     }),
   ),
 );
 
-it.effect("runs a validated request for a full-access caller", () =>
-  call({ enabled: true, ceiling: "full-access" }, (handle, seen) =>
+it.effect("runs a validated native-window request for a normal approval-required thread", () =>
+  call({ enabled: true, ceiling: "approval-required" }, (handle, seen) =>
     Effect.gen(function* () {
-      const result: any = yield* handle("computer_click", { app: "Notes", elementIndex: 3 });
+      const result: any = yield* handle("computer_click", {
+        app: "window:approved",
+        observationId: "current",
+        elementIndex: 3,
+      });
       expect(result.tree).toBe("1 Window");
       expect(seen).toHaveLength(1);
-      expect(seen[0]).toMatchObject({ op: "click", target: { kind: "element", index: 3 } });
+      expect(seen[0]).toMatchObject({
+        op: "click",
+        app: { kind: "attachment", selector: "window:approved" },
+        target: { kind: "element", index: 3 },
+      });
     }),
   ),
 );
@@ -130,6 +173,7 @@ it.effect("rejects bad arguments and blocked shortcuts before touching the deskt
     Effect.gen(function* () {
       const both: any = yield* handle("computer_click", {
         app: "Notes",
+        observationId: "current",
         elementIndex: 1,
         x: 1,
         y: 2,
@@ -142,7 +186,11 @@ it.effect("rejects bad arguments and blocked shortcuts before touching the deskt
             ? "Alt+F4"
             : "Ctrl+Q";
       const quitEffect = process.platform === "win32" ? "close the app" : "quit the app";
-      const quit: any = yield* handle("computer_key", { app: "Notes", key: quitKey });
+      const quit: any = yield* handle("computer_key", {
+        app: "Notes",
+        observationId: "current",
+        key: quitKey,
+      });
       expect(quit).toMatchObject({ code: "invalid_request" });
       expect(quit.message).toContain(quitEffect);
       expect(seen).toEqual([]);
@@ -165,18 +213,56 @@ it.effect("reports a refused secret field as a denial", () =>
     },
     (handle) =>
       Effect.gen(function* () {
-        const refusal: any = yield* handle("computer_type", { app: "Notes", text: "hunter2" });
+        const refusal: any = yield* handle("computer_type", {
+          app: "window:approved",
+          observationId: "current",
+          text: "hunter2",
+        });
         expect(refusal).toMatchObject({ code: "capability_denied", message: "Refusing to type." });
       }),
   ),
 );
 
-it.effect("reports permission status without needing the switch", () =>
-  call({ enabled: false, ceiling: "approval-required" }, (handle) =>
+it.effect("does not install the Windows runtime while the Labs switch is off", () => {
+  let checkedPermissions = false;
+  return call(
+    {
+      enabled: false,
+      ceiling: "approval-required",
+      permissions: Effect.sync(() => {
+        checkedPermissions = true;
+        return {
+          platformSupported: true,
+          runtimeAvailable: true,
+          accessibility: true,
+          screenRecording: "granted" as const,
+        };
+      }),
+    },
+    (handle) =>
+      Effect.gen(function* () {
+        const status: any = yield* handle("computer_permissions", {});
+        expect(status).toMatchObject({
+          enabled: false,
+          runtimeAvailable: false,
+          accessibility: false,
+        });
+        expect(status.guidance).toContain("Computer use");
+        expect(checkedPermissions).toBe(false);
+      }),
+  );
+});
+
+it.effect("refuses app names and PIDs before invoking the desktop", () =>
+  call({ enabled: true, ceiling: "full-access" }, (handle, seen) =>
     Effect.gen(function* () {
-      const status: any = yield* handle("computer_permissions", {});
-      expect(status).toMatchObject({ enabled: false, accessibility: true });
-      expect(status.guidance).toContain("Computer use");
+      expect(yield* handle("computer_snapshot", { app: "pid:7" })).toMatchObject({
+        code: "capability_denied",
+      });
+      expect(yield* handle("computer_list_apps", {})).toMatchObject({
+        tree: expect.stringContaining("Ask the user"),
+      });
+      expect(seen).toEqual([]);
     }),
   ),
 );

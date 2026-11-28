@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import type { ThreadId } from "@tabs/contracts";
+import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { CompanionEmpty } from "./CompanionChrome";
 import { useThreadTerminalState, terminalActions } from "~/state/terminal";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
@@ -12,6 +12,7 @@ import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
 import { RotateCcwIcon, SquareSplitHorizontalIcon } from "lucide-react";
 import { SurfaceSubTabs, type SubTab } from "./designs/shared";
 import { showCustomConfirm } from "~/lib/customConfirm";
+import { terminalSurfaceAttachmentFile } from "~/lib/threadSurfaceAttachment";
 
 function createTerminalId(): string {
   return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -21,12 +22,14 @@ function createTerminalId(): string {
 
 export interface CompanionTerminalPanelProps {
   threadId?: ThreadId | null | undefined;
+  environmentId?: EnvironmentId | null | undefined;
 }
 
 export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
   threadId,
+  environmentId,
 }: CompanionTerminalPanelProps) {
-  const target = useActiveProjectTarget(threadId);
+  const target = useActiveProjectTarget(threadId, environmentId);
   const effectiveThreadId = threadId ?? target?.threadId ?? null;
   const runtimeEnv = useMemo(
     () =>
@@ -134,11 +137,28 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
     };
   });
   return (
-    <div className="companion-workspace">
+    <div
+      className="companion-workspace"
+      data-terminal-thread-id={effectiveThreadId}
+      data-terminal-environment-id={target.environmentId ?? ""}
+    >
       <SurfaceSubTabs
         label="Terminal sessions"
         tabs={sessionTabs}
         activeId={terminalState.activeTerminalId}
+        attachmentFor={
+          environmentId === undefined || environmentId === target.environmentId
+            ? (id) =>
+                terminalSurfaceAttachmentFile(
+                  {
+                    environmentId: target.environmentId,
+                    projectId: target.projectId,
+                    threadId: effectiveThreadId,
+                  },
+                  id,
+                )
+            : undefined
+        }
         onSelect={handleActiveChange}
         onClose={async (id) => {
           const group = terminalGroups(terminalState).find((item) => item.includes(id)) ?? [id];

@@ -4,7 +4,13 @@ import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { expect, it } from "@effect/vitest";
 import { NodeHttpServer } from "@effect/platform-node";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { EnvironmentId, PreviewTabId, ProviderInstanceId, ThreadId } from "@tabs/contracts";
+import {
+  EnvironmentId,
+  type PreviewAutomationRequest,
+  PreviewTabId,
+  ProviderInstanceId,
+  ThreadId,
+} from "@tabs/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -18,6 +24,8 @@ import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/uns
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerConfig from "../config.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
+import { PreviewWorkflowToolkit } from "./toolkits/browserWorkflow/tools.ts";
+import { FigmaCanvasToolkit } from "./toolkits/figmaCanvas/tools.ts";
 import { PreviewStandardToolkit, PreviewSnapshotTool } from "./toolkits/preview/tools.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
@@ -110,14 +118,157 @@ const serveSnapshots = (clientId: string, result: unknown) =>
     return inputs;
   });
 
-const callSnapshot = (args: Record<string, unknown>): Effect.Effect<any, any, any> =>
+const callSnapshot = (args: Record<string, unknown>) =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
-    return yield* (server.callTool as any)({ name: "preview_snapshot", arguments: args }).pipe(
-      Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
-      Effect.provideService(McpSchema.McpServerClient, client),
-    );
+    return yield* server
+      .callTool({ name: "preview_snapshot", arguments: args })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
   });
+
+it.effect(
+  "reports verified screenshot and comparison drafts in a text-only snapshot",
+  () =>
+    Effect.gen(function* () {
+      const verifiedEvidenceDraft = { runId: "947b49a7-4703-4231-be25-8a99ef4e1e51", step: 2 };
+      const verifiedScreenshotDraft = { sha256: "a".repeat(64) };
+      const receipts = { verifiedEvidenceDraft, verifiedScreenshotDraft };
+      yield* serveSnapshots("verified-draft-preview", { ...snapshotResult, ...receipts });
+      const server = yield* McpServer.McpServer;
+      const snapshot = yield* server
+        .callTool({ name: "preview_snapshot", arguments: { includeImage: false } })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+      expect(snapshot.isError).toBe(false);
+      expect(snapshot.structuredContent).toMatchObject(receipts);
+      const [identity] = snapshot.content;
+      expect(identity?.type === "text" && JSON.parse(identity.text)).toMatchObject(receipts);
+      expect(snapshot.content.map((entry) => entry.type)).not.toContain("image");
+    }).pipe(Effect.scoped, Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "routes Quick Action approval requests and approved runs as separate operations",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const server = yield* McpServer.McpServer;
+        const broker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+        const connected = yield* Deferred.make<void>();
+        const clientId = "quick-action-host";
+        const events = yield* broker.connect({
+          clientId,
+          environmentId,
+          supportedOperations: ["open", "status", "requestQuickAction", "runQuickAction"],
+        });
+        const approval = {
+          tabId,
+          actionId: "38d627ea-e2f6-4783-b8ca-b2a83f515994",
+          approvalId: "22ac10e4-6633-4c9a-9fb3-95d1dea01e0d",
+        };
+        const requested = { status: "approval_required", actionId: approval.actionId };
+        const completed = {
+          status: "pass",
+          completedSteps: 1,
+          message: "Done.",
+          fileReceipt: { filename: "report.csv", byteLength: 16, sha256: "a".repeat(64) },
+          fileResult: {
+            resultId: "226f5b60-d213-49c1-94a1-bc17a181aa71",
+            tabId,
+            profileId: "work",
+            filename: "report.csv",
+          },
+        };
+        const paused = {
+          status: "paused",
+          completedSteps: 1,
+          message: "Choose the target.",
+          resumeRequest: {
+            actionId: approval.actionId,
+            pause: { pauseId: "aa6b3474-c927-488e-bd68-1db75cc8b37b", tabId, profileId: "work" },
+          },
+        };
+        let runResult: typeof completed | typeof paused = completed;
+        const requests: unknown[] = [];
+        yield* Stream.runForEach(events, (event) => {
+          if (event.type === "connected") return Deferred.succeed(connected, undefined);
+          const { request } = event;
+          requests.push(request);
+          return broker.respond({
+            clientId,
+            connectionId: event.connectionId,
+            requestId: request.requestId,
+            ok: true,
+            result:
+              request.operation === "requestQuickAction"
+                ? requested
+                : request.operation === "runQuickAction"
+                  ? runResult
+                  : { tabId: alternateTabId },
+          });
+        }).pipe(Effect.forkScoped);
+        yield* Deferred.await(connected);
+        yield* broker.invoke({ scope: invocation, operation: "open", input: {} });
+
+        const call = (args: Record<string, unknown>) =>
+          server
+            .callTool({ name: "preview_run_quick_action", arguments: args })
+            .pipe(
+              Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
+              Effect.provideService(McpSchema.McpServerClient, client),
+            );
+        for (const args of [
+          { actionName: "Save report", ...approval },
+          { actionName: "Save report", tabId },
+          { actionName: "Save report", values: { month: "June" } },
+        ]) {
+          expect((yield* Effect.flip(call(args)))._tag).toBe("InvalidParams");
+        }
+        expect((yield* call({ actionName: "  Save report  " })).structuredContent).toEqual(
+          requested,
+        );
+        expect((yield* call(approval)).structuredContent).toEqual(completed);
+        runResult = paused;
+        expect((yield* call(approval)).structuredContent).toEqual(paused);
+        runResult = {
+          ...paused,
+          resumeRequest: {
+            ...paused.resumeRequest,
+            pause: { ...paused.resumeRequest.pause, tabId: alternateTabId },
+          },
+        };
+        const wrongTab = yield* call(approval);
+        expect(wrongTab.isError).toBe(false);
+        expect(wrongTab.structuredContent).not.toHaveProperty("resumeRequest");
+        yield* broker.invoke({ scope: invocation, operation: "status", input: {} });
+        expect(requests).toEqual([
+          expect.objectContaining({ operation: "open" }),
+          expect.objectContaining({
+            operation: "requestQuickAction",
+            threadId,
+            tabId: undefined,
+            tabIdExplicit: false,
+            input: { actionName: "Save report" },
+          }),
+          expect.objectContaining({
+            operation: "runQuickAction",
+            tabId,
+            tabIdExplicit: true,
+            input: { actionId: approval.actionId, approvalId: approval.approvalId },
+            timeoutMs: 45_000,
+          }),
+          expect.objectContaining({ operation: "runQuickAction", tabId }),
+          expect.objectContaining({ operation: "runQuickAction", tabId }),
+          expect.objectContaining({ operation: "status", tabId: alternateTabId }),
+        ]);
+      }),
+    ).pipe(Effect.provide(layerTest)) as Effect.Effect<void, unknown>,
+);
 
 it("normalizes empty successful notification responses to accepted", () => {
   const notificationResponse = McpHttpServer.normalizeMcpHttpResponse(
@@ -428,6 +579,7 @@ it.effect(
         const [only, ...others] = pathOnly.content;
         expect(others).toEqual([]);
         expect(only?.type === "text" ? decodeJsonText(only.text) : null).toEqual(saved);
+        expect(inputs).toEqual([{}, {}, {}]);
       }),
     ).pipe(Effect.provide(layerTest)) as any,
 );
@@ -558,6 +710,216 @@ it.effect(
           ...parsed,
           omitted: expect.arrayContaining(["60 older console entries"]),
         });
+      }),
+    ).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "routes exact text lookups to the attached tab and preserves matches in bounded metadata",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const server = yield* McpServer.McpServer;
+        const broker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+        const findText = ["Export CSV", "Missing heading", "Duplicate label", "Frame heading"];
+        const textMatches = [
+          { text: "Export CSV", status: "matched", selector: "#export" },
+          { text: "Missing heading", status: "not_found" },
+          { text: "Duplicate label", status: "ambiguous" },
+          { text: "Frame heading", status: "unobservable" },
+        ];
+        const page = { ...snapshotResult, visibleText: "界".repeat(9_000) };
+        const pageWithMatches = { ...page, textMatches };
+        // Simulate unsolicited matches on the default call and an older host on the third call.
+        const responses = [pageWithMatches, pageWithMatches, page, pageWithMatches];
+        const requests: Array<{ clientId: string; request: PreviewAutomationRequest }> = [];
+        for (const [clientId, attachedTab, focused] of [
+          ["attached-host", alternateTabId, false],
+          ["focused-host", tabId, true],
+        ] as const) {
+          const connected = yield* Deferred.make<string>();
+          const events = yield* broker.connect({ clientId, environmentId });
+          yield* Stream.runForEach(events, (event) => {
+            if (event.type === "connected") return Deferred.succeed(connected, event.connectionId);
+            requests.push({ clientId, request: event.request });
+            return broker.respond({
+              clientId,
+              connectionId: event.connectionId,
+              requestId: event.request.requestId,
+              ok: true,
+              result: responses.shift(),
+            });
+          }).pipe(Effect.forkScoped);
+          yield* broker.focusHost({
+            clientId,
+            environmentId,
+            connectionId: yield* Deferred.await(connected),
+            focused,
+            liveTabs: [{ threadId, tabId: attachedTab, visible: true }],
+          });
+        }
+
+        const tool = server.tools.find(({ tool }) => tool.name === "preview_snapshot")?.tool;
+        expect(tool?.inputSchema).toMatchObject({
+          properties: {
+            findText: {
+              type: "array",
+              minItems: 1,
+              maxItems: 4,
+              items: { type: "string", minLength: 1, maxLength: 300 },
+            },
+          },
+        });
+        expect(tool?.inputSchema.required ?? []).not.toContain("findText");
+
+        for (const invalid of [[], [" padded "], ["x".repeat(301)], [...findText, "Extra"]]) {
+          const rejected = yield* callSnapshot({ tabId: alternateTabId, findText: invalid });
+          expect(rejected.structuredContent).toEqual({
+            error: { _tag: "AiError", operation: "snapshot", failureCount: 1 },
+          });
+        }
+        expect(requests).toEqual([]);
+
+        const snapshot = yield* callSnapshot({
+          tabId: alternateTabId,
+          includeImage: false,
+          findText,
+        });
+        const [identity, body, notice] = snapshot.content;
+        const omitted = [
+          "accessibilityTree (use interactiveElements locators or preview_evaluate)",
+          "visibleText after 4000 characters (use preview_evaluate for more)",
+        ];
+        expect(snapshot.isError).toBe(false);
+        expect(snapshot.content.map((entry) => entry.type)).toEqual(["text", "text", "text"]);
+        if (identity?.type !== "text" || body?.type !== "text" || notice?.type !== "text") {
+          throw new Error("Expected snapshot identity, page metadata, and omission notice.");
+        }
+        expect(decodeJsonText(identity.text)).toEqual({ url: page.url });
+        expect(Buffer.byteLength(body.text, "utf8")).toBeLessThanOrEqual(
+          McpHttpServer.MAX_SNAPSHOT_TEXT_BYTES,
+        );
+        const metadata = decodeJsonText(body.text) as Record<string, unknown>;
+        expect(metadata).toMatchObject({
+          visibleText: `${"界".repeat(4_000)}…`,
+          screenshot: { mimeType: "image/png", width: 10, height: 5 },
+        });
+        expect(metadata.textMatches).toEqual(textMatches);
+        expect(metadata).not.toHaveProperty("accessibilityTree");
+        expect(metadata.screenshot).not.toHaveProperty("data");
+        expect(snapshot.structuredContent).toEqual({ ...metadata, omitted });
+        expect(notice.text).toBe(`Snapshot text was bounded. Omitted: ${omitted.join("; ")}.`);
+
+        const defaultSnapshot = yield* callSnapshot({});
+        expect(defaultSnapshot.isError).toBe(false);
+        expect(defaultSnapshot.structuredContent).not.toHaveProperty("textMatches");
+        const defaultBody = defaultSnapshot.content[1];
+        expect(defaultBody?.type).toBe("text");
+        expect(
+          defaultBody?.type === "text" ? decodeJsonText(defaultBody.text) : undefined,
+        ).not.toHaveProperty("textMatches");
+        expect(defaultSnapshot.content.at(-1)?.type).toBe("image");
+
+        const withoutMatches = yield* callSnapshot({ includeImage: false, findText });
+        expect(withoutMatches.isError).toBe(false);
+        const { textMatches: _textMatches, ...metadataWithoutMatches } = metadata;
+        expect(withoutMatches.structuredContent).toStrictEqual({
+          ...metadataWithoutMatches,
+          omitted,
+        });
+
+        const saved = yield* callSnapshot({ includeImage: false, save: true, findText });
+        expect(saved.isError).toBe(false);
+        expect(saved.structuredContent).toEqual({
+          url: page.url,
+          screenshotPath: expect.any(String),
+        });
+        expect(saved.content).toEqual([
+          { type: "text", text: JSON.stringify(saved.structuredContent) },
+        ]);
+
+        expect(requests).toEqual(
+          [{ findText }, {}, { findText }, { findText }].map((input, index) => ({
+            clientId: "attached-host",
+            request: expect.objectContaining({
+              operation: "snapshot",
+              threadId,
+              tabId: alternateTabId,
+              tabIdExplicit: index === 0,
+              input,
+            }),
+          })),
+        );
+      }),
+    ).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "preserves exact text matches when JSON escaping exceeds the snapshot byte budget",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const findText = ["A", "B", "C", "D"].map((label) => label + "\u0001".repeat(299));
+        const textMatches = findText.map((text) => ({
+          text,
+          status: "matched",
+          selector: `#${text[0]}${"x".repeat(298)}`,
+        }));
+        yield* serveSnapshots("mcp-escaped-text-client", {
+          ...snapshotResult,
+          title: "\u0001".repeat(2_048),
+          textMatches,
+        });
+
+        const snapshot = yield* callSnapshot({ includeImage: false, findText });
+
+        expect(snapshot.isError).toBe(false);
+        const [, body] = snapshot.content;
+        if (body?.type !== "text") throw new Error("Expected snapshot page metadata.");
+        expect(Buffer.byteLength(body.text, "utf8")).toBeLessThanOrEqual(
+          McpHttpServer.MAX_SNAPSHOT_TEXT_BYTES,
+        );
+        expect(decodeJsonText(body.text)).toMatchObject({
+          textMatches,
+          title: `${"\u0001".repeat(1_024)}…`,
+        });
+        expect(snapshot.structuredContent).toMatchObject({
+          textMatches,
+          omitted: [
+            "accessibilityTree (use interactiveElements locators or preview_evaluate)",
+            "url or title after 1024 characters",
+            "visibleText after 0 characters (use preview_evaluate for more)",
+          ],
+        });
+      }),
+    ).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "passes the verified demonstration ID and observed changes to the agent",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const demonstration = {
+          id: "6fd2be84-3acc-4682-869e-aa5574d1793d",
+          action: "User demonstration · button · Export · selected rows",
+          status: "succeeded" as const,
+          startedAt: "2026-11-26T00:00:00Z",
+          completedAt: "2026-11-26T00:00:00Z",
+          observedChanges: ["Control expanded", "Nearby status changed"] as const,
+        };
+        yield* serveSnapshots("mcp-demonstration-client", {
+          ...snapshotResult,
+          actionTimeline: [demonstration],
+        });
+
+        const snapshot = yield* callSnapshot({ includeImage: false });
+        expect(snapshot.isError).toBe(false);
+        const [, text] = snapshot.content;
+        expect(text?.type === "text" ? decodeJsonText(text.text) : undefined).toMatchObject({
+          actionTimeline: [demonstration],
+        });
+        expect(snapshot.structuredContent).toMatchObject({ actionTimeline: [demonstration] });
       }),
     ).pipe(Effect.provide(layerTest)) as any,
 );
@@ -965,6 +1327,8 @@ it.effect(
       const server = yield* McpServer.McpServer;
       const tools = {
         ...PreviewStandardToolkit.tools,
+        ...PreviewWorkflowToolkit.tools,
+        ...FigmaCanvasToolkit.tools,
         [PreviewSnapshotTool.name]: PreviewSnapshotTool,
         ...Object.fromEntries(
           McpHttpServer.LEGACY_TOOLS.filter((tool) => tool.name.startsWith("preview_")).map(

@@ -1,15 +1,15 @@
 import { useRef, useState } from "react";
 import { Switch } from "~/components/ui/switch";
 import { useStaggerIn } from "~/components/agents/companion/designs/motion";
-import { configureDevices, useDeviceStore } from "~/device/deviceStore";
+import { configureDevices, useDeviceState } from "~/device/deviceStore";
 import { deviceSetupSteps, devicePlatformNotes } from "~/device/deviceLogic";
 import type { DeviceApi } from "~/device/useDeviceApi";
 import "./device.css";
 
 /** First-run setup: three plain steps, each with one line saying what it does. */
 export function DeviceSetup({ api }: { api: DeviceApi }) {
-  const state = useDeviceStore((s) => s.state);
-  const error = useDeviceStore((s) => s.error);
+  const state = useDeviceState(api, (s) => s.state);
+  const error = useDeviceState(api, (s) => s.error);
   const [busy, setBusy] = useState(false);
   const [agents, setAgents] = useState(false);
   const list = useRef<HTMLDivElement>(null);
@@ -17,7 +17,10 @@ export function DeviceSetup({ api }: { api: DeviceApi }) {
   const hubInstalled = !!state?.hosts.some((host) => host.hubInstalled);
   const starting = state?.hostStatus === "installing" || state?.hostStatus === "starting";
   const notes = devicePlatformNotes(state);
-  useStaggerIn(list, ".dv-row", hubDone ? "ready" : "start", { y: 12, stagger: 0.05 });
+  useStaggerIn(list, ".dv-row", hubDone ? "ready" : "start", {
+    y: 12,
+    stagger: 0.05,
+  });
 
   const startHub = async () => {
     setBusy(true);

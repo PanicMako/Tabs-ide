@@ -3,15 +3,15 @@ import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 import { SshHostsEditor } from "./SshHostsEditor";
-import { configureDevices, inspectDevices, useDeviceStore } from "~/device/deviceStore";
+import { configureDevices, inspectDevices, useDeviceState } from "~/device/deviceStore";
 import { deviceToolUpdatePolicy, deviceToolVersionLabels } from "~/device/deviceToolVersions";
 import { useDeviceApi } from "~/device/useDeviceApi";
 import type { SshDeviceHostConfig } from "@tabs/contracts";
 
 export default function DeviceSettings() {
   const api = useDeviceApi(null);
-  const state = useDeviceStore((s) => s.state);
-  const error = useDeviceStore((s) => s.error);
+  const state = useDeviceState(api, (s) => s.state);
+  const error = useDeviceState(api, (s) => s.error);
   const enabled = !!state && state.hostStatus !== "disabled";
   const [checked, setChecked] = useState<Record<string, string | null>>({});
 
