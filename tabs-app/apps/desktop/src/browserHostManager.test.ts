@@ -7940,6 +7940,21 @@ describe("reliable browser tabs and agent control", () => {
           expect(f.pending()).toBeUndefined();
         },
       );
+
+      it("rejects confirmation if the page changes while it is being checked", async () => {
+        const f = await setupFigma();
+        const { approval, write } = await proposed(f);
+        f.evaluate.mockImplementationOnce(async () => {
+          f.events.emit("did-navigate-in-page", {}, address.replace("35-12", "35-13"), true);
+          f.events.emit("did-navigate-in-page", {}, address, true);
+          return true;
+        });
+        await expect(f.confirm(approval.id)).rejects.toThrow(
+          "Inspect the attached Figma node again",
+        );
+        await expect(f.authorize(write)).rejects.toThrow("Review the current Figma");
+        expect(f.pending()).toBeUndefined();
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
