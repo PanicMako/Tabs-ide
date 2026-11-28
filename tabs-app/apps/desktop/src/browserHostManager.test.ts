@@ -6766,6 +6766,20 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("checks consent, exact device and single-use receipt before giving a page bytes", async () => {
+    const f = createUploadFixture();
+    await expect(f.authorize("agent")).rejects.toThrow("approve");
+    const { grantId } = await f.authorize();
+    await expect(f.transfer(grantId, { phase: "inspect" })).resolves.toEqual({
+      hostId: "build-mac",
+      deviceId: "same-id",
+    });
+    await expect(f.transfer(grantId, { hostId: "local" })).rejects.toThrow("source");
+    const outcomes = await Promise.allSettled([f.transfer(grantId), f.transfer(grantId)]);
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["fulfilled", "rejected"]);
+    expect(f.attach).toHaveBeenCalledTimes(2);
+  });
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
