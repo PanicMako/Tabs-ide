@@ -1092,6 +1092,26 @@ it("reviews an exact browser selection from the keyboard and adds only the appro
   }
 });
 
+it.each([{ pageRef: "b".repeat(64) }, { instanceId: "replacement" }, { profileId: "personal" }])(
+  "rejects an excerpt if desktop browser identity changes to %j",
+  async (change) => {
+    const threadId = ThreadId.make(`stale-browser-excerpt-${Object.keys(change)[0]}`);
+    const { state, files, close } = await renderSelectionBrowser(threadId);
+    try {
+      const review = await openSelectionReview();
+      bridge.getBrowserSessionState.mockResolvedValue({ ...state, ...change });
+      await review.getByRole("button", { name: "Add to draft" }).click();
+      await expect
+        .element(review.getByRole("alert"))
+        .toHaveTextContent("The browser tab, page or profile changed");
+      expect(files()).toHaveLength(0);
+      expect(bridge.runBrowserAutomation).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  },
+);
+
 const pairAction = "Attach both first-difference screenshots";
 const pairGrantIds = [
   "692cb917-ea45-49cb-b0b5-cebec45d66ca",
