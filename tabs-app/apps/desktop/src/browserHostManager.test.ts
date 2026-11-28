@@ -3949,6 +3949,24 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
         expect(f.submit).not.toHaveBeenCalled();
       });
+
+      it("defers the refresh while the tab is visible and keeps an existing submission guard", async () => {
+        const f = await setup();
+        new BrowserSubmissionGuards(() => f.userData).set(f.session.partition, f.url, true);
+        await f.authorize();
+        Object.assign(f.manager, { activeKey: f.session.key });
+        Object.assign(f.session, {
+          bounds: { x: 0, y: 0, width: 800, height: 600 },
+        });
+        await expect(f.monitor({ refresh: true })).resolves.toMatchObject({
+          disposition: "observed",
+          observation: { stage: "certified" },
+        });
+        expect(f.loadURL).not.toHaveBeenCalled();
+        expect(new BrowserSubmissionGuards(() => f.userData).has(f.session.partition, f.url)).toBe(
+          true,
+        );
+      });
     });
   });
 
