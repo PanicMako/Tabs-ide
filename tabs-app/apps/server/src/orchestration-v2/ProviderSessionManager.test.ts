@@ -2,6 +2,8 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   EnvironmentId,
+  MessageId,
+  NodeId,
   type ModelSelection,
   type OrchestrationV2AppThread,
   type OrchestrationV2DomainEvent,
@@ -13,6 +15,9 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderSessionId,
+  ProviderTurnId,
+  RunAttemptId,
+  RunId,
   ThreadId,
 } from "@tabs/contracts";
 import * as Cause from "effect/Cause";
@@ -294,6 +299,7 @@ function makeProviderAdapter(
     readonly hasPendingBackgroundWork?: Effect.Effect<boolean>;
     readonly hangSessionScopeClose?: boolean;
     readonly beforeUnload?: Effect.Effect<void>;
+    readonly figmaMcp?: ProviderAdapterV2SessionRuntime["figmaMcp"];
   } = {},
 ): ProviderAdapterV2Shape {
   return {
@@ -346,6 +352,7 @@ function makeProviderAdapter(
           driver: CODEX_DRIVER,
           providerSessionId: input.providerSessionId,
           providerSession: session,
+          ...(options.figmaMcp === undefined ? {} : { figmaMcp: options.figmaMcp }),
           events: options.failEventStream
             ? Stream.fail(
                 new ProviderAdapterEventStreamError({
@@ -410,6 +417,7 @@ function layerTest(input: {
   readonly hasPendingBackgroundWork?: Effect.Effect<boolean>;
   readonly hangSessionScopeClose?: boolean;
   readonly beforeUnload?: Effect.Effect<void>;
+  readonly figmaMcp?: ProviderAdapterV2SessionRuntime["figmaMcp"];
   readonly serverSettingsLayer?: ReturnType<typeof ServerSettings.layerTest>;
   readonly projectServiceLayer?: Layer.Layer<ProjectService.ProjectService>;
 }) {
@@ -432,6 +440,7 @@ function layerTest(input: {
         ? {}
         : { hangSessionScopeClose: input.hangSessionScopeClose }),
       ...(input.beforeUnload === undefined ? {} : { beforeUnload: input.beforeUnload }),
+      ...(input.figmaMcp === undefined ? {} : { figmaMcp: input.figmaMcp }),
     }),
   );
   const layerProviderEventIngestorTest = ProviderEventIngestor.layer.pipe(
@@ -1207,6 +1216,130 @@ it.effect(
         ),
       );
     }),
+);
+
+it.effect("binds Figma connector calls to the original live provider turn and MCP credential", () =>
+  Effect.gen(function* () {
+    const state = yield* Ref.make(emptyState);
+    const calls: string[] = [];
+    const scenario = Effect.gen(function* () {
+      const eventSink = yield* EventSink.EventSinkV2;
+      const idAllocator = yield* IdAllocator.IdAllocatorV2;
+      const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
+      const registry = yield* McpSessionRegistry.McpSessionRegistry;
+      const now = yield* DateTime.now;
+      const threadId = ThreadId.make("thread-figma-connector-binding");
+      const providerInstanceId = modelSelection.instanceId;
+      const providerSessionId = yield* idAllocator.allocate.providerSession({
+        providerInstanceId,
+        threadId,
+      });
+      yield* eventSink.write({
+        events: [yield* makeThreadCreatedEvent({ idAllocator, threadId, now })],
+      });
+      yield* manager.open({ threadId, providerSessionId, modelSelection, runtimePolicy });
+      const credential = McpProviderSession.readMcpProviderSession(threadId);
+      if (!credential) throw new Error("Expected test thread credential");
+      const caller = {
+        threadId,
+        providerInstanceId,
+        providerSessionId: credential.providerSessionId,
+      };
+      assert.isUndefined(yield* manager.figmaMcpConnection(caller));
+
+      const providerThread = makeProviderThread({ idAllocator, threadId, providerSessionId, now });
+      const run = {
+        id: RunId.make("run-figma-binding"),
+        threadId,
+        ordinal: 1,
+        providerInstanceId,
+        modelSelection,
+        providerThreadId: providerThread.id,
+        rootNodeId: NodeId.make("node-figma-binding"),
+        userMessageId: MessageId.make("message-figma-binding"),
+        activeAttemptId: RunAttemptId.make("attempt-figma-binding"),
+        status: "running" as const,
+        requestedAt: now,
+        startedAt: now,
+        completedAt: null,
+        checkpointId: null,
+        contextHandoffId: null,
+      };
+      const turn = {
+        id: ProviderTurnId.make("turn-figma-binding"),
+        providerThreadId: providerThread.id,
+        nodeId: run.rootNodeId,
+        runAttemptId: run.activeAttemptId,
+        nativeTurnRef: null,
+        ordinal: 1,
+        status: "running" as const,
+        startedAt: now,
+        completedAt: null,
+      };
+      const event = () => idAllocator.allocate.event({ threadId });
+      yield* eventSink.write({
+        events: [
+          {
+            id: yield* event(),
+            threadId,
+            type: "provider-thread.updated",
+            occurredAt: now,
+            payload: providerThread,
+          },
+          { id: yield* event(), threadId, type: "run.created", occurredAt: now, payload: run },
+          {
+            id: yield* event(),
+            threadId,
+            type: "provider-turn.updated",
+            occurredAt: now,
+            payload: turn,
+          },
+        ],
+      });
+      assert.isUndefined(
+        yield* manager.figmaMcpConnection({ ...caller, providerSessionId: "another-credential" }),
+      );
+      assert.isUndefined(
+        yield* manager.figmaMcpConnection({ ...caller, threadId: ThreadId.make("other-thread") }),
+      );
+      const connection = yield* manager.figmaMcpConnection(caller);
+      if (!connection) throw new Error("Expected connector on the active test turn");
+      yield* connection.call("whoami", {});
+      assert.deepEqual(calls, ["native-thread:whoami"]);
+
+      yield* eventSink.write({
+        events: [
+          {
+            id: yield* event(),
+            threadId,
+            occurredAt: now,
+            type: "provider-turn.updated",
+            payload: { ...turn, status: "completed", completedAt: now },
+          },
+        ],
+      });
+      assert.isTrue(Exit.isFailure(yield* Effect.exit(connection.call("use_figma", {}))));
+      yield* registry.revokeProviderSession(caller.providerSessionId);
+      assert.isUndefined(yield* manager.figmaMcpConnection(caller));
+      assert.deepEqual(calls, ["native-thread:whoami"]);
+    });
+    yield* scenario.pipe(
+      Effect.provide(
+        layerTest({
+          state,
+          idleTimeoutMs: 1_000,
+          figmaMcp: (thread) =>
+            Effect.succeed({
+              list: () => Effect.succeed({ data: [] }),
+              call: (name) =>
+                Effect.sync(() => {
+                  calls.push(`${thread.nativeThreadRef?.nativeId}:${name}`);
+                }),
+            }),
+        }),
+      ),
+    );
+  }),
 );
 
 it.effect(
