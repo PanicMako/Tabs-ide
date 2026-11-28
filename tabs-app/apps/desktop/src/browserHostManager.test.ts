@@ -7955,6 +7955,39 @@ describe("reliable browser tabs and agent control", () => {
         await expect(f.authorize(write)).rejects.toThrow("Review the current Figma");
         expect(f.pending()).toBeUndefined();
       });
+
+      it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+        "requires the selected Figma node in the live Chromium document during consumption",
+        async () => {
+          const f = await setupFigma();
+          const { chromium } = await import("playwright");
+          const browser = await chromium.launch();
+          onTestFinished(async () => browser.close());
+          const page = await browser.newPage();
+          await page.route("**/*", (route) =>
+            route.fulfill({
+              contentType: "text/html",
+              body: "<title>Design</title><canvas aria-label='Selected frame'></canvas>",
+            }),
+          );
+          await page.goto(address);
+          await connectChromiumPage(page, f);
+
+          const { approval, write } = await proposed(f);
+          await f.confirm(approval.id);
+          await page.evaluate(() => history.replaceState(null, "", "?node-id=35-13"));
+          await expect(f.authorize(write)).rejects.toThrow("Inspect the attached Figma node again");
+          expect(f.pending()).toBeUndefined();
+
+          await page.evaluate(() => history.replaceState(null, "", "?node-id=35-12"));
+          const next = await proposed(f);
+          await f.confirm(next.approval.id);
+          await expect(f.authorize(next.write)).resolves.toEqual({
+            status: "approved",
+            approval: next.approval,
+          });
+        },
+      );
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
