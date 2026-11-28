@@ -1,22 +1,29 @@
 // Minimal device stream client. iOS shows serve-sim's MJPEG feed and sends input over its
 // tagged-JSON socket; Android polls still frames and sends input over serve-emu's JSON socket.
 // WebCodecs/AVCC video, WebRTC and the 3D/Duo viewers are not ported yet.
-import type { DevicePlatform } from "@tabs/contracts";
+import type { DeviceComparisonGesture, DevicePlatform } from "@tabs/contracts";
 
 export interface DeviceHubAccess {
   readonly httpBase: string;
   readonly wsBase: string;
   readonly query: Readonly<Record<string, string>>;
   readonly credentials: boolean;
+  readonly authorize?: ((url: string) => Promise<string>) | undefined;
 }
 
 /** Same-origin access: the page is served by the environment server, so cookies authenticate. */
 export function sameOriginHubAccess(
   location: { origin: string },
   hubBasePath: string,
+  hostId?: string,
 ): DeviceHubAccess {
   const httpBase = `${location.origin}${hubBasePath}`;
-  return { httpBase, wsBase: httpBase.replace(/^http/, "ws"), query: {}, credentials: true };
+  return {
+    httpBase,
+    wsBase: httpBase.replace(/^http/, "ws"),
+    query: hostId === undefined ? {} : { hostId },
+    credentials: true,
+  };
 }
 
 export const withHubQuery = (url: string, access: DeviceHubAccess): string => {
@@ -32,6 +39,7 @@ export const IOS_MSG_TOUCH = 0x03;
 export const IOS_MSG_BUTTON = 0x04;
 export const IOS_MSG_KEY = 0x06;
 export const IOS_MSG_ORIENTATION = 0x07;
+const IOS_MSG_SCREEN_CONFIG = 0x82;
 
 export type DeviceButton = "home" | "back" | "recents" | "power";
 export type DeviceTouchPhase = "begin" | "move" | "end";
@@ -80,7 +88,9 @@ const IOS_ORIENTATIONS = ["portrait", "landscape_left", "portrait_upside_down", 
 export const nextIosOrientation = (current: string) =>
   IOS_ORIENTATIONS[(IOS_ORIENTATIONS.indexOf(current) + 1) % IOS_ORIENTATIONS.length]!;
 
-const ANDROID_KEYCODES: Readonly<Record<string, number>> = {
+type AndroidKeycode = Extract<DeviceComparisonGesture, { type: "key" }>["keycode"];
+
+const ANDROID_KEYCODES: Readonly<Partial<Record<string, AndroidKeycode>>> = {
   ArrowUp: 19,
   ArrowDown: 20,
   ArrowLeft: 21,
@@ -91,13 +101,22 @@ const ANDROID_KEYCODES: Readonly<Record<string, number>> = {
   Delete: 112,
 };
 
-/** Android text and key messages for a typed key; iOS HID keys are not mapped yet. */
+/** Text and key messages for the Android input socket. */
 export function androidKeyMessage(event: { key: string; metaKey?: boolean; ctrlKey?: boolean }) {
-  if (event.key === "Escape") return JSON.stringify({ type: "back" });
+  const gesture = deviceKeyGesture("android", event);
+  return gesture ? JSON.stringify(gesture) : null;
+}
+
+export function deviceKeyGesture(
+  platform: DevicePlatform,
+  event: { key: string; metaKey?: boolean; ctrlKey?: boolean },
+): DeviceComparisonGesture | null {
+  if (event.key === "Escape")
+    return platform === "ios" ? { type: "key", keycode: 111 } : { type: "back" };
   const keycode = ANDROID_KEYCODES[event.key];
-  if (keycode !== undefined) return JSON.stringify({ type: "key", keycode });
+  if (keycode !== undefined) return { type: "key", keycode };
   if (event.key.length === 1 && !event.metaKey && !event.ctrlKey)
-    return JSON.stringify({ type: "text", text: event.key });
+    return { type: "text", text: event.key };
   return null;
 }
 
@@ -141,17 +160,29 @@ export function createDeviceStream(options: DeviceStreamOptions): DeviceStreamHa
   let retry: ReturnType<typeof setTimeout> | undefined;
   const connect = () => {
     if (closed) return;
-    const ws = (options.createSocket ?? ((url) => new WebSocket(url)))(wsUrl);
+    if (access.authorize) {
+      void access
+        .authorize(wsUrl)
+        .then(open)
+        .catch(() => {
+          options.onInputConnected(false);
+          if (!closed) retry = setTimeout(connect, RETRY_MS);
+        });
+    } else open(wsUrl);
+  };
+  const open = (url: string) => {
+    if (closed) return;
+    const ws = (options.createSocket ?? ((value) => new WebSocket(value)))(url);
     ws.binaryType = "arraybuffer";
     socket = ws;
     ws.onopen = () => {
       if (platform === "android" && socket === ws) options.onInputConnected(true);
     };
     ws.onmessage = (event) => {
-      // iOS admits input with a 0x83 tag; the first tagged frame means the helper is live.
-      if (platform === "ios" && event.data instanceof ArrayBuffer) {
+      // The serve-sim HID socket sends its screen config once the helper is ready.
+      if (platform === "ios" && socket === ws && event.data instanceof ArrayBuffer) {
         const bytes = new Uint8Array(event.data);
-        if (bytes[0] === 0x83) options.onInputConnected(true);
+        if (bytes[0] === IOS_MSG_SCREEN_CONFIG) options.onInputConnected(true);
       }
     };
     ws.onclose = () => {
@@ -200,7 +231,10 @@ export async function captureDeviceScreenshot(
   access: DeviceHubAccess,
   signal?: AbortSignal,
 ): Promise<Blob> {
-  const response = await fetch(stream.screenshotUrl, {
+  const url = access.authorize
+    ? await access.authorize(stream.screenshotUrl)
+    : stream.screenshotUrl;
+  const response = await fetch(url, {
     method: "POST",
     credentials: access.credentials ? "include" : "omit",
     ...(signal ? { signal } : {}),

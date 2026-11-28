@@ -3,6 +3,7 @@ import {
   androidKeyMessage,
   buttonMessage,
   createDeviceStream,
+  deviceKeyGesture,
   nextIosOrientation,
   sameOriginHubAccess,
   taggedJson,
@@ -58,6 +59,11 @@ describe("device stream wire format", () => {
     expect(nextIosOrientation("portrait")).toBe("landscape_left");
   });
 
+  it("uses Escape as a keyboard key during iOS takeover", () => {
+    expect(deviceKeyGesture("ios", { key: "Escape" })).toEqual({ type: "key", keycode: 111 });
+    expect(deviceKeyGesture("android", { key: "Escape" })).toEqual({ type: "back" });
+  });
+
   it("builds hub URLs and appends ticket queries", () => {
     const access = sameOriginHubAccess({ origin: "http://localhost:3773" }, "/device-hub");
     expect(access.wsBase).toBe("ws://localhost:3773/device-hub");
@@ -68,6 +74,25 @@ describe("device stream wire format", () => {
 });
 
 describe("createDeviceStream", () => {
+  it.each(["ios", "android"] as const)(
+    "pins every %s stream request to the selected host",
+    (platform) => {
+      for (const hostId of ["local", "lab / east"]) {
+        const stream = createDeviceStream({
+          platform,
+          deviceId: "same-id",
+          access: sameOriginHubAccess({ origin: "http://localhost:1" }, "/hub", hostId),
+          onInputConnected: vi.fn(),
+          createSocket: (url) => new FakeSocket(url) as unknown as WebSocket,
+        });
+        const urls = [stream.screenshotUrl, stream.stillUrl, FakeSocket.last!.url];
+        if (stream.videoUrl) urls.push(stream.videoUrl);
+        for (const url of urls) expect(new URL(url).searchParams.get("hostId")).toBe(hostId);
+        stream.close();
+      }
+    },
+  );
+
   it("opens the platform socket, reports input admission, and sends through it", () => {
     const connected = vi.fn();
     const stream = createDeviceStream({
@@ -80,11 +105,18 @@ describe("createDeviceStream", () => {
     const socket = FakeSocket.last!;
     expect(socket.url).toBe("ws://localhost:1/hub/vendor/serve-sim/helper/ws?device=UDID%201");
     expect(stream.videoUrl).toContain("/helper/UDID%201/stream.mjpeg");
+    socket.onopen?.();
     socket.onmessage?.({ data: new Uint8Array([0x83]).buffer });
+    expect(connected).not.toHaveBeenCalled();
+    socket.onmessage?.({
+      data: taggedJson(0x82, { width: 1178, height: 2556, orientation: "portrait" }).buffer,
+    });
     expect(connected).toHaveBeenLastCalledWith(true);
     stream.pressButton("home");
     expect(socket.sent).toHaveLength(1);
     stream.close();
+    expect(connected).toHaveBeenLastCalledWith(false);
+    socket.onmessage?.({ data: new Uint8Array([0x82]).buffer });
     expect(connected).toHaveBeenLastCalledWith(false);
   });
 });
