@@ -959,6 +959,113 @@ describe("Agent-led device comparison", () => {
       expect((await f.settle()).run?.steps).toEqual([]);
     },
   );
+
+  it.each(["before", "after"] as const)(
+    "hands the source back when takeover happens %s a tap commits",
+    async (timing) => {
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+        [frame("android", ["Continue"])],
+      );
+      const { run } = await f.propose();
+      const runId = run!.runId;
+      await f.approveRecording(runId);
+      const { controls } = await f.record({ action: "inspect", runId });
+      const tap = {
+        action: "tap",
+        runId,
+        controlId: controls![0]!.id,
+      } as const;
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const hold = Effect.promise(() => {
+        started.resolve();
+        return release.promise;
+      });
+      const press = f.driver.press;
+      Object.assign(f.driver, {
+        press: (...args: Parameters<SemanticDriver["press"]>) =>
+          timing === "before"
+            ? hold.pipe(Effect.andThen(press(...args)))
+            : press(...args).pipe(Effect.andThen(hold)),
+      });
+      await f.record(tap);
+      const sourceStatus = () =>
+        f.invoke({ action: "status", threadId, device: iphone }, panelSession);
+      try {
+        await started.promise;
+        await expect(
+          f.invoke(
+            {
+              action: "takeover",
+              threadId,
+              runId,
+              liveInput: true,
+              device: pixel,
+            },
+            panelSession,
+          ),
+        ).rejects.toThrow("source device");
+        const handoff = await f.invoke(
+          {
+            action: "takeover",
+            threadId,
+            runId,
+            liveInput: true,
+            device: iphone,
+          },
+          panelSession,
+        );
+        expect(handoff.run).toMatchObject({
+          busy: true,
+          canResume: false,
+          agentRecording: { manual: true },
+        });
+        expect(handoff.manualControlId).toBeUndefined();
+        expect((await f.record({ action: "inspect", runId })).controls).toBeUndefined();
+        await expect(f.record(tap)).rejects.toThrow("return source control");
+      } finally {
+        release.resolve();
+      }
+      await f.settle();
+      const handoff = await sourceStatus();
+      const committed = timing === "after";
+      expect(handoff.run).toMatchObject({
+        phase: "recording",
+        canResume: true,
+        uncertainTap: false,
+        steps: committed ? [{ label: "Continue" }] : [],
+      });
+      expect(handoff.manualControlId).toBeTypeOf("string");
+      expect((await f.record({ action: "inspect", runId })).controls).toBeUndefined();
+      await f.invoke(
+        {
+          action: "resume",
+          threadId,
+          runId,
+          controlId: handoff.manualControlId!,
+        },
+        panelSession,
+      );
+      const inspected = await f.record({ action: "inspect", runId });
+      expect(inspected.controls).toMatchObject([
+        { label: committed ? "Order review" : "Continue" },
+      ]);
+      expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual(
+        committed ? [iphone.hostId] : [],
+      );
+      if (committed) {
+        await f.record({
+          action: "expect",
+          runId,
+          controlId: inspected.controls![0]!.id,
+        });
+        expect((await f.record({ action: "finish", runId })).run?.steps).toEqual([
+          { label: "Continue", expected: "Order review" },
+        ]);
+      }
+    },
+  );
 });
 
 describe.skip("Device comparison", () => {
