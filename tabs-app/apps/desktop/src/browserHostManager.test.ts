@@ -4151,6 +4151,46 @@ describe("reliable browser tabs and agent control", () => {
         browserPageAuthorized: false,
       });
     });
+
+    it.each(["chrome-error://chromewebdata/", "https://app.test/submit"])(
+      "can check a pending Submit from a Chromium error document at %s",
+      async (currentUrl) => {
+        const f = await setup(currentUrl);
+        f.visible.documentUrl = "chrome-error://chromewebdata/";
+        const input = {
+          ...f.saved,
+          stage: "uploaded",
+          pendingAction: "submit",
+        } as const;
+        await expect(f.enter(input)).rejects.toThrow("protected content");
+        for (const failedUrl of ["https://another-app.test/submit", "https://app.test/login"]) {
+          f.events.emit("did-fail-load", {}, -324, "ERR_EMPTY_RESPONSE", failedUrl, true);
+          f.session.currentUrl = currentUrl;
+          await expect(f.enter(input)).rejects.toThrow("protected content");
+        }
+        expect(f.loadURL).not.toHaveBeenCalled();
+        f.events.emit(
+          "did-fail-load",
+          {},
+          -324,
+          "ERR_EMPTY_RESPONSE",
+          "https://app.test/submit",
+          true,
+        );
+        f.session.currentUrl = currentUrl;
+        f.loadURL.mockImplementationOnce(async (url) => {
+          f.session.currentUrl = url;
+          f.visible.documentUrl = undefined;
+          f.visible.status = "Submitted";
+          f.events.emit("did-navigate", {}, url);
+        });
+        await expect(f.enter(input)).resolves.toEqual({ stage: "submitted" });
+        expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url, {
+          extraHeaders: "Cache-Control: no-cache\n",
+        });
+        expect(f.submit).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
