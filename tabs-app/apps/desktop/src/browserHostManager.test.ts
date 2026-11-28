@@ -3774,6 +3774,22 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.pending()).toBeUndefined();
         await expect(f.consent(approval.id)).rejects.toThrow("original tab and thread");
       });
+
+      it("rejects an approval if the control epoch changes during the isolated read", async () => {
+        const f = await setupStatus();
+        await f.grant();
+        const { approval } = await f.status();
+        f.evaluate.mockImplementationOnce(async () => {
+          f.manager.takeControl(f.human);
+          await f.manager.resumeAgent(f.human);
+          return true;
+        });
+        await expect(f.consent(approval.id)).rejects.toThrow("original tab and thread");
+        expect(f.pending()).toBeUndefined();
+        await expect(f.status()).resolves.toMatchObject({
+          status: "approval_required",
+        });
+      });
     });
 
     describe.skip("monitor", () => {
