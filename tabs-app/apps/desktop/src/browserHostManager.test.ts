@@ -9181,6 +9181,51 @@ describe("reliable browser tabs and agent control", () => {
       }
       await expect(f.findComparison(restarted, { source: "agent" })).rejects.toThrow("thread");
     });
+
+    it.each([true, "first-difference"] as const)(
+      "reopens the exact first-difference draft after restart and checks both live receipts (%s)",
+      async (approval) => {
+        const url = "https://app.test/drafts/42?view=edit#evidence";
+        const f = await setup(url, approval === true ? undefined : url, approval, {
+          targetPng: "AQID",
+        });
+        f.receipt.text = `${f.digest}\n${f.targetDigest}`;
+        await f.verify();
+
+        const replacement = f.tab(f.manager);
+        await expect(f.enterComparison(f.manager)).rejects.toThrow("original desktop browser tab");
+        expect(replacement.loadURL).not.toHaveBeenCalled();
+
+        const restarted = new BrowserHostManager(() => null);
+        const tab = f.tab(restarted);
+        await expect(f.enterComparison(restarted, { taskId: "other-thread" })).rejects.toThrow(
+          "No verified comparison draft",
+        );
+        await expect(
+          f.enterComparison(restarted, {
+            input: {
+              runId: evidenceRunId,
+              step: sourceFrame.step + 1,
+              profileId: f.input.profileId,
+            },
+          }),
+        ).rejects.toThrow("No verified comparison draft");
+        await expect(f.enterComparison(restarted, { source: "agent" })).rejects.toThrow(
+          "original thread",
+        );
+        expect(tab.loadURL).not.toHaveBeenCalled();
+
+        tab.content.text = f.receipt.text;
+        await expect(f.enterComparison(restarted)).resolves.toMatchObject({
+          url,
+        });
+        tab.content.text = `${f.digest}\n${f.targetDigest}0`;
+        await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+        tab.content.text = `${f.digest}0\n${f.targetDigest}`;
+        await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+        expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(url);
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
