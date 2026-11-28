@@ -20,6 +20,10 @@ import { publishDesktopResources } from "./desktopResourceTelemetry";
 import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
 import desktopPackage from "../package.json" with { type: "json" };
 import { isTrustedIpcFrame, isTrustedTabsUrl } from "./ipcSecurity";
+import {
+  createDeviceScreenshotAuthorizationRequests,
+  DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL,
+} from "./deviceScreenshotAuthorizationIpc";
 import { AgentsWindowManager } from "./agentsWindowManager";
 import { isLightDesktopTheme } from "./desktopTheme";
 import { desktopZoomFactor, desktopZoomMenu } from "./desktopZoom";
@@ -4153,6 +4157,9 @@ function registerIpcHandlers(): void {
   });
 
   handleTabsIpc(BROWSER_HOST_GET_STATE_CHANNEL, async () => browserHostManager.getState());
+  handleTabsIpc("desktop:browser-host:list-workflow-tabs", () =>
+    browserHostManager.listBrowserWorkflowTabs(),
+  );
 
   ipcMain.removeHandler(BROWSER_HOST_GET_SESSION_STATE_CHANNEL);
   handleTabsIpc(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, async (_event, input: unknown) => {
@@ -4229,6 +4236,7 @@ function registerIpcHandlers(): void {
       projectId: (input as { projectId: string }).projectId,
       sessionId: readBrowserSessionId(input),
       initialUrl: safeUrl,
+      requireExisting: (input as { requireExisting?: unknown }).requireExisting === true,
       partition,
       profileId:
         typeof (input as { profileId?: unknown }).profileId === "string"
@@ -4486,24 +4494,43 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SET_BOUNDS_CHANNEL);
+  const screenshotAuthorizations = createDeviceScreenshotAuthorizationRequests();
+  ipcMain.removeHandler(DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL);
+  handleTabsIpc(
+    DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL,
+    (event, id: unknown, result: unknown) => {
+      screenshotAuthorizations.reply(event.senderFrame, id, result);
+    },
+  );
   ipcMain.removeHandler(BROWSER_HOST_AUTOMATION_CHANNEL);
-  handleTabsIpc(BROWSER_HOST_AUTOMATION_CHANNEL, async (_event, input: unknown) => {
-    if (
-      typeof input !== "object" ||
-      input === null ||
-      typeof (input as { projectId?: unknown }).projectId !== "string" ||
-      typeof (input as { operation?: unknown }).operation !== "string"
-    ) {
-      throw new Error("Invalid browser automation request.");
-    }
-    const request = input as {
-      projectId: string;
-      sessionId?: string;
-      operation: string;
-      input?: unknown;
-    };
-    return browserHostManager.runAutomation(request);
-  });
+  handleTabsIpc(
+    BROWSER_HOST_AUTOMATION_CHANNEL,
+    async (event, input: unknown, authorizationId?: unknown) => {
+      if (
+        typeof input !== "object" ||
+        input === null ||
+        typeof (input as { projectId?: unknown }).projectId !== "string" ||
+        typeof (input as { operation?: unknown }).operation !== "string"
+      ) {
+        throw new Error("Invalid browser automation request.");
+      }
+      const request = input as {
+        projectId: string;
+        sessionId?: string;
+        operation: string;
+        input?: unknown;
+      };
+      const frame = event.senderFrame;
+      const authorizeDeviceScreenshot =
+        request.operation === "deviceScreenshotUpload" &&
+        frame &&
+        typeof authorizationId === "string" &&
+        /^[a-f0-9-]{36}$/u.test(authorizationId)
+          ? () => screenshotAuthorizations.request(frame, authorizationId)
+          : undefined;
+      return browserHostManager.runAutomation(request, undefined, authorizeDeviceScreenshot);
+    },
+  );
 
   ipcMain.removeHandler(BROWSER_HOST_CAPTURE_SESSION_CHANNEL);
   handleTabsIpc(BROWSER_HOST_CAPTURE_SESSION_CHANNEL, async (_event, input: unknown) => {
@@ -4800,6 +4827,7 @@ function registerIpcHandlers(): void {
     browserHostManager.takeControl({
       projectId: (input as { projectId: string }).projectId,
       sessionId: readBrowserSessionId(input),
+      demonstrate: (input as { demonstrate?: unknown }).demonstrate === true,
     });
   });
 
@@ -4811,14 +4839,39 @@ function registerIpcHandlers(): void {
       typeof (input as { projectId?: unknown }).projectId !== "string"
     )
       return;
+    const generation = (input as { expectedGeneration?: unknown }).expectedGeneration;
+    let expectedGeneration: Parameters<BrowserHostManager["resumeAgent"]>[0]["expectedGeneration"];
+    if (generation !== undefined) {
+      if (
+        typeof generation !== "object" ||
+        generation === null ||
+        !("instanceId" in generation) ||
+        !("controlEpoch" in generation)
+      )
+        throw new Error("Invalid browser control generation.");
+      const { instanceId, controlEpoch } = generation;
+      if (
+        typeof instanceId !== "string" ||
+        !instanceId ||
+        typeof controlEpoch !== "number" ||
+        !Number.isSafeInteger(controlEpoch) ||
+        controlEpoch < 0
+      )
+        throw new Error("Invalid browser control generation.");
+      expectedGeneration = { instanceId, controlEpoch };
+    }
     const taskId =
       typeof (input as { taskId?: unknown }).taskId === "string"
         ? (input as { taskId: string }).taskId
         : undefined;
-    browserHostManager.resumeAgent({
+    return browserHostManager.resumeAgent({
       projectId: (input as { projectId: string }).projectId,
       sessionId: readBrowserSessionId(input),
       taskId,
+      ...(typeof (input as { meaning?: unknown }).meaning === "string"
+        ? { meaning: (input as { meaning: string }).meaning }
+        : {}),
+      ...(expectedGeneration ? { expectedGeneration } : {}),
     });
   });
 

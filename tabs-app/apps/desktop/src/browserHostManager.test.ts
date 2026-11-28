@@ -1,5 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
-import { WebContentsView } from "electron";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi, type Mock } from "vitest";
+import { app, nativeImage, WebContentsView } from "electron";
+import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
+import { mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runInNewContext } from "node:vm";
+import {
+  PreviewTabId,
+  type BrowserQuickAction,
+  type BrowserQuickActionResult,
+  type BrowserQuickActionTarget,
+  type BrowserWorkflowBrowserRequest,
+  type BrowserWorkflowDefinition,
+  type BrowserWorkflowHostResult,
+  type BrowserWorkflowSavedResult,
+  type FigmaCanvasApproval,
+  type FigmaCanvasAuthorization,
+  type FigmaCanvasTarget,
+  type FigmaCanvasWrite,
+  type PartnerCenterStatusAuthorization,
+  type PartnerCenterStatusRequest,
+  type PreviewAutomationSnapshot,
+} from "@tabs/contracts";
+import { BROWSER_SELECTION_DRAG_MIME } from "@tabs/shared/preview";
 
 const electronMocks = vi.hoisted(() => ({
   fromPartition: vi.fn(),
@@ -53,6 +77,7 @@ vi.mock("electron", () => ({
 import {
   BrowserHostManager,
   configurePartitionSession,
+  defaultPermissionMediator,
   hasReturnedToAuthenticationOrigin,
   isLikelyAuthenticationUrl,
   normalizeBrowserCookieDomain,
@@ -61,11 +86,35 @@ import {
   planBrowserCrashRecovery,
   sanitizeEmbeddedBrowserUserAgent,
 } from "./browserHostManager";
+import { BrowserSessionImporter } from "./browserImport/BrowserSessionImporter";
+import { BrowserSubmissionGuards, browserWorkflowHostKey } from "./browserWorkflowHostId";
+import { browserWorkflowPageScript } from "./browserWorkflowPage";
+import {
+  browserSelectionDragScript,
+  PAGE_READY_FOR_AGENT,
+  READ_BROWSER_SELECTION,
+} from "./browserPageGrant";
+import {
+  BrowserAttachmentBookmarks,
+  type BrowserAttachmentBookmark,
+} from "./browserAttachmentBookmarks";
+
+// Most fixtures script the guest's replies in order; account hints have their own tests.
+beforeEach(() => {
+  vi.spyOn(BrowserHostManager.prototype as any, "readAccountMarker").mockResolvedValue(null);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("browser crash recovery", () => {
   it("uses bounded exponential backoff and resets after the recovery window", () => {
     const first = planBrowserCrashRecovery(0, null, 1_000)!;
-    expect(first).toEqual({ attempts: 1, windowStartedAt: 1_000, delayMs: 250 });
+    expect(first).toEqual({
+      attempts: 1,
+      windowStartedAt: 1_000,
+      delayMs: 250,
+    });
     expect(planBrowserCrashRecovery(1, 1_000, 1_100)?.delayMs).toBe(500);
     expect(planBrowserCrashRecovery(2, 1_000, 1_200)?.delayMs).toBe(1_000);
     expect(planBrowserCrashRecovery(3, 1_000, 1_300)).toBeNull();
@@ -149,7 +198,11 @@ describe("BrowserHostManager profile storage", () => {
       cookies: {
         on: vi.fn(),
         get: vi.fn().mockResolvedValue([
-          { domain: ".accounts.example.co.uk", name: "sessionid", value: "long-session-value" },
+          {
+            domain: ".accounts.example.co.uk",
+            name: "sessionid",
+            value: "long-session-value",
+          },
           { domain: ".cdn.example.co.uk", name: "preferences", value: "dark" },
         ]),
       },
@@ -157,7 +210,11 @@ describe("BrowserHostManager profile storage", () => {
     const manager = new BrowserHostManager(() => null);
 
     await expect(manager.getProfileDomains("work")).resolves.toEqual([
-      { domain: "accounts.example.co.uk", cookieCount: 1, hasSessionHint: true },
+      {
+        domain: "accounts.example.co.uk",
+        cookieCount: 1,
+        hasSessionHint: true,
+      },
       { domain: "cdn.example.co.uk", cookieCount: 1, hasSessionHint: false },
     ]);
   });
@@ -175,13 +232,15 @@ describe("BrowserHostManager profile storage", () => {
       getStoragePath: () => "/tmp/tabs-storage-work",
       cookies: {
         on: vi.fn(),
-        get: vi
-          .fn()
-          .mockResolvedValue([
-            sessionCookie,
-            { domain: ".github.com", name: "__Host-csrf", value: "secret-csrf-token" },
-            { domain: "docs.github.com", name: "theme", value: "dark" },
-          ]),
+        get: vi.fn().mockResolvedValue([
+          sessionCookie,
+          {
+            domain: ".github.com",
+            name: "__Host-csrf",
+            value: "secret-csrf-token",
+          },
+          { domain: "docs.github.com", name: "theme", value: "dark" },
+        ]),
       },
     });
     const manager = new BrowserHostManager(() => null);
@@ -308,7 +367,12 @@ describe("BrowserHostManager profile storage", () => {
       cookies: {
         on: vi.fn(),
         get: vi.fn().mockResolvedValue([
-          { domain: ".github.com", name: "user_session", path: "/", secure: true },
+          {
+            domain: ".github.com",
+            name: "user_session",
+            path: "/",
+            secure: true,
+          },
           { domain: ".google.com", name: "sid", path: "/", secure: true },
         ]),
         remove: vi.fn().mockResolvedValue(undefined),
@@ -339,7 +403,10 @@ describe("BrowserHostManager profile storage", () => {
 
   it("uses comprehensive Chromium data clearing for a profile", async () => {
     const profileSession = {
-      cookies: { on: vi.fn(), flushStore: vi.fn().mockResolvedValue(undefined) },
+      cookies: {
+        on: vi.fn(),
+        flushStore: vi.fn().mockResolvedValue(undefined),
+      },
       closeAllConnections: vi.fn().mockResolvedValue(undefined),
       clearData: vi.fn().mockResolvedValue(undefined),
       flushStorageData: vi.fn(),
@@ -354,7 +421,9 @@ describe("BrowserHostManager profile storage", () => {
     );
     expect(profileSession.closeAllConnections).toHaveBeenCalledOnce();
     expect(profileSession.clearData).toHaveBeenCalledWith(
-      expect.objectContaining({ dataTypes: expect.arrayContaining(["cookies", "indexedDB"]) }),
+      expect.objectContaining({
+        dataTypes: expect.arrayContaining(["cookies", "indexedDB"]),
+      }),
     );
     expect(profileSession.flushStorageData).toHaveBeenCalledOnce();
     expect(profileSession.cookies.flushStore).toHaveBeenCalledOnce();
@@ -373,7 +442,13 @@ describe("BrowserHostManager profile storage", () => {
       sessionId: "preview-1",
       key: "project-1::preview-1",
       currentUrl: null,
-      view: { webContents: { session: storageSession } },
+      view: {
+        webContents: {
+          session: storageSession,
+          isDestroyed: () => false,
+          getURL: () => "",
+        },
+      },
     };
     (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(
       browserSession.key,
@@ -427,7 +502,10 @@ describe("BrowserHostManager picture in picture", () => {
     (manager as unknown as { activeKey: string | null }).activeKey = session.key;
     (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
 
-    manager.openPictureInPicture({ projectId: "project-1", sessionId: "preview-1" });
+    manager.openPictureInPicture({
+      projectId: "project-1",
+      sessionId: "preview-1",
+    });
     expect(mainChildren).toEqual([]);
     expect(electronMocks.browserWindows).toHaveLength(1);
     const browserWindow = electronMocks.browserWindows[0];
@@ -435,7 +513,10 @@ describe("BrowserHostManager picture in picture", () => {
     expect((browserWindow!.contentView as { children: unknown[] }).children).toEqual([view]);
     expect(manager.getSessionState("project-1", "preview-1").pictureInPicture).toBe(true);
 
-    manager.closePictureInPicture({ projectId: "project-1", sessionId: "preview-1" });
+    manager.closePictureInPicture({
+      projectId: "project-1",
+      sessionId: "preview-1",
+    });
     expect(mainChildren).toEqual([view]);
     expect(view.setBounds).toHaveBeenLastCalledWith(session.bounds);
     expect(manager.getSessionState("project-1", "preview-1").pictureInPicture).toBe(false);
@@ -589,7 +670,9 @@ describe("BrowserHostManager automation", () => {
       projectId: "project-1",
       sessionId: "preview-1",
       key: "project-1::preview-1",
-      view: { webContents: { isDestroyed: () => false, executeJavaScript: vi.fn() } },
+      view: {
+        webContents: { isDestroyed: () => false, executeJavaScript: vi.fn() },
+      },
       bounds: null,
       currentUrl: "https://example.com/",
       pageTitle: "Example",
@@ -622,7 +705,10 @@ describe("BrowserHostManager automation", () => {
       }),
     ).rejects.toThrow("interrupted by human input");
     expect(browserSession.actionTimeline).toEqual([
-      expect.objectContaining({ status: "interrupted", error: expect.stringContaining("human") }),
+      expect.objectContaining({
+        status: "interrupted",
+        error: expect.stringContaining("human"),
+      }),
     ]);
     expect(browserSession.controller).toBe("human");
   });
@@ -797,6 +883,34 @@ describe("configurePartitionSession", () => {
     cookieChanged?.();
     expect(flushStore).toHaveBeenCalledOnce();
   });
+
+  it("does not reuse remembered permissions from other partitions for temporary agent tabs", () => {
+    const origin = "https://maps.example.test";
+    const first = "tabs-browser-ephemeral:agent:first";
+    const second = "tabs-browser-ephemeral:agent:second";
+    const configure = (partition: string) => {
+      const session = {
+        cookies: { on: vi.fn() },
+        setPermissionRequestHandler: vi.fn(),
+        setPermissionCheckHandler:
+          vi.fn<
+            (check: (contents: undefined, permission: string, origin: string) => boolean) => void
+          >(),
+      };
+      configurePartitionSession(session as never, partition);
+      return session.setPermissionCheckHandler.mock.calls[0]![0];
+    };
+    defaultPermissionMediator.recordDecision(origin, "geolocation", true, "default");
+    defaultPermissionMediator.recordDecision(origin, "geolocation", true, first);
+    try {
+      expect(configure("persist:tabs-browser:p")(undefined, "geolocation", origin)).toBe(true);
+      expect(configure(first)(undefined, "geolocation", origin)).toBe(true);
+      expect(configure(second)(undefined, "geolocation", origin)).toBe(false);
+    } finally {
+      defaultPermissionMediator.revokeDecision("default", origin, "geolocation");
+      defaultPermissionMediator.revokeDecision(first, origin, "geolocation");
+    }
+  });
 });
 
 describe("browser profile input validation", () => {
@@ -845,6 +959,7 @@ describe("reliable browser tabs and agent control", () => {
     const webContents = {
       id: 100,
       isDestroyed: vi.fn(() => false),
+      isCrashed: vi.fn(() => false),
       isDevToolsOpened: vi.fn(() => false),
       close,
       executeJavaScript,
@@ -861,6 +976,7 @@ describe("reliable browser tabs and agent control", () => {
     };
 
     const session = {
+      instanceId: "mock-browser-instance",
       projectId: "project-1",
       sessionId: "tab-1",
       key: "project-1::tab-1",
@@ -907,10 +1023,1161 @@ describe("reliable browser tabs and agent control", () => {
     };
   }
 
+  function mockNavigation(
+    manager: BrowserHostManager,
+    fixture: Pick<ReturnType<typeof createMockSession>, "session" | "webContents">,
+    historyUrls: string[] = [],
+  ) {
+    const { session, webContents } = fixture;
+    const events = new EventEmitter();
+    const goToIndex = vi.fn();
+    const stop = vi.fn();
+    const loadURL = vi.fn(async (url: string) => {
+      session.currentUrl = url;
+      events.emit("did-navigate", {}, url);
+    });
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      getTitle: () => session.pageTitle,
+      getZoomFactor: () => 1,
+      canGoBack: () => true,
+      canGoForward: () => true,
+      setWindowOpenHandler: vi.fn(),
+      on: events.on.bind(events),
+      removeListener: events.removeListener.bind(events),
+      navigationHistory: {
+        getAllEntries: () => historyUrls.map((url) => ({ url })),
+        goToIndex,
+      },
+      loadURL,
+      stop,
+    });
+    const internals = manager as any;
+    internals.sessions.set(session.key, session);
+    internals.registerSessionEvents(session);
+    return { events, goToIndex, loadURL, stop };
+  }
+
+  it("reuses the selected Work guest for an agent open without a partition", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const { session } = createMockSession({
+      profileId: "work",
+      partition: "persist:tabs-browser:profile:work",
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const recreate = vi.spyOn(manager, "recreateSession").mockResolvedValue(undefined);
+    await manager.ensureSession({
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+      initialUrl: "",
+      taskId: "thread-1",
+      requireExisting: true,
+    });
+    expect(recreate).not.toHaveBeenCalled();
+    expect(session.assignedTaskId).toBe("thread-1");
+  });
+
+  function openCookieChangeTab(
+    manager: BrowserHostManager,
+    id: string,
+    url: string,
+    storage: { cookies: EventEmitter },
+    profileId = "work",
+  ) {
+    const sessionId = `agents-surface-${id}`;
+    const partition = `persist:tabs-browser:profile:${profileId}`;
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      currentUrl: url,
+      profileId,
+      partition,
+    });
+    let documentTime = performance.timeOrigin + performance.now() - 1000;
+    const evaluate = vi.fn(
+      async (_world: number, scripts: { code: string }[]): Promise<unknown> =>
+        scripts[0]?.code === "performance.timeOrigin" ? documentTime : true,
+    );
+    const { events } = mockNavigation(manager, fixture);
+    Object.assign(fixture.webContents, {
+      session: storage,
+      isLoadingMainFrame: () => fixture.session.loading,
+      executeJavaScriptInIsolatedWorld: evaluate,
+    });
+    (manager as any).observeProfileSession(partition, storage);
+    const route = {
+      projectId: fixture.session.projectId,
+      sessionId,
+      taskId: "qa",
+    };
+    const state = () => manager.getSessionState(route.projectId, sessionId);
+    const source = { hostId: "local", deviceId: "sim" };
+    const approve = (pageApprovalToken = state().pageApprovalToken) =>
+      manager.runAutomation({
+        ...route,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId, pageApprovalToken },
+      });
+    const approveScreenshot = () =>
+      manager.runAutomation({
+        ...route,
+        source: "human",
+        operation: "authorizeDeviceScreenshot",
+        input: {
+          ...source,
+          url,
+          profileId,
+          pageApprovalToken: state().pageApprovalToken,
+        },
+      }) as Promise<{ grantId: string }>;
+    return {
+      ...fixture,
+      evaluate,
+      events,
+      state,
+      approve,
+      approveScreenshot,
+      showDocument(time: number) {
+        documentTime = time;
+        events.emit("did-navigate", {}, url);
+      },
+      act: (
+        operation: Parameters<BrowserHostManager["runAutomation"]>[0]["operation"],
+        input = {},
+      ) => manager.runAutomation({ ...route, source: "agent", operation, input }),
+      transfer: (grantId: string, png?: string) =>
+        manager.runAutomation(
+          {
+            ...route,
+            source: "agent",
+            operation: "deviceScreenshotUpload",
+            input: {
+              ...source,
+              grantId,
+              ...(png === undefined ? { phase: "inspect" } : { phase: "attach", png }),
+              selector: "#evidence",
+            },
+          },
+          undefined,
+          async () => true,
+        ),
+    };
+  }
+
+  describe.skip("saved browser workflow results", () => {
+    async function setup(
+      currentUrl?: string,
+      historyUrls?: string[],
+      sessionId = "agents-surface-workflow-result",
+    ) {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-saved-workflow-result-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+
+      const manager = new BrowserHostManager(() => null);
+      const url = "https://app.test/draft/42?view=review";
+      const fixture = createMockSession({
+        sessionId,
+        key: "project-1::" + sessionId,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: currentUrl ?? url,
+      });
+      const { session, webContents } = fixture;
+      const navigation = mockNavigation(manager, fixture, historyUrls);
+      const storagePath = join(userData, "Partitions", "work");
+      Object.assign(webContents.session, { storagePath });
+      const saved: BrowserWorkflowSavedResult = {
+        target: {
+          projectId: session.projectId,
+          tabId: PreviewTabId.make(sessionId),
+          profileId: "work",
+          hostKey: browserWorkflowHostKey(userData, storagePath),
+        },
+        definition: {
+          url,
+          identitySelector: "#draft-id",
+          resourceId: "42",
+          statusSelector: "#status",
+          submitSelector: "#submit",
+          states: {
+            uploaded: "Uploaded",
+            submitted: "Submitted",
+            certified: "Certified",
+            published: "Published",
+          },
+          breakpoint: {
+            selector: "#replacement",
+            pauseText: "Replacing",
+            clearText: "Clear",
+          },
+        },
+        stage: "submitted",
+      };
+      const visible = {
+        identity: "42",
+        status: "Certified",
+        password: false,
+        hideIdentity: false,
+        duplicateIdentity: false,
+        documentUrl: undefined as string | undefined,
+      };
+      const submit = vi.fn();
+      class HTMLElement {
+        constructor(
+          readonly innerText: string,
+          readonly password = false,
+          readonly hidden = false,
+        ) {}
+        getBoundingClientRect() {
+          return { width: this.hidden ? 0 : 100, height: 20 };
+        }
+        getClientRects() {
+          return [this.getBoundingClientRect()];
+        }
+        closest() {
+          return null;
+        }
+        matches(selector: string) {
+          return this.password && (selector.startsWith("input,") || selector.includes("password"));
+        }
+        click() {
+          submit();
+        }
+      }
+      const querySelectorAll = vi.fn((selector: string) => {
+        switch (selector) {
+          case "*":
+            return visible.password ? [new HTMLElement("", true)] : [];
+          case "#draft-id":
+            return [
+              new HTMLElement(visible.identity, false, visible.hideIdentity),
+              ...(visible.duplicateIdentity ? [new HTMLElement(visible.identity)] : []),
+            ];
+          case "#status":
+            return [new HTMLElement(visible.status)];
+          case "#submit":
+            return [new HTMLElement("Submit")];
+          default:
+            return [];
+        }
+      });
+      const evaluate = vi.fn(async (_world: number, [script]: { code: string }[]) =>
+        runInNewContext(script!.code, {
+          location: { href: visible.documentUrl ?? session.currentUrl },
+          document: { readyState: "complete", querySelectorAll },
+          HTMLElement,
+          HTMLButtonElement: HTMLElement,
+          getComputedStyle: () => ({
+            visibility: "visible",
+            display: "block",
+            opacity: "1",
+          }),
+        }),
+      );
+      const focus = vi.fn();
+      const setBounds = vi.fn();
+      Object.assign(webContents, {
+        executeJavaScriptInIsolatedWorld: evaluate,
+        isLoadingMainFrame: () => session.loading,
+        focus,
+      });
+      Object.assign(session.view, { setBounds });
+      const request = {
+        projectId: session.projectId,
+        sessionId,
+        taskId: "workflow-thread",
+        source: "human" as const,
+        operation: "enterBrowserWorkflowResult",
+      };
+      const monitorInput: BrowserWorkflowBrowserRequest = {
+        phase: "monitor",
+        profileId: saved.target.profileId,
+        definition: saved.definition,
+        target: saved.target,
+        workflowId: "a".repeat(64),
+        statusOnly: true,
+      };
+      const monitorRequest = {
+        ...request,
+        source: "agent" as const,
+        operation: "browserWorkflow",
+      };
+      return {
+        ...fixture,
+        ...navigation,
+        manager,
+        saved,
+        visible,
+        userData,
+        url,
+        request,
+        evaluate,
+        focus,
+        setBounds,
+        submit,
+        querySelectorAll,
+        enter: (input = saved) => manager.runAutomation({ ...request, input }),
+        authorize: () =>
+          manager.runAutomation({
+            ...request,
+            operation: "authorizeBrowserPage",
+            input: { url, profileId: saved.target.profileId },
+          }),
+        monitorRequest,
+        monitorInput,
+        monitor: (input: Partial<BrowserWorkflowBrowserRequest> = {}) =>
+          manager.runAutomation({
+            ...monitorRequest,
+            input: { ...monitorInput, ...input },
+          }),
+      };
+    }
+
+    describe.skip("Partner Center status consent", () => {
+      async function setupStatus() {
+        const url = "https://partner.microsoft.com/dashboard/store/submissions/42?account=work";
+        const f = await setup(url);
+        const input: PartnerCenterStatusRequest = {
+          target: f.saved.target,
+          definition: { ...f.saved.definition, url },
+          workflowId: "a".repeat(64),
+          applicationId: "9STOREAPP",
+          tenantId: "00000000-0000-0000-0000-000000000001",
+          clientId: "00000000-0000-0000-0000-000000000002",
+        };
+        const agent = { ...f.monitorRequest, operation: "partnerCenterStatus" };
+        const human = {
+          ...f.request,
+          operation: "authorizePartnerCenterStatus",
+        };
+        return {
+          ...f,
+          url,
+          input,
+          agent,
+          human,
+          grant: () =>
+            f.manager.runAutomation({
+              ...f.request,
+              operation: "authorizeBrowserPage",
+              input: { url, profileId: input.target.profileId },
+            }),
+          status: (override: Partial<PartnerCenterStatusRequest> = {}) =>
+            f.manager.runAutomation({
+              ...agent,
+              input: { ...input, ...override },
+            }) as Promise<PartnerCenterStatusAuthorization>,
+          consent: (approvalId: string) =>
+            f.manager.runAutomation({ ...human, input: { approvalId } }),
+          pending: () =>
+            f.manager.getSessionState(f.request.projectId, f.request.sessionId)
+              .pendingPartnerCenterStatus,
+        };
+      }
+    });
+
+    describe.skip("monitor", () => {
+    });
+  });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((complete) => {
+      resolve = complete;
+    });
+    return { promise, resolve };
+  }
+
+  function createUploadFixture(overrides: Record<string, unknown> = {}) {
+    const manager = new BrowserHostManager(() => null);
+    const { session, webContents } = createMockSession({
+      profileId: "work",
+      partition: "persist:tabs-browser:profile:work",
+      ...overrides,
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const attach = vi.fn().mockResolvedValue(true);
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      executeJavaScriptInIsolatedWorld: attach,
+      isLoadingMainFrame: () => session.loading,
+    });
+    const target = {
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+      taskId: "thread-1",
+    };
+    const source = {
+      hostId: "build-mac",
+      deviceId: "same-id",
+      profileId: "work",
+      url: session.currentUrl,
+    };
+    const pairDestination = {
+      url: source.url,
+      profileId: source.profileId,
+      instanceId: session.instanceId,
+    };
+    return {
+      session,
+      webContents,
+      attach,
+      manager,
+      target,
+      authorize: (from: "agent" | "human" = "human", approval: Record<string, unknown> = {}) =>
+        manager.runAutomation({
+          ...target,
+          source: from,
+          operation: "authorizeDeviceScreenshot",
+          input: { ...source, ...approval },
+        }) as Promise<{ grantId: string }>,
+      authorizePair: (
+        frames: unknown,
+        approval: Record<string, unknown> = {},
+        request: { source?: "agent" | "human"; taskId?: string } = {},
+      ) =>
+        manager.runAutomation({
+          ...target,
+          source: "human",
+          ...request,
+          operation: "authorizeDeviceScreenshotPair",
+          input: { ...pairDestination, frames, ...approval },
+        }) as Promise<{ grantIds: [string, string] }>,
+      transfer: (
+        grantId: string,
+        input: Record<string, unknown> = {},
+        authorize: () => Promise<boolean> = async () => true,
+      ) =>
+        manager.runAutomation(
+          {
+            ...target,
+            source: "agent",
+            operation: "deviceScreenshotUpload",
+            input: {
+              grantId,
+              ...source,
+              phase: "attach",
+              selector: "#file",
+              png: "AAAA",
+              ...input,
+            },
+          },
+          undefined,
+          authorize,
+        ),
+    };
+  }
+
+  const evidenceRunId = "92724452-d32a-42f1-9771-75656595c621";
+  const sourceDevice = { hostId: "build-mac", deviceId: "same-id" };
+  const targetDevice = { ...sourceDevice, hostId: "remote" };
+  const sourceFrame = { runId: evidenceRunId, step: 3, side: "source" };
+  const targetFrame = { ...sourceFrame, side: "target" };
+
+  function createEvidenceFixture(overrides: Record<string, unknown> = {}) {
+    const sessionId = "agents-surface-draft";
+    const f = createUploadFixture({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      instanceId: crypto.randomUUID(),
+      ...overrides,
+    });
+    const state = () => f.manager.getSessionState(f.target.projectId, f.target.sessionId);
+    const input = {
+      url: f.session.currentUrl,
+      profileId: "work",
+      pageRef: state().pageRef,
+      instanceId: f.session.instanceId,
+      runId: evidenceRunId,
+      source: sourceDevice,
+      target: targetDevice,
+    };
+    return {
+      ...f,
+      state,
+      authorizePage: () =>
+        f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input,
+        }),
+      authorizeEvidence: (
+        changes: Record<string, unknown> = {},
+        request: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {},
+      ) =>
+        f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "authorizeDeviceComparisonEvidence",
+          input: { ...input, ...changes },
+          ...request,
+        }) as Promise<{ grantIds: [string, string] }>,
+    };
+  }
+
+  describe.skip("first-difference evidence approval", () => {
+  });
+
+  describe.skip("device screenshot pair approval", () => {
+    const runId = "92724452-d32a-42f1-9771-75656595c621";
+    const source = {
+      hostId: "build-mac",
+      deviceId: "same-id",
+      frame: { runId, side: "source", step: 2 },
+    };
+    const target = {
+      ...source,
+      hostId: "remote",
+      frame: { ...source.frame, side: "target" },
+    };
+  });
+
+  async function connectChromiumPage(
+    page: import("playwright").Page,
+    fixture: {
+      evaluate: Mock<(world: number, scripts: { code: string }[]) => Promise<unknown>>;
+    },
+  ) {
+    const cdp = await page.context().newCDPSession(page);
+    fixture.evaluate.mockImplementation(async (_world, [script]) => {
+      const { frameTree } = await cdp.send("Page.getFrameTree");
+      const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: "attachment-fixture",
+      });
+      const result = await cdp.send("Runtime.evaluate", {
+        expression: script!.code,
+        contextId: executionContextId,
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+      return result.result.value;
+    });
+  }
+
+  describe.skip("snapshot findText in Chromium", () => {
+    const url = "https://docs.google.com/document/u/0/d/receipt-42/edit";
+    const resourceId = String.raw`Receipt "42" \ archive`;
+    const statusText = "Ready for certification";
+
+    async function setup(body: string) {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const viewport = { width: 640, height: 420 };
+      const page = await browser.newPage({ viewport });
+      await page.route("https://docs.google.com/**", (route) =>
+        route.fulfill({ contentType: "text/html", body }),
+      );
+      await page.goto(url);
+
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-receipt";
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: url,
+      });
+      const navigation = mockNavigation(manager, fixture);
+      const evaluate = vi.fn<(world: number, scripts: { code: string }[]) => Promise<unknown>>();
+      await connectChromiumPage(page, { evaluate });
+      const capturePage = vi.fn(async () => {
+        const bytes = await page.screenshot();
+        return { toPNG: () => bytes };
+      });
+      Object.assign(fixture.webContents, {
+        getURL: () => page.url(),
+        isLoadingMainFrame: () => fixture.session.loading,
+        executeJavaScriptInIsolatedWorld: evaluate,
+        capturePage,
+      });
+      const createImage = vi.mocked(nativeImage.createFromBuffer).mockImplementation(
+        (bytes) =>
+          ({
+            getSize: () => viewport,
+            toPNG: () => bytes,
+          }) as ReturnType<typeof nativeImage.createFromBuffer>,
+      );
+      onTestFinished(() => {
+        createImage.mockReset();
+      });
+
+      const agent = {
+        projectId: fixture.session.projectId,
+        sessionId,
+        taskId: "receipt-thread",
+        source: "agent" as const,
+      };
+      const authorize = () =>
+        manager.runAutomation({
+          ...agent,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: { url, profileId: "work" },
+        });
+      const snapshot = (input?: unknown) =>
+        manager.runAutomation({
+          ...agent,
+          operation: "snapshot",
+          input,
+        }) as Promise<PreviewAutomationSnapshot>;
+
+      return {
+        ...fixture,
+        ...navigation,
+        manager,
+        page,
+        evaluate,
+        capturePage,
+        agent,
+        authorize,
+        snapshot,
+      };
+    }
+  });
+
+  describe.skip("saved browser attachments", () => {
+    async function setup(address = "https://app.test/reports/42?view=review#overview") {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-browser-attachments-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-report";
+      const partition = "persist:tabs-browser:profile:work";
+      const storagePath = join(userData, "Partitions", "work");
+      const tab = (
+        host: BrowserHostManager,
+        currentUrl: string,
+        overrides: Record<string, unknown> = {},
+      ) => {
+        const fixture = createMockSession({
+          sessionId,
+          key: `project-1::${sessionId}`,
+          instanceId: crypto.randomUUID(),
+          profileId: "work",
+          partition,
+          currentUrl,
+          ...overrides,
+        });
+        const fields = { password: false };
+        const evaluate = vi.fn(async (_world: number, [script]: { code: string }[]) =>
+          runInNewContext(script!.code, {
+            location: { href: fixture.session.currentUrl },
+            document: {
+              querySelectorAll: () =>
+                fields.password
+                  ? [
+                      {
+                        getClientRects: () => [{}],
+                        matches: (selector: string) => selector.startsWith("input"),
+                      },
+                    ]
+                  : [],
+            },
+            getComputedStyle: () => ({ visibility: "visible" }),
+          }),
+        );
+        Object.assign(fixture.webContents, {
+          executeJavaScriptInIsolatedWorld: evaluate,
+          isLoadingMainFrame: () => fixture.session.loading,
+        });
+        Object.assign(fixture.webContents.session, { storagePath });
+        return {
+          ...fixture,
+          ...mockNavigation(host, fixture),
+          evaluate,
+          fields,
+        };
+      };
+      const original = tab(manager, address);
+      const request = {
+        projectId: "project-1",
+        sessionId,
+        taskId: "reports",
+        source: "human" as const,
+      };
+      const input = {
+        pageRef: manager.getSessionState(request.projectId, sessionId).pageRef,
+        instanceId: original.session.instanceId,
+        profileId: "work",
+      };
+      const capture = (target: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {}) =>
+        manager.runAutomation({
+          ...request,
+          operation: "captureAttachedPage",
+          input,
+          ...target,
+        }) as Promise<{ attachmentId: string | null }>;
+      const enter = (
+        host: BrowserHostManager,
+        attachmentId: string | null,
+        target: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {},
+      ) =>
+        host.runAutomation({
+          ...request,
+          operation: "enterSavedAttachedPage",
+          input: { attachmentId, profileId: "work" },
+          ...target,
+        });
+      return {
+        ...original,
+        tab,
+        manager,
+        address,
+        userData,
+        request,
+        input,
+        capture,
+        enter,
+      };
+    }
+
+    describe.skip("Figma canvas consent", () => {
+      const address = "https://www.figma.com/design/mainKey/branch/branchKey/Project?node-id=35-12";
+
+      async function setupFigma(url = address) {
+        const f = await setup(url);
+        const { attachmentId } = await f.capture();
+        if (!attachmentId) throw new Error("The test requires a saved page attachment.");
+        const agent = {
+          ...f.request,
+          source: "agent" as const,
+          operation: "figmaCanvas",
+        };
+        return {
+          ...f,
+          attachmentId,
+          grant: (host = f.manager, url = f.session.currentUrl) =>
+            host.runAutomation({
+              ...f.request,
+              operation: "authorizeBrowserPage",
+              input: { url, profileId: f.input.profileId },
+            }),
+          inspect: (
+            input = { attachmentId, profileId: f.input.profileId },
+            request: Partial<typeof agent> = {},
+            host = f.manager,
+          ) =>
+            host.runAutomation({
+              ...agent,
+              ...request,
+              input: { action: "inspect", ...input },
+            }) as Promise<FigmaCanvasTarget>,
+          authorize: (write: FigmaCanvasWrite) =>
+            f.manager.runAutomation({
+              ...agent,
+              input: { action: "authorize", ...write },
+            }) as Promise<FigmaCanvasAuthorization>,
+          dispatch: (approval: FigmaCanvasApproval) =>
+            f.manager.runAutomation({
+              ...agent,
+              input: { action: "dispatch", approval },
+            }),
+          confirm: (approvalId: string, request: Partial<typeof f.request> = {}) =>
+            f.manager.runAutomation({
+              ...f.request,
+              ...request,
+              operation: "authorizeFigmaCanvas",
+              input: { approvalId },
+            }),
+          pending: () =>
+            f.manager.getSessionState(f.request.projectId, f.request.sessionId).pendingFigmaCanvas,
+        };
+      }
+
+      async function proposed(f: Awaited<ReturnType<typeof setupFigma>>) {
+        await f.grant();
+        const target = await f.inspect();
+        const write = {
+          target,
+          operationId: "a".repeat(64),
+          email: "design@example.com",
+          frame: {
+            name: "Reviewed frame",
+            text: "First line\nSecond line",
+            width: 360,
+            height: 240,
+          },
+        };
+        const { approval, status } = await f.authorize(write);
+        expect(status).toBe("approval_required");
+        return { approval, write };
+      }
+    });
+  });
+
+  describe.skip("saved screenshot drafts", () => {
+    async function setup(
+      draftUrl = "https://app.test/drafts/42?view=review#receipt",
+      sourceUrl = "https://app.test/drafts/new",
+      approvePair: boolean | "first-difference" = false,
+      {
+        targetStep = targetFrame.step,
+        sourcePng = "AAAA",
+        targetPng = "AAAA",
+        sessionId = "agents-surface-draft",
+        page,
+        lostSelectionReply,
+        interruptSecond,
+      }: {
+        targetStep?: number;
+        sourcePng?: string;
+        targetPng?: string;
+        sessionId?: string;
+        page?: import("playwright").Page;
+        lostSelectionReply?: "first" | "second";
+        interruptSecond?: "takeover" | "revoke-source" | "human-input" | "navigate-then-revoke";
+      } = {},
+    ) {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-screenshot-drafts-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const directory = join(userData, "browser-attachment-bookmarks");
+      const storagePath = join(userData, "Partitions", "work");
+      const key = `project-1::${sessionId}`;
+      const f = createEvidenceFixture({
+        sessionId,
+        key,
+        currentUrl: sourceUrl,
+      });
+      const original = mockNavigation(f.manager, f);
+      if (page) await connectChromiumPage(page, { evaluate: f.attach });
+      Object.assign(f.webContents.session, { storagePath });
+      const pageRef = f.manager.getSessionState(f.target.projectId, sessionId).pageRef!;
+      let grantId: string;
+      let pairedGrantId: string | undefined;
+      if (approvePair === "first-difference") {
+        await f.authorizePage();
+        if (interruptSecond) f.attach.mockResolvedValueOnce("same-origin-png");
+        ({
+          grantIds: [grantId, pairedGrantId],
+        } = await f.authorizeEvidence());
+        if (page) {
+          await f.transfer(grantId, {
+            phase: "inspect",
+            selector: "#evidence",
+          });
+          await f.transfer(pairedGrantId, {
+            phase: "inspect",
+            selector: "#comparison",
+          });
+        }
+        const select = async (
+          order: "first" | "second",
+          id: string,
+          input: Record<string, unknown>,
+        ) => {
+          if (order === "second" && interruptSecond) {
+            const dispatched = deferred<void>();
+            const reply = deferred<boolean>();
+            f.attach.mockImplementationOnce(() => {
+              dispatched.resolve();
+              return reply.promise;
+            });
+            const rejected = expect(f.transfer(id, input)).rejects.toThrow();
+            await dispatched.promise;
+            expect(await readdir(directory)).toEqual([
+              expect.stringMatching(/^device-comparison-pending-/),
+            ]);
+            if (interruptSecond === "takeover") f.manager.takeControl(f.target);
+            else if (interruptSecond === "human-input")
+              original.events.emit("before-input-event", {}, { type: "keyDown" });
+            else {
+              if (interruptSecond === "navigate-then-revoke")
+                original.events.emit("did-start-navigation", { isMainFrame: true }, sourceUrl);
+              await f.manager.runAutomation({
+                ...f.target,
+                source: "human",
+                operation: "revokeDeviceScreenshot",
+                input: { grantId },
+              });
+            }
+            reply.resolve(true);
+            await rejected;
+          } else if (order === lostSelectionReply) {
+            const evaluate = f.attach.getMockImplementation()!;
+            f.attach.mockImplementationOnce(async (...args) => {
+              expect(await evaluate(...args)).toBe(true);
+              throw new Error(`Lost ${order} selection reply`);
+            });
+            await expect(f.transfer(id, input)).rejects.toThrow(`Lost ${order} selection reply`);
+          } else {
+            await expect(f.transfer(id, input)).resolves.toEqual({
+              attached: true,
+            });
+          }
+        };
+        await select("first", grantId, {
+          frame: sourceFrame,
+          png: sourcePng,
+          ...(page && { selector: "#evidence" }),
+        });
+        await select("second", pairedGrantId, {
+          ...targetDevice,
+          frame: { ...targetFrame, step: targetStep },
+          png: targetPng,
+          ...(page && { selector: "#comparison" }),
+        });
+      } else if (approvePair) {
+        const source = {
+          hostId: "build-mac",
+          deviceId: "same-id",
+          frame: sourceFrame,
+        };
+        const target = {
+          ...source,
+          hostId: "remote",
+          frame: targetFrame,
+        };
+        ({
+          grantIds: [grantId, pairedGrantId],
+        } = await f.authorizePair([source, target]));
+        await f.transfer(grantId, source);
+        await f.transfer(pairedGrantId, { ...target, png: targetPng });
+      } else {
+        ({ grantId } = await f.authorize());
+        if (page)
+          await f.transfer(grantId, {
+            phase: "inspect",
+            selector: "#evidence",
+          });
+        await f.transfer(grantId, {
+          png: sourcePng,
+          ...(page && { selector: "#evidence" }),
+        });
+      }
+      const file = join(directory, `screenshot-draft-${grantId}`);
+      const digest = createHash("sha256").update(Buffer.from(sourcePng, "base64")).digest("hex");
+      const targetDigest = createHash("sha256")
+        .update(Buffer.from(targetPng, "base64"))
+        .digest("hex");
+      const screenshot = Buffer.from("screenshot");
+      const image = vi.mocked(nativeImage.createFromBuffer).mockReturnValue({
+        toPNG: () => screenshot,
+        getSize: () => ({ width: 10, height: 10 }),
+      } as ReturnType<typeof nativeImage.createFromBuffer>);
+      const capture = vi
+        .spyOn(f.manager as any, "captureSessionImage")
+        .mockResolvedValue(screenshot);
+      onTestFinished(() => {
+        image.mockReset();
+        capture.mockRestore();
+      });
+      const receipt = { text: digest, images: true };
+      if (!page)
+        f.attach.mockImplementation(async (_world: number, scripts: { code: string }[]) => {
+          const code = scripts[0]?.code ?? "";
+          if (code.includes("interactiveElements"))
+            return { visibleText: receipt.text, interactiveElements: [] };
+          // Model an image receipt: the page displays an image for each digest it prints.
+          if (code.includes("crypto.subtle")) {
+            if (!receipt.images) return false;
+            const shown = receipt.text.split(/\s+/u);
+            const wanted = JSON.parse(
+              /\["[a-f0-9]{64}"(?:,"[a-f0-9]{64}")*\]/u.exec(code)?.[0] ?? "[]",
+            );
+            return (wanted as string[]).every((digest) => {
+              const index = shown.indexOf(digest);
+              if (index < 0) return false;
+              shown.splice(index, 1);
+              return true;
+            });
+          }
+          return true;
+        });
+      const showDraft = (url = draftUrl) => original.events.emit("did-navigate", {}, url);
+      if (draftUrl !== sourceUrl) showDraft();
+      if (draftUrl !== sourceUrl || approvePair !== "first-difference")
+        await f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: { url: draftUrl, profileId: "work" },
+        });
+      const observe = () =>
+        f.manager.runAutomation({
+          ...f.target,
+          source: "agent",
+          operation: "snapshot",
+        });
+      const verify = async () => {
+        await observe();
+        showDraft();
+        await observe();
+      };
+      const tab = (host: BrowserHostManager, overrides: Record<string, unknown> = {}) => {
+        const fixture = createMockSession({
+          sessionId,
+          key,
+          instanceId: crypto.randomUUID(),
+          profileId: "work",
+          partition: f.session.partition,
+          currentUrl: "",
+          ...overrides,
+        });
+        const content = { text: `Saved screenshot ${digest}`, password: false };
+        const evaluate = vi.fn(async (_world: number, [script]: { code: string }[]) =>
+          runInNewContext(script!.code, {
+            location: {
+              href: fixture.session.currentUrl,
+              origin: fixture.session.currentUrl.replace(/^(https?:\/\/[^/]+).*$/u, "$1"),
+            },
+            URL,
+            AbortController,
+            setTimeout,
+            clearTimeout,
+            // Hex-text "bytes" hash to themselves, so every printed digest has a displayed image.
+            crypto: {
+              subtle: {
+                digest: async (_algorithm: string, bytes: Uint8Array) =>
+                  Buffer.from(new TextDecoder().decode(bytes), "hex"),
+              },
+            },
+            fetch: async (url: string) => {
+              const bytes = Buffer.from(new URL(url).pathname.split("/").at(-1)!);
+              return {
+                status: 200,
+                headers: {
+                  get: (name: string) => (name === "content-type" ? "image/png" : null),
+                },
+                body: {
+                  getReader: () => {
+                    let done = false;
+                    return {
+                      read: async () => {
+                        const result = done ? { done: true } : { done: false, value: bytes };
+                        done = true;
+                        return result;
+                      },
+                    };
+                  },
+                },
+              };
+            },
+            document: {
+              images: content.text
+                .split(/\s+/u)
+                .filter((word) => /^[a-f0-9]{64}$/u.test(word))
+                .map((digest) => ({
+                  isConnected: true,
+                  complete: true,
+                  naturalWidth: 1,
+                  getClientRects: () => [{}],
+                  checkVisibility: () => true,
+                  currentSrc: `${fixture.session.currentUrl.split(/[?#]/u)[0]}/img/${digest}`,
+                  src: "",
+                })),
+              body: { innerText: content.text },
+              querySelectorAll: () =>
+                content.password
+                  ? [
+                      {
+                        getClientRects: () => [{}],
+                        matches: (selector: string) => selector.startsWith("input"),
+                      },
+                    ]
+                  : [],
+            },
+            getComputedStyle: () => ({ visibility: "visible" }),
+          }),
+        );
+        Object.assign(fixture.webContents, {
+          executeJavaScriptInIsolatedWorld: evaluate,
+          isLoadingMainFrame: () => fixture.session.loading,
+        });
+        Object.assign(fixture.webContents.session, { storagePath });
+        return {
+          ...fixture,
+          ...mockNavigation(host, fixture),
+          content,
+          evaluate,
+        };
+      };
+      const input = {
+        grantId,
+        pageRef,
+        profileId: "work",
+        ...(pairedGrantId ? { pairedGrantId } : {}),
+      };
+      const enter = (
+        host: BrowserHostManager,
+        target: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {},
+      ) =>
+        host.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "enterSavedScreenshotDraft",
+          input,
+          ...target,
+        });
+      const comparisonRef = { runId: evidenceRunId, step: sourceFrame.step };
+      const findComparison = (
+        host: BrowserHostManager,
+        overrides: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {},
+      ) =>
+        host.runAutomation({
+          projectId: f.target.projectId,
+          taskId: f.target.taskId,
+          source: "human",
+          operation: "findDeviceComparisonDraft",
+          input: comparisonRef,
+          ...overrides,
+        });
+      const enterComparison = (
+        host: BrowserHostManager,
+        overrides: Partial<Parameters<BrowserHostManager["runAutomation"]>[0]> = {},
+      ) =>
+        host.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "enterDeviceComparisonDraft",
+          input: { ...comparisonRef, profileId: input.profileId },
+          ...overrides,
+        });
+      return {
+        ...f,
+        directory,
+        userData,
+        storagePath,
+        file,
+        digest,
+        targetDigest,
+        receipt,
+        draftUrl,
+        input,
+        observe,
+        showDraft,
+        verify,
+        tab,
+        enter,
+        findComparison,
+        enterComparison,
+      };
+    }
+  });
+
   it("cancels queued automation operations when human takes control before execution", async () => {
     const manager = new BrowserHostManager(() => null);
-    const { session, executeJavaScript } = createMockSession();
+    const { session, executeJavaScript } = createMockSession({
+      assignedTaskId: "owner-thread",
+    });
     (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const operationState = () => manager.getSessionState(session.projectId, session.sessionId);
 
     // Block the automation queue with a long-running promise
     let unblockFirst!: () => void;
@@ -933,6 +2200,8 @@ describe("reliable browser tabs and agent control", () => {
     const firstPromise = manager.runAutomation({
       projectId: "project-1",
       sessionId: "tab-1",
+      taskId: "owner-thread",
+      source: "agent",
       operation: "evaluate",
       input: { expression: "1 + 1" },
     });
@@ -944,14 +2213,18 @@ describe("reliable browser tabs and agent control", () => {
     const queuedPromise = manager.runAutomation({
       projectId: "project-1",
       sessionId: "tab-1",
-      operation: "evaluate",
-      input: { expression: "2 + 2" },
+      taskId: "owner-thread",
+      source: "agent",
+      operation: "press",
+      input: { key: "Enter" },
     });
+    expect(operationState().activeAgentAction).toBe("evaluate");
 
     // Human takes control while first is running and second is queued!
     manager.takeControl({ projectId: "project-1", sessionId: "tab-1" });
     expect(session.controller).toBe("human");
     expect(session.controlEpoch).toBe(1);
+    expect(operationState().activeAgentAction).toBeUndefined();
 
     // Unblock the first operation
     unblockFirst();
@@ -959,7 +2232,7 @@ describe("reliable browser tabs and agent control", () => {
       "Browser automation was interrupted by human input during execution.",
     );
 
-    // Queued action must be rejected without calling executeJavaScript for "2 + 2"
+    // Queued input must be rejected before delivery.
     await expect(queuedPromise).rejects.toThrow(
       "Browser automation was cancelled prior to execution due to human takeover or control epoch change.",
     );
@@ -992,10 +2265,68 @@ describe("reliable browser tabs and agent control", () => {
     }
   });
 
+  it("does not publish late activity from a closed tab after its replacement opens", async () => {
+    const { session, executeJavaScript } = createMockSession({
+      assignedTaskId: "owner-thread",
+    });
+    const send = vi.fn();
+    const window = {
+      isDestroyed: () => false,
+      webContents: { send },
+      contentView: { children: [session.view] },
+    };
+    const manager = new BrowserHostManager(() => window as any);
+    const { sessions } = manager as unknown as {
+      sessions: Map<string, unknown>;
+    };
+    sessions.set(session.key, session);
+    let markStarted!: () => void;
+    let finishAction!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const finish = new Promise<void>((resolve) => {
+      finishAction = resolve;
+    });
+    executeJavaScript.mockImplementationOnce(() => {
+      markStarted();
+      return finish;
+    });
+    const target = {
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+    };
+    const running = manager.runAutomation({
+      ...target,
+      source: "agent",
+      taskId: "owner-thread",
+      operation: "evaluate",
+      input: { expression: "1" },
+    });
+    await started;
+    expect(send).toHaveBeenLastCalledWith(
+      "desktop:browser-host:session-state",
+      expect.objectContaining({ activeAgentAction: "evaluate" }),
+    );
+    manager.destroySession(target, false);
+    sessions.set(session.key, createMockSession({ instanceId: "replacement" }).session);
+    send.mockClear();
+    finishAction();
+    await expect(running).rejects.toThrow("interrupted");
+    expect(send).not.toHaveBeenCalled();
+    expect(manager.getSessionState(session.projectId, session.sessionId).instanceId).toBe(
+      "replacement",
+    );
+  });
+
   it("does not execute an action after takeover while preparing a background surface", async () => {
     const window = {
       isDestroyed: () => false,
-      contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() },
+      contentView: {
+        children: [],
+        addChildView: vi.fn(),
+        removeChildView: vi.fn(),
+      },
     };
     const manager = new BrowserHostManager(() => window as any);
     const { session } = createMockSession();
@@ -1020,7 +2351,9 @@ describe("reliable browser tabs and agent control", () => {
     vi.useFakeTimers();
     try {
       const manager = new BrowserHostManager(() => null);
-      const { session, webContents } = createMockSession({ assignedTaskId: "task-A" });
+      const { session, webContents } = createMockSession({
+        assignedTaskId: "task-A",
+      });
       Object.assign(webContents, { setWindowOpenHandler: vi.fn() });
       (manager as any).sessions.set(session.key, session);
       (manager as any).registerSessionEvents(session);
@@ -1062,8 +2395,16 @@ describe("reliable browser tabs and agent control", () => {
           lineNumber: 42,
         });
       }
-      consoleMessage({ level: "info", message: "fine", sourceId: "", lineNumber: 1 });
-      expect((session as any).pageErrors).toMatchObject({ count: 50, latest: { text: "boom 49" } });
+      consoleMessage({
+        level: "info",
+        message: "fine",
+        sourceId: "",
+        lineNumber: 1,
+      });
+      expect((session as any).pageErrors).toMatchObject({
+        count: 50,
+        latest: { text: "boom 49" },
+      });
       // A page logging in a loop publishes once, not fifty times.
       expect(emit).not.toHaveBeenCalled();
       vi.advanceTimersByTime(300);
@@ -1111,7 +2452,10 @@ describe("reliable browser tabs and agent control", () => {
       currentUrl: "http://localhost:5173/cart",
       resting: true,
     });
-    await manager.activateSession({ projectId: "project-1", sessionId: "tab-1" });
+    await manager.activateSession({
+      projectId: "project-1",
+      sessionId: "tab-1",
+    });
     expect(history.goToIndex).toHaveBeenCalledWith(2);
     expect(history.removeEntryAtIndex).toHaveBeenCalledWith(3);
     expect((session as any).resting).toBeUndefined();
@@ -1163,8 +2507,16 @@ describe("reliable browser tabs and agent control", () => {
     const manager = new BrowserHostManager(() => null);
     const { session } = createMockSession({ assignedTaskId: "task-A" });
     (manager as any).sessions.set(session.key, session);
-    manager.assignTabTask({ projectId: "project-1", sessionId: "tab-1", taskId: "task-B" });
-    manager.assignTabTask({ projectId: "project-1", sessionId: "tab-1", taskId: "task-A" });
+    manager.assignTabTask({
+      projectId: "project-1",
+      sessionId: "tab-1",
+      taskId: "task-B",
+    });
+    manager.assignTabTask({
+      projectId: "project-1",
+      sessionId: "tab-1",
+      taskId: "task-A",
+    });
     expect(session.controlEpoch).toBe(2);
   });
 
@@ -1173,7 +2525,11 @@ describe("reliable browser tabs and agent control", () => {
     const { session } = createMockSession({ assignedTaskId: "task-A" });
     (manager as any).sessions.set(session.key, session);
     await expect(
-      manager.runAutomation({ projectId: "project-1", sessionId: "tab-1", operation: "status" }),
+      manager.runAutomation({
+        projectId: "project-1",
+        sessionId: "tab-1",
+        operation: "status",
+      }),
     ).rejects.toThrow("matching task identity");
     await expect(
       manager.runAutomation({
@@ -1245,7 +2601,10 @@ describe("reliable browser tabs and agent control", () => {
     sessions.set(tabB.key, tabB);
     sessions.set(tabC.key, tabC);
 
-    const closed = manager.cleanupAgentTabs({ projectId: "project-1", taskId: "task-agent" });
+    const closed = manager.cleanupAgentTabs({
+      projectId: "project-1",
+      taskId: "task-agent",
+    });
 
     expect(closed).toEqual(["tab-A"]);
     expect(closeA).toHaveBeenCalled();
@@ -1632,11 +2991,18 @@ describe("opening a browser that is shown on screen", () => {
         setUserAgent: vi.fn(),
         getUserAgent: () => "Mozilla/5.0",
         on: vi.fn(),
-        webRequest: { onBeforeSendHeaders: vi.fn(), onHeadersReceived: vi.fn() },
+        webRequest: {
+          onBeforeSendHeaders: vi.fn(),
+          onHeadersReceived: vi.fn(),
+        },
       },
     };
     vi.mocked(WebContentsView).mockImplementation(function MockView() {
-      return { webContents, setBackgroundColor: vi.fn(), setBounds: vi.fn() } as never;
+      return {
+        webContents,
+        setBackgroundColor: vi.fn(),
+        setBounds: vi.fn(),
+      } as never;
     });
     const manager = new BrowserHostManager(() => null);
     for (const method of [
@@ -1676,12 +3042,52 @@ describe("opening a browser that is shown on screen", () => {
     const { manager, finish } = managerWithView();
     let settled = false;
     const ensured = manager
-      .ensureSession({ projectId: "p", sessionId: "auto", initialUrl: "https://slow.example/" })
+      .ensureSession({
+        projectId: "p",
+        sessionId: "auto",
+        initialUrl: "https://slow.example/",
+      })
       .then(() => (settled = true));
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(settled).toBe(false);
     finish();
     await ensured;
     expect(settled).toBe(true);
+  });
+
+  it("gives new temporary agent tabs independent in-memory browser partitions", async () => {
+    const { manager } = managerWithView();
+    const make = (sessionId: string, taskId: string) => ({
+      projectId: "p",
+      sessionId,
+      taskId,
+      initialUrl: "",
+      temporaryAgentTab: true,
+    });
+    const options = vi.mocked(WebContentsView);
+    const first = make("tab_1", "thread-1");
+    await manager.ensureSession({
+      ...first,
+      partition: "persist:tabs-browser:profile:work",
+      profileId: "work",
+    });
+    const firstPartition = options.mock.lastCall?.[0]?.webPreferences?.partition;
+    await manager.ensureSession(make("tab_2", "thread-1"));
+    const secondPartition = options.mock.lastCall?.[0]?.webPreferences?.partition;
+    await manager.ensureSession(make("tab_3", "thread-2"));
+    const thirdPartition = options.mock.lastCall?.[0]?.webPreferences?.partition;
+    const partitions = [firstPartition, secondPartition, thirdPartition];
+    for (const partition of partitions) expect(partition).toMatch(/^tabs-browser-ephemeral:agent:/);
+    expect(new Set(partitions).size).toBe(3);
+    expect(manager.getSessionState(first.projectId, first.sessionId).profileId).toBeUndefined();
+    const created = options.mock.calls.length;
+    await manager.ensureSession({
+      ...first,
+      partition: "persist:tabs-browser:p",
+    });
+    await expect(manager.ensureSession(make("agents-surface-private", "thread-1"))).rejects.toThrow(
+      "Open the user’s browser tab",
+    );
+    expect(options).toHaveBeenCalledTimes(created);
   });
 });

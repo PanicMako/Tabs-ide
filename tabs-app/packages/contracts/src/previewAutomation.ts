@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 
 import { EnvironmentId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { DeviceComparisonResultRef } from "./deviceComparison.ts";
 import {
   PREVIEW_VIEWPORT_MAX_AREA,
   PreviewRenderedViewportSize,
@@ -43,6 +44,12 @@ export const PREVIEW_AUTOMATION_OPERATIONS = [
   ...PREVIEW_AUTOMATION_V1_OPERATIONS,
   "resize",
   "setColorScheme",
+  "deviceScreenshotUpload",
+  "browserWorkflow",
+  "readWorkflowReceipt",
+  "partnerCenterStatus",
+  "figmaCanvas",
+  "runQuickAction",
 ] as const;
 
 export const PreviewAutomationOperation = Schema.Literals(PREVIEW_AUTOMATION_OPERATIONS);
@@ -673,15 +680,52 @@ export const PreviewAutomationNetworkEntry = Schema.Struct({
 });
 export type PreviewAutomationNetworkEntry = typeof PreviewAutomationNetworkEntry.Type;
 
+export const BROWSER_DEMONSTRATION_CHANGES = [
+  "Control disappeared",
+  "Control expanded",
+  "Control collapsed",
+  "Control enabled",
+  "Control disabled",
+  "Control pressed",
+  "Control released",
+  "Nearby controls changed",
+  "Nearby status changed",
+] as const;
+
 export const PreviewAutomationActionEvent = Schema.Struct({
   id: Schema.String,
   action: Schema.String,
-  status: Schema.Literals(["running", "succeeded", "failed", "interrupted"]),
+  status: Schema.Literals(["running", "succeeded", "failed", "interrupted", "cancelled"]),
   startedAt: Schema.String,
   completedAt: Schema.optional(Schema.String),
   error: Schema.optional(Schema.String),
+  observedChanges: Schema.optional(Schema.Array(Schema.Literals(BROWSER_DEMONSTRATION_CHANGES))),
 });
 export type PreviewAutomationActionEvent = typeof PreviewAutomationActionEvent.Type;
+
+const previewExactText = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isNonEmpty(),
+  Schema.isMaxLength(300),
+);
+
+export const PreviewAutomationFindText = Schema.Array(previewExactText).check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(4),
+);
+
+export const PreviewAutomationTextMatch = Schema.Union([
+  Schema.Struct({
+    text: previewExactText,
+    status: Schema.Literal("matched"),
+    selector: Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(300)),
+  }),
+  Schema.Struct({
+    text: previewExactText,
+    status: Schema.Literals(["not_found", "ambiguous", "unobservable"]),
+  }),
+]);
+export type PreviewAutomationTextMatch = typeof PreviewAutomationTextMatch.Type;
 
 export const PreviewAutomationSnapshot = Schema.Struct({
   url: Schema.String,
@@ -689,10 +733,33 @@ export const PreviewAutomationSnapshot = Schema.Struct({
   loading: Schema.Boolean,
   visibleText: Schema.String,
   interactiveElements: Schema.Array(PreviewAutomationElement),
+  textMatches: Schema.optionalKey(
+    Schema.Array(PreviewAutomationTextMatch).check(Schema.isMaxLength(4)),
+  ),
   accessibilityTree: Schema.Unknown,
   consoleEntries: Schema.Array(PreviewAutomationConsoleEntry),
   networkEntries: Schema.Array(PreviewAutomationNetworkEntry),
   actionTimeline: Schema.Array(PreviewAutomationActionEvent),
+  verifiedEvidenceDraft: Schema.optionalKey(
+    Schema.Struct({
+      ...DeviceComparisonResultRef.fields,
+      receiptKind: Schema.optionalKey(Schema.Literal("image")),
+    }),
+  ),
+  /** Verified: a visible page image hashed to this digest (receiptKind "image"). */
+  verifiedScreenshotDraft: Schema.optionalKey(
+    Schema.Struct({
+      sha256: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u)),
+      receiptKind: Schema.optionalKey(Schema.Literal("image")),
+    }),
+  ),
+  /** The page prints a matching digest but no image receipt was found. Not verified. */
+  unverifiedScreenshotDraft: Schema.optionalKey(
+    Schema.Struct({
+      sha256: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u)),
+      receiptKind: Schema.Literal("pageText"),
+    }),
+  ),
   screenshot: Schema.Struct({
     mimeType: Schema.Literal("image/png"),
     data: Schema.String,
@@ -739,6 +806,8 @@ export const PreviewAutomationHost = Schema.Struct({
    * a newer server safely coexist with an older desktop during rollout.
    */
   supportedOperations: Schema.optional(Schema.Array(PreviewAutomationOperation)),
+  /** Hosts that require a broker permit immediately before file selection. */
+  deviceScreenshotAuthorization: Schema.optional(Schema.Literal(true)),
 });
 export type PreviewAutomationHost = typeof PreviewAutomationHost.Type;
 
@@ -752,6 +821,7 @@ export const PreviewAutomationHostFocus = Schema.Struct({
         threadId: ThreadId,
         tabId: PreviewTabId,
         visible: Schema.optional(Schema.Boolean),
+        workflowHostKey: Schema.optional(Schema.String),
       }),
     ),
   ),
@@ -782,10 +852,16 @@ export const PreviewAutomationStreamEvent = Schema.Union([
 ]);
 export type PreviewAutomationStreamEvent = typeof PreviewAutomationStreamEvent.Type;
 
-export const PreviewAutomationResponse = Schema.Struct({
+export const PreviewAutomationDeviceScreenshotAuthorization = Schema.Struct({
   clientId: PreviewAutomationClientId,
   connectionId: PreviewAutomationConnectionId,
   requestId: TrimmedNonEmptyString,
+});
+export type PreviewAutomationDeviceScreenshotAuthorization =
+  typeof PreviewAutomationDeviceScreenshotAuthorization.Type;
+
+export const PreviewAutomationResponse = Schema.Struct({
+  ...PreviewAutomationDeviceScreenshotAuthorization.fields,
   ok: Schema.Boolean,
   result: Schema.optional(Schema.Unknown),
   error: Schema.optional(
@@ -836,8 +912,8 @@ const PreviewAutomationScopeErrorFields = {
   operation: PreviewAutomationOperation,
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  providerSessionId: TrimmedNonEmptyString,
-  providerInstanceId: ProviderInstanceId,
+  providerSessionId: Schema.optional(TrimmedNonEmptyString),
+  providerInstanceId: Schema.optional(ProviderInstanceId),
 };
 
 const PreviewAutomationRequestErrorFields = {
@@ -1040,6 +1116,17 @@ export class PreviewAutomationMalformedResponseError extends Schema.TaggedError<
   }
 }
 
+export class PreviewAutomationQuickActionLookupError extends Schema.TaggedError<PreviewAutomationQuickActionLookupError>()(
+  "PreviewAutomationQuickActionLookupError",
+  { reason: Schema.Literals(["missing", "ambiguous"]) },
+) {
+  override get message(): string {
+    return this.reason === "missing"
+      ? "No saved Browser Quick Action matches that name in this thread's project."
+      : "More than one saved Browser Quick Action in this thread's project matches that name.";
+  }
+}
+
 export class PreviewAutomationRecordingTransferError extends Schema.TaggedError<PreviewAutomationRecordingTransferError>()(
   "PreviewAutomationRecordingTransferError",
   {
@@ -1098,6 +1185,7 @@ export const PreviewAutomationError = Schema.Union([
   PreviewAutomationRequestQueueClosedError,
   PreviewAutomationRemoteUnavailableError,
   PreviewAutomationMalformedResponseError,
+  PreviewAutomationQuickActionLookupError,
 ]);
 export type PreviewAutomationError = typeof PreviewAutomationError.Type;
 

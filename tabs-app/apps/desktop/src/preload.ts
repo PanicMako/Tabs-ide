@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { exposeClerkBridge } from "@clerk/electron/preload";
 import type { CodeRailPresentation, DesktopBridge } from "@tabs/contracts";
+import {
+  DEVICE_SCREENSHOT_AUTHORIZATION_CHANNEL,
+  DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL,
+} from "./deviceScreenshotAuthorizationIpc";
 
 exposeClerkBridge({ passkeys: true });
 
@@ -175,6 +179,22 @@ const REMOVE_PERSISTED_ITEM_CHANNEL = "desktop:remove-persisted-item";
 const NOTIFICATION_OVERLAY_SYNC_CHANNEL = "desktop:notification-overlay:sync";
 const NOTIFICATION_OVERLAY_ACTION_CHANNEL = "desktop:notification-overlay:action";
 const NOTIFICATION_OVERLAY_DISMISS_CHANNEL = "desktop:notification-overlay:dismiss";
+
+const screenshotAuthorizations = new Map<string, () => Promise<boolean>>();
+ipcRenderer.on(DEVICE_SCREENSHOT_AUTHORIZATION_CHANNEL, (_event, id: unknown) => {
+  if (typeof id !== "string") return;
+  const authorize = screenshotAuthorizations.get(id);
+  if (!authorize) return;
+  screenshotAuthorizations.delete(id);
+  void Promise.resolve()
+    .then(authorize)
+    .then(
+      (approved) =>
+        ipcRenderer.invoke(DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL, id, approved === true),
+      () => ipcRenderer.invoke(DEVICE_SCREENSHOT_AUTHORIZATION_REPLY_CHANNEL, id, false),
+    )
+    .catch(() => undefined);
+});
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   writeClipboardText: (text) => ipcRenderer.invoke(WRITE_CLIPBOARD_TEXT_CHANNEL, text),
@@ -423,6 +443,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
+  listBrowserWorkflowTabs: () => ipcRenderer.invoke("desktop:browser-host:list-workflow-tabs"),
   ensureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_ENSURE_SESSION_CHANNEL, input),
   activateBrowserSession: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_ACTIVATE_SESSION_CHANNEL, input),
@@ -446,6 +467,15 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(BROWSER_HOST_FORWARD_SESSION_CHANNEL, input),
   toggleBrowserDevTools: (input) => ipcRenderer.invoke(BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL, input),
   runBrowserAutomation: (input) => ipcRenderer.invoke(BROWSER_HOST_AUTOMATION_CHANNEL, input),
+  runDeviceScreenshotTransfer: async (input, authorize) => {
+    const authorizationId = crypto.randomUUID();
+    screenshotAuthorizations.set(authorizationId, authorize);
+    try {
+      return await ipcRenderer.invoke(BROWSER_HOST_AUTOMATION_CHANNEL, input, authorizationId);
+    } finally {
+      screenshotAuthorizations.delete(authorizationId);
+    }
+  },
   captureBrowserScreenshot: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL, input),
   getBrowserMediaSourceId: (input) => ipcRenderer.invoke(BROWSER_HOST_MEDIA_SOURCE_CHANNEL, input),

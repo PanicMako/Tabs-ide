@@ -396,6 +396,18 @@ import { AdvertisedEndpoint } from "./remoteAccess.ts";
 import { EditorId } from "./editor.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
 import type {
+  BrowserWorkflowResultInput,
+  BrowserWorkflowSavedResult,
+  PartnerCenterConnectionInput,
+  PartnerCenterConnectionStatus,
+  PartnerCenterStatusApproval,
+} from "./browserWorkflow.ts";
+import type {
+  FigmaCanvasApproval,
+  FigmaCanvasReceipt,
+  FigmaCanvasResultInput,
+} from "./figmaCanvas.ts";
+import type {
   ClientSettings,
   ServerSettings,
   ServerSettingsPatch,
@@ -1582,6 +1594,13 @@ export interface DesktopBridge {
     comparisonId: string;
   }) => Promise<DesktopPreviewScreenshotArtifact[]>;
   getBrowserHostState: () => Promise<DesktopBrowserHostState>;
+  listBrowserWorkflowTabs?: () => Promise<
+    {
+      threadId: ThreadId;
+      tabId: import("./preview.ts").PreviewTabId;
+      workflowHostKey: string;
+    }[]
+  >;
   getBrowserSessionState: (
     input: DesktopBrowserHostControlInput,
   ) => Promise<DesktopBrowserSessionState>;
@@ -1618,6 +1637,10 @@ export interface DesktopBridge {
   goForwardBrowserSession: (input: DesktopBrowserHostControlInput) => Promise<void>;
   toggleBrowserDevTools: (input: DesktopBrowserHostControlInput) => Promise<void>;
   runBrowserAutomation: (input: DesktopBrowserAutomationInput) => Promise<unknown>;
+  runDeviceScreenshotTransfer?: (
+    input: DesktopBrowserAutomationInput & { operation: "deviceScreenshotUpload" },
+    authorize: () => Promise<boolean>,
+  ) => Promise<unknown>;
   captureBrowserScreenshot: (
     input: DesktopBrowserHostControlInput,
   ) => Promise<DesktopPreviewScreenshotArtifact>;
@@ -1655,10 +1678,16 @@ export interface DesktopBridge {
     origin: string;
     permission: string;
   }) => Promise<void>;
-  takeBrowserControl?: (input: DesktopBrowserHostControlInput) => Promise<void>;
-  resumeBrowserAgent?: (
-    input: DesktopBrowserHostControlInput & { taskId?: string | undefined },
+  takeBrowserControl?: (
+    input: DesktopBrowserHostControlInput & { demonstrate?: boolean },
   ) => Promise<void>;
+  resumeBrowserAgent?: (
+    input: DesktopBrowserHostControlInput & {
+      taskId?: string | undefined;
+      meaning?: string;
+      expectedGeneration?: { instanceId: string; controlEpoch: number };
+    },
+  ) => Promise<DesktopBrowserDemonstrationReceipt | void>;
   assignBrowserTabTask?: (
     input: DesktopBrowserHostControlInput & { taskId: string | null },
   ) => Promise<void>;
@@ -2390,6 +2419,8 @@ export interface DesktopBrowserHostState {
 }
 
 export interface DesktopBrowserHostEnsureSessionInput {
+  /** An explicitly targeted open must reuse the existing guest and its account. */
+  requireExisting?: boolean | undefined;
   projectId: string;
   sessionId?: string | undefined;
   initialUrl: string;
@@ -2421,6 +2452,11 @@ export interface DesktopBrowserHostControlInput {
   sessionId?: string | undefined;
 }
 
+export interface DesktopBrowserDemonstrationReceipt {
+  demonstrationId: string;
+  controlEpoch: number;
+}
+
 export interface DesktopBrowserAutomationInput extends DesktopBrowserHostControlInput {
   source?: "human" | "agent" | undefined;
   taskId?: string | undefined;
@@ -2435,7 +2471,40 @@ export interface DesktopBrowserAutomationInput extends DesktopBrowserHostControl
     | "waitFor"
     | "verify"
     | "assertControl"
+    | "enterAttachedPage"
+    | "captureAttachedPage"
+    | "enterSavedAttachedPage"
+    | "enterSavedScreenshotDraft"
+    | "findDeviceComparisonDraft"
+    | "enterDeviceComparisonDraft"
+    | "readBrowserSelection"
+    | "enterBrowserWorkflowResult"
+    | "readWorkflowReceipt"
+    | "enterFigmaCanvasResult"
+    | "authorizeBrowserPage"
+    | "revokeBrowserPage"
+    | "authorizeBrowserSubmission"
+    | "authorizePartnerCenterStatus"
+    | "authorizeFigmaCanvas"
+    | "releaseSubmissionGuard"
+    | "authorizeDeviceScreenshot"
+    | "authorizeDeviceScreenshotPair"
+    | "authorizeDeviceComparisonEvidence"
+    | "revokeDeviceScreenshot"
+    | "deviceScreenshotUpload"
+    | "browserWorkflow"
+    | "partnerCenterStatus"
+    | "figmaCanvas"
     | "cancelVerification"
+    | "listQuickActionTargets"
+    | "authorizeQuickAction"
+    | "revokeQuickAction"
+    | "runQuickAction"
+    | "enterQuickActionFileResult"
+    | "enterQuickActionPause"
+    | "repairQuickAction"
+    | "resolveQuickActionStep"
+    | "pickQuickActionOutcome"
     | "navigate"
     | "recordStart"
     | "recordStop"
@@ -2467,6 +2536,7 @@ export interface DesktopBrowserSecurityContext {
 export interface DesktopBrowserSessionState {
   projectId: string;
   sessionId: string;
+  instanceId?: string | undefined;
   profileId?: string | undefined;
   currentUrl: string | null;
   pageTitle: string | null;
@@ -2483,6 +2553,30 @@ export interface DesktopBrowserSessionState {
   controller?: "human" | "agent" | "none";
   controlEpoch?: number | undefined;
   assignedTaskId?: string | null | undefined;
+  /** Label of the operation currently executing, without arguments or page content. */
+  activeAgentAction?: string;
+  pageRef?: string;
+  /** Identifies the page state shown when asking the user to approve access. */
+  pageApprovalToken?: string;
+  browserPageAuthorized?: boolean;
+  /** Human description of what the page grant covers, e.g. "all pages on https://example.com in the Work profile". */
+  browserPageScopeLabel?: string;
+  submissionGuardActive?: boolean;
+  pendingSubmissionApproval?: {
+    action?: "upload";
+    uploadFile?: { name: string; size: number };
+    chooseUploadFile?: true;
+    siteSubmissionKey?: true;
+    id: string;
+    workflowId?: string;
+    resourceId: string;
+    url: string;
+    controlLabel?: string;
+  };
+  pendingPartnerCenterStatus?: PartnerCenterStatusApproval;
+  pendingFigmaCanvas?: FigmaCanvasApproval;
+  demonstratedControl?: string;
+  deviceScreenshotAuthorized?: boolean;
   temporaryAgentTab?: boolean | undefined;
   userRetained?: boolean | undefined;
   lastError: string | null;
