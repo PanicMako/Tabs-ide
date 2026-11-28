@@ -2220,6 +2220,67 @@ describe("Device comparison", () => {
     expect((await f.settle()).run?.phase).toBe("completed");
     expect(f.press.mock.calls.at(-1)?.[0]).toBe(pixel.hostId);
   });
+
+  it.each(["screen changes", "protected field appears", "status bar clock ticks"] as const)(
+    "checks destination evidence when the %s during capture",
+    async (scenario) => {
+      const isPrivate = scenario === "protected field appears";
+      const clockTicked = scenario === "status bar clock ticks";
+      const android = [
+        frame("android", ["Allow app permission"]),
+        frame("android", [clockTicked ? "Allow app permission" : isPrivate ? "Password" : "Retry"]),
+      ];
+      if (clockTicked) {
+        for (const [index, screen] of android.entries()) {
+          const time = `10:${18 + index}`;
+          android[index] = {
+            ...screen,
+            nodes: [
+              ...screen.nodes,
+              {
+                index: 4,
+                ref: "e5",
+                bundleId: "com.android.systemui",
+                identifier: "com.android.systemui:id/clock",
+                type: "android.widget.TextView",
+                label: time,
+                value: time,
+              },
+            ],
+          };
+        }
+      }
+      const f = fixture([frame("ios", ["Continue"]), frame("ios", [], ["Order review"])], android);
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      await f.approve(runId);
+      f.capture.mockImplementationOnce((host) => {
+        expect(host).toBe(pixel.hostId);
+        f.positions.set(host, 1);
+        return screenshot(host);
+      });
+      await f.replay(runId);
+      const paused = await f.settle();
+      expect(paused.run?.firstDifference).toMatchObject({
+        step: 1,
+        kind: "control",
+        reason: expect.stringContaining("Continue"),
+      });
+      const evidence = await f.invoke({ action: "evidence", threadId, runId });
+      expect(evidence.evidence).toEqual({
+        sourcePng: screenshot(iphone.hostId).toString("base64"),
+        ...(clockTicked && {
+          targetPng: screenshot(pixel.hostId).toString("base64"),
+        }),
+      });
+      if (isPrivate) expect(paused.controls).toBeUndefined();
+      else
+        expect(paused.controls?.map(({ label }) => label)).toEqual(
+          clockTicked ? ["Allow app permission", "10:19"] : ["Retry"],
+        );
+      expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
