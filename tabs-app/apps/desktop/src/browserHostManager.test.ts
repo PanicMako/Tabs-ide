@@ -7665,6 +7665,33 @@ describe("reliable browser tabs and agent control", () => {
       });
       expect(originalTab.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
     });
+
+    it("rejects authentication redirects and HTTP login challenges during restore", async () => {
+      const f = await setup();
+      const { attachmentId } = await f.capture();
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted, "about:blank");
+      const preventDefault = vi.fn();
+      tab.loadURL.mockImplementationOnce(async () => {
+        tab.events.emit("will-redirect", {
+          isMainFrame: true,
+          url: "https://app.test/login",
+          preventDefault,
+        });
+      });
+      await expect(f.enter(restarted, attachmentId)).rejects.toThrow("exact saved attachment URL");
+      expect(tab.session.currentUrl).toBe("about:blank");
+      expect(preventDefault).toHaveBeenCalledOnce();
+      const cancelLogin = vi.fn();
+      tab.loadURL.mockImplementationOnce(async () => {
+        tab.events.emit("login", { preventDefault }, {}, {}, cancelLogin);
+      });
+      await expect(f.enter(restarted, attachmentId)).rejects.toThrow("exact saved attachment URL");
+      expect(cancelLogin).toHaveBeenCalledExactlyOnceWith();
+      expect(tab.stop).toHaveBeenCalledTimes(2);
+      expect(tab.events.listenerCount("will-redirect")).toBe(1);
+      expect(tab.events.listenerCount("login")).toBe(0);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
