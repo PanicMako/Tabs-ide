@@ -6183,7 +6183,45 @@ describe("reliable browser tabs and agent control", () => {
     };
   }
 
-  describe.skip("first-difference evidence approval", () => {
+  describe("first-difference evidence approval", () => {
+    it("rejects a reviewed draft after a reload or a same-document navigation away and back", async () => {
+      const f = createEvidenceFixture();
+      const { events } = mockNavigation(f.manager, f);
+      await f.authorizePage();
+      const url = f.session.currentUrl;
+      const reviewed = f.state().pageApprovalToken;
+      expect(reviewed).toBeTypeOf("string");
+      events.emit("did-navigate", {}, url);
+      expect(f.state().browserPageAuthorized).toBe(true);
+      await expect(f.authorizeEvidence({ pageApprovalToken: reviewed })).rejects.toThrow(
+        "page changed during review",
+      );
+      const afterReload = f.state().pageApprovalToken;
+      expect(afterReload).not.toBe(reviewed);
+      events.emit("did-navigate-in-page", {}, url + "#review", true);
+      events.emit("did-navigate-in-page", {}, url, true);
+      expect(f.state().browserPageAuthorized).toBe(true);
+      f.attach.mockClear();
+      await expect(f.authorizeEvidence({ pageApprovalToken: afterReload })).rejects.toThrow(
+        "page changed during review",
+      );
+      expect(f.attach).not.toHaveBeenCalled();
+      expect(f.state().deviceScreenshotAuthorized).toBe(false);
+      f.attach.mockImplementationOnce(async () => {
+        events.emit("did-navigate-in-page", {}, url + "#review", true);
+        events.emit("did-navigate-in-page", {}, url, true);
+        return "";
+      });
+      await expect(
+        f.authorizeEvidence({ pageApprovalToken: f.state().pageApprovalToken }),
+      ).rejects.toThrow("page changed during review");
+      expect(f.state().deviceScreenshotAuthorized).toBe(false);
+      await expect(
+        f.authorizeEvidence({ pageApprovalToken: f.state().pageApprovalToken }),
+      ).resolves.toMatchObject({
+        grantIds: [expect.any(String), expect.any(String)],
+      });
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
