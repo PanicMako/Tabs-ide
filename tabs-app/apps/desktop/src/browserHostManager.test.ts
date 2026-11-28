@@ -4257,6 +4257,36 @@ describe("reliable browser tabs and agent control", () => {
         vi.useRealTimers();
       }
     });
+
+    it("rejects auth, protected content, the wrong visible draft and stale status", async () => {
+      const f = await setup();
+      const login = "https://accounts.google.com/signin";
+      await expect(
+        f.enter({
+          ...f.saved,
+          definition: { ...f.saved.definition, url: login },
+        }),
+      ).rejects.toThrow("protected content");
+      f.session.currentUrl = login;
+      await expect(f.enter()).rejects.toThrow("protected content");
+      expect(f.evaluate).not.toHaveBeenCalled();
+      f.session.currentUrl = "https://app.test/another";
+      f.visible.password = true;
+      await expect(f.enter()).rejects.toThrow("protected content");
+      f.session.currentUrl = f.url;
+      await expect(f.enter()).rejects.toThrow("protected content");
+      await expect(
+        f.enter({ ...f.saved, stage: "uploaded", pendingAction: "submit" }),
+      ).rejects.toThrow("protected content");
+      f.visible.password = false;
+      f.visible.identity = "43";
+      await expect(f.enter()).rejects.toThrow("visible draft ID");
+      f.visible.identity = "42";
+      f.visible.status = "Uploaded";
+      await expect(f.enter()).rejects.toThrow("saved workflow stage");
+      expect(f.loadURL).not.toHaveBeenCalled();
+      expect(f.submit).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
