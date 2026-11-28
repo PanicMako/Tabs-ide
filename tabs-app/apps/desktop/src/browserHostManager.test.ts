@@ -3999,6 +3999,38 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.evaluate).toHaveBeenCalledTimes(2);
       });
     });
+
+    it("returns only the live stage without reloading, submitting, or giving agent access", async () => {
+      const f = await setup();
+      const guards = new BrowserSubmissionGuards(() => f.userData);
+      guards.set(f.session.partition, f.url, true);
+      await expect(f.enter()).resolves.toEqual({ stage: "certified" });
+      expect(f.evaluate).toHaveBeenCalledTimes(1);
+      expect(f.evaluate.mock.calls[0]![0]).toBe(999);
+      expect(f.goToIndex).not.toHaveBeenCalled();
+      expect(f.loadURL).not.toHaveBeenCalled();
+      expect(f.submit).not.toHaveBeenCalled();
+      expect(f.sendInputEvent).not.toHaveBeenCalled();
+      expect(f.session).toMatchObject({
+        assignedTaskId: null,
+        controller: "none",
+        controlEpoch: 0,
+        userRetained: false,
+        actionTimeline: [],
+      });
+      expect(f.manager.getSessionState(f.request.projectId, f.request.sessionId)).toMatchObject({
+        browserPageAuthorized: false,
+        deviceScreenshotAuthorized: false,
+        submissionGuardActive: true,
+      });
+      f.visible.status = "Uploaded";
+      await expect(f.enter({ ...f.saved, stage: "uploaded" })).resolves.toEqual({
+        stage: "uploaded",
+      });
+      expect(f.querySelectorAll).not.toHaveBeenCalledWith("#submit");
+      expect(f.querySelectorAll).not.toHaveBeenCalledWith("#replacement");
+      expect(f.submit).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
