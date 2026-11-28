@@ -4302,6 +4302,213 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.enter()).rejects.toThrow("page changed");
       expect(f.submit).not.toHaveBeenCalled();
     });
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "observes a read-only Chromium draft and rejects forged native and isolated writes",
+      async () => {
+        const f = await setup();
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(() => browser.close());
+        const page = await browser.newPage();
+        await page.route(f.url, (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: '<p id="draft-id">42</p><p id="status">Uploaded</p>',
+          }),
+        );
+        await connectChromiumPage(page, f);
+        Object.assign(f.webContents, { getURL: () => page.url() });
+        f.loadURL.mockImplementationOnce(async (url) => {
+          await page.goto(url);
+          f.events.emit("did-navigate", {}, url);
+        });
+
+        const definition = {
+          url: f.url,
+          identitySelector: "#draft-id",
+          resourceId: "42",
+          statusSelector: "#status",
+          readOnly: true,
+          states: { uploaded: "Uploaded", submitted: "Submitted" },
+        } satisfies BrowserWorkflowDefinition;
+        const initial = {
+          phase: "inspect",
+          profileId: "work",
+          definition: { ...definition, url: f.url.split("?")[0]! },
+        };
+        const run = (input: unknown) => f.manager.runAutomation({ ...f.monitorRequest, input });
+        const guards = () => new BrowserSubmissionGuards(() => f.userData);
+        const state = () => f.manager.getSessionState(f.request.projectId, f.request.sessionId);
+        const observation = {
+          stage: "uploaded",
+          statusText: "Uploaded",
+          breakpoint: "irrelevant",
+          submitAvailable: false,
+          identityText: "42",
+        };
+        const read = { disposition: "observed", observation };
+        await expect(f.enter({ ...f.saved, definition, stage: "uploaded" })).resolves.toEqual({
+          stage: "uploaded",
+        });
+        expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
+        f.loadURL.mockClear();
+        await expect(run(initial)).rejects.toThrow("Approve");
+        await f.authorize();
+        await expect(run(initial)).resolves.toEqual({
+          ...read,
+          resolvedDraftUrl: f.url,
+          target: f.saved.target,
+          submissionApproved: false,
+        });
+        const targeted = {
+          ...initial,
+          definition,
+          target: f.saved.target,
+          workflowId: f.monitorInput.workflowId,
+        };
+        const { readOnly: _readOnly, ...incompleteGuarded } = definition;
+        await expect(run({ ...targeted, definition: incompleteGuarded })).rejects.toThrow();
+        await expect(run({ ...initial, profileId: "personal" })).rejects.toThrow(
+          "persistent browser profile",
+        );
+        await expect(f.monitor({ definition })).resolves.toEqual({
+          ...read,
+          target: f.saved.target,
+        });
+
+        const status = page.locator("#status");
+        await status.evaluate((element) => element.after(element.cloneNode(true)));
+        await expect(run(targeted)).resolves.toMatchObject({
+          disposition: "unobservable",
+        });
+        await page
+          .locator("#status")
+          .last()
+          .evaluate((element) => element.remove());
+        await status.evaluate((element) => {
+          element.textContent = "Submitted";
+        });
+        await expect(f.monitor({ definition })).resolves.toMatchObject({
+          observation: { stage: "submitted" },
+        });
+        await status.evaluate((element) => {
+          element.textContent = "Uploaded";
+        });
+        expect(guards().has(f.session.partition, f.url)).toBe(false);
+        expect(state().pendingSubmissionApproval).toBeUndefined();
+        expect(await page.locator("button, input, form").count()).toBe(0);
+
+        await page.evaluate(() => {
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            `<p id="replacement">Clear</p>
+             <form action="/submit" method="post" data-tabs-submit-idempotency="key">
+               <input type="hidden" name="key" value="fixture-key">
+               <button id="submit">Submit</button>
+             </form>
+             <input id="upload" type="file"><output>0</output>`,
+          );
+          const record = () => {
+            const output = document.querySelector("output")!;
+            output.textContent = String(Number(output.textContent) + 1);
+          };
+          document.querySelector("form")!.addEventListener("submit", (event) => {
+            event.preventDefault();
+            record();
+          });
+          document.querySelector("#upload")!.addEventListener("change", record);
+        });
+        const guarded: BrowserWorkflowDefinition = {
+          ...f.saved.definition,
+          uploadInputSelector: "#upload",
+          states: { ...f.saved.definition.states, ready_to_upload: "Ready" },
+        };
+        const forged = { ...guarded, readOnly: true } as const;
+        await run({ ...initial, definition: guarded });
+        expect(guards().has(f.session.partition, f.url)).toBe(true);
+        expect(state().pendingSubmissionApproval).toBeUndefined();
+        // Even without a live approval, refreshing a guarded draft could lose its staged state.
+        await expect(f.monitor({ definition, refresh: true })).resolves.toMatchObject(read);
+        await expect(run({ ...targeted, phase: "refresh" })).resolves.toMatchObject(read);
+        await run({ ...targeted, definition: guarded });
+        const approval = state().pendingSubmissionApproval!;
+        expect(approval).toMatchObject({
+          controlLabel: "Submit",
+          siteSubmissionKey: true,
+        });
+        await f.manager.runAutomation({
+          ...f.request,
+          operation: "authorizeBrowserSubmission",
+          input: { approvalId: approval.id },
+        });
+        const approved = state().pendingSubmissionApproval;
+        for (const phase of ["upload", "submit"]) {
+          f.evaluate.mockClear();
+          await expect(run({ ...targeted, phase, statusOnly: false })).rejects.toThrow(
+            /read.only/i,
+          );
+          await expect(
+            run({ ...targeted, phase, statusOnly: false, definition: forged }),
+          ).rejects.toThrow();
+          expect(f.evaluate).not.toHaveBeenCalled();
+        }
+        await expect(
+          run({ ...targeted, phase: "enter", statusOnly: false }),
+        ).resolves.toMatchObject(read);
+        await expect(f.enter({ ...f.saved, definition, stage: "uploaded" })).resolves.toEqual({
+          stage: "uploaded",
+        });
+        const evalScript = (code: string) => f.evaluate(999, [{ code }]);
+        const binding = { currentId: approval.id, nextId: "forged-approval" };
+        await expect(
+          evalScript(browserWorkflowPageScript(forged, true, false, binding, "submit")),
+        ).resolves.toEqual(read);
+        await expect(run({ ...targeted, definition: guarded })).resolves.toMatchObject({
+          submissionApproved: true,
+        });
+        expect(state().pendingSubmissionApproval).toEqual(approved);
+
+        await status.evaluate((element) => {
+          element.textContent = "Ready";
+        });
+        await expect(
+          evalScript(
+            browserWorkflowPageScript(guarded, false, false, { nextId: "upload" }, "upload"),
+          ),
+        ).resolves.toMatchObject({
+          submitControlBinding: "bound",
+          chooseUploadFile: true,
+        });
+        const uploadBinding = { currentId: "upload", nextId: "forged-upload" };
+        await expect(
+          evalScript(
+            browserWorkflowPageScript(forged, true, false, uploadBinding, "upload", {
+              name: "build.zip",
+              type: "application/zip",
+              base64: "Zml4dHVyZQ==",
+            }),
+          ),
+        ).resolves.toEqual({
+          disposition: "observed",
+          observation: {
+            ...observation,
+            stage: "ready_to_upload",
+            statusText: "Ready",
+          },
+        });
+        await expect(
+          evalScript(browserWorkflowPageScript(guarded, false, false, uploadBinding, "upload")),
+        ).resolves.toMatchObject({ submitControlBinding: "retained" });
+        expect(
+          await page.locator("#upload").evaluate((input: HTMLInputElement) => input.files?.length),
+        ).toBe(0);
+        expect(await page.locator("output").innerText()).toBe("0");
+        expect(guards().has(f.session.partition, f.url)).toBe(true);
+        expect(f.loadURL).not.toHaveBeenCalled();
+        expect(f.sendInputEvent).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
