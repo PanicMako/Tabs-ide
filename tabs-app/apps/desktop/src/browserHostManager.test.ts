@@ -4212,6 +4212,33 @@ describe("reliable browser tabs and agent control", () => {
       ).resolves.toEqual({ stage: "ready_to_upload" });
       expect(f.loadURL).not.toHaveBeenCalled();
     });
+
+    it("blocks off-URL main-frame redirects and rejects an unexpected final URL", async () => {
+      const f = await setup("about:blank");
+      const wrongUrl = f.url + "#changed";
+      const preventDefault = vi.fn();
+      f.loadURL.mockImplementationOnce(async () => {
+        f.events.emit("will-redirect", {
+          isMainFrame: false,
+          url: wrongUrl,
+          preventDefault,
+        });
+        expect(preventDefault).not.toHaveBeenCalled();
+        f.events.emit("will-redirect", {
+          isMainFrame: true,
+          url: wrongUrl,
+          preventDefault,
+        });
+      });
+      await expect(f.enter()).rejects.toThrow("exact saved result URL");
+      expect(preventDefault).toHaveBeenCalledOnce();
+      expect(f.events.listenerCount("will-redirect")).toBe(1);
+      f.loadURL.mockImplementationOnce(async () => {
+        f.session.currentUrl = wrongUrl;
+      });
+      await expect(f.enter()).rejects.toThrow("exact saved result URL");
+      expect(f.evaluate).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
