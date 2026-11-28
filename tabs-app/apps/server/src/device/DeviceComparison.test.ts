@@ -421,6 +421,140 @@ describe("Agent-led device comparison", () => {
       ),
     ).toBe(true);
   });
+
+  it.each(["only browser wrappers", "source siblings", "destination siblings"] as const)(
+    "verifies a mobile browser checkout outcome with %s",
+    async (result) => {
+      const reviewLabel = "Review order";
+      const review = frame("ios", [], [reviewLabel]);
+      const wrappedReview: SemanticSnapshot = {
+        ...review,
+        nodes: [
+          { index: 0, ref: "e1", label: reviewLabel, type: "WebView" },
+          {
+            index: 1,
+            parentIndex: 0,
+            ref: "e2",
+            label: reviewLabel,
+            type: "Other",
+          },
+          {
+            index: 2,
+            parentIndex: 1,
+            ref: "e3",
+            label: reviewLabel,
+            type: "Other",
+            value: "1",
+          },
+          {
+            index: 3,
+            parentIndex: 2,
+            ref: "e4",
+            label: reviewLabel,
+            type: "StaticText",
+          },
+          ...(result === "source siblings"
+            ? [
+                {
+                  index: 4,
+                  parentIndex: 1,
+                  ref: "e5",
+                  label: reviewLabel,
+                  type: "Other",
+                },
+                {
+                  index: 5,
+                  parentIndex: 4,
+                  ref: "e6",
+                  label: reviewLabel,
+                  type: "StaticText",
+                },
+              ]
+            : []),
+        ],
+      };
+      const androidReview: SemanticSnapshot = {
+        ...frame("android", []),
+        nodes: [
+          {
+            index: 0,
+            ref: "e1",
+            label: reviewLabel,
+            type: "android.webkit.WebView",
+          },
+          {
+            index: 1,
+            parentIndex: 0,
+            ref: "e2",
+            label: reviewLabel,
+            type: "android.widget.TextView",
+          },
+          ...(result === "destination siblings"
+            ? [
+                {
+                  index: 2,
+                  parentIndex: 0,
+                  ref: "e3",
+                  label: reviewLabel,
+                  type: "android.widget.TextView",
+                },
+              ]
+            : []),
+        ],
+      };
+      const f = fixture(
+        [frame("ios", ["Continue"]), wrappedReview].map((screen) =>
+          withBrowserLocation(screen, safariApp),
+        ),
+        [frame("android", ["Continue"]), androidReview].map((screen) =>
+          withBrowserLocation(screen, chromeApp),
+        ),
+      );
+      const { run } = await f.record({
+        action: "propose",
+        source: { ...iphone, appId: safariApp },
+        target: { ...pixel, appId: chromeApp },
+      });
+      const runId = run!.runId;
+      const approval = await f.approveRecording(runId);
+      const before = await f.record({ action: "inspect", runId });
+      await f.record({
+        action: "tap",
+        runId,
+        controlId: before.controls![0]!.id,
+      });
+      const after = await f.record({ action: "inspect", runId });
+      expect(after.controls?.map(({ label }) => label)).toEqual(
+        result === "source siblings" ? [reviewLabel, reviewLabel] : [reviewLabel],
+      );
+      const selected = {
+        action: "expect",
+        runId,
+        controlId: after.controls![0]!.id,
+      } as const;
+      if (result === "source siblings") {
+        await expect(f.record(selected)).rejects.toThrow("unique label");
+        expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId]);
+        return;
+      }
+      await f.record(selected);
+      await f.record({ action: "finish", runId });
+      await f.invoke(
+        {
+          action: "replay",
+          threadId,
+          runId,
+          approvalId: approval.run!.approvalId!,
+        },
+        undefined,
+        recordingCaller,
+      );
+      expect((await f.settle()).run?.phase).toBe(
+        result === "destination siblings" ? "paused" : "completed",
+      );
+      expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId, pixel.hostId]);
+    },
+  );
 });
 
 describe.skip("Device comparison", () => {
