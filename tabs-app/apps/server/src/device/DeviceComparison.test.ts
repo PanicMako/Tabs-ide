@@ -627,6 +627,105 @@ describe("Agent-led device comparison", () => {
     await f.settle();
     expect(f.open).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    "stop",
+    "provider",
+    "device access",
+    "device attachment",
+    "missing target frame",
+  ] as const)("withholds transfer access on %s", async (condition) => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [frame("android", ["Cancel"])],
+    );
+    if (condition === "missing target frame") {
+      f.capture.mockImplementation((host) =>
+        host === pixel.hostId ? Buffer.alloc(0) : screenshot(host),
+      );
+    }
+    const { run } = await f.propose(evidenceDestination);
+    const runId = run!.runId;
+    const status = { action: "status", threadId, runId } as const;
+    const evidence = { action: "evidence", threadId, runId } as const;
+    const approval = {
+      action: "approveAgentRecording",
+      threadId,
+      runId,
+      approvalRequestId,
+      evidence: evidenceApproval,
+    } as const;
+    const forCaller = (input: typeof status | typeof evidence) =>
+      f.invoke(input, undefined, recordingCaller);
+    expect((await forCaller(status)).approvedEvidence).toBeUndefined();
+    await expect(forCaller(evidence)).rejects.toThrow("first-difference evidence is unavailable");
+
+    await f.invoke(approval, panelSession);
+    expect((await forCaller(status)).approvedEvidence).toBeUndefined();
+    const source = await f.record({ action: "inspect", runId });
+    await f.record({
+      action: "tap",
+      runId,
+      controlId: source.controls![0]!.id,
+    });
+    const outcome = await f.record({ action: "inspect", runId });
+    await f.record({
+      action: "expect",
+      runId,
+      controlId: outcome.controls![0]!.id,
+    });
+    await f.record({ action: "finish", runId });
+    expect((await forCaller(status)).approvedEvidence).toBeUndefined();
+    await f.invoke(
+      { action: "replay", threadId, runId, approvalId: approvalRequestId },
+      undefined,
+      recordingCaller,
+    );
+    expect((await f.settle()).run?.firstDifference?.step).toBe(1);
+    expect((await f.invoke(status, panelSession)).approvedEvidence).toBeUndefined();
+    expect((await f.invoke(evidence, panelSession)).approvedEvidence).toBeUndefined();
+    if (condition === "missing target frame") {
+      expect((await forCaller(status)).approvedEvidence).toBeUndefined();
+      await expect(forCaller(evidence)).rejects.toThrow("first-difference evidence is unavailable");
+      return;
+    }
+
+    expect((await forCaller(status)).approvedEvidence).toEqual(evidenceApproval);
+    expect(
+      (await f.invoke({ action: "status", threadId }, undefined, recordingCaller)).approvedEvidence,
+    ).toEqual(evidenceApproval);
+    expect((await forCaller(evidence)).evidence).toEqual({
+      sourcePng: screenshot(iphone.hostId).toString("base64"),
+      targetPng: screenshot(pixel.hostId).toString("base64"),
+    });
+    const otherProvider = {
+      ...recordingCaller,
+      providerSessionId: "replacement-provider-session",
+    };
+    await expect(f.invoke(status, undefined, otherProvider)).rejects.toThrow(
+      "different agent session",
+    );
+    await expect(f.invoke(evidence, undefined, otherProvider)).rejects.toThrow(
+      "different agent session",
+    );
+
+    if (condition === "provider") {
+      f.replaceProvider();
+      await expect(forCaller(status)).rejects.toThrow("agent session");
+      await expect(forCaller(evidence)).rejects.toThrow("agent session");
+      await expect(f.invoke(approval, panelSession)).rejects.toThrow();
+      return;
+    }
+    if (condition === "stop") {
+      await f.invoke({ action: "stop", threadId, runId }, panelSession);
+      await expect(f.invoke(approval, panelSession)).rejects.toThrow("no longer awaiting approval");
+      const replacement = await f.propose(evidenceDestination);
+      expect(replacement.run?.runId).not.toBe(runId);
+    } else if (condition === "device access") f.revoke();
+    else f.reopen(iphone);
+    expect((await forCaller(status)).approvedEvidence).toBeUndefined();
+    await expect(forCaller(evidence)).rejects.toThrow();
+  });
 });
 
 describe.skip("Device comparison", () => {
