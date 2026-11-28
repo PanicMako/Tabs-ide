@@ -33,6 +33,7 @@ vi.mock("../../hooks/useSettings", () => ({
 
 let status: ComputerUsePermissionStatus = {
   platformSupported: true,
+  runtimeAvailable: true,
   accessibility: false,
   screenRecording: "denied",
 };
@@ -49,7 +50,12 @@ import { ComputerUseSettingsRow } from "./ComputerUseSettingsRow";
 beforeEach(() => {
   enabled = false;
   openExternal.mockClear();
-  status = { platformSupported: true, accessibility: false, screenRecording: "denied" };
+  status = {
+    platformSupported: true,
+    runtimeAvailable: true,
+    accessibility: false,
+    screenRecording: "denied",
+  };
 });
 
 it("guides setup and updates live when permissions are granted", async () => {
@@ -68,17 +74,27 @@ it("guides setup and updates live when permissions are granted", async () => {
   expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("Privacy_Accessibility"));
 
   // The person grants access in System Settings and returns: the window regains focus.
-  status = { platformSupported: true, accessibility: true, screenRecording: "granted" };
+  status = {
+    platformSupported: true,
+    runtimeAvailable: true,
+    accessibility: true,
+    screenRecording: "granted",
+  };
   window.dispatchEvent(new Event("focus"));
-  await expect.element(page.getByText(/Ready. Agents can use your computer/)).toBeVisible();
+  await expect.element(page.getByText(/Ready to attach a desktop window/)).toBeVisible();
   await shootAll("ready", "computer-use");
   await view.unmount();
 });
 
-it("explains non-macOS platforms", async () => {
-  status = { platformSupported: false, accessibility: false, screenRecording: "unknown" };
+it("explains unsupported platforms", async () => {
+  status = {
+    platformSupported: false,
+    runtimeAvailable: false,
+    accessibility: false,
+    screenRecording: "unknown",
+  };
   enabled = true;
   const view = await render(<ComputerUseSettingsRow />);
-  await expect.element(page.getByText(/only needed on macOS/)).toBeVisible();
+  await expect.element(page.getByText(/unavailable on this platform/)).toBeVisible();
   await view.unmount();
 });

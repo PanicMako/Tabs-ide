@@ -1,7 +1,13 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schema from "effect/Schema";
+import type {
+  NativeComputerCommand,
+  NativeComputerCapabilities,
+  NativeComputerState,
+  NativeWindowGrant,
+} from "@tabs/contracts";
+import { unlinkSync } from "node:fs";
 import * as Semaphore from "effect/Semaphore";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
@@ -14,6 +20,7 @@ import {
   RUNTIME_TIMEOUT_MS,
   runtimePlatformSupported,
 } from "./runtimeInvocation.ts";
+import { ensureWindowsRuntime } from "./windowsRuntime.ts";
 import {
   failureAdvice,
   parseRuntimeResponse,
@@ -31,19 +38,57 @@ import {
 } from "./treeQuery.ts";
 import { describeVerification } from "./verification.ts";
 
-export class ComputerUseError extends Schema.TaggedError<ComputerUseError>()("ComputerUseError", {
-  code: Schema.String,
-  message: Schema.String,
-}) {}
+import { ComputerUseError } from "./ComputerUseError.ts";
+import { NativeWindows } from "./nativeWindows.ts";
+
+export { ComputerUseError };
 
 export interface ComputerPermissionStatus {
   readonly platformSupported: boolean;
+  readonly runtimeAvailable: boolean;
   readonly accessibility: boolean;
+  readonly capabilities?: NativeComputerCapabilities;
   readonly screenRecording: "granted" | "denied" | "unknown";
+  readonly maturity?: "stable" | "preview";
+  readonly maturityNote?: string;
+}
+
+export const WINDOWS_PREVIEW_NOTE = "Preview on Windows: not yet verified on a live desktop.";
+export const WAYLAND_PREVIEW_NOTE =
+  "Preview on Wayland: window capture and physical input are unavailable.";
+
+/** Marks platforms whose native control is simulated or limited, without changing availability. */
+export function withMaturity(
+  platform: NodeJS.Platform,
+  status: ComputerPermissionStatus,
+): ComputerPermissionStatus {
+  const note =
+    platform === "win32"
+      ? WINDOWS_PREVIEW_NOTE
+      : status.capabilities?.session === "wayland"
+        ? WAYLAND_PREVIEW_NOTE
+        : undefined;
+  if (!note) return { ...status, maturity: "stable" };
+  return {
+    ...status,
+    maturity: "preview",
+    maturityNote: note,
+    ...(status.capabilities
+      ? {
+          capabilities: {
+            ...status.capabilities,
+            details: `${note} ${status.capabilities.details}`,
+          },
+        }
+      : {}),
+  };
 }
 
 export interface ComputerOutcome {
   readonly action?: string;
+  readonly observationId?: string;
+  readonly handoff?: string;
+  readonly userDemonstration?: string;
   readonly delivery?: "background" | "foreground";
   /** Whether the action's effect was confirmed; see verification.ts. */
   readonly verification?: string;
@@ -58,18 +103,63 @@ export interface ComputerOutcome {
 export type RuntimeInvoker = (
   request: ComputerRequest,
   platform: NodeJS.Platform,
+  signal?: AbortSignal,
 ) => Promise<{ stdout: string; stderr: string }>;
 
-const processInvoker: RuntimeInvoker = async (request, platform) => {
-  const invocation = buildRuntimeInvocation(platform, request);
-  const result = await runProcess(invocation.command, invocation.args, {
-    stdin: invocation.stdin,
-    env: { ...process.env, ...invocation.env },
-    timeoutMs: RUNTIME_TIMEOUT_MS,
-    allowNonZeroExit: true,
-  });
-  if (result.timedOut) throw new Error("The desktop runtime timed out.");
-  return { stdout: result.stdout, stderr: result.stderr };
+class WindowsRuntimeUnavailableError extends Error {}
+
+const processInvoker: RuntimeInvoker = async (request, platform, signal) => {
+  let windowsRuntime: string | undefined;
+  if (platform === "win32") {
+    try {
+      windowsRuntime = await NodeFSP.readFile(await ensureWindowsRuntime(), "utf8");
+    } catch (cause) {
+      throw new WindowsRuntimeUnavailableError(
+        cause instanceof Error
+          ? `Could not install the Windows computer-use runtime: ${cause.message}`
+          : "Could not install the Windows computer-use runtime.",
+      );
+    }
+  }
+  const dir =
+    signal &&
+    request.native &&
+    (await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "tabs-native-input-")));
+  const controlFile = dir && NodePath.join(dir, "active");
+  const cancel = () => {
+    if (controlFile) {
+      try {
+        unlinkSync(controlFile);
+      } catch {
+        // The invocation may already have removed its private directory.
+      }
+    }
+  };
+  try {
+    if (controlFile) await NodeFSP.writeFile(controlFile, "", { mode: 0o600 });
+    signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) throw new Error("Native window access was withdrawn.");
+    const invocation = buildRuntimeInvocation(
+      platform,
+      controlFile ? { ...request, controlFile } : request,
+      windowsRuntime,
+    );
+    const result = await runProcess(invocation.command, invocation.args, {
+      stdin: invocation.stdin,
+      env: { ...process.env, ...invocation.env },
+      timeoutMs: RUNTIME_TIMEOUT_MS,
+      allowNonZeroExit: true,
+      // Mutation runtimes release input themselves when the control file disappears.
+      ...(!request.native || request.op === "snapshot" || request.op === "screenshot"
+        ? { signal }
+        : {}),
+    });
+    if (result.timedOut) throw new Error("The desktop runtime timed out.");
+    return { stdout: result.stdout, stderr: result.stderr };
+  } finally {
+    signal?.removeEventListener("abort", cancel);
+    if (dir) await NodeFSP.rm(dir, { force: true, recursive: true });
+  }
 };
 
 const unsupported = () =>
@@ -86,19 +176,34 @@ export class ComputerUse extends Context.Service<
   ComputerUse,
   {
     /** Runs an app-bound operation and folds the resulting tree into a diff against the last one. */
+    readonly control: (
+      input: NativeComputerCommand,
+    ) => Effect.Effect<NativeComputerState, ComputerUseError>;
+    readonly revokeAll: Effect.Effect<void>;
+    readonly revokeThread: (threadId: string) => Effect.Effect<void>;
+    readonly grant: (threadId: string) => NativeWindowGrant | undefined;
     readonly execute: (
       request: ComputerRequest,
       session: string,
-      options?: { readonly treeDiff?: boolean; readonly query?: string },
+      options?: {
+        readonly treeDiff?: boolean;
+        readonly query?: string;
+        readonly observationId?: string | undefined;
+      },
     ) => Effect.Effect<ComputerOutcome, ComputerUseError>;
     /** Polls the app's tree until the condition holds, or fails with `wait_timeout`. */
     readonly wait: (
       app: AppSelector,
       condition: WaitCondition,
       timeoutMs?: number,
+      session?: string,
     ) => Effect.Effect<ComputerOutcome, ComputerUseError>;
     readonly permissions: Effect.Effect<ComputerPermissionStatus>;
-    readonly screenshot: (app: AppSelector) => Effect.Effect<
+    readonly screenshot: (
+      app: AppSelector,
+      session?: string,
+      observationId?: string,
+    ) => Effect.Effect<
       {
         readonly path: string;
         readonly width: number | null;
@@ -119,15 +224,35 @@ export const make = Effect.fn("ComputerUse.make")(function* (
   const baselines = new ComputerTreeBaselines();
   const supported = runtimePlatformSupported(platform);
 
-  const call = (request: ComputerRequest) =>
-    Effect.tryPromise({
-      try: () => invoke(request, platform),
-      catch: (cause) =>
-        new ComputerUseError({
-          code: "accessibility_error",
-          message: cause instanceof Error ? cause.message : "The desktop runtime failed.",
+  const invokeRuntime = (request: ComputerRequest, access?: AbortSignal) =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const cancellation = new AbortController();
+        const signal = access
+          ? AbortSignal.any([access, cancellation.signal])
+          : cancellation.signal;
+        const result = Promise.resolve().then(() => invoke(request, platform, signal));
+        return { cancellation, result };
+      }),
+      ({ result }) =>
+        Effect.tryPromise({
+          try: () => result,
+          catch: (cause) =>
+            new ComputerUseError({
+              code:
+                cause instanceof WindowsRuntimeUnavailableError
+                  ? "runtime_unavailable"
+                  : "accessibility_error",
+              message: cause instanceof Error ? cause.message : "The desktop runtime failed.",
+            }),
         }),
-    }).pipe(
+      ({ cancellation, result }) =>
+        Effect.promise(async () => {
+          cancellation.abort();
+          // Hold the desktop gate until the runtime has released its input and exited.
+          await result.catch(() => undefined);
+        }),
+    ).pipe(
       Effect.map(({ stdout, stderr }) => parseRuntimeResponse(stdout, stderr)),
       Effect.flatMap((response) =>
         response.ok
@@ -139,16 +264,28 @@ export const make = Effect.fn("ComputerUse.make")(function* (
               }),
             ),
       ),
-      gate.withPermits(1),
     );
+
+  const native = new NativeWindows(invokeRuntime, gate);
+  const call = (
+    request: ComputerRequest,
+    session?: string,
+    observationId?: string,
+    reportHandoff = false,
+  ) =>
+    "app" in request && request.app.kind === "attachment"
+      ? native.run({ ...request, app: request.app }, session ?? "", observationId, reportHandoff)
+      : gate.withPermits(1)(invokeRuntime(request));
 
   const execute: ComputerUse["Service"]["execute"] = (request, session, options) =>
     !supported
       ? Effect.fail(unsupported())
-      : call(request).pipe(
+      : call(request, session, options?.observationId, true).pipe(
           Effect.map((response): ComputerOutcome => {
             const snapshot = response.snapshot;
+            const attached = "app" in request && request.app.kind === "attachment";
             const applied =
+              attached ||
               snapshot === undefined ||
               // A subtree is not a whole window, so it must not become the baseline for diffs.
               (request.op === "snapshot" && request.rootElementIndex !== undefined)
@@ -196,6 +333,11 @@ export const make = Effect.fn("ComputerUse.make")(function* (
               ...base,
               tree,
               treeIsDiff: applied?.diff !== undefined && options?.query === undefined,
+              ...(attached ? { observationId: snapshot.id } : {}),
+              ...(response.handoff ? { handoff: response.handoff } : {}),
+              ...(response.userDemonstration
+                ? { userDemonstration: response.userDemonstration }
+                : {}),
               elementCount: snapshot.elementCount,
               focusedElementIndex: snapshot.focusedElementIndex,
               app: snapshot.app,
@@ -203,7 +345,7 @@ export const make = Effect.fn("ComputerUse.make")(function* (
           }),
         );
 
-  const wait: ComputerUse["Service"]["wait"] = (app, condition, timeoutMs) =>
+  const wait: ComputerUse["Service"]["wait"] = (app, condition, timeoutMs, session) =>
     Effect.gen(function* () {
       if (!supported) return yield* unsupported();
       if (!hasWaitCondition(condition)) {
@@ -216,10 +358,16 @@ export const make = Effect.fn("ComputerUse.make")(function* (
         Math.max(timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS, 500),
         MAX_WAIT_TIMEOUT_MS,
       );
+      const signal = app.kind === "attachment" && session ? native.signal(session) : undefined;
       let waited = 0;
       while (true) {
+        if (signal?.aborted)
+          return yield* new ComputerUseError({
+            code: "user_turn",
+            message: "Window control changed. Start a new observation after the user returns it.",
+          });
         // The app or window may not exist yet; keep polling until the deadline.
-        const read = yield* call({ op: "snapshot", app, maxNodes: 600 }).pipe(
+        const read = yield* call({ op: "snapshot", app, maxNodes: 600 }, session).pipe(
           Effect.map((response) => response.snapshot),
           Effect.catch((error) =>
             ["app_not_found", "window_not_found"].includes(error.code)
@@ -233,6 +381,7 @@ export const make = Effect.fn("ComputerUse.make")(function* (
           return {
             tree: [head, "", ...matched.matches].join("\n"),
             treeIsDiff: false,
+            ...(app.kind === "attachment" ? { observationId: read.id } : {}),
             elementCount: read.elementCount,
             focusedElementIndex: read.focusedElementIndex,
             app: read.app,
@@ -252,23 +401,35 @@ export const make = Effect.fn("ComputerUse.make")(function* (
   const permissions: ComputerUse["Service"]["permissions"] = !supported
     ? Effect.succeed({
         platformSupported: false,
+        runtimeAvailable: false,
         accessibility: false,
         screenRecording: "unknown" as const,
       })
     : call({ op: "permissions" }).pipe(
-        Effect.map((response) => ({
-          platformSupported: true,
-          accessibility: response.permissions?.accessibility ?? false,
-          screenRecording: response.permissions?.screenRecording ?? ("unknown" as const),
-        })),
-        Effect.orElseSucceed(() => ({
-          platformSupported: true,
-          accessibility: false,
-          screenRecording: "unknown" as const,
-        })),
+        Effect.map((response) =>
+          withMaturity(platform, {
+            platformSupported: true,
+            runtimeAvailable: true,
+            ...(response.permissions?.capabilities
+              ? { capabilities: response.permissions.capabilities }
+              : {}),
+            accessibility: response.permissions?.accessibility ?? false,
+            screenRecording: response.permissions?.screenRecording ?? ("unknown" as const),
+          }),
+        ),
+        Effect.catch((error) =>
+          Effect.succeed(
+            withMaturity(platform, {
+              platformSupported: true,
+              runtimeAvailable: error.code !== "runtime_unavailable",
+              accessibility: false,
+              screenRecording: "unknown" as const,
+            }),
+          ),
+        ),
       );
 
-  const screenshot: ComputerUse["Service"]["screenshot"] = (app) =>
+  const screenshot: ComputerUse["Service"]["screenshot"] = (app, session, observationId) =>
     !supported
       ? Effect.fail(unsupported())
       : Effect.gen(function* () {
@@ -280,69 +441,83 @@ export const make = Effect.fn("ComputerUse.make")(function* (
                 message: "Could not create a temp folder.",
               }),
           });
-          const path = NodePath.join(dir, "window.png");
-          if (platform === "darwin") {
-            // macOS captures from the server so the Screen Recording grant belongs to Tabs.
-            const framed = yield* call({ op: "windowFrame", app });
-            const frame = framed.frame;
-            if (frame === undefined) {
-              return yield* new ComputerUseError({
-                code: "window_not_found",
-                message: "The app has no window to capture.",
+          return yield* Effect.gen(function* () {
+            const path = NodePath.join(dir, "window.png");
+            if (platform === "darwin" && app.kind !== "attachment") {
+              // macOS captures from the server so the Screen Recording grant belongs to Tabs.
+              const framed = yield* call({ op: "windowFrame", app });
+              const frame = framed.frame;
+              if (frame === undefined) {
+                return yield* new ComputerUseError({
+                  code: "window_not_found",
+                  message: "The app has no window to capture.",
+                });
+              }
+              const region = [frame.x, frame.y, frame.width, frame.height]
+                .map((value) => Math.round(value))
+                .join(",");
+              const captured = yield* Effect.tryPromise({
+                try: () =>
+                  runProcess("screencapture", ["-x", "-t", "png", "-R", region, path], {
+                    timeoutMs: 10_000,
+                    allowNonZeroExit: true,
+                  }),
+                catch: () =>
+                  new ComputerUseError({
+                    code: "screenshot_failed",
+                    message: "screencapture could not run.",
+                  }),
               });
+              if (captured.code !== 0) {
+                return yield* new ComputerUseError({
+                  code: "screenshot_failed",
+                  message: `Screen capture failed${captured.stderr ? `: ${captured.stderr.trim()}` : ""}. Screen Recording permission may be missing; call computer_permissions.`,
+                });
+              }
+            } else {
+              yield* call({ op: "screenshot", app, path }, session, observationId);
             }
-            const region = [frame.x, frame.y, frame.width, frame.height]
-              .map((value) => Math.round(value))
-              .join(",");
-            const captured = yield* Effect.tryPromise({
-              try: () =>
-                runProcess("screencapture", ["-x", "-t", "png", "-R", region, path], {
-                  timeoutMs: 10_000,
-                  allowNonZeroExit: true,
-                }),
+            const bytes = yield* Effect.tryPromise({
+              try: () => NodeFSP.readFile(path),
               catch: () =>
                 new ComputerUseError({
                   code: "screenshot_failed",
-                  message: "screencapture could not run.",
+                  message: "No screenshot file was produced. Check computer_permissions.",
                 }),
             });
-            if (captured.code !== 0) {
+            const size = pngDimensions(bytes);
+            if (!size || size.width <= 0 || size.height <= 0)
               return yield* new ComputerUseError({
                 code: "screenshot_failed",
-                message: `Screen capture failed${captured.stderr ? `: ${captured.stderr.trim()}` : ""}. Screen Recording permission may be missing; call computer_permissions.`,
+                message: "The runtime returned invalid PNG data.",
               });
-            }
-          } else {
-            yield* call({ op: "screenshot", app, path });
-          }
-          const bytes = yield* Effect.tryPromise({
-            try: () => NodeFSP.readFile(path),
-            catch: () =>
-              new ComputerUseError({
-                code: "screenshot_failed",
-                message: "No screenshot file was produced. Check computer_permissions.",
-              }),
-          });
-          const size = pngDimensions(bytes);
-          return {
-            path,
-            width: size?.width ?? null,
-            height: size?.height ?? null,
-            note: "Pixels can be larger than the window's points on high-DPI displays; divide pixel coordinates by that scale before passing x and y to computer_click.",
-          };
+            return {
+              path,
+              width: size.width,
+              height: size.height,
+              note: "Coordinates use the units of the last snapshot. Scale PNG pixels proportionally to the snapshot window width and height.",
+            };
+          }).pipe(
+            Effect.onError(() =>
+              Effect.promise(() =>
+                NodeFSP.rm(dir, { force: true, recursive: true }).catch(() => undefined),
+              ),
+            ),
+          );
         });
 
-  return ComputerUse.of({ execute, wait, permissions, screenshot });
+  return ComputerUse.of({
+    execute,
+    wait,
+    permissions,
+    screenshot,
+    revokeAll: native.revokeAll(),
+    revokeThread: (threadId) => native.revokeThread(threadId),
+    grant: (threadId) => native.get(threadId),
+    control: (input) => (supported ? native.control(input) : Effect.fail(unsupported())),
+  });
 });
 
 export const layer = Layer.effect(ComputerUse, make());
 
-/** One-shot permission read for the settings screen; no baselines or queue are kept. */
-export const readPermissions = ComputerUse.use((computer) => computer.permissions).pipe(
-  Effect.map(({ platformSupported, accessibility, screenRecording }) => ({
-    platformSupported,
-    accessibility,
-    screenRecording,
-  })),
-  Effect.provide(layer),
-);
+export const readPermissions = ComputerUse.use((computer) => computer.permissions);

@@ -94,3 +94,25 @@ it.effect("surfaces runtime failures with advice and refuses off macOS", () =>
     expect((yield* linux.permissions).platformSupported).toBe(false);
   }),
 );
+
+it.effect("marks Windows and Wayland native control as preview", () =>
+  Effect.gen(function* () {
+    const windows = yield* make("win32", [
+      JSON.stringify({
+        ok: true,
+        permissions: { accessibility: true, screenRecording: "unknown" },
+      }),
+    ]);
+    expect(yield* windows.permissions).toMatchObject({
+      maturity: "preview",
+      maturityNote: "Preview on Windows: not yet verified on a live desktop.",
+    });
+    const mac = yield* make("darwin", [
+      JSON.stringify({
+        ok: true,
+        permissions: { accessibility: true, screenRecording: "granted" },
+      }),
+    ]);
+    expect(yield* mac.permissions).toMatchObject({ maturity: "stable" });
+  }),
+);

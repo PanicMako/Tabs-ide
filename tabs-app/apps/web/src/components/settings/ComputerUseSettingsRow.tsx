@@ -61,7 +61,7 @@ export function ComputerUseSettingsRow() {
   const ready = result ? computerUseReady(result) : false;
   const supported = result?.platformSupported !== false;
   useEffect(() => {
-    if (!enabled || !result || !supported) return;
+    if (!enabled || !result || !supported || !result.runtimeAvailable) return;
     const everythingGranted = result.accessibility && result.screenRecording === "granted";
     if (everythingGranted) return;
     const timer = window.setInterval(() => void check(), POLL_MS);
@@ -80,12 +80,16 @@ export function ComputerUseSettingsRow() {
       );
   };
 
-  const steps = result && supported ? computerUseSetupSteps(result) : [];
+  const capabilities = result?.capabilities;
+  const steps =
+    result && supported && (!capabilities || capabilities.session === "macos")
+      ? computerUseSetupSteps(result)
+      : [];
 
   return (
     <SettingsRow
       title="Computer use"
-      description="Let agents work in other apps on your computer: read what is on screen, click, type and scroll. Only full-access threads can use it, and agents cannot type into password fields."
+      description="Attach a specific desktop window to a thread. Choose whether the thread can use physical mouse and keyboard input. On Windows, enabling this downloads a small PowerShell runtime."
       control={
         <Switch
           aria-label="Computer use"
@@ -108,9 +112,51 @@ export function ComputerUseSettingsRow() {
               <p className="text-xs text-muted-foreground">Checking permissions…</p>
             ) : !supported ? (
               <p className="text-xs text-muted-foreground">
-                Setup in System Settings is only needed on macOS. On Windows it uses PowerShell; on
-                Linux it needs python3 with AT-SPI and xdotool.
+                Computer use is unavailable on this platform.
               </p>
+            ) : !result.runtimeAvailable ? (
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>
+                  Could not download the Windows computer-use runtime. Check your connection and try
+                  again.
+                </span>
+                <Button size="xs" variant="outline" onClick={() => void check()}>
+                  <RefreshCwIcon /> Try again
+                </Button>
+              </div>
+            ) : capabilities && capabilities.session !== "macos" ? (
+              <>
+                {result.maturity === "preview" && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="mr-1.5 rounded-[var(--radius-control)] border border-border/60 px-1.5 py-0.5 font-medium text-foreground">
+                      Preview
+                    </span>
+                    {result.maturityNote}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">{capabilities.details}</p>
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  <li>
+                    Window selection {capabilities.windowSelection ? "available" : "unavailable"}
+                  </li>
+                  <li>
+                    Accessibility actions{" "}
+                    {capabilities.accessibilityActions ? "available" : "unavailable"}
+                  </li>
+                  <li>Window capture {capabilities.windowCapture ? "available" : "unavailable"}</li>
+                  <li>
+                    Physical input {capabilities.foregroundInput ? "available" : "unavailable"}
+                  </li>
+                </ul>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={state.status === "checking"}
+                  onClick={() => void check()}
+                >
+                  <RefreshCwIcon /> Check again
+                </Button>
+              </>
             ) : (
               <>
                 <ol className="divide-y divide-border/60 rounded-[var(--radius-control)] border border-border/60">
@@ -160,7 +206,7 @@ export function ComputerUseSettingsRow() {
                 <div className="flex items-center gap-3 text-xs">
                   {ready ? (
                     <span className="flex items-center gap-1.5 text-foreground">
-                      <CheckIcon className="size-3.5" /> Ready. Agents can use your computer.
+                      <CheckIcon className="size-3.5" /> Ready to attach a desktop window.
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -178,6 +224,9 @@ export function ComputerUseSettingsRow() {
                     <RefreshCwIcon /> Check again
                   </Button>
                 </div>
+                {capabilities?.session === "macos" && !capabilities.foregroundInput ? (
+                  <p className="text-xs text-muted-foreground">Physical input is unavailable.</p>
+                ) : null}
                 {!ready ? (
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     macOS may ask you to quit and reopen Tabs after you switch it on.

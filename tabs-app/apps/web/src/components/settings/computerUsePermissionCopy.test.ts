@@ -5,6 +5,7 @@ describe("describeComputerUsePermissions", () => {
   it("reports an unsupported platform as one failing line", () => {
     const lines = describeComputerUsePermissions({
       platformSupported: false,
+      runtimeAvailable: false,
       accessibility: false,
       screenRecording: "unknown",
     });
@@ -15,6 +16,7 @@ describe("describeComputerUsePermissions", () => {
   it("maps granted, denied and unknown states", () => {
     const granted = describeComputerUsePermissions({
       platformSupported: true,
+      runtimeAvailable: true,
       accessibility: true,
       screenRecording: "granted",
     });
@@ -22,6 +24,7 @@ describe("describeComputerUsePermissions", () => {
 
     const missing = describeComputerUsePermissions({
       platformSupported: true,
+      runtimeAvailable: true,
       accessibility: false,
       screenRecording: "denied",
     });
@@ -30,6 +33,7 @@ describe("describeComputerUsePermissions", () => {
 
     const unknown = describeComputerUsePermissions({
       platformSupported: true,
+      runtimeAvailable: true,
       accessibility: true,
       screenRecording: "unknown",
     });
@@ -42,6 +46,7 @@ describe("computerUseSetupSteps", () => {
     const m = await import("./computerUsePermissionCopy");
     const status = {
       platformSupported: true,
+      runtimeAvailable: true,
       accessibility: true,
       screenRecording: "denied",
     } as const;

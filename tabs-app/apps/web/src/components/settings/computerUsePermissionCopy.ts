@@ -15,6 +15,15 @@ export function describeComputerUsePermissions(
       { label: "Platform", detail: "Computer use is not available on this platform.", ok: false },
     ];
   }
+  if (!status.runtimeAvailable) {
+    return [
+      {
+        label: "Windows runtime",
+        detail: "Could not download the computer-use runtime. Check your connection and try again.",
+        ok: false,
+      },
+    ];
+  }
   return [
     {
       label: "Accessibility",
@@ -86,4 +95,4 @@ export function computerUseSetupSteps(status: ComputerUsePermissionStatus): Setu
 
 /** Computer use works as soon as Accessibility is granted; screenshots are a bonus. */
 export const computerUseReady = (status: ComputerUsePermissionStatus): boolean =>
-  status.platformSupported && status.accessibility;
+  status.platformSupported && status.runtimeAvailable && status.accessibility;

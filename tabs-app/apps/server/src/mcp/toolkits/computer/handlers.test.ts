@@ -26,6 +26,10 @@ const call = <A>(
   Effect.gen(function* () {
     const seen: ComputerRequest[] = [];
     const fake = ComputerUse.ComputerUse.of({
+      control: () => Effect.die("unused"),
+      grant: () => undefined,
+      revokeAll: Effect.void,
+      revokeThread: () => Effect.void,
       execute:
         options.execute ??
         ((request) => {
@@ -35,6 +39,7 @@ const call = <A>(
       wait: () => Effect.succeed({ tree: "1 Window", treeIsDiff: false }),
       permissions: Effect.succeed({
         platformSupported: true,
+        runtimeAvailable: true,
         accessibility: true,
         screenRecording: "granted" as const,
       }),

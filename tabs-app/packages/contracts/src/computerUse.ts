@@ -23,6 +23,8 @@ export type NativeComputerCapabilities = typeof NativeComputerCapabilities.Type;
 export const ComputerUsePermissionStatus = Schema.Struct({
   /** False when computer use is unavailable on the current platform. */
   platformSupported: Schema.Boolean,
+  /** False when the optional Windows script could not be fetched or verified. */
+  runtimeAvailable: Schema.Boolean,
   accessibility: Schema.Boolean,
   /** Inferred, because macOS has no direct query a child process can make. */
   screenRecording: Schema.Literals(["granted", "denied", "unknown"]),

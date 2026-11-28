@@ -5,7 +5,7 @@ import { BLOCKED_APP_FRAGMENTS, SENSITIVE_LABEL_SOURCE, SENSITIVE_SUBROLE } from
  * no compiled helper. Orca ships a signed Swift helper for this; JXA reaches the same
  * accessibility (AXUIElement) and CoreGraphics event APIs through the ObjC bridge. Each call
  * starts a fresh process, so element indexes are re-derived by walking the window the same way
- * the snapshot did. Every result is one JSON line: `{ok:true,...}` or `{ok:false,code,message}`.
+ * the snapshot did. Each exact action checks the window and control again before dispatching input.
  *
  * Keep this source free of backticks and dollar-brace sequences; it lives in a template literal.
  */
@@ -30,31 +30,37 @@ function axGet(el, name) {
   var err = $.AXUIElementCopyAttributeValue(el, $(name), ref);
   return err === 0 ? ref[0] : undefined;
 }
-function axStr(el, name) {
-  var v = axGet(el, name);
-  if (v === undefined) return '';
-  var u = ObjC.unwrap(v);
-  if (typeof u === 'string') return u;
-  if (typeof u === 'number' || typeof u === 'boolean') return String(u);
+function axObject(value) {
+  return value === undefined ? undefined : ObjC.castRefToObject(value);
+}
+function axText(value) {
+  if (value === undefined) return '';
+  var unwrapped = ObjC.unwrap(axObject(value));
+  if (typeof unwrapped === 'string') return unwrapped;
+  if (typeof unwrapped === 'number' || typeof unwrapped === 'boolean') return String(unwrapped);
   return '';
 }
-function axBool(el, name) {
-  var v = axGet(el, name);
-  if (v === undefined) return undefined;
-  return !!ObjC.unwrap(v);
+function axStr(el, name) {
+  return axText(axGet(el, name));
 }
-function axChildren(el) {
-  var v = axGet(el, 'AXChildren');
-  if (v === undefined) return [];
+function axBool(el, name) {
+  var v = axObject(axGet(el, name));
+  return v === undefined ? undefined : !!ObjC.unwrap(v);
+}
+function axArray(el, name) {
+  var values = axObject(axGet(el, name));
   var out = [];
-  var n = v.count;
-  for (var i = 0; i < n; i++) out.push(v.objectAtIndex(i));
+  if (values === undefined) return out;
+  for (var i = 0; i < Number(values.count); i++) out.push(values.objectAtIndex(i));
   return out;
 }
-function axPair(v, a, b) {
-  if (v === undefined) return null;
-  var d = String(ObjC.unwrap(v.description));
-  var m = new RegExp(a + ':(-?[0-9.]+)[ ]+' + b + ':(-?[0-9.]+)').exec(d);
+function axChildren(el) {
+  return axArray(el, 'AXChildren');
+}
+function axPair(value, a, b) {
+  if (value === undefined) return null;
+  var d = String(ObjC.unwrap(axObject(value).description));
+  var m = new RegExp(a + ':[ ]*(-?[0-9.]+)[, ]+' + b + ':[ ]*(-?[0-9.]+)').exec(d);
   return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
 }
 function axFrame(el) {
@@ -116,15 +122,263 @@ function requireTrusted() {
   }
 }
 
-function windowsOf(appEl) {
-  var v = axGet(appEl, 'AXWindows');
+var exactWindow;
+var exactId;
+var nativeRequest;
+
+function cgWindows(onScreen) {
+  var option = onScreen ? $.kCGWindowListOptionOnScreenOnly : $.kCGWindowListOptionAll;
+  return ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo(option, 0))) || [];
+}
+function cgFrame(row) {
+  var b = row.kCGWindowBounds;
+  return { x: b.X, y: b.Y, width: b.Width, height: b.Height };
+}
+function sameFrame(a, b) {
+  return a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+function contains(f, p) {
+  return f && p.x >= f.x && p.y >= f.y && p.x < f.x + f.width && p.y < f.y + f.height;
+}
+function windowId(app, row) {
+  var launchedAt = Number(app.launchDate.timeIntervalSince1970);
+  return isFinite(launchedAt) && launchedAt > 0 ? [row.kCGWindowOwnerPID, launchedAt, row.kCGWindowNumber].join(':') : null;
+}
+function matchAX(row, appEl) {
+  var frame = cgFrame(row);
+  var wins = windowsOf(appEl).filter(function (win) {
+    return axBool(win, 'AXMinimized') !== true && sameFrame(axFrame(win), frame);
+  });
+  if (wins.length > 1 && row.kCGWindowName) {
+    wins = wins.filter(function (win) { return axStr(win, 'AXTitle') === row.kCGWindowName; });
+  }
+  return wins.length === 1 ? wins[0] : null;
+}
+function matchCG(win, rows) {
+  var frame = axFrame(win);
+  var matches = rows.filter(function (row) { return sameFrame(cgFrame(row), frame); });
+  if (matches.length > 1) {
+    var title = axStr(win, 'AXTitle');
+    matches = matches.filter(function (row) { return row.kCGWindowName && row.kCGWindowName === title; });
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+function windowRows(pid) {
+  return cgWindows().filter(function (w) { return w.kCGWindowOwnerPID === pid && w.kCGWindowLayer === 0; });
+}
+function chooseWindows() {
+  if (!$.AXIsProcessTrusted()) return [];
   var out = [];
-  if (v !== undefined) for (var i = 0; i < v.count; i++) out.push(v.objectAtIndex(i));
+  var all = cgWindows();
+  runningApps().filter(function (app) { return Number(app.activationPolicy) === 0 && !app.hidden; }).forEach(function (app) {
+    try { rejectBlocked(app); } catch (_) { return; }
+    var info = appInfo(app);
+    if (info.bundleId === "com.tabs.app" || /^Tabs( IDE)?$/i.test(info.name)) return;
+    var appEl = $.AXUIElementCreateApplication(info.pid);
+    var rows = all.filter(function (w) { return w.kCGWindowOwnerPID === info.pid && w.kCGWindowLayer === 0; });
+    rows.forEach(function (row) {
+      var win = matchAX(row, appEl);
+      if (!win || matchCG(win, rows) !== row) return;
+      var id = windowId(app, row);
+      if (!id) return;
+      out.push({ id: id, app: info.name, title: axStr(win, 'AXTitle'), pid: info.pid, frame: cgFrame(row) });
+    });
+  });
   return out;
 }
+function checkControl() {
+  if (nativeRequest && nativeRequest.controlFile && !$.NSFileManager.defaultManager.fileExistsAtPath($(nativeRequest.controlFile))) {
+    fail('user_turn', 'The user has taken control.');
+  }
+}
+function resolveExact(req) {
+  requireTrusted();
+  var pid = Number(req.app.id.split(':')[0]);
+  var app = resolveApp({ kind: 'pid', pid: pid });
+  rejectBlocked(app);
+  var info = appInfo(app);
+  if (info.bundleId === 'com.tabs.app' || /^Tabs( IDE)?$/i.test(info.name)) fail('app_blocked', 'Tabs cannot operate its own desktop controls.');
+  if (app.hidden) fail('window_stale', 'The selected app is hidden. Show it and observe again.');
+  var appEl = $.AXUIElementCreateApplication(pid);
+  var rows = windowRows(pid);
+  var row = rows.filter(function (candidate) { return windowId(app, candidate) === req.app.id; })[0];
+  var win = row && matchAX(row, appEl);
+  if (!win || matchCG(win, rows) !== row) fail('window_stale', 'The selected window closed, is hidden or cannot be identified uniquely.');
+  exactWindow = win;
+  exactId = row.kCGWindowNumber;
+  nativeRequest = req;
+  checkLayout(app);
+  return app;
+}
+function displayInfo(frame) {
+  var screens = $.NSScreen.screens;
+  // CoreGraphics uses a top-left origin in desktop points.
+  for (var i = 0; i < screens.count; i++) {
+    var screen = screens.objectAtIndex(i);
+    var display = Number(ObjC.unwrap(screen.deviceDescription.objectForKey($('NSScreenNumber'))));
+    var bounds = $.CGDisplayBounds(display);
+    var rect = { x: bounds.origin.x, y: bounds.origin.y, width: bounds.size.width, height: bounds.size.height };
+    if (contains(rect, { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 })) {
+      return { display: String(display), scale: Number(screen.backingScaleFactor) };
+    }
+  }
+  return {};
+}
+function readWindowLayout(app, reobserve) {
+  checkControl();
+  var frame = axFrame(exactWindow);
+  var row = matchCG(exactWindow, windowRows(Number(app.processIdentifier)));
+  if (!row || row.kCGWindowNumber !== exactId || !frame) fail('window_stale', 'The selected window is no longer available.');
+  var expected = nativeRequest.native || {};
+  var display = displayInfo(frame);
+  if (!reobserve && ((expected.frame && !sameFrame(frame, expected.frame)) ||
+      (expected.display !== undefined && expected.display !== display.display) ||
+      (expected.scale !== undefined && expected.scale !== display.scale))) {
+    fail('stale_observation', 'The window moved, resized or changed display scale.');
+  }
+  return { frame: frame, display: display.display, scale: display.scale };
+}
+function checkLayout(app, reobserve) {
+  return readWindowLayout(app, reobserve).frame;
+}
+function nodeToken(node) {
+  var frame = axFrame(node.el);
+  var id = axStr(node.el, 'AXIdentifier');
+  if (!frame && !id) return null;
+  return JSON.stringify([clip(id, 150), node.role, node.subrole, clip(node.title, 120), frame]);
+}
+function checkNode(node, expected) {
+  if (!expected || nodeToken(node) !== expected) fail('stale_observation', 'The accessibility element changed.');
+  checkControl();
+}
+function checkForeground(app, point) {
+  if (!nativeRequest.native.foreground || !nativeRequest.foreground)
+    fail('background_unavailable', 'This action requires physical input.');
+  if (!canPostEvents()) fail('permission_denied', 'macOS does not allow Tabs to post input events.');
+  var frame = checkLayout(app);
+  var appEl = $.AXUIElementCreateApplication(Number(app.processIdentifier));
+  var activeWindow = axGet(appEl, 'AXFocusedWindow');
+  if (!app.active || activeWindow === undefined || !$.CFEqual(axObject(activeWindow), exactWindow))
+    fail('focus_changed', 'Bring the selected window to the front before sending physical input.');
+  if (!point) return;
+  if (!contains(frame, point)) fail('element_not_clickable', 'The point is outside the selected window.');
+  var top = cgWindows(true).filter(function (row) {
+    return row.kCGWindowAlpha !== 0 && row.kCGWindowLayer >= 0 && contains(cgFrame(row), point);
+  })[0];
+  if (!top || top.kCGWindowNumber !== exactId) fail('target_occluded', 'Another window or overlay covers this point.');
+}
+function checkClickHit(app, point, target) {
+  var appEl = $.AXUIElementCreateApplication(Number(app.processIdentifier));
+  var ref = Ref();
+  var hit = $.AXUIElementCopyElementAtPosition(appEl, point.x, point.y, ref) === 0
+    ? axObject(ref[0]) : undefined;
+  var path = [];
+  while (hit !== undefined && !$.CFEqual(hit, exactWindow) && path.length < MAX_DEPTH) {
+    path.push(hit);
+    hit = axObject(axGet(hit, 'AXParent'));
+  }
+  if (hit === undefined || !$.CFEqual(hit, exactWindow)) {
+    fail('target_occluded', 'macOS could not verify that the point is in the selected window.');
+  }
+  if (target && !$.CFEqual(target.el, exactWindow) && !path.some(function (el) { return $.CFEqual(el, target.el); })) {
+    fail('target_occluded', 'Another control covers the selected control.');
+  }
+  if (path.some(function (el) { return describe(el).sensitive; })) {
+    fail('sensitive_field', 'Ask the user to handle this protected control.');
+  }
+}
+function preflightPermission(name) {
+  try {
+    // The JXA bridge can omit these public symbols from its imported metadata.
+    if (typeof $[name] !== 'function') ObjC.bindFunction(name, ['bool', []]);
+    return !!$[name]();
+  } catch (_) { return false; }
+}
+function canPostEvents() { return preflightPermission('CGPreflightPostEventAccess'); }
+function canCapture() { return preflightPermission('CGPreflightScreenCaptureAccess'); }
+function screenshotAxAttribute(el, name) {
+  var ref = Ref();
+  var err = $.AXUIElementCopyAttributeValue(el, $(name), ref);
+  if (err === -25205 || err === -25212) return undefined; // Attribute unsupported or has no value.
+  if (err === 0 && ref[0] != null) return ref[0];
+  fail('screenshot_failed', 'macOS could not check the entire window for protected fields.');
+}
+function screenshotAxText(el, name) {
+  var value = screenshotAxAttribute(el, name);
+  if (value === undefined) return '';
+  var text = ObjC.unwrap(axObject(value));
+  if (typeof text !== 'string')
+    fail('screenshot_failed', 'macOS could not check the entire window for protected fields.');
+  return text;
+}
+function checkScreenshotContent() {
+  var remaining = 600;
+  function visit(el, depth) {
+    if (depth > MAX_DEPTH || remaining === 0)
+      fail('screenshot_failed', 'This window exposes too many controls to check for protected fields.');
+    remaining--;
+    var node = { role: screenshotAxText(el, 'AXRole'), subrole: screenshotAxText(el, 'AXSubrole') };
+    if (!node.role)
+      fail('screenshot_failed', 'macOS could not check the entire window for protected fields.');
+    if (EDITABLE_ROLES[node.role] && node.subrole !== SENSITIVE_SUBROLE) {
+      node.title = screenshotAxText(el, 'AXTitle');
+      node.desc = screenshotAxText(el, 'AXDescription');
+      node.placeholder = screenshotAxText(el, 'AXPlaceholderValue');
+    }
+    if (isSensitive(node))
+      fail('sensitive_field', 'Ask the user to finish the protected step before capturing this window.');
+    var children = axObject(screenshotAxAttribute(el, 'AXChildren'));
+    if (children === undefined) return;
+    var count = Number(children.count);
+    if (!isFinite(count) || count < 0 || count !== Math.floor(count))
+      fail('screenshot_failed', 'macOS could not check the entire window for protected fields.');
+    if (count > remaining)
+      fail('screenshot_failed', 'This window exposes too many controls to check for protected fields.');
+    for (var i = 0; i < count; i++) visit(children.objectAtIndex(i), depth + 1);
+  }
+  visit(exactWindow, 0);
+}
+function exactScreenshot(app, req) {
+  if (!canCapture()) fail('permission_denied', 'Grant Screen Recording permission to capture a native window.');
+  checkLayout(app);
+  checkScreenshotContent();
+  checkLayout(app);
+  var files = $.NSFileManager.defaultManager;
+  var staged = req.path + '.capture.png';
+  var task = $.NSTask.alloc.init;
+  task.launchPath = '/usr/sbin/screencapture';
+  task.arguments = ['-x', '-o', '-t', 'png', '-l', String(exactId), staged];
+  try {
+    task.launch;
+    task.waitUntilExit;
+    if (task.terminationStatus !== 0) fail('screenshot_failed', 'macOS could not capture the selected window.');
+    checkLayout(app);
+    checkScreenshotContent();
+    if (!canCapture()) fail('permission_denied', 'Screen Recording permission changed during capture.');
+    checkLayout(app);
+    if (!files.moveItemAtPathToPathError($(staged), $(req.path), null)) {
+      fail('screenshot_failed', 'macOS could not save the verified window capture.');
+    }
+  } finally {
+    if (files.fileExistsAtPath($(staged))) files.removeItemAtPathError($(staged), null);
+  }
+  return { path: 'synthetic', delivery: 'background', detail: 'captured the selected window' };
+}
+
+function windowsOf(appEl) {
+  var windows = axArray(appEl, 'AXWindows');
+  // AppKit and some toolkits omit a window outside the active Space from AXWindows.
+  ['AXMainWindow', 'AXFocusedWindow'].forEach(function (attribute) {
+    var window = axObject(axGet(appEl, attribute));
+    if (window !== undefined && axStr(window, 'AXRole') === 'AXWindow' &&
+        !windows.some(function (known) { return $.CFEqual(known, window); })) windows.push(window);
+  });
+  return windows;
+}
 function pickWindow(appEl) {
-  var w = axGet(appEl, 'AXFocusedWindow');
-  if (w === undefined) w = axGet(appEl, 'AXMainWindow');
+  if (exactWindow) return exactWindow;
+  var w = axObject(axGet(appEl, 'AXFocusedWindow'));
+  if (w === undefined) w = axObject(axGet(appEl, 'AXMainWindow'));
   if (w !== undefined) return w;
   var all = windowsOf(appEl);
   if (all.length) return all[0];
@@ -194,13 +448,14 @@ function renderNode(node, index, baseDepth) {
   return parts.join(' ');
 }
 
-function snapshot(app, maxNodes, rootIndex) {
+function snapshot(app, maxNodes, rootIndex, afterAction) {
   var pid = Number(app.processIdentifier);
   var appEl = $.AXUIElementCreateApplication(pid);
   // Chromium and Electron only build their accessibility tree when asked.
   $.AXUIElementSetAttributeValue(appEl, $('AXManualAccessibility'), $.kCFBooleanTrue);
   var win = pickWindow(appEl);
-  var frame = axFrame(win) || { x: 0, y: 0, width: 0, height: 0 };
+  var layout = nativeRequest ? readWindowLayout(app, afterAction) : null;
+  var frame = (layout ? layout.frame : axFrame(win)) || { x: 0, y: 0, width: 0, height: 0 };
   var walked = walk(win, maxNodes);
   var nodes = walked.nodes;
   var from = 0;
@@ -211,6 +466,7 @@ function snapshot(app, maxNodes, rootIndex) {
     to = from + 1;
     while (to < nodes.length && nodes[to].depth > nodes[from].depth) to++;
   }
+  if (nativeRequest && rootIndex !== undefined) checkNode(nodes[rootIndex - 1], (nativeRequest.native.elements || {})[rootIndex]);
   var lines = [];
   var focused = null;
   for (var i = from; i < to; i++) {
@@ -227,10 +483,18 @@ function snapshot(app, maxNodes, rootIndex) {
     'Window: ' + JSON.stringify(clip(title, 120)) + ' at (' + Math.round(frame.x) + ', ' + Math.round(frame.y) + ') size ' + Math.round(frame.width) + 'x' + Math.round(frame.height) + ' points; click coordinates are window-local.'
   ];
   var footer = [(to - from) + ' elements' + (walked.truncated ? ' (snapshot limit reached: pass rootElementIndex to read a subtree, or raise maxNodes)' : '') + '.'];
+  var elements = layout ? nodes.map(nodeToken) : undefined;
+  if (layout) {
+    var after = readWindowLayout(app, afterAction);
+    if (!sameFrame(layout.frame, after.frame) || layout.display !== after.display || layout.scale !== after.scale)
+      fail('stale_observation', 'The layout changed while it was being read.');
+  }
   return {
+    display: layout ? layout.display : undefined, scale: layout ? layout.scale : undefined,
+    elements: elements,
     id: pid + ':' + Date.now(),
     app: info,
-    window: { title: title, key: 'index:' + windowIndex, frame: frame },
+    window: { title: title, key: exactWindow ? nativeRequest.app.id : 'index:' + windowIndex, frame: frame },
     treeText: header.join('\n') + '\n\n' + lines.join('\n') + '\n\n' + footer.join('\n'),
     elementCount: to - from,
     focusedElementIndex: focused,
@@ -244,14 +508,25 @@ function nodeAt(app, index, maxNodes) {
   var win = pickWindow(appEl);
   var walked = walk(win, Math.max(maxNodes, index));
   if (index < 1 || index > walked.nodes.length) fail('element_not_found', 'Element ' + index + ' is not in the current window. Take a fresh snapshot.');
-  return { node: walked.nodes[index - 1], win: win, appEl: appEl };
+  var node = walked.nodes[index - 1];
+  if (nativeRequest) {
+    var expected = (nativeRequest.native.elements || {})[index];
+    checkNode(node, expected);
+    if (walked.nodes.filter(function (candidate) { return nodeToken(candidate) === expected; }).length !== 1)
+      fail('stale_observation', 'The accessibility reference is ambiguous.');
+    checkLayout(app);
+  }
+  return { node: node, win: win, appEl: appEl };
 }
 
 function focusedNode(appEl) {
-  var el = axGet(appEl, 'AXFocusedUIElement');
+  var el = axObject(axGet(appEl, 'AXFocusedUIElement'));
   if (el === undefined) return null;
-  var node = describe(el);
-  return node;
+  if (exactWindow) {
+    var parent = axGet(el, 'AXWindow');
+    if (parent === undefined || !$.CFEqual(axObject(parent), exactWindow)) return null;
+  }
+  return describe(el);
 }
 
 function activate(app) {
@@ -270,11 +545,15 @@ function mouseEvent(app, kind, point, button, clickState, foreground) {
   $.CGEventSetIntegerValueField(ev, $.kCGMouseEventClickState, clickState);
   post(app, ev, foreground);
 }
-function postClick(app, point, count, right, foreground) {
+function postClick(app, point, count, right, foreground, target) {
   var down = right ? $.kCGEventRightMouseDown : $.kCGEventLeftMouseDown;
   var up = right ? $.kCGEventRightMouseUp : $.kCGEventLeftMouseUp;
   var button = right ? $.kCGMouseButtonRight : $.kCGMouseButtonLeft;
   for (var i = 1; i <= count; i++) {
+    if (nativeRequest) {
+      checkClickHit(app, point, target);
+      checkForeground(app, point);
+    }
     mouseEvent(app, down, point, button, i, foreground);
     mouseEvent(app, up, point, button, i, foreground);
     sleep(0.05);
@@ -296,7 +575,7 @@ function targetPoint(app, target, req) {
 function actionNames(el) {
   var ref = Ref();
   if ($.AXUIElementCopyActionNames(el, ref) !== 0) return [];
-  var list = ref[0];
+  var list = axObject(ref[0]);
   var out = [];
   for (var i = 0; i < list.count; i++) out.push(ObjC.unwrap(list.objectAtIndex(i)));
   return out;
@@ -309,27 +588,29 @@ function doClick(app, req) {
   if (req.target.kind === 'element') {
     var found = nodeAt(app, req.target.index, req.maxNodes);
     var node = found.node;
+    if (nativeRequest && node.sensitive) fail('sensitive_field', 'Ask the user to handle this protected control.');
     if (node.enabled === false) fail('element_not_enabled', 'Element ' + req.target.index + ' is disabled. Nothing was sent.');
     if (!req.foreground) {
-      if (right) {
+      if (right && !nativeRequest) {
         if ($.AXUIElementPerformAction(node.el, $('AXShowMenu')) === 0) {
           return { path: 'accessibility', delivery: 'background', detail: 'opened the context menu of ' + describeFor(node, req.target.index) };
         }
-      } else if (EDITABLE_ROLES[node.role] && req.clickCount === 1) {
+      } else if (!right && !nativeRequest && EDITABLE_ROLES[node.role] && req.clickCount === 1) {
         $.AXUIElementSetAttributeValue(node.el, $('AXFocused'), $.kCFBooleanTrue);
         return { path: 'accessibility', delivery: 'background', detail: 'focused ' + describeFor(node, req.target.index) };
-      } else if (req.clickCount === 1 && $.AXUIElementPerformAction(node.el, $('AXPress')) === 0) {
+      } else if (!right && (!nativeRequest || (!EDITABLE_ROLES[node.role] && !node.sensitive)) && req.clickCount === 1 && $.AXUIElementPerformAction(node.el, $('AXPress')) === 0) {
         return { path: 'accessibility', delivery: 'background', detail: 'pressed ' + describeFor(node, req.target.index) };
       }
     }
   }
   var t = targetPoint(app, req.target, req);
-  if (req.foreground) activate(app);
-  postClick(app, t.point, req.clickCount, right, req.foreground);
+  if (nativeRequest) checkForeground(app, t.point);
+  else if (req.foreground) activate(app);
+  postClick(app, t.point, req.clickCount, right, req.foreground, t.node);
   return {
     path: 'synthetic',
     delivery: req.foreground ? 'foreground' : 'background',
-    detail: (right ? 'right-clicked' : 'clicked') + ' with a synthetic mouse event' + (req.foreground ? '; the app was raised' : ' sent to the app without raising it'),
+    detail: (right ? 'right-clicked' : 'clicked') + ' with a synthetic mouse event' + (req.foreground ? ' in the frontmost window' : ' sent to the app without raising it'),
     fallbackReason: req.target.kind === 'element' ? 'element has no matching accessibility action' : undefined
   };
 }
@@ -356,12 +637,14 @@ function doType(app, req) {
   var node;
   if (req.elementIndex !== undefined) node = nodeAt(app, req.elementIndex, req.maxNodes).node;
   else node = focusedNode(appEl);
+  if (node && nativeRequest && req.elementIndex === undefined) { checkNode(node, nativeRequest.native.focused); checkLayout(app); }
   if (!node) fail('element_not_found', 'No text field has focus in that app. Click a field first, or pass elementIndex.');
   if (node.sensitive) fail('sensitive_field', 'Refusing to type into a password or other secret field. Ask the user to enter it themselves.');
   if (node.enabled === false) fail('element_not_enabled', 'That field is disabled.');
   var done = insertText(node, req.text);
   if (done) return { path: 'accessibility', delivery: 'background', detail: 'inserted text via ' + done.how, verification: verification(done.verified) };
   if (req.elementIndex !== undefined) fail('value_not_settable', 'That element does not accept text through accessibility. Click it, then call computer_type without elementIndex.');
+  if (nativeRequest) fail('background_unavailable', 'This field needs direct keyboard input. Ask the user to type it.');
   activate(app);
   // Re-check right before sending keys: focus may have moved while the app came forward.
   var again = focusedNode(appEl);
@@ -389,11 +672,14 @@ function doSetValue(app, req) {
 function doSecondary(app, req) {
   requireTrusted();
   var node = nodeAt(app, req.elementIndex, req.maxNodes).node;
+  if (nativeRequest && node.sensitive) fail('sensitive_field', 'Ask the user to handle this protected control.');
   if (node.enabled === false) fail('element_not_enabled', 'Element ' + req.elementIndex + ' is disabled.');
   var names = actionNames(node.el);
   var wanted = req.action.indexOf('AX') === 0 ? req.action : 'AX' + req.action;
   var match = names.filter(function (n) { return n.toLowerCase() === wanted.toLowerCase(); })[0];
   if (!match) fail('action_not_supported', 'Element ' + req.elementIndex + ' lists these actions: ' + (names.join(', ') || 'none') + '.');
+  if (nativeRequest && !/^(AXPress|AXConfirm|AXIncrement|AXDecrement|AXPick|AXCancel)$/i.test(match))
+    fail('background_unavailable', 'This accessibility action can change focus. Ask the user to take control.');
   if ($.AXUIElementPerformAction(node.el, $(match)) !== 0) fail('action_not_supported', 'The app refused ' + match + '.');
   return { path: 'accessibility', delivery: 'background', detail: 'performed ' + match + ' on ' + describeFor(node, req.elementIndex) };
 }
@@ -406,7 +692,12 @@ function doKey(app, req) {
     if (focus && focus.sensitive) fail('sensitive_field', 'Refusing to send text-producing keys to a password or other secret field. Ask the user to enter it themselves.');
   }
   var using = req.key.modifiers.map(function (m) { return m + ' down'; });
-  if (req.foreground) {
+  if (nativeRequest) {
+    checkForeground(app);
+    var current = focusedNode(appEl);
+    if (!current || current.sensitive) fail('sensitive_field', 'The focused control is unavailable or protected.');
+    checkNode(current, nativeRequest.native.focused);
+  } else if (req.foreground) {
     activate(app);
     var se = Application('System Events');
     if (using.length) se.keyCode(req.key.keyCode, { using: using });
@@ -422,15 +713,17 @@ function doKey(app, req) {
     $.CGEventSetFlags(ev, flags);
     $.CGEventPostToPid(Number(app.processIdentifier), ev);
   });
-  return { path: 'synthetic', delivery: 'background', detail: 'sent ' + req.key.label + ' to the app without raising it' };
+  return { path: 'synthetic', delivery: nativeRequest ? 'foreground' : 'background', detail: 'sent ' + req.key.label + ' to the selected application' };
 }
 
 function doScroll(app, req) {
   requireTrusted();
   var t = targetPoint(app, req.target, req);
-  if (req.foreground) {
-    $.CGWarpMouseCursorPosition(t.point);
-  }
+  if (nativeRequest) {
+    checkForeground(app, t.point);
+    checkClickHit(app, t.point, t.node);
+    checkForeground(app, t.point);
+  } else if (req.foreground) $.CGWarpMouseCursorPosition(t.point);
   var ev = $.CGEventCreateScrollWheelEvent2(null, $.kCGScrollEventUnitLine, 2, req.dy, req.dx, 0);
   $.CGEventSetLocation(ev, t.point);
   post(app, ev, req.foreground);
@@ -439,38 +732,65 @@ function doScroll(app, req) {
 
 function doDrag(app, req) {
   requireTrusted();
-  var from = targetPoint(app, req.from, req).point;
-  var to = targetPoint(app, req.to, req).point;
-  if (req.foreground) activate(app);
+  var source = targetPoint(app, req.from, req);
+  var destination = targetPoint(app, req.to, req);
+  var from = source.point;
+  var to = destination.point;
+  if (nativeRequest) {
+    checkForeground(app, to);
+    checkClickHit(app, to, destination.node);
+    checkClickHit(app, from, source.node);
+    checkForeground(app, from);
+  } else if (req.foreground) activate(app);
   var steps = 8;
+  var last = from;
   mouseEvent(app, $.kCGEventLeftMouseDown, from, $.kCGMouseButtonLeft, 1, req.foreground);
-  for (var i = 1; i <= steps; i++) {
-    var p = $.CGPointMake(from.x + (to.x - from.x) * i / steps, from.y + (to.y - from.y) * i / steps);
-    mouseEvent(app, $.kCGEventLeftMouseDragged, p, $.kCGMouseButtonLeft, 1, req.foreground);
-    sleep(0.02);
+  try {
+    for (var i = 1; i <= steps; i++) {
+      var p = $.CGPointMake(from.x + (to.x - from.x) * i / steps, from.y + (to.y - from.y) * i / steps);
+      if (nativeRequest) {
+        if (i === steps) checkClickHit(app, p, destination.node);
+        checkForeground(app, p);
+      }
+      mouseEvent(app, $.kCGEventLeftMouseDragged, p, $.kCGMouseButtonLeft, 1, req.foreground);
+      last = p;
+      sleep(0.02);
+    }
+  } finally {
+    mouseEvent(app, $.kCGEventLeftMouseUp, last, $.kCGMouseButtonLeft, 1, req.foreground);
   }
-  mouseEvent(app, $.kCGEventLeftMouseUp, to, $.kCGMouseButtonLeft, 1, req.foreground);
-  return { path: 'synthetic', delivery: req.foreground ? 'foreground' : 'background', detail: 'dragged with synthetic mouse events' + (req.foreground ? '; the app was raised' : ' (some apps ignore background drags; retry with foreground)') };
+  return { path: 'synthetic', delivery: req.foreground ? 'foreground' : 'background', detail: 'dragged with synthetic mouse events' };
 }
 
 function permissions() {
   var trusted = !!$.AXIsProcessTrusted();
-  var me = Number($.NSProcessInfo.processInfo.processIdentifier);
-  var list = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0)));
-  var others = list.filter(function (w) { return w.kCGWindowOwnerPID !== me && w.kCGWindowLayer === 0; });
-  var named = others.filter(function (w) { return !!w.kCGWindowName; }).length;
-  // Window titles of other apps are only readable with Screen Recording access.
-  var screen = others.length < 2 ? 'unknown' : (named > 0 ? 'granted' : 'denied');
-  return { accessibility: trusted, screenRecording: screen };
+  var screen = canCapture();
+  var input = trusted && canPostEvents();
+  return {
+    accessibility: trusted,
+    screenRecording: screen ? 'granted' : 'denied',
+    capabilities: {
+      session: 'macos', windowSelection: trusted, accessibilityActions: trusted,
+      windowCapture: trusted && screen, foregroundInput: input,
+      details: !trusted ? 'Grant Accessibility in macOS Privacy & Security.' :
+        'Accessibility is available. Screen Recording ' + (screen ? 'is granted.' : 'is required to capture windows.') +
+        (input ? ' Physical input requires the selected window in front.' : ' macOS has blocked synthetic input.')
+    }
+  };
 }
 
 function run(argv) {
   try {
-    var req = JSON.parse(argv[0]);
+    var req = JSON.parse(ObjC.unwrap($.NSProcessInfo.processInfo.environment.objectForKey($('COMPUTER_USE_REQUEST'))));
+    var selected = req.app && req.app.kind === 'window' ? resolveExact(req) : null;
     var result = { ok: true };
     switch (req.op) {
       case 'permissions':
         result.permissions = permissions();
+        break;
+      case 'listWindows':
+        result.permissions = permissions();
+        result.windows = chooseWindows();
         break;
       case 'listApps':
         result.apps = runningApps().filter(function (a) { return Number(a.activationPolicy) === 0; }).map(function (a) {
@@ -481,9 +801,17 @@ function run(argv) {
         });
         break;
       case 'focusApp':
-        var target = resolveApp(req.app);
+        var target = selected || resolveApp(req.app);
         rejectBlocked(target);
+        if (selected && $.AXUIElementPerformAction(exactWindow, $('AXRaise')) !== 0)
+          fail('focus_changed', 'This app declined to raise the selected window.');
         activate(target);
+        if (selected) {
+          checkLayout(target);
+          var focusedWindow = axObject(axGet($.AXUIElementCreateApplication(Number(target.processIdentifier)), 'AXFocusedWindow'));
+          if (!target.active || !focusedWindow || !$.CFEqual(focusedWindow, exactWindow))
+            fail('focus_changed', 'Use the window switcher to show the selected window.');
+        }
         result.app = appInfo(target);
         break;
       case 'windowFrame':
@@ -497,13 +825,17 @@ function run(argv) {
         break;
       case 'snapshot':
         requireTrusted();
-        var sa = resolveApp(req.app);
+        var sa = selected || resolveApp(req.app);
         rejectBlocked(sa);
         result.snapshot = snapshot(sa, req.maxNodes, req.rootElementIndex);
         break;
       default:
-        var app = resolveApp(req.app);
+        var app = selected || resolveApp(req.app);
         rejectBlocked(app);
+        if (req.op === 'screenshot' && selected) {
+          result.action = exactScreenshot(app, req);
+          break;
+        }
         if (req.op === 'click') result.action = doClick(app, req);
         else if (req.op === 'type') result.action = doType(app, req);
         else if (req.op === 'key') result.action = doKey(app, req);
@@ -512,8 +844,11 @@ function run(argv) {
         else if (req.op === 'setValue') result.action = doSetValue(app, req);
         else if (req.op === 'secondaryAction') result.action = doSecondary(app, req);
         else fail('invalid_argument', 'Unknown operation ' + req.op);
-        sleep(0.35);
-        result.snapshot = snapshot(app, req.maxNodes);
+        if (!selected) sleep(0.35);
+        try { result.snapshot = snapshot(app, req.maxNodes, undefined, !!selected); } catch (error) {
+          if (!selected) throw error;
+          // The action already ran and may have closed the window. Preserve its outcome.
+        }
     }
     return JSON.stringify(result);
   } catch (e) {

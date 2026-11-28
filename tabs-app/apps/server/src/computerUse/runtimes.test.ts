@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   buildClickRequest,
@@ -24,7 +25,7 @@ import {
   treeUnchanged,
 } from "./treeQuery.ts";
 import { describeVerification } from "./verification.ts";
-import { WINDOWS_RUNTIME } from "./windowsRuntime.ts";
+const WINDOWS_RUNTIME = readFileSync(new URL("./windowsRuntime.ps1", import.meta.url), "utf8");
 import { hideComputerTools } from "../mcp/toolkits/computer/visibility.ts";
 
 const TREE = [
@@ -186,14 +187,19 @@ describe("runtime invocation", () => {
   it("selects a script runtime per platform", () => {
     const mac = buildRuntimeInvocation("darwin", request);
     expect(mac.command).toBe("osascript");
-    expect(mac.args.at(-1)).toBe(JSON.stringify(request));
+    expect(mac.env[REQUEST_ENV]).toBe(JSON.stringify(request));
+    expect(mac.args).not.toContain(JSON.stringify(request));
     expect(mac.stdin).toBe(JXA_RUNTIME);
 
-    const win = buildRuntimeInvocation("win32", request);
+    const win = buildRuntimeInvocation("win32", request, WINDOWS_RUNTIME);
     expect(win.command).toBe("powershell.exe");
     expect(win.args).toContain("-NoProfile");
     expect(win.stdin).toBe(WINDOWS_RUNTIME);
     expect(win.env[REQUEST_ENV]).toBe(JSON.stringify(request));
+    expect(win.args).not.toContain("-ExecutionPolicy");
+    expect(win.args).toContain("-");
+    expect(win.env.TABS_COMPUTER_USE_SENSITIVE_PATTERN).toBe(SENSITIVE_LABEL_SOURCE);
+    expect(win.env.TABS_COMPUTER_USE_BLOCKED_APPS).toBe(JSON.stringify(BLOCKED_APP_FRAGMENTS));
     expect(win.args.join(" ")).not.toContain("listApps");
 
     const linux = buildRuntimeInvocation("linux", request);
@@ -209,13 +215,17 @@ describe("runtime invocation", () => {
     expect(runtimePlatformSupported("freebsd")).toBe(false);
   });
 
-  it("embeds the shared safety lists in every runtime", () => {
-    for (const script of [JXA_RUNTIME, WINDOWS_RUNTIME, LINUX_RUNTIME]) {
+  it("passes the shared safety lists to Windows without embedding them in the script", () => {
+    for (const script of [JXA_RUNTIME, LINUX_RUNTIME]) {
       expect(script).toContain(JSON.stringify(SENSITIVE_LABEL_SOURCE));
       expect(script).toContain(JSON.stringify(BLOCKED_APP_FRAGMENTS));
       expect(script).not.toContain("`");
       expect(script).not.toMatch(/\$\{/);
     }
+    expect(WINDOWS_RUNTIME).toContain("$env:TABS_COMPUTER_USE_SENSITIVE_PATTERN");
+    expect(WINDOWS_RUNTIME).toContain("$env:TABS_COMPUTER_USE_BLOCKED_APPS");
+    expect(WINDOWS_RUNTIME).not.toContain(SENSITIVE_LABEL_SOURCE);
+    expect(WINDOWS_RUNTIME).not.toContain(JSON.stringify(BLOCKED_APP_FRAGMENTS));
   });
 
   it("refuses secret fields inside every runtime", () => {

@@ -912,6 +912,9 @@ jobs:
           run-id: ${{ needs.preflight.outputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Stage optional Windows computer-use runtime
+        run: node --experimental-strip-types tabs-app/scripts/stage-windows-computer-use-runtime.ts release-assets
+
       - name: List release assets
         run: ls -lah release-assets/
 
@@ -939,7 +942,8 @@ jobs:
             "Tabs-$RELEASE_VERSION-x64.zip" \
             "Tabs-$RELEASE_VERSION-x64.exe" \
             "Tabs-$RELEASE_VERSION-x86_64.AppImage" \
-            "Tabs-$RELEASE_VERSION-amd64.deb"; do
+            "Tabs-$RELEASE_VERSION-amd64.deb" \
+            "tabs-computer-use-windows.ps1"; do
             if [ ! -s "release-assets/$asset" ]; then
               echo "::error::Missing or empty release asset: $asset"
               exit 1
@@ -1009,6 +1013,7 @@ jobs:
             release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
+            release-assets/tabs-computer-use-windows.ps1
             release-assets/latest.yml
             release-assets/latest-linux.yml
             release-assets/beta*.yml
@@ -1041,6 +1046,7 @@ jobs:
             release-assets/*.deb
             release-assets/*.exe
             release-assets/*.exe.blockmap
+            release-assets/tabs-computer-use-windows.ps1
             release-assets/latest.yml
             release-assets/latest-linux.yml
             release-assets/beta*.yml
