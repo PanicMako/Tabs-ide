@@ -6386,6 +6386,37 @@ describe("reliable browser tabs and agent control", () => {
       for (const id of manualGrants)
         await expect(f.transfer(id, { phase: "inspect" })).resolves.toEqual(sourceDevice);
     });
+
+    it("replaces unused grants from an earlier run while preserving manual transfers", async () => {
+      const f = createEvidenceFixture();
+      await f.authorizePage();
+      const manualGrants = [];
+      for (let i = 0; i < 6; i++) manualGrants.push((await f.authorize()).grantId);
+      let { grantIds } = await f.authorizeEvidence();
+      await expect(f.authorizeEvidence()).rejects.toThrow("pending screenshot transfer");
+      await expect(f.transfer(grantIds[0], { phase: "inspect" })).resolves.toMatchObject({
+        firstDifference: { runId: evidenceRunId, side: "source" },
+      });
+
+      for (let i = 0; i < 5; i++) {
+        const previous = grantIds;
+        const runId = crypto.randomUUID();
+        await expect(f.authorizeEvidence({ runId, pageRef: "wrong-page" })).rejects.toThrow(
+          "exact destination tab",
+        );
+        await expect(f.transfer(previous[0], { phase: "inspect" })).resolves.toMatchObject(
+          sourceDevice,
+        );
+        ({ grantIds } = await f.authorizeEvidence({ runId }));
+        for (const id of previous)
+          await expect(f.transfer(id, { phase: "inspect" })).rejects.toThrow("Approve");
+        await expect(f.transfer(grantIds[0], { phase: "inspect" })).resolves.toMatchObject({
+          firstDifference: { runId, side: "source" },
+        });
+      }
+      for (const id of manualGrants)
+        await expect(f.transfer(id, { phase: "inspect" })).resolves.toEqual(sourceDevice);
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
