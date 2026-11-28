@@ -8630,6 +8630,20 @@ describe("reliable browser tabs and agent control", () => {
         receiptKind: "image",
       });
     });
+
+    it("requires a new document even when an unrelated change invalidates its page revision", async () => {
+      const f = await setup();
+      await f.observe();
+      Object.assign(f.session, { pageRevision: 100 });
+      await expect(f.observe()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+
+      f.showDraft();
+      await expect(f.observe()).resolves.toHaveProperty("verifiedScreenshotDraft", {
+        sha256: f.digest,
+        receiptKind: "image",
+      });
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
