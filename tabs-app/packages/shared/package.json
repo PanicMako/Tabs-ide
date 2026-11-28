@@ -20,6 +20,14 @@
       "types": "./src/extensions.ts",
       "import": "./src/extensions.ts"
     },
+    "./browserQuickAction": {
+      "types": "./src/browserQuickAction.ts",
+      "import": "./src/browserQuickAction.ts"
+    },
+    "./figmaUrl": {
+      "types": "./src/figmaUrl.ts",
+      "import": "./src/figmaUrl.ts"
+    },
     "./browserReproduction": {
       "types": "./src/browserReproduction.ts",
       "import": "./src/browserReproduction.ts"
