@@ -2036,6 +2036,34 @@ describe("reliable browser tabs and agent control", () => {
     expect(tab.state().browserPageAuthorized).toBe(true);
   });
 
+  it("blocks generic input on another address of a guarded draft that shows the same visible ID", async () => {
+    const userData = await mkdtemp(join(tmpdir(), "tabs-identity-guard-"));
+    onTestFinished(() => rm(userData, { recursive: true, force: true }));
+    const manager = new BrowserHostManager(() => null);
+    (manager as any).submissionGuards = new BrowserSubmissionGuards(() => userData);
+    const tab = openCookieChangeTab(manager, "identity-guard", "https://app.test/alias/42", {
+      cookies: new EventEmitter(),
+    });
+    await tab.approve();
+    (manager as any).submissionGuards.set(
+      tab.session.partition,
+      "https://app.test/drafts/42",
+      true,
+      {
+        selector: "#draft-id",
+        resourceId: "42",
+      },
+    );
+    // Nothing guards /alias/42 by address, but the page shows the guarded draft's ID.
+    await expect(tab.act("click", { selector: "button" })).rejects.toThrow("submission breakpoint");
+    tab.evaluate.mockImplementation(async (_world, scripts) =>
+      scripts[0]?.code.includes("#draft-id") ? false : true,
+    );
+    await expect(tab.act("click", { selector: "button" })).resolves.toEqual({
+      clicked: true,
+    });
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
