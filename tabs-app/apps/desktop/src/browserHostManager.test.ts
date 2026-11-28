@@ -9033,6 +9033,116 @@ describe("reliable browser tabs and agent control", () => {
         }
       },
     );
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "verifies both actual comparison PNGs on save and after restarting the browser host",
+      async () => {
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(async () => browser.close());
+        const work = await browser.newContext();
+        const page = await work.newPage();
+        const clip = { x: 0, y: 0, width: 16, height: 16 };
+        await page.setContent('<body style="background: red">');
+        const sourcePng = await page.screenshot({ clip });
+        await page.setContent('<body style="background: blue">');
+        const targetPng = await page.screenshot({ clip });
+        const [sourceHash, targetHash] = [sourcePng, targetPng].map((png) =>
+          createHash("sha256").update(png).digest("hex"),
+        );
+        expect(sourceHash).not.toBe(targetHash);
+        const url = "https://app.test/drafts/42";
+        let declaresImageReceipts = true;
+        let showsReceipts = false;
+        let showsImages = true;
+        let replaced = true;
+        await work.route("https://app.test/**", (route) => {
+          const address = route.request().url();
+          const asset =
+            address === `${url}/evidence/${sourceHash}`
+              ? sourcePng
+              : address === `${url}/evidence/${targetHash}`
+                ? replaced
+                  ? sourcePng
+                  : targetPng
+                : undefined;
+          if (asset) {
+            expect(route.request().method()).toBe("GET");
+            return route.fulfill({ contentType: "image/png", body: asset });
+          }
+          expect(address).toBe(url);
+          return route.fulfill({
+            contentType: "text/html",
+            body: `${declaresImageReceipts ? '<meta name="tabs-screenshot-receipts" content="same-origin-png">' : ""}
+              <input type="file" id="evidence"><input type="file" id="comparison">
+              ${
+                showsReceipts
+                  ? [sourceHash, targetHash]
+                      .map(
+                        (sha256) => `
+                <figure>${showsImages ? `<img src="/drafts/42/evidence/${sha256}">` : ""}
+                <figcaption><code>${sha256}</code></figcaption></figure>`,
+                      )
+                      .join("")
+                  : ""
+              }`,
+          });
+        });
+        await page.goto(url);
+        const f = await setup(url, url, "first-difference", {
+          sourcePng: sourcePng.toString("base64"),
+          targetPng: targetPng.toString("base64"),
+          sessionId: "custom-qa-checkout",
+          page,
+        });
+        const pending = JSON.parse(
+          await readFile(join(f.directory, (await readdir(f.directory))[0]!), "utf8"),
+        );
+        expect(pending.verifyScreenshotImages).toBe(true);
+        declaresImageReceipts = false;
+        showsReceipts = true;
+        const reload = async () => {
+          await page.reload();
+          f.showDraft();
+        };
+        for (let pass = 0; pass < 2; pass++) {
+          await reload();
+          await expect(f.observe()).resolves.not.toHaveProperty("verifiedEvidenceDraft");
+        }
+        await expect(f.findComparison(f.manager)).resolves.toBeNull();
+
+        replaced = false;
+        await reload();
+        await expect(f.observe()).resolves.not.toHaveProperty("verifiedEvidenceDraft");
+        await reload();
+        await expect(f.observe()).resolves.toMatchObject({
+          verifiedEvidenceDraft: {
+            runId: evidenceRunId,
+            step: sourceFrame.step,
+          },
+        });
+        const restarted = new BrowserHostManager(() => null);
+        const restored = await work.newPage();
+        const tab = f.tab(restarted);
+        await connectChromiumPage(restored, tab);
+        tab.loadURL.mockImplementation(async (destination) => {
+          await restored.goto(destination);
+          tab.session.currentUrl = restored.url();
+          tab.events.emit("did-navigate", {}, restored.url());
+        });
+        replaced = true;
+        await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+        replaced = false;
+        await restored.reload();
+        await expect(f.enterComparison(restarted)).resolves.toMatchObject({
+          url,
+        });
+
+        showsImages = false;
+        await restored.reload();
+        await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
