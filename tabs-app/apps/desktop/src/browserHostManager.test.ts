@@ -2308,6 +2308,139 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("requires a fresh Work document after an interrupted cookie import", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const url = "https://reports.example.com/draft";
+    const open = async (profileId: string) => {
+      const sessionId = `agents-surface-${profileId}`;
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        profileId,
+        partition: `persist:tabs-browser:profile:${profileId}`,
+        currentUrl: url,
+      });
+      let documentTime = 0;
+      const safe = vi.fn(
+        async (_world, scripts: { code: string }[]): Promise<number | boolean> =>
+          scripts[0]?.code === "performance.timeOrigin" ? documentTime : true,
+      );
+      Object.assign(fixture.webContents, {
+        isLoadingMainFrame: () => false,
+        executeJavaScriptInIsolatedWorld: safe,
+      });
+      const { events } = mockNavigation(manager, fixture);
+      const showDocument = (time: number) => {
+        documentTime = time;
+        events.emit("did-navigate", {}, url);
+      };
+      const route = {
+        projectId: fixture.session.projectId,
+        sessionId,
+        taskId: "qa",
+      };
+      const state = () => manager.getSessionState(route.projectId, sessionId);
+      const approve = (token?: string) =>
+        manager.runAutomation({
+          ...route,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: { url, profileId, pageApprovalToken: token },
+        });
+      await approve();
+      return { ...fixture, route, state, approve, safe, showDocument };
+    };
+    const work = await open("work");
+    const personal = await open("personal");
+    const previousReview = work.state().pageApprovalToken;
+    const fromPartition = electronMocks.fromPartition.mockReturnValueOnce(work.webContents.session);
+
+    let finishSafetyCheck!: (safe: boolean) => void;
+    work.safe.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishSafetyCheck = resolve;
+      }),
+    );
+    const click = manager.runAutomation({
+      ...work.route,
+      source: "agent",
+      operation: "click",
+      input: { selector: "#save" },
+    });
+    const rejected = expect(click).rejects.toThrow("Approve access");
+    await vi.waitFor(() => expect(work.safe).toHaveBeenCalledOnce());
+
+    let finishWrite!: () => void;
+    const write = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    });
+    const set = vi.fn(() => {
+      expect(work.state().browserPageAuthorized).toBe(false);
+      expect(personal.state().browserPageAuthorized).toBe(true);
+      return write;
+    });
+    Object.assign(work.webContents.session.cookies, { set });
+
+    const importCookies = vi.spyOn(BrowserSessionImporter.prototype, "importSelectedCookies");
+    onTestFinished(() => importCookies.mockRestore());
+    importCookies.mockRejectedValueOnce(new Error("Source browser is open"));
+    importCookies.mockImplementationOnce(async (_input, resolveDestination, signal) => {
+      const { cookies } = resolveDestination!("persist:tabs-browser:profile:work");
+      await cookies.set({ url, name: "fixture", value: "synthetic" });
+      await cookies.flushStore();
+      return {
+        cancelled: signal?.aborted ?? false,
+        imported: 1,
+        skipped: 0,
+        skippedDomains: [],
+        warnings: [],
+      };
+    });
+    const input = {
+      requestId: "import-request",
+      sourceId: "chrome" as const,
+      sourceProfileDirectory: "Default",
+      targetProfileId: "work",
+    };
+    await expect(manager.importBrowserCookies(input)).rejects.toThrow("Source browser is open");
+    expect(work.state().browserPageAuthorized).toBe(true);
+
+    const importing = manager.importBrowserCookies(input);
+    await vi.waitFor(() => expect(set).toHaveBeenCalledOnce());
+    expect(fromPartition).toHaveBeenLastCalledWith("persist:tabs-browser:profile:work");
+    manager.cancelBrowserImport(input.requestId);
+    await expect(work.approve()).rejects.toThrow("finish updating site data");
+    finishSafetyCheck(true);
+    await rejected;
+    expect(work.sendInputEvent).not.toHaveBeenCalled();
+    expect(personal.state().browserPageAuthorized).toBe(true);
+
+    finishWrite();
+    await expect(importing).resolves.toMatchObject({
+      cancelled: true,
+      imported: 1,
+    });
+    await expect(work.approve(work.state().pageApprovalToken)).rejects.toThrow(
+      "Reload this page after importing",
+    );
+    work.showDocument(performance.timeOrigin + performance.now() + 1000);
+    await expect(work.approve(previousReview)).rejects.toThrow("page changed during review");
+    await work.approve(work.state().pageApprovalToken);
+    expect(work.state().browserPageAuthorized).toBe(true);
+
+    // History can restore a document created before the reviewed account changed.
+    work.showDocument(0);
+    await expect(
+      manager.runAutomation({
+        ...work.route,
+        source: "agent",
+        operation: "click",
+        input: { selector: "#save" },
+      }),
+    ).rejects.toThrow("Reload this page after importing");
+    expect(work.sendInputEvent).not.toHaveBeenCalled();
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
