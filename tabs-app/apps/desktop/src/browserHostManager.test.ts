@@ -1984,6 +1984,19 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("does not create a replacement for an explicitly attached tab that closed", async () => {
+    const manager = new BrowserHostManager(() => null);
+    await expect(
+      manager.ensureSession({
+        projectId: "p",
+        sessionId: "closed",
+        initialUrl: "",
+        requireExisting: true,
+        taskId: "thread-1",
+      }),
+    ).rejects.toThrow("no longer open");
+  });
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
