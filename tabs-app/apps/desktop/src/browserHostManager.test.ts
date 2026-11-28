@@ -3920,6 +3920,35 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.evaluate).toHaveBeenCalledOnce();
         expect(f.loadURL).not.toHaveBeenCalled();
       });
+
+      it("checks protected content and draft identity before an opted-in exact URL refresh", async () => {
+        const f = await setup();
+        await f.authorize();
+        f.visible.password = true;
+        await expect(f.monitor({ refresh: true })).resolves.toMatchObject({
+          disposition: "unobservable",
+          reason: expect.stringContaining("Protected input"),
+        });
+        f.visible.password = false;
+        f.visible.identity = "43";
+        await expect(f.monitor({ refresh: true })).resolves.toMatchObject({
+          disposition: "unobservable",
+          reason: expect.stringContaining("visible draft ID"),
+        });
+        expect(f.loadURL).not.toHaveBeenCalled();
+
+        f.visible.identity = "42";
+        f.loadURL.mockImplementationOnce(async () => {
+          f.visible.status = "Published";
+          f.events.emit("did-navigate", {}, f.url);
+        });
+        await expect(f.monitor({ refresh: true })).resolves.toMatchObject({
+          disposition: "observed",
+          observation: { stage: "published" },
+        });
+        expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
+        expect(f.submit).not.toHaveBeenCalled();
+      });
     });
   });
 
