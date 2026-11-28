@@ -7743,6 +7743,62 @@ describe("reliable browser tabs and agent control", () => {
           restarted.getSessionState(f.request.projectId, f.request.sessionId).browserPageAuthorized,
         ).toBe(false);
       });
+
+      it("reopens the same frame when Figma normalizes the Design URL", async () => {
+        const original = address.replace("/design/", "/file/") + "&fuid=123&view=fit";
+        const f = await setupFigma(original);
+        await f.grant();
+        const target = await f.inspect();
+        const restarted = new BrowserHostManager(() => null);
+        const tab = f.tab(restarted, "about:blank");
+        const expected = original.replace("35-12", "35-90");
+        const normalized =
+          "https://www.figma.com/design/mainKey/branch/branchKey/New-title?view=fit&node-id=35%3A90&fuid=123";
+        const request = {
+          ...f.request,
+          operation: "enterFigmaCanvasResult",
+          input: {
+            target,
+            frameNodeId: "35:90",
+            textNodeId: "35:91",
+            verifiedAt: "2026-11-26T00:00:00Z",
+          },
+        };
+        const preventDefault = vi.fn();
+        const normalizedInPage = deferred<void>();
+        const finishLoading = deferred<void>();
+        tab.loadURL.mockImplementationOnce(async () => {
+          tab.events.emit("will-redirect", {
+            isMainFrame: true,
+            url: normalized,
+            preventDefault,
+          });
+          tab.session.currentUrl = normalized;
+          tab.session.loading = true;
+          tab.events.emit("did-navigate-in-page", {}, normalized, true);
+          normalizedInPage.resolve();
+          await finishLoading.promise;
+          tab.session.loading = false;
+          tab.events.emit("did-finish-load");
+        });
+        const opened = restarted.runAutomation(request);
+        await normalizedInPage.promise;
+        const pageCheck = `location.href === ${JSON.stringify(normalized)} && (${PAGE_READY_FOR_AGENT})`;
+        const checksWhileLoading = tab.evaluate.mock.calls.filter(([, scripts]) =>
+          scripts.some(({ code }) => code.startsWith(pageCheck)),
+        );
+        finishLoading.resolve();
+        await expect(opened).resolves.toEqual({ url: normalized });
+        expect(checksWhileLoading).toEqual([]);
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(expected);
+
+        // Re-enter the current verified node without another navigation.
+        await expect(restarted.runAutomation(request)).resolves.toEqual({
+          url: normalized,
+        });
+        expect(tab.loadURL).toHaveBeenCalledOnce();
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
