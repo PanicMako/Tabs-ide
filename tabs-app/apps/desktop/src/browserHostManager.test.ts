@@ -7646,6 +7646,61 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.executeJavaScript).not.toHaveBeenCalled();
         expect(f.sendInputEvent).not.toHaveBeenCalled();
       });
+
+      it("requires the saved attachment and a fresh grant after restart", async () => {
+        const f = await setupFigma();
+        const other = await f.capture();
+        await f.grant();
+        const attachmentFile = join(f.userData, "browser-attachment-bookmarks", f.attachmentId);
+        const attachment: BrowserAttachmentBookmark = JSON.parse(
+          await readFile(attachmentFile, "utf8"),
+        );
+        await expect(
+          f.authorize({
+            target: {
+              projectId: attachment.projectId,
+              tabId: PreviewTabId.make(attachment.tabId),
+              profileId: attachment.profileId,
+              hostKey: attachment.hostKey,
+              attachmentId: f.attachmentId,
+              mainFileKey: "mainKey",
+              fileKey: "branchKey",
+              nodeId: "35:12",
+            },
+            operationId: "a".repeat(64),
+            email: "design@example.com",
+            frame: { name: "Frame", text: "Text", width: 360, height: 240 },
+          }),
+        ).rejects.toThrow("Review the current Figma");
+        await expect(f.inspect(undefined, { taskId: "other-thread" })).rejects.toThrow(
+          "original desktop",
+        );
+        await expect(
+          f.inspect({ attachmentId: f.attachmentId, profileId: "personal" }),
+        ).rejects.toThrow("original desktop");
+        const restarted = new BrowserHostManager(() => null);
+        f.tab(restarted, address);
+        await expect(f.inspect(undefined, {}, restarted)).rejects.toThrow("Approve browser access");
+        await f.grant(restarted, address);
+        await expect(f.inspect(undefined, {}, restarted)).resolves.toMatchObject({
+          attachmentId: f.attachmentId,
+          fileKey: "branchKey",
+          nodeId: "35:12",
+        });
+        const { approval, write } = await proposed(f);
+        await expect(
+          f.inspect({ attachmentId: other.attachmentId!, profileId: "work" }),
+        ).rejects.toThrow("different attachment");
+        await writeFile(
+          attachmentFile,
+          JSON.stringify({ ...attachment, url: address + "&view=another" }),
+        );
+        await expect(f.confirm(approval.id)).rejects.toThrow(
+          "Inspect the attached Figma node again",
+        );
+        expect(f.pending()).toBeUndefined();
+        await expect(f.authorize(write)).rejects.toThrow("Review the current Figma");
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
