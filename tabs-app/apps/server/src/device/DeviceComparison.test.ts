@@ -2020,6 +2020,109 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it("restores only the original thread's first difference and never replays a saved action", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-comparison-restart-"));
+    try {
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+        [frame("android", ["Allow app permission"])],
+        true,
+        makeDeviceComparisonStore(directory),
+      );
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      const approvalId = await f.approve(runId);
+      await f.replay(runId);
+      expect((await f.settle()).run?.phase).toBe("paused");
+      const original = await f.invoke({ action: "evidence", threadId, runId });
+      await f.invoke({ action: "stop", threadId, runId });
+      f.positions.set(iphone.hostId, 0);
+      f.capture.mockImplementation((host) => screenshot(`${host}-later`));
+      const newerRunId = await f.begin();
+      await f.tap(newerRunId, "Continue");
+      await f.approve(newerRunId);
+      await f.replay(newerRunId);
+      expect((await f.settle()).run?.phase).toBe("paused");
+      const emptyState = { ...f.getState(), devices: [], sessions: [] };
+      const driver = {
+        open: vi.fn(() => Effect.die("unexpected open")),
+        snapshot: vi.fn(() => Effect.die("unexpected snapshot")),
+        press: vi.fn(() => Effect.die("unexpected tap")),
+        scroll: vi.fn(() => Effect.die("unexpected scroll")),
+      };
+      const captureAfterRestart = vi.fn(() => Effect.die("unexpected capture"));
+      const recovered = makeDeviceComparison({
+        state: Effect.succeed(emptyState),
+        driver,
+        screenshot: captureAfterRestart,
+        store: makeDeviceComparisonStore(directory),
+      });
+      const invoke = (input: Parameters<typeof recovered.invoke>[0]) =>
+        Effect.runPromise(recovered.invoke(input));
+      const latest = await invoke({
+        action: "status",
+        threadId,
+        device: pixel,
+      });
+      expect(latest.run?.runId).toBe(newerRunId);
+      expect(latest.ownerThreadId).toBeUndefined();
+      const { run, evidence } = await invoke({
+        action: "evidence",
+        threadId,
+        runId,
+      });
+      expect(await invoke({ action: "status", threadId, runId })).toEqual({
+        run,
+      });
+      expect(run).toMatchObject({
+        runId,
+        phase: "stopped",
+        savedAt: expect.any(String),
+        canResume: false,
+        source: { ...iphone, appId: iosApp },
+        target: { ...pixel, appId: androidApp },
+        firstDifference: original.run?.firstDifference,
+      });
+      expect(run?.approvalId).toBeUndefined();
+      expect(evidence).toEqual(original.evidence);
+      const records = join(directory, "device-comparisons");
+      const suffix = `.${runId}.jsonl`;
+      const olderFile = (await readdir(records)).find((name) => name.endsWith(suffix));
+      expect(olderFile).toBeDefined();
+      // A checkpoint saved by the previous format stays linkable after a new run.
+      await rename(
+        join(records, olderFile!),
+        join(records, `${olderFile!.slice(0, -suffix.length)}.jsonl`),
+      );
+      expect((await invoke({ action: "evidence", threadId, runId })).evidence).toEqual(
+        original.evidence,
+      );
+      expect(await invoke({ action: "status", threadId: otherThreadId })).toEqual({});
+      expect(await invoke({ action: "status", threadId: otherThreadId, runId })).toEqual({});
+      await expect(invoke({ action: "evidence", threadId: otherThreadId, runId })).rejects.toThrow(
+        "no longer available",
+      );
+      await expect(invoke({ action: "resume", threadId, runId })).rejects.toThrow(
+        "no longer available",
+      );
+      await expect(invoke({ action: "replay", threadId, runId, approvalId })).rejects.toThrow(
+        "no longer available",
+      );
+      recovered.revoke();
+      expect(await invoke({ action: "status", threadId })).toEqual({});
+      expect(await invoke({ action: "status", threadId, runId })).toEqual({});
+      await expect(invoke({ action: "evidence", threadId, runId })).rejects.toThrow(
+        "Device access is off",
+      );
+      expect(driver.open).not.toHaveBeenCalled();
+      expect(driver.press).not.toHaveBeenCalled();
+      expect(driver.snapshot).not.toHaveBeenCalled();
+      expect(captureAfterRestart).not.toHaveBeenCalled();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
