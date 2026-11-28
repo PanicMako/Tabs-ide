@@ -1212,6 +1212,61 @@ describe("reliable browser tabs and agent control", () => {
     await expect(run()).rejects.toThrow("Finish using");
   });
 
+  it("reads an excerpt only on the original browser page after a human request", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-excerpt";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      profileId: "work",
+    });
+    const { session, webContents } = fixture;
+    const { events } = mockNavigation(manager, fixture);
+    const select = vi.fn().mockResolvedValue("Only this excerpt");
+    Object.assign(webContents, { executeJavaScriptInIsolatedWorld: select });
+    const state = () => manager.getSessionState(session.projectId, sessionId);
+    const request = {
+      projectId: session.projectId,
+      sessionId,
+      taskId: "qa",
+      source: "human" as const,
+      operation: "readBrowserSelection",
+      input: {
+        pageRef: state().pageRef,
+        instanceId: session.instanceId,
+        profileId: "work",
+      },
+    };
+    await expect(manager.runAutomation({ ...request, source: "agent" })).rejects.toThrow("Review");
+    for (const changed of [
+      { profileId: "personal" },
+      { instanceId: "replaced" },
+      { pageRef: "other" },
+    ]) {
+      await expect(
+        manager.runAutomation({
+          ...request,
+          input: { ...request.input, ...changed },
+        }),
+      ).rejects.toThrow("changed");
+    }
+    expect(select).not.toHaveBeenCalled();
+    await expect(manager.runAutomation(request)).resolves.toEqual({
+      text: "Only this excerpt",
+    });
+    expect(state()).toMatchObject({
+      assignedTaskId: null,
+      browserPageAuthorized: false,
+    });
+    select.mockImplementationOnce(async () => {
+      events.emit("did-navigate", {}, session.currentUrl);
+      return "An excerpt from before a reload";
+    });
+    await expect(manager.runAutomation(request)).rejects.toThrow("changed");
+    select.mockResolvedValueOnce("x".repeat(1001));
+    await expect(manager.runAutomation(request)).rejects.toThrow("1,000 characters");
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
