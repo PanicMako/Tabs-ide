@@ -5663,6 +5663,88 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("returns a preflight file repair only after an agent verifies the new artifact", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const fixture = createMockSession({
+      bounds: { x: 0, y: 0, width: 640, height: 480 },
+    });
+    const { session, webContents } = fixture;
+    mockNavigation(manager, fixture);
+    (manager as unknown as { activeKey: string }).activeKey = session.key;
+    const fileReceipt = {
+      filename: "report.csv",
+      byteLength: 14,
+      sha256: "a".repeat(64),
+    };
+    const evaluate = vi
+      .fn()
+      .mockResolvedValueOnce("changed")
+      .mockResolvedValueOnce({ selector: "#new-receipt" })
+      .mockResolvedValueOnce("missing")
+      .mockResolvedValueOnce([{ ...fileReceipt, sha256: "b".repeat(64) }])
+      .mockResolvedValueOnce("ok")
+      .mockResolvedValueOnce(fileReceipt);
+    Object.assign(webContents, { executeJavaScriptInIsolatedWorld: evaluate });
+    const target = {
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+      taskId: "qa",
+    };
+    const action = {
+      id: crypto.randomUUID(),
+      label: "Save report",
+      origin: "https://example.com",
+      steps: [{ action: "click", selector: "#export" }],
+      outcome: {
+        selector: "#receipt",
+        description: "Report saved",
+        filenamePattern: "report.csv",
+      },
+    };
+    const replacement = {
+      ...action,
+      outcome: { ...action.outcome, selector: "#new-receipt" },
+    };
+    const human = (operation: string, input: object) =>
+      manager.runAutomation({ ...target, source: "human", operation, input });
+    const approve = async (resume: boolean, pauseId?: string) => {
+      const [tab] = (await human("listQuickActionTargets", { action })) as [{ token: string }];
+      const { id } = (await human("authorizeQuickAction", {
+        action,
+        token: tab.token,
+        resume,
+        ...(pauseId && { pauseId }),
+      })) as { id: string };
+      return id;
+    };
+    const run = (approvalId: string) =>
+      manager.runAutomation({
+        ...target,
+        source: "agent",
+        operation: "runQuickAction",
+        input: { approvalId, actionId: action.id },
+      });
+    const paused = (await run(await approve(false))) as {
+      status: string;
+      completedSteps: number;
+      resumeRequest: { pause: { pauseId: string } };
+    };
+    expect(paused).toMatchObject({ status: "paused", completedSteps: 0 });
+    expect(paused).not.toHaveProperty("verifiedRepair");
+    const { pauseId } = paused.resumeRequest.pause;
+    const [tab] = (await human("listQuickActionTargets", { action })) as [{ token: string }];
+    await expect(
+      human("repairQuickAction", { action, token: tab.token, pauseId }),
+    ).resolves.toEqual({ action: replacement, pendingFileVerification: true });
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    await expect(run(await approve(true, pauseId))).resolves.toMatchObject({
+      status: "pass",
+      fileReceipt,
+      verifiedRepair: { previous: action, replacement },
+    });
+    expect(evaluate).toHaveBeenCalledTimes(6);
+  });
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
