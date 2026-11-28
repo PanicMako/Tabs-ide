@@ -6596,6 +6596,31 @@ describe("reliable browser tabs and agent control", () => {
         deviceScreenshotAuthorized: false,
       });
     });
+
+    it("leaves existing individual grants usable when only one slot is free", async () => {
+      const f = createUploadFixture();
+      const existing = [];
+      for (let i = 0; i < 7; i++) existing.push((await f.authorize()).grantId);
+      const epoch = f.session.controlEpoch;
+
+      await expect(f.authorizePair([source, target])).rejects.toThrow(
+        "pending screenshot transfer",
+      );
+      expect(f.session.controlEpoch).toBe(epoch);
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        browserPageAuthorized: false,
+        deviceScreenshotAuthorized: true,
+      });
+      await expect(f.authorize()).resolves.toEqual({
+        grantId: expect.any(String),
+      });
+      await expect(f.authorize()).rejects.toThrow("pending screenshot transfer");
+      for (const id of existing)
+        await expect(f.transfer(id, { phase: "inspect" })).resolves.toMatchObject({
+          hostId: source.hostId,
+          deviceId: source.deviceId,
+        });
+    });
   });
 
   async function connectChromiumPage(
