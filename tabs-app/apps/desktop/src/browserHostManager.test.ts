@@ -9241,6 +9241,28 @@ describe("reliable browser tabs and agent control", () => {
         }),
       ).resolves.toBeNull();
     });
+
+    it("treats a comparison bookmark missing one digest as unavailable before navigating", async () => {
+      const url = "https://app.test/drafts/42?view=edit#evidence";
+      const f = await setup(url, url, "first-difference");
+      f.receipt.text = `${f.digest}\n${f.targetDigest}`;
+      await f.verify();
+      await expect(f.findComparison(f.manager)).resolves.not.toBeNull();
+      const entry = (await readdir(f.directory)).find((name) =>
+        name.startsWith("device-comparison-draft-"),
+      )!;
+      const file = join(f.directory, entry);
+      const saved = JSON.parse(await readFile(file, "utf8"));
+      expect(saved).not.toHaveProperty("grantId");
+      expect(saved).not.toHaveProperty("pairedGrantId");
+      await writeFile(file, JSON.stringify({ ...saved, digests: [f.digest] }));
+
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted);
+      await expect(f.findComparison(restarted)).resolves.toBeNull();
+      await expect(f.enterComparison(restarted)).rejects.toThrow("No verified comparison draft");
+      expect(tab.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
