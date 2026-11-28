@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ThreadId } from "@tabs/contracts";
+import { EnvironmentId, ProjectId, ThreadId, type BrowserQuickAction } from "@tabs/contracts";
 
+import { appAtomRegistry } from "../state/atomRegistry";
+import { readModelStateAtom } from "../state/readModel";
+import type { Thread } from "../types";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
 import {
   browserRecordingVideoConstraints,
   buildPreviewStatusReport,
+  requestBrowserQuickAction,
   resolveAutomationViewport,
   startNativeBrowserRecording,
   stopNativeBrowserRecording,
@@ -14,6 +19,70 @@ const originalMediaRecorder = globalThis.MediaRecorder;
 afterEach(() => {
   vi.unstubAllGlobals();
   if (originalMediaRecorder) globalThis.MediaRecorder = originalMediaRecorder;
+});
+
+it("resolves only an exact saved Quick Action in the requesting thread's project and environment", () => {
+  const environmentId = EnvironmentId.make("local");
+  const otherEnvironmentId = EnvironmentId.make("remote");
+  const threadId = ThreadId.make("thread-1");
+  const projectId = ProjectId.make("project-1");
+  const otherProjectId = ProjectId.make("project-2");
+  const action: BrowserQuickAction = {
+    id: "38d627ea-e2f6-4783-b8ca-b2a83f515994",
+    label: "Save report",
+    origin: "https://example.test",
+    steps: [{ action: "click", selector: "#save" }],
+    outcome: { selector: "#saved", description: "Report saved" },
+  };
+  const otherAction = { ...action, id: "22ac10e4-6633-4c9a-9fb3-95d1dea01e0d" };
+  const savedState = appAtomRegistry.get(readModelStateAtom);
+  const shell = useWorkspaceShellStore.getState();
+  appAtomRegistry.set(readModelStateAtom, {
+    ...savedState,
+    threads: [
+      { id: threadId, environmentId: otherEnvironmentId, projectId: otherProjectId } as Thread,
+      { id: threadId, environmentId, projectId } as Thread,
+    ],
+  });
+  shell.upsertProjectSettings(projectId, { browserQuickActions: [action] });
+  shell.upsertProjectSettings(otherProjectId, {
+    browserQuickActions: [otherAction, { ...otherAction, label: "Archive report" }],
+  });
+
+  const input = { actionName: "  SAVE report " };
+  try {
+    expect(requestBrowserQuickAction(environmentId, { threadId, input })).toEqual({
+      status: "approval_required",
+      actionId: action.id,
+    });
+    expect(() =>
+      requestBrowserQuickAction(EnvironmentId.make("unknown"), { threadId, input }),
+    ).toThrow("is not available in this environment");
+    expect(() =>
+      requestBrowserQuickAction(environmentId, {
+        threadId,
+        input: { actionName: "Archive report" },
+      }),
+    ).toThrow("No saved Browser Quick Action matches");
+    expect(() =>
+      requestBrowserQuickAction(environmentId, { threadId, input: { actionName: "Save" } }),
+    ).toThrow("No saved Browser Quick Action matches");
+    expect(() =>
+      requestBrowserQuickAction(environmentId, {
+        threadId,
+        input: { ...input, values: { month: "June" } },
+      }),
+    ).toThrow();
+    shell.upsertProjectSettings(projectId, {
+      browserQuickActions: [action, { ...otherAction, label: "SAVE REPORT" }],
+    });
+    expect(() => requestBrowserQuickAction(environmentId, { threadId, input })).toThrow(
+      "More than one saved Browser Quick Action",
+    );
+  } finally {
+    appAtomRegistry.set(readModelStateAtom, savedState);
+    useWorkspaceShellStore.setState(shell);
+  }
 });
 
 describe("resolveAutomationViewport", () => {
