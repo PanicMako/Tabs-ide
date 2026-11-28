@@ -1869,3 +1869,118 @@ test.skipIf(!existsSync(chromiumPath)).each(["staged", "direct"] as const)(
   },
   30_000,
 );
+
+test.skipIf(!existsSync(chromiumPath))(
+  "the registered workflow leaves unkeyed Submit to the user and saves the Work receipt",
+  async () => {
+    const fixture = await startBrowserSubmission(0, false, { idempotentSubmit: false });
+    const browser = await chromium.launch({ headless: true }).catch(async (cause) => {
+      await fixture.close();
+      throw cause;
+    });
+    try {
+      const work = await browser.newPage();
+      const personal = await browser.newPage();
+      await Promise.all([
+        work.goto(fixture.origin + "/Work"),
+        personal.goto(fixture.origin + "/Personal"),
+      ]);
+      const { definition } = fixture;
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { stateDir } = yield* ServerConfig.ServerConfig;
+          const target = { ...journalTarget, hostKey: "desktop-Work" };
+          const phases: BrowserWorkflowBrowserRequest["phase"][] = [];
+          yield* serve(work, target.profileId, { onRequest: ({ phase }) => phases.push(phase) });
+
+          const armed = report(
+            yield* call({ action: "arm", tabId, profileId: "Work", definition }, "manual-provider"),
+          );
+          const { workflowId } = armed;
+          const result = {
+            projectId: target.projectId,
+            tabId,
+            profileId: "Work",
+            url: definition.url,
+            resourceId: definition.resourceId,
+          };
+          const manual = {
+            workflowId,
+            phase: "manual_submit",
+            result,
+            lastVerified: { stage: "uploaded", statusText: "Uploaded" },
+          };
+          expect(armed).toMatchObject(manual);
+          for (const action of ["check", "submit"] as const) {
+            expect(report(yield* call({ action, workflowId }, "manual-provider"))).toMatchObject(
+              manual,
+            );
+          }
+          expect(phases).not.toContain("submit");
+          expect(fixture.trialCounts().submitRequests).toEqual({ Work: 0, Personal: 0 });
+          expect(work.url()).toBe(definition.url);
+
+          const reference = { workflowId, stage: "uploaded" as const };
+          const read = () => readBrowserWorkflowResult(stateDir, journalOwner, reference);
+          expect(yield* Effect.promise(read)).toEqual({
+            target,
+            definition,
+            stage: "uploaded",
+            submitRequiresUser: true,
+          });
+          yield* Effect.promise(async () => {
+            await work.getByRole("button", { name: "Submit build" }).click();
+            await work.getByText("Submitted", { exact: true }).waitFor();
+          });
+          expect(fixture.trialCounts().submitRequests).toEqual({ Work: 1, Personal: 0 });
+
+          const verified = yield* Effect.promise(() =>
+            reconcileBrowserWorkflowSubmission(
+              stateDir,
+              journalOwner,
+              reference,
+              target.projectId,
+              async (saved) => {
+                expect(saved.target).toEqual(target);
+                expect(await work.getByText("Work", { exact: true }).isVisible()).toBe(true);
+                const { disposition, observation } = await work.evaluate<BrowserWorkflowPageResult>(
+                  browserWorkflowPageScript(saved.definition, false, true),
+                );
+                if (disposition !== "observed" || !observation)
+                  throw new Error("The Work draft did not expose a receipt.");
+                return { target, stage: observation.stage, statusText: observation.statusText };
+              },
+            ),
+          );
+          expect(verified).toEqual({ target, definition, stage: "submitted" });
+          expect(yield* Effect.promise(read)).toEqual(verified);
+          expect(
+            report(yield* call({ action: "submit", workflowId }, "manual-provider-restarted")),
+          ).toMatchObject({
+            workflowId,
+            phase: "verified",
+            result,
+            lastVerified: { stage: "submitted", statusText: "Submitted" },
+          });
+          expect(phases).not.toContain("submit");
+          expect(fixture.trialCounts()).toMatchObject({
+            submitRequests: { Work: 1, Personal: 0 },
+            submissions: { Work: 1, Personal: 0 },
+            stages: { Work: "submitted", Personal: "uploaded" },
+          });
+        }).pipe(
+          Effect.scoped,
+          Effect.provide(mcpLayer),
+          Effect.provide(
+            ServerConfig.layerTest(process.cwd(), { prefix: "tabs-workflow-manual-" }),
+          ),
+          Effect.provide(NodeServices.layer),
+        ),
+      );
+    } finally {
+      await browser.close();
+      await fixture.close();
+    }
+  },
+  30_000,
+);
