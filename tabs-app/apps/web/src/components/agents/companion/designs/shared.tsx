@@ -21,6 +21,7 @@ export interface CompanionDesignProps {
   onOpen: (kind: RightPanelTab) => void;
   /** Shows the surface of this kind that is already open, or opens one. */
   onFocusKind: (kind: RightPanelTab) => void;
+  attachmentFor?: ((id: string) => File | null) | undefined;
   onSelectInstance: (id: string) => void;
   onCloseInstance: (id: string) => void;
   /** Renames a tab (device tabs). An empty title restores the default name. */
@@ -120,7 +121,9 @@ export function SurfaceSubTabs({
   newLabel,
   actions,
   onRename,
+  attachmentFor,
 }: {
+  attachmentFor?: ((id: string) => File | null) | undefined;
   label: string;
   tabs: ReadonlyArray<SubTab>;
   activeId: string | null;
@@ -160,7 +163,12 @@ export function SurfaceSubTabs({
         {tabs.map((tab) => {
           const selected = tab.id === activeId;
           return (
-            <div key={tab.id} className="cd-subtab" data-selected={selected}>
+            <div
+              key={tab.id}
+              className="cd-subtab"
+              data-selected={selected}
+              data-companion-surface-id={tab.id}
+            >
               {renaming === tab.id ? (
                 <input
                   autoFocus
@@ -183,6 +191,20 @@ export function SurfaceSubTabs({
                   role="tab"
                   aria-selected={selected}
                   tabIndex={selected ? 0 : -1}
+                  draggable={Boolean(attachmentFor)}
+                  onDragStart={
+                    attachmentFor
+                      ? (event) => {
+                          const file = attachmentFor(tab.id);
+                          if (!file) {
+                            event.preventDefault();
+                            return;
+                          }
+                          event.dataTransfer.effectAllowed = "copy";
+                          event.dataTransfer.items.add(file);
+                        }
+                      : undefined
+                  }
                   title={tab.title ?? tab.label}
                   onClick={() => onSelect(tab.id)}
                   onDoubleClick={onRename ? () => setRenaming(tab.id) : undefined}

@@ -128,6 +128,7 @@ export function GroupedDesign(props: CompanionDesignProps) {
       </header>
       {!home && active?.kind === "browser" && (
         <SurfaceSubTabs
+          attachmentFor={props.attachmentFor}
           label="Browser tabs"
           tabs={browsers.map((item) => {
             const fallback = surfaceInstanceLabel(props.instances, item);
@@ -146,6 +147,7 @@ export function GroupedDesign(props: CompanionDesignProps) {
       )}
       {!home && active?.kind === "device" && (
         <SurfaceSubTabs
+          attachmentFor={props.attachmentFor}
           label="Device tabs"
           tabs={devices.map((item) => {
             const label = surfaceInstanceLabel(props.instances, item);
