@@ -9481,7 +9481,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           : parentProjection.runs.find((candidate) => candidate.id === task.runId);
       const parentNode = parentProjection.nodes.find((candidate) => candidate.id === task.id);
       const parentTurnItem = parentProjection.turnItems.find(
-        (candidate) => candidate.type === "subagent" && candidate.subagentId === task.id,
+        (candidate): candidate is Extract<typeof candidate, { type: "subagent" }> =>
+          candidate.type === "subagent" && candidate.subagentId === task.id,
       );
       const updatedTask: OrchestrationV2Subagent = {
         ...task,
