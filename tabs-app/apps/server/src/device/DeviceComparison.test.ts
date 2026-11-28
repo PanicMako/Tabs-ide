@@ -2189,6 +2189,37 @@ describe("Device comparison", () => {
     expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
     await expect(f.invoke(manualInput, owner)).rejects.toThrow("Take control");
   });
+
+  it("requires destination approval again after reopening the same host and device", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [frame("android", ["Continue"]), frame("android", [], ["Order review"])],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    f.reopenDestination();
+    f.open.mockClear();
+    await expect(f.replay(runId)).rejects.toThrow("destination session changed");
+    expect(f.open).not.toHaveBeenCalled();
+    expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
+
+    const approved = await f.invoke({
+      action: "approve",
+      threadId,
+      runId,
+      target: pixel,
+      appId: androidApp,
+    });
+    await f.invoke({
+      action: "replay",
+      threadId,
+      runId,
+      approvalId: approved.run!.approvalId!,
+    });
+    expect((await f.settle()).run?.phase).toBe("completed");
+    expect(f.press.mock.calls.at(-1)?.[0]).toBe(pixel.hostId);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
