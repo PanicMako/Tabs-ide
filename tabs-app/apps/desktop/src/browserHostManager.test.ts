@@ -6621,6 +6621,33 @@ describe("reliable browser tabs and agent control", () => {
           deviceId: source.deviceId,
         });
     });
+
+    it("revokes just the specified pair while keeping individual grants usable", async () => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      const { grantIds } = await f.authorizePair([source, target]);
+      const revoke = (ids: unknown) =>
+        f.manager.runAutomation({
+          ...f.target,
+          operation: "revokeDeviceScreenshot",
+          source: "human",
+          input: { grantIds: ids },
+        });
+
+      await expect(revoke([grantIds[0], null])).rejects.toThrow("exact screenshot grants");
+      await expect(f.transfer(grantIds[0], { phase: "inspect" })).resolves.toEqual(source);
+      await expect(revoke(grantIds)).resolves.toBeUndefined();
+      for (const id of grantIds)
+        await expect(f.transfer(id, { phase: "inspect" })).rejects.toThrow("Approve");
+      await expect(f.transfer(grantId, { phase: "inspect" })).resolves.toEqual({
+        hostId: source.hostId,
+        deviceId: source.deviceId,
+      });
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        browserPageAuthorized: true,
+        deviceScreenshotAuthorized: true,
+      });
+    });
   });
 
   async function connectChromiumPage(
