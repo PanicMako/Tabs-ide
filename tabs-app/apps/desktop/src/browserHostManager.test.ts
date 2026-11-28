@@ -6780,6 +6780,35 @@ describe("reliable browser tabs and agent control", () => {
     expect(f.attach).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["revocation", "takeover"])(
+    "does not record a screenshot selection whose reply arrives after %s",
+    async (interruption) => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      const dispatched = deferred<void>();
+      const reply = deferred<boolean>();
+      f.attach.mockImplementationOnce(() => {
+        dispatched.resolve();
+        return reply.promise;
+      });
+      const rejected = expect(f.transfer(grantId)).rejects.toThrow();
+      await dispatched.promise;
+      if (interruption === "takeover") f.manager.takeControl(f.target);
+      else
+        await f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "revokeDeviceScreenshot",
+          input: { grantId },
+        });
+      reply.resolve(true);
+      await rejected;
+      expect(f.session).not.toHaveProperty("screenshotDrafts");
+      await expect(f.transfer(grantId, { phase: "inspect" })).rejects.toThrow();
+      expect(f.attach).toHaveBeenCalledOnce();
+    },
+  );
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
