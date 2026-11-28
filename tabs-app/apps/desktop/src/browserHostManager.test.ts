@@ -6419,7 +6419,7 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
-  describe.skip("device screenshot pair approval", () => {
+  describe("device screenshot pair approval", () => {
     const runId = "92724452-d32a-42f1-9771-75656595c621";
     const source = {
       hostId: "build-mac",
@@ -6431,6 +6431,31 @@ describe("reliable browser tabs and agent control", () => {
       hostId: "remote",
       frame: { ...source.frame, side: "target" },
     };
+
+    it("grants page control and both exact frames in one state update", async () => {
+      const f = createUploadFixture();
+      const emit = vi.spyOn(f.manager as any, "emitState");
+      const { grantIds } = await f.authorizePair([source, target]);
+      const [sourceId, targetId] = grantIds;
+      expect(grantIds).toHaveLength(2);
+      expect(sourceId).not.toBe(targetId);
+      expect(emit).toHaveBeenCalledOnce();
+      expect(f.session.assignedTaskId).toBe(f.target.taskId);
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        browserPageAuthorized: true,
+        deviceScreenshotAuthorized: true,
+      });
+      await expect(f.transfer(sourceId, { phase: "inspect" })).resolves.toEqual(source);
+      await expect(f.transfer(targetId, { phase: "inspect" })).resolves.toEqual(target);
+      await expect(f.transfer(sourceId, target)).rejects.toThrow("source");
+      await expect(f.transfer(targetId, source)).rejects.toThrow("source");
+      await expect(f.transfer(sourceId, source)).resolves.toEqual({
+        attached: true,
+      });
+      await expect(f.transfer(targetId, target)).resolves.toEqual({
+        attached: true,
+      });
+    });
   });
 
   async function connectChromiumPage(
