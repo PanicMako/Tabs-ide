@@ -1,10 +1,11 @@
-import { WS_CHANNELS } from "@tabs/contracts";
+import { EnvironmentId, ThreadId, WS_CHANNELS, WS_METHODS } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./desktopWebSocketAuth", () => ({ authorizeDesktopWebSocket: vi.fn() }));
 import { authorizeDesktopWebSocket } from "./desktopWebSocketAuth";
 import { WsTransport } from "./wsTransport";
+import { createWsNativeApi } from "./wsNativeApi";
 
 type WsEventType = "open" | "message" | "close" | "error";
 type WsListener = (event?: { data?: unknown }) => void;
@@ -93,6 +94,92 @@ afterEach(() => {
 });
 
 describe("WsTransport", () => {
+  it("sends a source-device tap only on the current connection", async () => {
+    vi.useFakeTimers();
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "rpc" });
+    try {
+      const api = createWsNativeApi({ transport, singleton: false });
+      const socket = getSocket();
+      const tap = {
+        action: "sourceTap" as const,
+        threadId: ThreadId.make("thread"),
+        runId: "run",
+        device: { hostId: "local", deviceId: "iphone" },
+        observationId: "source-screen",
+        x: 0.25,
+        y: 0.4,
+        viewport: { width: 393, height: 852 },
+      };
+      socket.open();
+      socket.close();
+      await expect(api.device.comparison(tap)).rejects.toThrow("disconnected");
+
+      vi.advanceTimersByTime(500);
+      const reconnected = getSocket();
+      expect(reconnected).not.toBe(socket);
+      reconnected.open();
+      const requests = () =>
+        reconnected.sent
+          .map((message) => JSON.parse(message))
+          .filter((message) => message.tag === WS_METHODS.deviceComparison);
+      expect(requests()).toHaveLength(0);
+
+      const freshTap = { ...tap, observationId: "fresh-source-screen" };
+      const reply = api.device.comparison(freshTap);
+      expect(requests()).toEqual([
+        {
+          _tag: "Request",
+          id: expect.any(String),
+          tag: WS_METHODS.deviceComparison,
+          payload: freshTap,
+          headers: [],
+        },
+      ]);
+      reconnected.serverMessage(
+        JSON.stringify({
+          _tag: "Exit",
+          requestId: requests()[0].id,
+          exit: { _tag: "Success", value: {} },
+        }),
+      );
+      await expect(reply).resolves.toEqual({});
+    } finally {
+      transport.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("renews device media tickets on the selected environment without forwarding the session URL", async () => {
+    const refreshUrl = vi
+      .fn()
+      .mockResolvedValueOnce("wss://lab.test/ws?wsTicket=one")
+      .mockResolvedValueOnce("wss://lab.test/ws?wsTicket=two")
+      .mockResolvedValueOnce("wss://other.test/ws?wsTicket=private");
+    const transport = new WsTransport({
+      url: "wss://lab.test/ws?wsTicket=spent",
+      environmentId: "lab",
+      refreshUrl,
+    });
+    try {
+      const path = "/api/device-hub/vendor/serve-sim/helper/ws?hostId=mac&device=id";
+      expect(await transport.authorizeDeviceMedia("wss://lab.test" + path)).toBe(
+        "wss://lab.test" + path + "&wsTicket=one",
+      );
+      expect(await transport.authorizeDeviceMedia("https://lab.test" + path)).toBe(
+        "https://lab.test" + path + "&wsTicket=two",
+      );
+      await expect(transport.authorizeDeviceMedia("ws://localhost" + path)).rejects.toThrow(
+        "proxy",
+      );
+      await expect(transport.authorizeDeviceMedia("https://lab.test" + path)).rejects.toThrow(
+        "Reconnect",
+      );
+      expect(refreshUrl).toHaveBeenCalledTimes(3);
+    } finally {
+      transport.dispose();
+    }
+  });
+
   it("re-resolves the desktop backend after it becomes available during startup", () => {
     vi.useFakeTimers();
     const transport = new WsTransport();
@@ -654,6 +741,86 @@ it("acknowledges decoded stream chunks and resumes from the last watermark after
   expect(error).not.toHaveBeenCalled();
   transport.dispose();
   vi.useRealTimers();
+});
+
+it("delivers preview broker request chunks and registers again after host eviction", () => {
+  vi.useFakeTimers();
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const api = createWsNativeApi({ transport, singleton: false });
+  const receive = vi.fn();
+  const onResubscribe = vi.fn();
+  const onDisconnect = vi.fn();
+  const host = {
+    clientId: "desktop-test",
+    environmentId: EnvironmentId.make("environment-test"),
+    supportedOperations: ["readWorkflowReceipt"] as const,
+  };
+  const stop = api.preview.automation.connect(host, receive, { onResubscribe, onDisconnect });
+  try {
+    const socket = getSocket();
+    socket.open();
+    const registrations = () =>
+      socket.sent
+        .map((frame) => JSON.parse(frame))
+        .filter(
+          (frame) => frame._tag === "Request" && frame.tag === WS_METHODS.previewAutomationConnect,
+        );
+    const [registration] = registrations();
+    expect(registration.payload).toEqual(host);
+    const values = [
+      { type: "connected", connectionId: "connection-1" },
+      {
+        type: "request",
+        connectionId: "connection-1",
+        request: {
+          requestId: "preview-1",
+          threadId: "thread-1",
+          tabId: "agents-surface-draft",
+          tabIdExplicit: true,
+          operation: "readWorkflowReceipt",
+          input: {},
+          timeoutMs: 15_000,
+        },
+      },
+    ];
+    socket.serverMessage(JSON.stringify({ _tag: "Chunk", requestId: registration.id, values }));
+    expect(receive.mock.calls).toEqual(values.map((event) => [event]));
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ _tag: "Ack", requestId: registration.id });
+
+    socket.serverMessage(
+      JSON.stringify({
+        _tag: "Exit",
+        requestId: registration.id,
+        exit: { _tag: "Success", value: null },
+      }),
+    );
+    expect(onDisconnect).toHaveBeenCalledOnce();
+    expect(registrations()).toHaveLength(1);
+    vi.advanceTimersByTime(250);
+    expect(registrations()).toHaveLength(2);
+    expect(onResubscribe).toHaveBeenCalledOnce();
+    socket.close();
+    expect(onDisconnect).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(500);
+    const reconnected = getSocket();
+    reconnected.open();
+    const restored = reconnected.sent
+      .map((frame) => JSON.parse(frame))
+      .find(
+        (frame) => frame._tag === "Request" && frame.tag === WS_METHODS.previewAutomationConnect,
+      );
+    expect(restored?.payload).toEqual(host);
+    expect(onResubscribe).toHaveBeenCalledTimes(2);
+    stop();
+    expect(JSON.parse(reconnected.sent.at(-1)!)).toEqual({
+      _tag: "Interrupt",
+      requestId: restored.id,
+    });
+  } finally {
+    stop();
+    transport.dispose();
+    vi.useRealTimers();
+  }
 });
 
 it("interrupts malformed stream data without acknowledging or advancing it", () => {
