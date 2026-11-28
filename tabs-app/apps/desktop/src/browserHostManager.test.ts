@@ -4287,6 +4287,21 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.loadURL).not.toHaveBeenCalled();
       expect(f.submit).not.toHaveBeenCalled();
     });
+
+    it("rejects a receipt from the outgoing document during a same-URL navigation", async () => {
+      const f = await setup();
+      const evaluate = f.evaluate.getMockImplementation()!;
+      f.evaluate.mockImplementationOnce(async (...args) => {
+        const result = await evaluate(...args);
+        f.events.emit("did-start-navigation", {
+          isMainFrame: true,
+          url: f.url,
+        });
+        return result;
+      });
+      await expect(f.enter()).rejects.toThrow("page changed");
+      expect(f.submit).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
