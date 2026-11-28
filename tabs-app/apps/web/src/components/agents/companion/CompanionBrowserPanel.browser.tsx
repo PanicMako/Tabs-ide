@@ -1135,6 +1135,142 @@ it("cancels approval while the browser identity check is pending", async () => {
   }
 });
 
+it.each(["live", "saved", "history"] as const)(
+  "approves a %s screenshot for the exact Work destination and thread",
+  async (kind) => {
+    const threadId = ThreadId.make(`qa-thread-${kind}`);
+    const threadScope = testEnvironment + ":" + threadId;
+    const store = useCompanionSurfaceStore.getState();
+    const source = { hostId: "lab", deviceId: "ios-42" };
+    const frame = {
+      runId: "94deefc3-688a-42d6-92fd-7a75e6cd4c0d",
+      side: "source" as const,
+      step: 1,
+    };
+    if (kind === "live") {
+      store.open(threadScope, "device", { ...source, title: "iPhone", platform: "ios" });
+    } else {
+      const run: DeviceComparisonReport = {
+        runId: frame.runId,
+        phase: "stopped",
+        savedAt: "2026-11-25T00:00:00.000Z",
+        source: { ...source, name: "iPhone", platform: "ios", appId: "com.apple.mobilesafari" },
+        target: {
+          hostId: "lab",
+          deviceId: "android-42",
+          name: "Pixel",
+          platform: "android",
+          appId: "com.android.chrome",
+        },
+        busy: false,
+        playing: false,
+        completedSteps: 0,
+        steps: [{ label: "Continue" }],
+        firstDifference: { step: 1, kind: "total", reason: "The totals differ." },
+        canResume: false,
+        uncertainTap: false,
+      };
+      if (kind === "history") {
+        const newer = { ...run, runId: "eefeeefc-688a-42d6-92fd-7a75e6cd4c0d" };
+        openDeviceComparisonResult(testEnvironment, threadId, { runId: frame.runId, step: 1 });
+        comparison.mockImplementation(async (input) => ({
+          run: input.action === "status" && input.runId === frame.runId ? run : newer,
+        }));
+      } else comparison.mockResolvedValue({ run });
+    }
+    const surfaceId = store.open(threadScope, "browser", {
+      url: "https://example.test/evidence",
+      profileId: "work",
+    });
+    useRightPanelStore.getState().openPanel("browser");
+    sessionId = `agents-surface-${surfaceId}`;
+    bridge.getBrowserSessionState.mockResolvedValue({
+      ...emptyBrowserState("project", sessionId),
+      currentUrl: "https://example.test/evidence",
+      instanceId: "live-browser",
+      pageRef: "a".repeat(64),
+      pageTitle: "Upload evidence",
+      canGoBack: false,
+      profileId: "work",
+    } as Awaited<ReturnType<typeof bridge.getBrowserSessionState>>);
+    const previousEnvironment = getPrimaryEnvironmentId();
+    setPrimaryEnvironmentIdForTesting(testEnvironment);
+    const view = await render(
+      <>
+        <RightPanelTabs
+          mode="sidebar"
+          environmentId={testEnvironment}
+          threadId={threadId}
+          onClose={() => {}}
+        />
+        <GlobalConfirmDialog />
+      </>,
+    );
+    try {
+      await expect.element(page.getByLabelText("Browser URL")).toHaveValue("example.test/evidence");
+      store.update(threadScope, surfaceId, {
+        pageRef: "b".repeat(64),
+        browserInstanceId: "cached-browser",
+      });
+      const scoped = scopedComposerThreadId(testEnvironment, threadId);
+      for (const accept of [false, true]) {
+        await page.getByRole("button", { name: "Browser tools" }).click();
+        await page
+          .getByRole("menuitem", {
+            name:
+              kind === "live"
+                ? /Attach screenshot from iPhone/
+                : kind === "history"
+                  ? /Attach first difference \(step 1\) from iPhone .*Run 94deefc3/
+                  : /Attach first difference \(step 1\) from iPhone/,
+          })
+          .click();
+        await expect.element(page.getByRole("dialog")).toHaveTextContent("lab / ios-42");
+        await expect
+          .element(page.getByRole("dialog"))
+          .toHaveTextContent("https://example.test/evidence in the Work profile");
+        await page
+          .getByRole("button", { name: accept ? "Confirm" : "Cancel", exact: true })
+          .click();
+        if (!accept) expect(bridge.runBrowserAutomation).not.toHaveBeenCalled();
+      }
+      await vi.waitFor(() =>
+        expect(useComposerDraftStore.getState().draftsByThreadId[scoped]?.files).toHaveLength(1),
+      );
+      const attached = useComposerDraftStore.getState().draftsByThreadId[scoped]!.files[0]!;
+      if (kind === "history") {
+        expect(comparison).toHaveBeenCalledWith({ action: "status", threadId, runId: frame.runId });
+      }
+      expect(JSON.parse(await attached.file.text())).toMatchObject({
+        environmentId: testEnvironment,
+        threadId,
+        surfaceId,
+        pageRef: "a".repeat(64),
+        browserInstanceId: "live-browser",
+        screenshotTransfer: {
+          grantId: "selected-transfer",
+          ...source,
+          ...(kind === "live" ? {} : { frame }),
+        },
+      });
+      expect(bridge.runBrowserAutomation).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          operation: "authorizeDeviceScreenshot",
+          input: expect.objectContaining({
+            instanceId: "live-browser",
+            url: "https://example.test/evidence",
+            ...source,
+            ...(kind === "live" ? {} : { frame }),
+          }),
+        }),
+      );
+    } finally {
+      setPrimaryEnvironmentIdForTesting(previousEnvironment);
+      await view.unmount();
+    }
+  },
+);
+
 const pairAction = "Attach both first-difference screenshots";
 const pairGrantIds = [
   "692cb917-ea45-49cb-b0b5-cebec45d66ca",
