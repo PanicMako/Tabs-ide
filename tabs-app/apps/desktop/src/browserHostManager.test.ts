@@ -4111,6 +4111,14 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.loadURL).not.toHaveBeenCalled();
       expect(f.evaluate).not.toHaveBeenCalled();
     });
+
+    it("loads the exact saved URL as a new request to avoid replaying a history form submission", async () => {
+      const current = "https://app.test/draft/42";
+      const f = await setup(current, [current + "?view=review", current]);
+      await expect(f.enter()).resolves.toEqual({ stage: "certified" });
+      expect(f.goToIndex).not.toHaveBeenCalled();
+      expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
