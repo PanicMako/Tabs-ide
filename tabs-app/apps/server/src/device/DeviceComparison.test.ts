@@ -1066,6 +1066,54 @@ describe("Agent-led device comparison", () => {
       }
     },
   );
+
+  it("returns source control while the extra post-tap read is pending", async () => {
+    const initial = frame("ios", ["Continue"]);
+    const review = frame("ios", [], ["Order review"]);
+    const f = fixture([initial, review], [frame("android", ["Continue"])]);
+    const { run } = await f.propose();
+    const runId = run!.runId;
+    await f.approveRecording(runId);
+    const { controls } = await f.record({ action: "inspect", runId });
+    const started = Deferred.makeUnsafe<void>();
+    const late = Deferred.makeUnsafe<SemanticSnapshot>();
+    f.press.mockImplementationOnce((host) => {
+      f.positions.set(host, 1);
+      f.snapshot
+        .mockReturnValueOnce(Effect.succeed(initial))
+        .mockReturnValueOnce(Effect.succeed(initial))
+        .mockReturnValueOnce(
+          Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(late))),
+        );
+    });
+
+    await f.record({ action: "tap", runId, controlId: controls![0]!.id });
+    try {
+      await Effect.runPromise(Deferred.await(started));
+      await f.invoke(
+        {
+          action: "takeover",
+          threadId,
+          runId,
+          liveInput: true,
+          device: iphone,
+        },
+        panelSession,
+      );
+      await f.settle();
+      const handoff = await f.invoke({ action: "status", threadId, device: iphone }, panelSession);
+      expect(handoff.manualControlId).toBeTypeOf("string");
+      expect(handoff.run).toMatchObject({
+        phase: "recording",
+        busy: false,
+        steps: [{ label: "Continue" }],
+      });
+      expect(handoff.controls).toBeUndefined();
+      expect(f.press).toHaveBeenCalledExactlyOnceWith(iphone.hostId, "@e1~s42");
+    } finally {
+      await Effect.runPromise(Deferred.succeed(late, review));
+    }
+  });
 });
 
 describe.skip("Device comparison", () => {
