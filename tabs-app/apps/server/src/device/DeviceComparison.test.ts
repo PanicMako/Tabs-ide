@@ -3142,6 +3142,39 @@ describe("Device comparison", () => {
     expect(f.press).not.toHaveBeenCalled();
     expect(f.manual).not.toHaveBeenCalled();
   });
+
+  it("records a delayed source tap result after two unchanged post-click snapshots", async () => {
+    const initial = frame("ios", ["Continue"]);
+    const f = fixture(
+      [initial, frame("ios", [], ["Order review"])],
+      [frame("android", ["Continue"])],
+    );
+    const runId = await f.begin();
+    f.press.mockImplementationOnce((host) => {
+      f.positions.set(host, 1);
+      const stale = Effect.succeed(initial);
+      f.snapshot.mockReturnValueOnce(stale).mockReturnValueOnce(stale);
+    });
+
+    const { controls } = await f.tap(runId, "Continue");
+    expect(controls).toMatchObject([{ label: "Order review" }]);
+    const marked = await f.invoke({
+      action: "expect",
+      threadId,
+      runId,
+      controlId: controls![0]!.id,
+    });
+    expect(marked.run?.steps).toEqual([{ label: "Continue", expected: "Order review" }]);
+    expect(f.press).toHaveBeenCalledExactlyOnceWith(iphone.hostId, "@e1~s42");
+
+    const pressOrder = f.press.mock.invocationCallOrder[0]!;
+    const reads = f.snapshot.mock.invocationCallOrder.filter((order) => order > pressOrder);
+    const captures = f.capture.mock.invocationCallOrder.filter((order) => order > pressOrder);
+    expect(reads).toHaveLength(4);
+    expect(captures).toHaveLength(2);
+    expect(captures[1]).toBeGreaterThan(reads[2]!);
+    expect(captures[1]).toBeLessThan(reads[3]!);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
