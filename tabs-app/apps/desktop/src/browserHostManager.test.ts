@@ -3681,6 +3681,50 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.loadURL).not.toHaveBeenCalled();
         expect(f.submit).not.toHaveBeenCalled();
       });
+
+      it("requires the saved target, exact HTTPS Partner Center URL and a unique visible Store ID", async () => {
+        const f = await setupStatus();
+        await f.grant();
+        for (const target of [
+          { ...f.input.target, projectId: "another-project" },
+          {
+            ...f.input.target,
+            tabId: PreviewTabId.make("agents-surface-another"),
+          },
+          { ...f.input.target, profileId: "another-profile" },
+          { ...f.input.target, hostKey: "another-host" },
+        ])
+          await expect(f.status({ target })).rejects.toThrow("original desktop browser tab");
+        for (const url of [
+          "http://partner.microsoft.com/submissions/42",
+          "https://partner.microsoft.com.evil.test/submissions/42",
+          "https://partner.microsoft.com:444/submissions/42",
+          "https://user@partner.microsoft.com/submissions/42",
+        ])
+          await expect(f.status({ definition: { ...f.input.definition, url } })).rejects.toThrow(
+            "exact HTTPS Partner Center URL",
+          );
+        await expect(
+          f.status({
+            definition: { ...f.input.definition, resourceId: "invalid id" },
+          }),
+        ).rejects.toThrow("Store submission ID");
+        await expect(
+          f.status({
+            definition: {
+              ...f.input.definition,
+              url: f.url + "&view=different",
+            },
+          }),
+        ).rejects.toThrow("Approve access");
+        expect(f.evaluate).not.toHaveBeenCalled();
+        f.visible.hideIdentity = true;
+        await expect(f.status()).rejects.toThrow("did not uniquely match");
+        f.visible.hideIdentity = false;
+        f.visible.duplicateIdentity = true;
+        await expect(f.status()).rejects.toThrow("did not uniquely match");
+        expect(f.pending()).toBeUndefined();
+      });
     });
 
     describe.skip("monitor", () => {
