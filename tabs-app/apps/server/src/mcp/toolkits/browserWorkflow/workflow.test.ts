@@ -1120,4 +1120,108 @@ test.each(["control", "breakpoint"] as const)(
   },
 );
 
+test("recovers a status-only watch and keeps exactly zero submit requests", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-watch-"));
+  try {
+    const requests: (typeof BrowserWorkflowBrowserRequest.Type)[] = [];
+    let monitorResult: BrowserWorkflowHostResult | Error | undefined;
+    const connect = () =>
+      makeBrowserWorkflows(directory, journalOwner, async (request, requestedTab) => {
+        requests.push(request);
+        if (request.phase !== "monitor") {
+          return {
+            ...status("uploaded"),
+            observation: {
+              stage: "uploaded",
+              statusText: journalDefinition.states.uploaded,
+              breakpoint: "matched",
+              submitAvailable: false,
+            },
+          };
+        }
+        if (requestedTab !== tabId) throw new Error("Unexpected tab");
+        if (monitorResult instanceof Error) throw monitorResult;
+        return monitorResult;
+      });
+    const journal = connect();
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+    await expect(journal.watch("0".repeat(64), "published")).rejects.toThrow(
+      "No saved browser workflow",
+    );
+    expect(requests).toEqual([]);
+    const initial = await journal.arm(armJournal);
+    const { workflowId } = initial;
+    expect(initial).toMatchObject({
+      phase: "paused",
+      breakpoint: { observedText: journalDefinition.breakpoint.pauseText },
+    });
+    requests.length = 0;
+
+    expect(await journal.watch(workflowId, "certified")).toMatchObject({
+      phase: "watching",
+      watchUntil: "certified",
+    });
+    expect(await journal.watch(workflowId, "published", true)).toMatchObject({
+      phase: "watching",
+      watchUntil: "published",
+      lastVerified: initial.lastVerified,
+    });
+    expect(requests).toEqual([]);
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([
+      { workflowId, threadId },
+    ]);
+
+    const restarted = connect();
+    monitorResult = status("submitted");
+    await restarted.pollWatch(workflowId);
+    expect(requests).toEqual([
+      {
+        phase: "monitor",
+        profileId: journalTarget.profileId,
+        definition: journalDefinition,
+        target: journalTarget,
+        workflowId,
+        statusOnly: true,
+        refresh: true,
+        lastVerifiedStage: "uploaded",
+      },
+    ]);
+    const submitted = await readJournal(directory, workflowId);
+    expect(JSON.parse(submitted)).toMatchObject({
+      evidence: { stage: "submitted" },
+      watch: { until: "published", refresh: true },
+    });
+    expect(JSON.parse(submitted)).not.toHaveProperty("breakpoint");
+
+    const published = status("published");
+    for (const invalid of [
+      new Error("Offline"),
+      undefined,
+      { ...published, disposition: "unobservable" },
+      { ...published, target: { ...journalTarget, hostKey: "other-host" } },
+      { ...published, observation: { ...published.observation!, statusText: "Wrong label" } },
+      status("uploaded"),
+    ] as const) {
+      monitorResult = invalid;
+      await restarted.pollWatch(workflowId);
+      expect(await readJournal(directory, workflowId)).toBe(submitted);
+    }
+
+    monitorResult = published;
+    await restarted.pollWatch(workflowId);
+    expect(requests.at(-1)?.lastVerifiedStage).toBe("submitted");
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+    expect(await restarted.watch(workflowId, "certified")).toMatchObject({
+      phase: "verified",
+      lastVerified: { stage: "published" },
+    });
+    const pollCount = requests.length;
+    await restarted.pollWatch(workflowId);
+    expect(requests).toHaveLength(pollCount);
+    expect(requests.every((request) => request.phase === "monitor")).toBe(true);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
