@@ -1690,6 +1690,74 @@ describe("Device comparison", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it.each(["explicit stop", "a newer run"] as const)(
+    "retires the active checkpoint after %s and preserves the old frozen evidence",
+    async (retirement) => {
+      const directory = await mkdtemp(join(tmpdir(), "tabs-replay-retirement-"));
+      try {
+        const store = makeDeviceComparisonStore(directory);
+        const ios = [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])];
+        const android = [frame("android", ["Back"])];
+        const f = fixture(ios, android, true, store);
+        const runId = await f.begin();
+        await f.tap(runId, "Continue");
+        await f.approve(runId);
+        await f.replay(runId);
+        await f.settle();
+        const reference = { threadId, runId };
+        const evidenceRequest = { ...reference, action: "evidence" } as const;
+        const frozen = await f.invoke(evidenceRequest, panelSession);
+        expect(frozen.evidence).toMatchObject({
+          sourcePng: expect.any(String),
+          targetPng: expect.any(String),
+        });
+        expect(await Effect.runPromise(store.loadReplay(threadId, runId))).toBeDefined();
+
+        if (retirement === "explicit stop") {
+          await f.invoke({ ...reference, action: "stop" }, panelSession);
+        } else {
+          f.reopenDestination();
+          expect(
+            await f.invoke({ action: "status", threadId, device: pixel }, panelSession),
+          ).toMatchObject({
+            canRestoreReplay: true,
+            run: { runId, phase: "stopped" },
+          });
+          const newerRunId = await f.begin();
+          await f.invoke({ threadId, runId: newerRunId, action: "stop" }, panelSession);
+          expect((await f.status()).run?.runId).toBe(newerRunId);
+        }
+
+        const reopenedStore = makeDeviceComparisonStore(directory);
+        const restarted = fixture(ios, android, true, reopenedStore);
+        expect(await Effect.runPromise(reopenedStore.loadReplay(threadId, runId))).toBeUndefined();
+        const report = await restarted.invoke(evidenceRequest, panelSession);
+        expect(report.run).toMatchObject({
+          runId,
+          phase: "stopped",
+          firstDifference: frozen.run?.firstDifference,
+        });
+        expect(report.evidence).toEqual(frozen.evidence);
+        expect(report.canRestoreReplay).toBeUndefined();
+        await expect(
+          restarted.invoke(
+            {
+              ...reference,
+              action: "restoreReplay",
+              device: pixel,
+              appId: androidApp,
+            },
+            panelSession,
+          ),
+        ).rejects.toThrow("checkpoint is no longer available");
+        expect(restarted.snapshot).not.toHaveBeenCalled();
+        expect(restarted.press).not.toHaveBeenCalled();
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
