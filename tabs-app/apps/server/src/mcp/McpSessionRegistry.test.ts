@@ -138,6 +138,43 @@ it.effect("expires credentials once their session stops showing signs of life", 
   }),
 );
 
+it.effect("checks device dispatch against the exact live provider session", () =>
+  Effect.gen(function* () {
+    let timestamp = 1_000;
+    const registry = yield* makeRegistry(() => timestamp);
+    const threadId = ThreadId.make("thread-device");
+    const providerInstanceId = ProviderInstanceId.make("codex");
+    const grant = yield* registry.issue({
+      threadId,
+      providerInstanceId,
+      capabilities: new Set(["device"]),
+    });
+    expect(registry.hasDeviceSession(grant.config)).toBe(true);
+    expect(
+      registry.hasDeviceSession({
+        ...grant.config,
+        providerInstanceId: ProviderInstanceId.make("other"),
+      }),
+    ).toBe(false);
+    yield* registry.revokeProviderSession(grant.config.providerSessionId);
+    const withoutDevice = yield* registry.issue({
+      threadId,
+      providerInstanceId,
+      capabilities: new Set(),
+    });
+    expect(registry.hasDeviceSession(grant.config)).toBe(false);
+    expect(registry.hasDeviceSession(withoutDevice.config)).toBe(false);
+    const renewed = yield* registry.issue({
+      threadId,
+      providerInstanceId,
+      capabilities: new Set(["device"]),
+    });
+    expect(registry.hasDeviceSession(renewed.config)).toBe(true);
+    timestamp += 101;
+    expect(registry.hasDeviceSession(renewed.config)).toBe(false);
+  }),
+);
+
 it.effect("keeps a credential alive across turns that never touch an MCP tool", () =>
   Effect.gen(function* () {
     let timestamp = 1_000;

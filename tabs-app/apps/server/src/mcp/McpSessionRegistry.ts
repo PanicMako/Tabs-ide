@@ -99,6 +99,8 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
   const environmentId = yield* environment.getEnvironmentId;
   const httpServer = yield* Effect.serviceOption(HttpServer.HttpServer);
   const state = yield* SynchronizedRef.make<RegistryState>({ records: new Map() });
+  const clock = yield* Clock.Clock;
+  const now = options.now ?? (() => clock.currentTimeMillisUnsafe());
   const currentTimeMillis = options.now ? Effect.sync(options.now) : Clock.currentTimeMillis;
   const livenessWindowMs = options.livenessWindowMs ?? DEFAULT_LIVENESS_WINDOW_MS;
   const endpoint =
@@ -205,23 +207,48 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
       records: new Map(Array.from(records).filter(([, record]) => !predicate(record))),
     }));
 
-  return McpSessionRegistry.of({
-    issue,
-    resolve,
-    touch,
-    revokeProviderSession: Effect.fn("McpSessionRegistry.revokeProviderSession")(
-      function* (providerSessionId) {
-        yield* revokeWhere((record) => record.scope.thread.providerSessionId === providerSessionId);
-      },
-    ),
-    revokeThread: Effect.fn("McpSessionRegistry.revokeThread")(function* (threadId) {
-      yield* revokeWhere((record) => record.scope.thread.threadId === threadId);
+  const hasThreadSession = (
+    caller: McpInvocationContext.McpThreadCaller,
+    capability: McpInvocationContext.McpCapability,
+  ) => {
+    const timestamp = now();
+    const { records } = SynchronizedRef.getUnsafe(state);
+    for (const { scope, lastAliveAt } of records.values()) {
+      if (
+        timestamp - lastAliveAt <= livenessWindowMs &&
+        scope.capabilities.has(capability) &&
+        scope.thread.threadId === caller.threadId &&
+        scope.thread.providerSessionId === caller.providerSessionId &&
+        scope.thread.providerInstanceId === caller.providerInstanceId
+      )
+        return true;
+    }
+    return false;
+  };
+  return {
+    ...McpSessionRegistry.of({
+      issue,
+      resolve,
+      touch,
+      revokeProviderSession: Effect.fn("McpSessionRegistry.revokeProviderSession")(
+        function* (providerSessionId) {
+          yield* revokeWhere(
+            (record) => record.scope.thread.providerSessionId === providerSessionId,
+          );
+        },
+      ),
+      revokeThread: Effect.fn("McpSessionRegistry.revokeThread")(function* (threadId) {
+        yield* revokeWhere((record) => record.scope.thread.threadId === threadId);
+      }),
+      revokeAll: SynchronizedRef.set(state, { records: new Map() }),
     }),
-    revokeAll: SynchronizedRef.set(state, { records: new Map() }),
-  });
+    hasThreadSession,
+    hasDeviceSession: (caller: McpInvocationContext.McpThreadCaller) =>
+      hasThreadSession(caller, "device"),
+  };
 });
 
-let activeMcpSessionRegistry: McpSessionRegistryShape | undefined;
+let activeMcpSessionRegistry: Effect.Success<ReturnType<typeof makeWithOptions>> | undefined;
 
 const make = Effect.acquireRelease(
   makeWithOptions().pipe(
@@ -261,6 +288,15 @@ export const resolveActiveMcpCredential = (
   token: string,
 ): Effect.Effect<McpInvocationContext.McpThreadInvocationScope | undefined> =>
   activeMcpSessionRegistry ? activeMcpSessionRegistry.resolve(token) : Effect.succeed(undefined);
+
+export const hasActiveMcpDeviceSession = (caller: McpInvocationContext.McpThreadCaller) =>
+  activeMcpSessionRegistry?.hasDeviceSession(caller) ?? false;
+
+export const hasActiveMcpThreadSession = (caller: McpInvocationContext.McpThreadCaller) =>
+  activeMcpSessionRegistry?.hasThreadSession(caller, "orchestration") ?? false;
+
+export const hasActiveMcpPreviewSession = (caller: McpInvocationContext.McpThreadCaller) =>
+  activeMcpSessionRegistry?.hasThreadSession(caller, "preview") ?? false;
 
 export const revokeActiveMcpThread = (threadId: ThreadId): Effect.Effect<void> =>
   activeMcpSessionRegistry ? activeMcpSessionRegistry.revokeThread(threadId) : Effect.void;
