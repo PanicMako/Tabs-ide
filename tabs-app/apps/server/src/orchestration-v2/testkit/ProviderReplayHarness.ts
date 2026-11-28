@@ -16,6 +16,7 @@ import * as ServerConfig from "../../config.ts";
 import * as SqlitePersistence from "../../persistence/Sqlite.ts";
 import * as ServerSettings from "../../serverSettings.ts";
 import * as ThreadManagementService from "../ThreadManagementService.ts";
+import type { McpSessionRegistry } from "../../mcp/McpSessionRegistry.ts";
 import * as McpSessionRegistryTestkit from "../../mcp/McpSessionRegistry.testkit.ts";
 import * as VcsDriverRegistry from "../../vcs/VcsDriverRegistry.ts";
 import * as VcsProcess from "../../vcs/VcsProcess.ts";
@@ -260,15 +261,22 @@ export function layerWithRegistry<Error>(
     // as server startup does after a crash or restart.
     readonly recoverOnStartup?: boolean;
     readonly continueThreadsAfterServerUpdate?: boolean;
+    readonly serverConfigLayer?: Layer.Layer<ServerConfig.ServerConfig>;
+    readonly mcp?: {
+      readonly registry: Layer.Layer<McpSessionRegistry>;
+      readonly enableAgentDeviceAccess?: boolean;
+    };
   } = {},
 ): Layer.Layer<
   Orchestrator.OrchestratorV2 | EffectWorker.OrchestrationEffectWorkerV2 | EventSink.EventSinkV2,
   Error | MigrationError | PlatformError.PlatformError | SqlError
 > {
-  const layerServerConfig = Layer.effect(
-    ServerConfig.ServerConfig,
-    makeReplayServerConfig(scenario.name).pipe(Effect.orDie),
-  ).pipe(Layer.provide(NodeServices.layer));
+  const layerServerConfig =
+    options.serverConfigLayer ??
+    Layer.effect(
+      ServerConfig.ServerConfig,
+      makeReplayServerConfig(scenario.name).pipe(Effect.orDie),
+    ).pipe(Layer.provide(NodeServices.layer));
   const layerRuntime =
     scenario.runtimePolicyOverride === undefined
       ? RuntimePolicy.layer
@@ -283,6 +291,12 @@ export function layerWithRegistry<Error>(
   const layerProvidedRegistry = registryLayer.pipe(Layer.provide(layerContinuationRequests));
   const layerServerSettings = ServerSettings.layerTest({
     responseStreamingMode: "turn",
+    ...(options.mcp === undefined
+      ? {}
+      : {
+          enableAgentBrowserAccess: true,
+          enableAgentDeviceAccess: options.mcp.enableAgentDeviceAccess ?? false,
+        }),
     ...(options.continueThreadsAfterServerUpdate === undefined
       ? {}
       : { continueThreadsAfterServerUpdate: options.continueThreadsAfterServerUpdate }),
@@ -334,16 +348,17 @@ export function layerWithRegistry<Error>(
     layerProviderEventIngestorProvided,
   );
   const layerProviderSessionManagerProvided = ProviderSessionManager.layerWithOptions({
-    configureMcp: false,
+    configureMcp: options.mcp !== undefined,
   }).pipe(
     Layer.provide(
       Layer.mergeAll(
         layerProvidedRegistry,
         layerEventSinkProvided,
         IdAllocator.layer,
-        McpSessionRegistryTestkit.layer,
+        options.mcp?.registry ?? McpSessionRegistryTestkit.layer,
         layerProviderEventIngestorProvided,
         layerStores,
+        ...(options.mcp === undefined ? [] : [layerServerSettings]),
       ),
     ),
   );
