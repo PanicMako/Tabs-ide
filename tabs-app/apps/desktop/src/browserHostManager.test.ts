@@ -8896,6 +8896,143 @@ describe("reliable browser tabs and agent control", () => {
         ]);
       },
     );
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "checks the PNG bytes of a single Work draft before saving and after reopening",
+      { timeout: 20_000 },
+      async () => {
+        const { chromium } = await import("playwright");
+        const fixtureUrl = new URL("../../server/scripts/fixtures/deviceDraft.ts", import.meta.url);
+        const {
+          startDeviceDraftApp,
+        }: {
+          startDeviceDraftApp: () => Promise<{
+            origin: string;
+            trialCounts: () => {
+              draftSaves: { Work: number; Personal: number };
+            };
+            close: () => Promise<void>;
+          }>;
+        } = await import(fixtureUrl.href);
+        const site = await startDeviceDraftApp();
+        onTestFinished(() => site.close());
+        const browser = await chromium.launch();
+        onTestFinished(() => browser.close());
+        const work = await browser.newContext();
+        const personal = await browser.newContext();
+        const page = await work.newPage();
+        await page.setContent('<body style="background: purple">');
+        const substitute = await page.screenshot({
+          clip: { x: 0, y: 0, width: 16, height: 16 },
+        });
+        const simulator = process.env.TABS_QA_SIMULATOR_UDID;
+        let png: Buffer;
+        if (simulator) {
+          const { execFile } = await import("node:child_process");
+          const { promisify } = await import("node:util");
+          const directory = await mkdtemp(join(tmpdir(), "tabs-verified-live-png-"));
+          onTestFinished(() => rm(directory, { recursive: true, force: true }));
+          const image = join(directory, "screen.png");
+          await promisify(execFile)("xcrun", ["simctl", "io", simulator, "screenshot", image], {
+            timeout: 15_000,
+          });
+          png = await readFile(image);
+        } else {
+          await page.setContent('<body style="background: orange">');
+          png = await page.screenshot({
+            clip: { x: 0, y: 0, width: 16, height: 16 },
+          });
+        }
+        await page.goto(`${site.origin}/Work`);
+        const sourceUrl = page.url();
+        const started = performance.now();
+        const f = await setup(sourceUrl, sourceUrl, false, {
+          sourcePng: png.toString("base64"),
+          page,
+        });
+        await page.getByRole("button", { name: "Save draft" }).click();
+        await page.waitForURL("**/draft/*");
+        const draftUrl = page.url();
+        const asset = `${draftUrl}/evidence/${f.digest}`;
+        const reload = async () => {
+          await page.reload();
+          f.showDraft(draftUrl);
+          return f.observe();
+        };
+        await work.route(asset, (route) =>
+          route.fulfill({ contentType: "image/png", body: substitute }),
+        );
+        await expect(reload()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+        await page.reload();
+        await page
+          .locator('meta[name="tabs-screenshot-receipts"]')
+          .evaluate((meta) => meta.remove());
+        f.showDraft(draftUrl);
+        await expect(f.observe()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+        await expect(f.enter(f.manager)).resolves.toBeNull();
+
+        await work.unroute(asset);
+        await expect(reload()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+        await expect(reload()).resolves.toHaveProperty("verifiedScreenshotDraft", {
+          sha256: f.digest,
+          receiptKind: "image",
+        });
+        await expect(
+          f.manager.runAutomation({
+            ...f.target,
+            taskId: "different-thread",
+            source: "agent",
+            operation: "snapshot",
+          }),
+        ).rejects.toThrow();
+        const bookmark = JSON.parse(await readFile(f.file, "utf8"));
+        expect(bookmark).toMatchObject({
+          url: draftUrl,
+          verifyScreenshotImages: true,
+        });
+        const reopenedHost = new BrowserHostManager(() => null);
+        const restored = await work.newPage();
+        const tab = f.tab(reopenedHost);
+        await connectChromiumPage(restored, tab);
+        tab.loadURL.mockImplementation(async (destination) => {
+          await restored.goto(destination);
+          tab.events.emit("did-navigate", {}, restored.url());
+        });
+        await work.route(asset, (route) =>
+          route.fulfill({ contentType: "image/png", body: substitute }),
+        );
+        await expect(reload()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+        await expect(f.enter(reopenedHost)).rejects.toThrow("approved screenshot receipt");
+        // Older bookmarks still honor the receipt mode advertised by the current draft.
+        delete bookmark.verifyScreenshotImages;
+        await writeFile(f.file, JSON.stringify(bookmark));
+        await expect(f.enter(reopenedHost)).rejects.toThrow("approved screenshot receipt");
+        await work.unroute(asset);
+        await restored.reload();
+        await expect(f.enter(reopenedHost)).resolves.toMatchObject({
+          url: draftUrl,
+        });
+        await unlink(f.file);
+        await expect(reload()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+
+        const personalTab = await personal.newPage();
+        await personalTab.goto(`${site.origin}/Personal`);
+        expect((await personal.request.get(draftUrl)).status()).toBe(404);
+        expect((await personal.request.get(asset)).status()).toBe(404);
+        expect(site.trialCounts().draftSaves).toEqual({ Work: 1, Personal: 0 });
+        if (simulator) {
+          process.stdout.write(
+            JSON.stringify({
+              workflow: "single-simulator-png-reopen",
+              bytes: png.length,
+              sha256: f.digest,
+              elapsedMs: Math.round(performance.now() - started),
+              draftSaves: site.trialCounts().draftSaves,
+            }) + "\n",
+          );
+        }
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
