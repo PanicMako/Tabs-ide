@@ -3894,6 +3894,32 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.evaluate).not.toHaveBeenCalled();
         expect(f.loadURL).not.toHaveBeenCalled();
       });
+
+      it("requires a live grant and discards status if the user revokes while it is being read", async () => {
+        const f = await setup();
+        await expect(f.monitor({ refresh: true })).rejects.toThrow("Approve access");
+        expect(f.evaluate).not.toHaveBeenCalled();
+        await f.authorize();
+        f.evaluate.mockImplementationOnce(async () => {
+          await f.manager.runAutomation({
+            ...f.request,
+            operation: "revokeBrowserPage",
+          });
+          return {
+            disposition: "observed",
+            observation: {
+              stage: "certified",
+              statusText: "Certified",
+              breakpoint: "irrelevant",
+              submitAvailable: false,
+            },
+          };
+        });
+        await expect(f.monitor({ refresh: true })).rejects.toThrow("Approve access");
+        await expect(f.monitor()).rejects.toThrow("Approve access");
+        expect(f.evaluate).toHaveBeenCalledOnce();
+        expect(f.loadURL).not.toHaveBeenCalled();
+      });
     });
   });
 
