@@ -2356,6 +2356,77 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.sendInputEvent).not.toHaveBeenCalled();
       expect(f.page.url()).toBe(url);
     });
+
+    it("validates findText and refuses to read a protected or out-of-scope page", async () => {
+      const f = await setup(
+        `<p>${resourceId}</p><button id="print-receipt">Print receipt</button>`,
+      );
+      const input = { findText: [resourceId] };
+      await expect(f.snapshot(input)).rejects.toThrow("Approve");
+      expect(f.evaluate).not.toHaveBeenCalled();
+      await f.authorize();
+      const plain = await f.snapshot();
+      expect(f.evaluate).toHaveBeenCalledWith(
+        999,
+        [{ code: expect.stringContaining("visibleText:") }],
+        true,
+      );
+      expect(plain).not.toHaveProperty("textMatches");
+      expect(plain.interactiveElements).toMatchObject([{ selector: "#print-receipt" }]);
+      const maxLengthText = "x".repeat(300);
+      const { textMatches } = await f.snapshot({ findText: [maxLengthText] });
+      expect(textMatches).toEqual([{ text: maxLengthText, status: "not_found" }]);
+      f.evaluate.mockClear();
+      f.capturePage.mockClear();
+
+      for (const findText of [
+        [],
+        ["", resourceId],
+        [" padded "],
+        ["x".repeat(301)],
+        [42],
+        Array(5).fill(resourceId),
+      ]) {
+        await expect(f.snapshot({ findText })).rejects.toThrow();
+      }
+      expect(f.evaluate).not.toHaveBeenCalled();
+      expect(f.capturePage).not.toHaveBeenCalled();
+
+      await f.page.locator("body").evaluate((body) => {
+        body.insertAdjacentHTML("beforeend", '<input type="password">');
+      });
+      await expect(f.snapshot(input)).rejects.toThrow(/protected/i);
+      expect(f.capturePage).not.toHaveBeenCalled();
+
+      const password = f.page.locator('input[type="password"]');
+      await password.evaluate((element) => element.remove());
+      const evaluate = f.evaluate.getMockImplementation()!;
+      let evaluatedDuringProtectedInput = false;
+      f.evaluate.mockImplementation(async (world, scripts) => {
+        if (!scripts[0]?.code.includes("textMatches:")) return evaluate(world, scripts);
+        await f.page.locator("body").evaluate((body) => {
+          body.insertAdjacentHTML("beforeend", '<input type="password">');
+        });
+        try {
+          evaluatedDuringProtectedInput = true;
+          return await evaluate(world, scripts);
+        } finally {
+          await password.evaluate((element) => element.remove());
+        }
+      });
+      await expect(f.snapshot(input)).rejects.toThrow(/protected/i);
+      expect(evaluatedDuringProtectedInput).toBe(true);
+      expect(await password.count()).toBe(0);
+      expect(f.capturePage).not.toHaveBeenCalled();
+
+      const otherResource = url.replace("/receipt-42/", "/receipt-43/");
+      await f.page.goto(otherResource);
+      f.events.emit("did-navigate", {}, otherResource);
+      f.evaluate.mockClear();
+      await expect(f.snapshot(input)).rejects.toThrow("Approve");
+      expect(f.evaluate).not.toHaveBeenCalled();
+      expect(f.capturePage).not.toHaveBeenCalled();
+    });
   });
 
   describe.skip("saved browser attachments", () => {
