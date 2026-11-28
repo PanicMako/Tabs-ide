@@ -1224,4 +1224,65 @@ test("recovers a status-only watch and keeps exactly zero submit requests", asyn
   }
 });
 
+test("isolates watches by owner and stops polling after cancellation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-watch-"));
+  const started = Promise.withResolvers<void>();
+  const observation = Promise.withResolvers<BrowserWorkflowHostResult>();
+  try {
+    const requests: (typeof BrowserWorkflowBrowserRequest.Type)[] = [];
+    const browser = async (request: typeof BrowserWorkflowBrowserRequest.Type) => {
+      requests.push(request);
+      if (request.phase !== "monitor") return status("uploaded");
+      started.resolve();
+      return observation.promise;
+    };
+    const journal = makeBrowserWorkflows(directory, journalOwner, browser);
+    const { workflowId } = await journal.arm(armJournal);
+    await journal.watch(workflowId, "published");
+
+    const otherThreadId = ThreadId.make("other-thread");
+    const otherEnvironmentId = EnvironmentId.make("other-environment");
+    const wrongThread = makeBrowserWorkflows(
+      directory,
+      { environmentId, threadId: otherThreadId },
+      browser,
+    );
+    const otherEnvironment = makeBrowserWorkflows(
+      directory,
+      { environmentId: otherEnvironmentId, threadId: otherThreadId },
+      browser,
+    );
+    const { workflowId: otherId } = await otherEnvironment.arm(armJournal);
+    await otherEnvironment.watch(otherId, "certified");
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([
+      { workflowId, threadId },
+    ]);
+    expect(await listBrowserWorkflowWatches(directory, otherEnvironmentId)).toEqual([
+      { workflowId: otherId, threadId: otherThreadId },
+    ]);
+    requests.length = 0;
+    for (const foreign of [wrongThread, otherEnvironment]) {
+      await expect(foreign.watch(workflowId, "submitted")).rejects.toThrow("original thread");
+      await expect(foreign.unwatch(workflowId)).rejects.toThrow("original thread");
+      await expect(foreign.pollWatch(workflowId)).rejects.toThrow("original thread");
+    }
+    expect(requests).toEqual([]);
+
+    const polling = journal.pollWatch(workflowId);
+    await started.promise;
+    const stopping = journal.unwatch(workflowId);
+    observation.resolve(status("submitted"));
+    await polling;
+    expect(await stopping).toMatchObject({
+      phase: "watch_stopped",
+      lastVerified: { stage: "submitted" },
+    });
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+    await makeBrowserWorkflows(directory, journalOwner, browser).pollWatch(workflowId);
+    expect(requests).toEqual([expect.objectContaining({ phase: "monitor", refresh: false })]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
