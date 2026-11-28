@@ -4559,6 +4559,180 @@ describe("reliable browser tabs and agent control", () => {
         }
       },
     );
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1").each([
+      {
+        fault: "beforeHeaders",
+        manual: false,
+        toolbar: false,
+        action: "submit",
+      },
+      {
+        fault: "afterHeaders",
+        manual: false,
+        toolbar: false,
+        action: "submit",
+      },
+      {
+        fault: "beforeHeaders",
+        manual: true,
+        toolbar: false,
+        action: "submit",
+      },
+      { fault: "afterHeaders", manual: false, toolbar: true, action: "submit" },
+      { fault: "afterHeaders", manual: false, toolbar: true, action: "upload" },
+      {
+        fault: "afterHeaders",
+        manual: false,
+        toolbar: true,
+        action: "upload",
+        direct: true,
+      },
+    ] as const)(
+      "recovers a committed $action after its HTTP response fails ($fault, manual=$manual, toolbar=$toolbar, case %#) without another POST",
+      async (scenario) => {
+        const { fault, manual, toolbar, action } = scenario;
+        const direct = "direct" in scenario;
+        const { chromium } = await import("playwright");
+        const fixtureModule = new URL(
+          "../../server/scripts/fixtures/browserSubmission.ts",
+          import.meta.url,
+        );
+        const {
+          startBrowserSubmission,
+        }: {
+          startBrowserSubmission: (
+            port: number,
+            staged: boolean,
+            options: {
+              dropSubmitReply?: "beforeHeaders" | "afterHeaders";
+              dropUploadReply?: boolean;
+              uploadOnSelect?: boolean;
+              closeConnections: boolean;
+            },
+          ) => Promise<{
+            origin: string;
+            definition: BrowserWorkflowDefinition;
+            trialCounts: () => {
+              submitRequests: { Work: number; Personal: number };
+              uploads: { Work: number; Personal: number };
+              droppedUploadReplies?: number;
+            };
+            close: () => Promise<void>;
+          }>;
+        } = await import(fixtureModule.href);
+        const uploading = action === "upload";
+        const site = await startBrowserSubmission(0, uploading && !direct, {
+          ...(uploading ? { dropUploadReply: true } : { dropSubmitReply: fault }),
+          uploadOnSelect: direct,
+          closeConnections: fault === "beforeHeaders",
+        });
+        onTestFinished(() => site.close());
+        const browser = await chromium.launch();
+        onTestFinished(() => browser.close());
+        const page = await browser.newPage();
+        await page.goto(site.origin + "/Work");
+        const failed = page.waitForEvent("requestfailed", (request) => request.method() === "POST");
+        if (uploading) {
+          await page.getByLabel("Build package").setInputFiles({
+            name: "recovery-fixture.appx",
+            mimeType: "application/octet-stream",
+            buffer: Buffer.from("disposable upload"),
+          });
+        }
+        if (!direct) await page.locator(uploading ? "#upload-build" : "#submit-build").click();
+        const failedRequest = await failed;
+        if (fault === "beforeHeaders") {
+          await page.waitForURL("chrome-error://chromewebdata/", {
+            waitUntil: "commit",
+          });
+        }
+        const writes = () => ({
+          uploads: site.trialCounts().uploads,
+          submits: site.trialCounts().submitRequests,
+        });
+        const expectedWrites = {
+          uploads: { Work: uploading ? 1 : 0, Personal: 0 },
+          submits: { Work: uploading ? 0 : 1, Personal: 0 },
+        };
+        expect(writes()).toEqual(expectedWrites);
+        if (uploading) expect(site.trialCounts().droppedUploadReplies).toBe(1);
+
+        const f = await setup(undefined, undefined, toolbar ? "custom-private-qa" : undefined);
+        if (!direct)
+          f.events.emit(
+            "did-fail-load",
+            {},
+            -324,
+            failedRequest.failure()?.errorText ?? "HTTP response failed",
+            failedRequest.url(),
+            true,
+          );
+        const cdp = await page.context().newCDPSession(page);
+        const loadURL = vi.fn(async (url: string) => {
+          await page.goto(url);
+        });
+        Object.assign(f.webContents, {
+          getURL: () => page.url(),
+          loadURL,
+          executeJavaScriptInIsolatedWorld: async (
+            _world: number,
+            [script]: { code: string }[],
+          ) => {
+            const { frameTree } = await cdp.send("Page.getFrameTree");
+            const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+              frameId: frameTree.frame.id,
+              worldName: "submission-receipt",
+            });
+            const result = await cdp.send("Runtime.evaluate", {
+              expression: script!.code,
+              contextId: executionContextId,
+              returnByValue: true,
+            });
+            if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+            return result.result.value;
+          },
+        });
+        const readReceipt = () =>
+          f.manager.runAutomation({
+            ...f.request,
+            operation: "readWorkflowReceipt",
+            input: {
+              ...f.saved,
+              definition: site.definition,
+              stage: uploading ? "ready_to_upload" : "uploaded",
+              ...(manual ? { submitRequiresUser: true } : { pendingAction: action }),
+            },
+          });
+        if (direct) {
+          await expect(readReceipt()).resolves.toEqual({
+            target: f.saved.target,
+            stage: "ready_to_upload",
+            statusText: "Ready to upload",
+            identityText: site.definition.resourceId,
+            observedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+          });
+          expect(loadURL).not.toHaveBeenCalled();
+          // The user's reload reads the draft without resending the page's fetch POST.
+          await page.reload();
+        }
+        await expect(readReceipt()).resolves.toEqual({
+          target: f.saved.target,
+          stage: uploading ? "uploaded" : "submitted",
+          statusText: uploading
+            ? site.definition.states.uploaded
+            : site.definition.states.submitted,
+          identityText: site.definition.resourceId,
+          observedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+        });
+        if (direct) expect(loadURL).not.toHaveBeenCalled();
+        else
+          expect(loadURL).toHaveBeenCalledExactlyOnceWith(site.definition.url, {
+            extraHeaders: "Cache-Control: no-cache\n",
+          });
+        expect(writes()).toEqual(expectedWrites);
+      },
+    );
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
