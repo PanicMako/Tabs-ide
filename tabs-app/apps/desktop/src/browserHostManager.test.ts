@@ -7692,6 +7692,21 @@ describe("reliable browser tabs and agent control", () => {
       expect(tab.events.listenerCount("will-redirect")).toBe(1);
       expect(tab.events.listenerCount("login")).toBe(0);
     });
+
+    it.each([
+      "https://app.test/login",
+      "https://app.test/%6cogin",
+      "https://app.test/reports?__session=private",
+      "https://app.test/reports?access%5Ftoken=private",
+      "https://app.test/reports?X-Amz-Signature=private",
+      "https://app.test/reports#/finish?client_secret=private",
+      "https://app.test/reports#eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI",
+    ])("declines to persist a protected or secret-bearing URL %s", async (url) => {
+      const f = await setup(url);
+      await expect(f.capture()).resolves.toEqual({ attachmentId: null });
+      expect(f.evaluate).not.toHaveBeenCalled();
+      await expect(readdir(f.userData)).resolves.toEqual([]);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
