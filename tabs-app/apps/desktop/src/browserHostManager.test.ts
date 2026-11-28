@@ -9318,6 +9318,36 @@ describe("reliable browser tabs and agent control", () => {
         ).toBe(false);
       },
     );
+
+    it("rejects a forged reference, foreign scope, or replacement in the current manager", async () => {
+      const f = await setup();
+      await f.verify();
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted);
+      await expect(
+        f.enter(restarted, {
+          input: { ...f.input, grantId: crypto.randomUUID() },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        f.enter(restarted, { input: { ...f.input, pageRef: "a".repeat(64) } }),
+      ).rejects.toThrow("original attachment");
+      await expect(f.enter(restarted, { source: "agent" })).rejects.toThrow(
+        "tab, profile and thread",
+      );
+      await expect(f.enter(restarted, { taskId: "other-thread" })).rejects.toThrow(
+        "original desktop browser tab",
+      );
+      const personal = f.tab(restarted, { profileId: "personal" });
+      await expect(
+        f.enter(restarted, { input: { ...f.input, profileId: "personal" } }),
+      ).rejects.toThrow("original desktop browser tab");
+      const replacement = f.tab(f.manager);
+      await expect(f.enter(f.manager)).rejects.toThrow("original desktop browser tab");
+      expect(tab.loadURL).not.toHaveBeenCalled();
+      expect(personal.loadURL).not.toHaveBeenCalled();
+      expect(replacement.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
