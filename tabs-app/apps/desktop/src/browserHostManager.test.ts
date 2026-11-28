@@ -6682,6 +6682,27 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("rejects a direct screenshot attach without a device authorization callback", async () => {
+    const f = createUploadFixture();
+    const { grantId } = await f.authorize();
+    await expect(
+      f.manager.runAutomation({
+        ...f.target,
+        operation: "deviceScreenshotUpload",
+        source: "agent",
+        input: {
+          phase: "attach",
+          grantId,
+          hostId: "build-mac",
+          deviceId: "same-id",
+          selector: "#file",
+          png: "AAAA",
+        },
+      }),
+    ).rejects.toThrow("current device authorization");
+    expect(f.attach).not.toHaveBeenCalled();
+  });
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
