@@ -5745,6 +5745,219 @@ describe("reliable browser tabs and agent control", () => {
     expect(evaluate).toHaveBeenCalledTimes(6);
   });
 
+  it("keeps the original agent pause when outcome repair picks a preexisting file and verifies the new file on resume", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const { session, webContents } = createMockSession({
+      bounds: { x: 0, y: 0, width: 640, height: 480 },
+    });
+    const fileReceipt = {
+      filename: "qa-December.csv",
+      byteLength: 14,
+      sha256: "a".repeat(64),
+    };
+    const archiveReceipt = { ...fileReceipt, sha256: "b".repeat(64) };
+    const evaluate = vi
+      .fn()
+      .mockResolvedValueOnce("missing")
+      .mockResolvedValueOnce([archiveReceipt])
+      .mockResolvedValueOnce("ok")
+      .mockResolvedValueOnce("changed")
+      .mockResolvedValueOnce({ selector: "#archive" })
+      .mockResolvedValueOnce(archiveReceipt)
+      .mockResolvedValueOnce({ selector: "#new-receipt" })
+      .mockResolvedValueOnce(fileReceipt)
+      .mockResolvedValueOnce(fileReceipt);
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      executeJavaScriptInIsolatedWorld: evaluate,
+    });
+    const internals = manager as unknown as {
+      sessions: Map<string, unknown>;
+      activeKey: string;
+    };
+    internals.sessions.set(session.key, session);
+    internals.activeKey = session.key;
+    const target = {
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+      taskId: "qa",
+    };
+    const action = {
+      id: crypto.randomUUID(),
+      label: "Save report",
+      origin: "https://example.com",
+      steps: [{ action: "fill", selector: "#month", parameter: "month" }],
+      outcome: {
+        selector: "#receipt",
+        description: "Report saved",
+        filenamePattern: "qa-{month}.csv",
+      },
+    };
+    const list = async (action: unknown) =>
+      (await manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "listQuickActionTargets",
+        input: { action },
+      })) as [
+        {
+          token: string;
+          pausedAt?: number;
+          pauseOwner?: { pauseId: string; taskId: string };
+        },
+      ];
+    const [initialTab] = await list(action);
+    const { id: firstApproval } = (await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeQuickAction",
+      input: { action, token: initialTab.token, values: { month: "December" } },
+    })) as { id: string };
+    const paused = await manager.runAutomation({
+      ...target,
+      source: "agent",
+      operation: "runQuickAction",
+      input: { actionId: action.id, approvalId: firstApproval },
+    });
+    const [pausedTab] = await list(action);
+    expect(pausedTab.pausedAt).toBe(1);
+    const pauseId = pausedTab.pauseOwner?.pauseId;
+    expect(pauseId).toEqual(expect.any(String));
+    expect(pausedTab.pauseOwner).toEqual({ pauseId, taskId: "qa" });
+    expect(paused).toMatchObject({
+      status: "paused",
+      completedSteps: 1,
+      resumeRequest: {
+        actionId: action.id,
+        pause: { pauseId, tabId: session.sessionId, profileId: "default" },
+      },
+    });
+    expect(paused).not.toHaveProperty("fileBaseline");
+    const openPause = {
+      ...target,
+      source: "human",
+      operation: "enterQuickActionPause",
+      input: { actionId: action.id, pauseId },
+    } as const;
+    await expect(manager.runAutomation({ ...openPause, taskId: "other" })).rejects.toThrow("pause");
+    const approvedPartition = session.partition;
+    session.partition = "persist:tabs-browser:profile:personal";
+    await expect(manager.runAutomation(openPause)).rejects.toThrow("pause has changed");
+    session.partition = approvedPartition;
+    await expect(manager.runAutomation(openPause)).resolves.toEqual({
+      url: session.currentUrl,
+    });
+    await expect(
+      manager.runAutomation({
+        ...target,
+        source: "human",
+        taskId: "other",
+        operation: "authorizeQuickAction",
+        input: { action, token: pausedTab.token, resume: true },
+      }),
+    ).rejects.toThrow("available to this conversation");
+    expect(evaluate).toHaveBeenCalledTimes(4);
+    const repair = {
+      ...target,
+      source: "human",
+      operation: "repairQuickAction",
+      input: { action, token: pausedTab.token, pauseId },
+    } as const;
+    await expect(manager.runAutomation(repair)).rejects.toThrow("before this run");
+    const [unchangedPause] = await list(action);
+    expect(unchangedPause).toMatchObject({
+      pausedAt: 1,
+      pauseOwner: { pauseId, taskId: "qa" },
+    });
+    const repairResult = (await manager.runAutomation({
+      ...repair,
+      input: { ...repair.input, token: unchangedPause.token },
+    })) as { action: unknown; pendingFileVerification: boolean };
+    expect(repairResult).toMatchObject({
+      action: {
+        outcome: {
+          selector: "#new-receipt",
+          filenamePattern: "qa-{month}.csv",
+        },
+      },
+      pendingFileVerification: false,
+    });
+    const repaired = repairResult.action;
+    const [repairedTab] = await list(repaired);
+    expect(await list(action)).toEqual([repairedTab]);
+    const { id } = (await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeQuickAction",
+      input: {
+        action: repaired,
+        token: repairedTab.token,
+        resume: true,
+        pauseId,
+      },
+    })) as { id: string };
+    const verified = (await manager.runAutomation({
+      ...target,
+      source: "agent",
+      operation: "runQuickAction",
+      input: { actionId: action.id, approvalId: id },
+    })) as { fileResult: { resultId: string }; fileReceipt: object };
+    expect(verified).toMatchObject({
+      status: "pass",
+      completedSteps: 1,
+      fileReceipt: {
+        filename: "qa-December.csv",
+        byteLength: 14,
+        sha256: "a".repeat(64),
+      },
+      fileResult: {
+        resultId: expect.any(String),
+        tabId: session.sessionId,
+        filename: "qa-December.csv",
+      },
+    });
+    expect(evaluate).toHaveBeenCalledTimes(9);
+    await expect(manager.runAutomation(openPause)).rejects.toThrow("pause has changed");
+    expect(evaluate.mock.calls[8]?.[1][0].code).toContain(
+      '"selector":"#new-receipt","expectedFilename":"qa-December.csv"',
+    );
+    expect(
+      evaluate.mock.calls.filter(([, [script]]) => script.code.includes('"action":"fill"')),
+    ).toHaveLength(1);
+    const enter = {
+      ...target,
+      source: "human",
+      operation: "enterQuickActionFileResult",
+      input: { resultId: verified.fileResult.resultId },
+    } as const;
+    await expect(manager.runAutomation({ ...enter, taskId: "other" })).rejects.toThrow(
+      "original thread",
+    );
+    await expect(manager.runAutomation({ ...enter, source: "agent" })).rejects.toThrow(
+      "original thread",
+    );
+    const originalUrl = session.currentUrl;
+    session.currentUrl = originalUrl + "/other";
+    await expect(manager.runAutomation(enter)).rejects.toThrow("original browser page changed");
+    session.currentUrl = originalUrl;
+    const originalPartition = session.partition;
+    session.partition = "persist:tabs-browser:profile:personal";
+    await expect(manager.runAutomation(enter)).rejects.toThrow("original browser page changed");
+    session.partition = originalPartition;
+    expect(evaluate).toHaveBeenCalledTimes(9);
+    evaluate.mockResolvedValueOnce({
+      ...verified.fileReceipt,
+      sha256: "f".repeat(64),
+    });
+    await expect(manager.runAutomation(enter)).rejects.toThrow("changed or is unavailable");
+    expect(evaluate).toHaveBeenCalledTimes(10);
+    evaluate.mockResolvedValueOnce(verified.fileReceipt).mockResolvedValueOnce("ok");
+    await expect(manager.runAutomation(enter)).resolves.toEqual({
+      url: originalUrl,
+    });
+    expect(evaluate.mock.calls[11]?.[1][0].code).toContain('"revealFileToken"');
+  });
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
