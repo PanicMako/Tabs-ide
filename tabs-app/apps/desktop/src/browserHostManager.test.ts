@@ -1594,6 +1594,88 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("keeps a grant within its Google document and account through navigation and redirects", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-work";
+    const url = "https://docs.google.com/document/u/0/d/one";
+    const sameDocument = "https://docs.google.com/document/d/one/edit?authuser=0#heading=h.qa";
+    const otherDocument = "https://docs.google.com/document/d/two?authuser=0";
+    const otherAccount = "https://docs.google.com/document/u/1/d/one";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      currentUrl: url,
+      partition: "persist:tabs-browser:profile:work",
+      profileId: "work",
+    });
+    const { events, loadURL } = mockNavigation(manager, fixture);
+    Object.assign(fixture.webContents, {
+      executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(true),
+    });
+    const target = {
+      projectId: fixture.session.projectId,
+      sessionId,
+      taskId: "qa",
+    };
+    await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeBrowserPage",
+      input: { url, profileId: "work" },
+    });
+    await manager.ensureSession({
+      ...target,
+      requireExisting: true,
+      temporaryAgentTab: true,
+      initialUrl: "",
+      profileId: "default",
+    });
+    expect(fixture.session.partition).toBe("persist:tabs-browser:profile:work");
+    const navigate = (destination: string) =>
+      manager.runAutomation({
+        ...target,
+        source: "agent",
+        operation: "navigate",
+        input: { url: destination },
+      });
+    for (const destination of [
+      otherDocument,
+      otherAccount,
+      `${otherAccount}?authuser=0`,
+      "https://docs.google.com/document/d/one?authuser=0&authuser=1",
+      "https://docs.google.com/document/u/%31/d/one",
+      "https://docs.google.com/document/d/one",
+      "https://drive.google.com/drive/u/0",
+      "https://docs.google.com/login?authuser=0",
+    ]) {
+      await expect(navigate(destination)).rejects.toThrow("destination");
+    }
+    expect(loadURL).not.toHaveBeenCalled();
+    await expect(navigate(sameDocument)).resolves.toBeUndefined();
+    const preventDefault = vi.fn();
+    loadURL.mockImplementationOnce(async () => {
+      events.emit("will-redirect", {
+        isMainFrame: false,
+        url: otherAccount,
+        preventDefault,
+      });
+      events.emit("will-navigate", { url: sameDocument, preventDefault });
+      expect(preventDefault).not.toHaveBeenCalled();
+      events.emit("will-redirect", {
+        isMainFrame: true,
+        url: otherDocument,
+        preventDefault,
+      });
+      if (preventDefault.mock.calls.length) throw new Error("Redirect blocked");
+    });
+    await expect(navigate(sameDocument)).rejects.toThrow("Redirect blocked");
+    expect(preventDefault).toHaveBeenCalledOnce();
+    events.emit("did-navigate-in-page", {}, otherDocument, true);
+    events.emit("did-navigate-in-page", {}, sameDocument, true);
+    expect(manager.getSessionState(target.projectId, sessionId).browserPageAuthorized).toBe(false);
+    await expect(navigate(sameDocument)).rejects.toThrow("Approve");
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
