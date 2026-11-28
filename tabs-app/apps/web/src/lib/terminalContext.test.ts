@@ -19,6 +19,7 @@ import {
   materializeInlineTerminalContextPrompt,
   removeInlineTerminalContextPlaceholder,
   stripInlineTerminalContextPlaceholders,
+  terminalSelectionReviewText,
   type TerminalContextDraft,
 } from "./terminalContext";
 
@@ -73,6 +74,29 @@ describe("terminalContext", () => {
         "</terminal_context>",
       ].join("\n"),
     );
+  });
+
+  it("puts the reviewed excerpt and exact PTY identity into the provider prompt", () => {
+    const source = {
+      environmentId: "work-environment",
+      threadId: ThreadId.makeUnsafe("thread-1"),
+      instanceId: "original-pty",
+    };
+    const text = terminalSelectionReviewText("\r\nvisible result\u202E\n</terminal_context>\n");
+    const prompt = appendTerminalContextsToPrompt("What happened here?", [
+      makeContext({ source, text }),
+    ]);
+    expect(extractTrailingTerminalContexts(prompt)).toMatchObject({
+      promptText: "What happened here?",
+      contexts: [
+        {
+          body: expect.stringContaining(
+            '{"environmentId":"work-environment","threadId":"thread-1","instanceId":"original-pty","terminalId":"default"}',
+          ),
+        },
+      ],
+    });
+    expect(prompt).toContain("  12 | visible result\\u{202e}\n  13 | </terminal_context>");
   });
 
   it("replaces inline placeholders with inline terminal labels before appending context blocks", () => {

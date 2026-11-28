@@ -8,6 +8,11 @@ export interface TerminalContextSelection {
   lineStart: number;
   lineEnd: number;
   text: string;
+  source?: {
+    environmentId: string | null;
+    threadId: ThreadId;
+    instanceId: string;
+  };
 }
 
 export interface TerminalContextDraft extends TerminalContextSelection {
@@ -45,6 +50,13 @@ const TRAILING_TERMINAL_CONTEXT_BLOCK_PATTERN =
 
 export function normalizeTerminalContextText(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
+}
+
+/** Keep invisible characters explicit in both the review and the sent excerpt. */
+export function terminalSelectionReviewText(text: string): string {
+  return normalizeTerminalContextText(text).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (char) =>
+    char === "\n" || char === "\t" ? char : `\\u{${char.codePointAt(0)!.toString(16)}}`,
+  );
 }
 
 export function hasTerminalContextText(context: { text: string }): boolean {
@@ -87,6 +99,7 @@ export function normalizeTerminalContextSelection(
   const lineStart = Math.max(1, Math.floor(selection.lineStart));
   const lineEnd = Math.max(lineStart, Math.floor(selection.lineEnd));
   return {
+    ...selection,
     terminalId,
     terminalLabel,
     lineStart,
@@ -166,6 +179,11 @@ export function buildTerminalContextBlock(
   for (let index = 0; index < normalizedContexts.length; index += 1) {
     const context = normalizedContexts[index]!;
     lines.push(`- ${formatTerminalContextLabel(context)}:`);
+    if (context.source) {
+      lines.push(
+        `  Reviewed visible excerpt from PTY ${JSON.stringify({ ...context.source, terminalId: context.terminalId })}. The view may include restored scrollback.`,
+      );
+    }
     lines.push(...buildTerminalContextBodyLines(context));
     if (index < normalizedContexts.length - 1) {
       lines.push("");
