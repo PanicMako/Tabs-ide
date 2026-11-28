@@ -1077,6 +1077,86 @@ describe("reliable browser tabs and agent control", () => {
     expect(session.assignedTaskId).toBe("thread-1");
   });
 
+  it("requires a human grant for the exact companion tab, profile, thread and destination", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-work";
+    const { session, webContents, executeJavaScript } = createMockSession({
+      sessionId,
+      key: "project-1::" + sessionId,
+      profileId: "work",
+      partition: "persist:tabs-browser:profile:work",
+      currentUrl: "https://app.test/draft?token=private",
+    });
+    const safe = vi.fn().mockResolvedValue(true);
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      executeJavaScriptInIsolatedWorld: safe,
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const target = { projectId: session.projectId, sessionId, taskId: "qa" };
+    const agent = { ...target, source: "agent" as const };
+    const grant = {
+      ...target,
+      source: "human" as const,
+      operation: "authorizeBrowserPage",
+      input: { url: session.currentUrl, profileId: "work" },
+    };
+    await expect(
+      manager.ensureSession({
+        ...target,
+        requireExisting: true,
+        initialUrl: "",
+      }),
+    ).rejects.toThrow("Approve");
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).rejects.toThrow(
+      "Approve",
+    );
+    await expect(manager.runAutomation({ ...grant, source: "agent" })).rejects.toThrow("approve");
+    await expect(
+      manager.runAutomation({
+        ...grant,
+        input: { ...grant.input, profileId: "personal" },
+      }),
+    ).rejects.toThrow("Recheck");
+    await manager.runAutomation(grant);
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).resolves.toMatchObject({
+      url: "https://app.test/draft",
+    });
+    for (const operation of ["evaluate", "recordStatus", "recordStop"]) {
+      await expect(
+        manager.runAutomation({
+          ...agent,
+          operation,
+          input: { expression: "1" },
+        }),
+      ).rejects.toThrow("approved page");
+    }
+    await expect(
+      manager.runAutomation({ ...agent, taskId: "other", operation: "status" }),
+    ).rejects.toThrow("Approve");
+    await expect(
+      manager.runAutomation({
+        ...agent,
+        operation: "navigate",
+        input: { url: "https://other.test" },
+      }),
+    ).rejects.toThrow("destination");
+    safe.mockResolvedValueOnce(false);
+    await expect(manager.runAutomation({ ...agent, operation: "snapshot" })).rejects.toThrow(
+      "protected",
+    );
+    expect(executeJavaScript).not.toHaveBeenCalled();
+    session.currentUrl = "https://app.test/mfa";
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).rejects.toThrow(
+      "signing in",
+    );
+    session.currentUrl = grant.input.url;
+    await manager.runAutomation({ ...grant, operation: "revokeBrowserPage" });
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).rejects.toThrow(
+      "Approve",
+    );
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
