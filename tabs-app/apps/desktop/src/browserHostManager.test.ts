@@ -1311,6 +1311,48 @@ describe("reliable browser tabs and agent control", () => {
     expect(session.actionTimeline).toEqual([]);
   });
 
+  it.each([null, { role: "button", label: "Export" }])(
+    "returns control without a receipt when the demonstration cannot be verified (%j)",
+    async (observedControl) => {
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-demonstration";
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+      });
+      const { session, webContents } = fixture;
+      mockNavigation(manager, fixture);
+      const execute = vi.fn().mockResolvedValueOnce(observedControl).mockResolvedValueOnce(null);
+      Object.assign(webContents, { executeJavaScriptInIsolatedWorld: execute });
+      const target = { projectId: session.projectId, sessionId, taskId: "qa" };
+      await manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url: session.currentUrl, profileId: "default" },
+      });
+      manager.takeControl({ ...target, demonstrate: true });
+      if (observedControl)
+        await vi.waitFor(() =>
+          expect(
+            manager.getSessionState(target.projectId, target.sessionId).demonstratedControl,
+          ).toContain("Export"),
+        );
+      await expect(
+        manager.resumeAgent({
+          ...target,
+          expectedGeneration: {
+            instanceId: session.instanceId,
+            controlEpoch: session.controlEpoch,
+          },
+          meaning: "Export just the selected rows.",
+        }),
+      ).resolves.toBeUndefined();
+      expect(execute).toHaveBeenCalledTimes(observedControl ? 2 : 1);
+      expect(session.controller).toBe("none");
+    },
+  );
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
