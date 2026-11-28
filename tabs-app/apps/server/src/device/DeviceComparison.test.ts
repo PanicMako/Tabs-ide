@@ -2123,6 +2123,72 @@ describe("Device comparison", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("allows only the owning session's live correction and drains input before resume", async () => {
+    const owner = AuthSessionId.make("owner");
+    const stranger = AuthSessionId.make("stranger");
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [frame("android", ["Allow app permission"]), frame("android", [], ["Order review"])],
+    );
+    const runId = await f.begin();
+    const step = await f.tap(runId, "Continue");
+    await f.invoke({
+      action: "expect",
+      threadId,
+      runId,
+      controlId: step.controls!.find(({ label }) => label === "Order review")!.id,
+    });
+    await f.approve(runId);
+    await f.replay(runId);
+    await f.settle();
+    await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, owner);
+    const status = (device: typeof pixel, sessionId: AuthSessionId) =>
+      f.invoke({ action: "status", threadId, device }, sessionId);
+    const { manualControlId } = await status(pixel, owner);
+    expect(manualControlId).toBeTypeOf("string");
+    expect((await status(pixel, stranger)).manualControlId).toBeUndefined();
+    expect((await status(iphone, owner)).manualControlId).toBeUndefined();
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(false);
+    const manualInput = {
+      action: "manualInput",
+      threadId,
+      runId,
+      controlId: manualControlId!,
+      gesture: { type: "tap", x: 0.5, y: 0.5 },
+    } as const;
+    await expect(f.invoke(manualInput, stranger)).rejects.toThrow("Take control");
+    let acknowledgeInput: () => void = () => {};
+    const acknowledged = new Promise<void>((resolve) => {
+      acknowledgeInput = resolve;
+    });
+    f.manual.mockImplementationOnce(() =>
+      Effect.promise(async () => {
+        await acknowledged;
+        f.positions.set(pixel.hostId, 1);
+      }),
+    );
+    const userTap = f.invoke(manualInput, owner);
+    await vi.waitFor(() => expect(f.manual).toHaveBeenCalledExactlyOnceWith(manualInput.gesture));
+    const resume = {
+      action: "resume",
+      runId,
+      threadId,
+      controlId: manualControlId!,
+      stepCompleted: true,
+    } as const;
+    await expect(f.invoke(resume, owner)).rejects.toThrow("current device operation");
+    acknowledgeInput();
+    await userTap;
+    await expect(f.invoke(resume, stranger)).rejects.toThrow("Tabs session");
+    await expect(f.invoke({ ...resume, controlId: crypto.randomUUID() }, owner)).rejects.toThrow(
+      "handoff changed",
+    );
+    await f.invoke(resume, owner);
+    expect((await f.settle()).run?.phase).toBe("completed");
+    expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
+    await expect(f.invoke(manualInput, owner)).rejects.toThrow("Take control");
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
