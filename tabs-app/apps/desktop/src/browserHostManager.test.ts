@@ -7651,6 +7651,20 @@ describe("reliable browser tabs and agent control", () => {
       expect(otherProfile.loadURL).not.toHaveBeenCalled();
       expect(otherHost.loadURL).not.toHaveBeenCalled();
     });
+
+    it("restores after manager restart and rejects a replacement guest in the capturing manager", async () => {
+      const f = await setup();
+      const { attachmentId } = await f.capture();
+      const replacement = f.tab(f.manager, "about:blank");
+      await expect(f.enter(f.manager, attachmentId)).rejects.toThrow("original desktop");
+      expect(replacement.loadURL).not.toHaveBeenCalled();
+      const restarted = new BrowserHostManager(() => null);
+      const originalTab = f.tab(restarted, "about:blank");
+      await expect(f.enter(restarted, attachmentId)).resolves.toEqual({
+        url: f.address,
+      });
+      expect(originalTab.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
