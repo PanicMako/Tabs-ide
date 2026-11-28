@@ -8090,6 +8090,64 @@ describe("reliable browser tabs and agent control", () => {
       expect(originalTab.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
     });
 
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "opens the exact canvas document and selected frame in a restored Chromium profile",
+      async () => {
+        const url = "https://design.test/design/file-42?node-id=1-9";
+        const f = await setup(url);
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(async () => browser.close());
+        const work = await browser.newContext();
+        const personal = await browser.newContext();
+        await work.addCookies([{ name: "profile", value: "work", url }]);
+        await personal.addCookies([{ name: "profile", value: "personal", url }]);
+        for (const context of [work, personal]) {
+          await context.route("https://design.test/**", async (route) => {
+            const profile =
+              (await route.request().headerValue("cookie")) === "profile=work"
+                ? "Work"
+                : "Personal";
+            const address = new URL(route.request().url());
+            const frame =
+              address.searchParams.get("node-id") === "1-9" ? "Selected frame" : "Other frame";
+            return route.fulfill({
+              contentType: "text/html",
+              body: `<title>Design</title><p id="profile">${profile}</p><canvas aria-label="${frame}"></canvas>`,
+            });
+          });
+        }
+        const original = await work.newPage();
+        const bystander = await personal.newPage();
+        await original.goto(url);
+        await bystander.goto("https://design.test/design/file-43");
+        const connect = async (page: typeof original, fixture: ReturnType<typeof f.tab>) => {
+          await connectChromiumPage(page, fixture);
+          fixture.loadURL.mockImplementation(async (destination) => {
+            await page.goto(destination);
+            fixture.session.currentUrl = page.url();
+            fixture.events.emit("did-navigate", {}, page.url());
+          });
+        };
+        await connect(original, f);
+        const { attachmentId } = await f.capture();
+        expect(attachmentId).not.toBeNull();
+        await original.close();
+        const restarted = new BrowserHostManager(() => null);
+        const restored = await work.newPage();
+        const tab = f.tab(restarted, restored.url());
+        await connect(restored, tab);
+        await expect(f.enter(restarted, attachmentId)).resolves.toEqual({
+          url,
+        });
+        expect(restored.url()).toBe(url);
+        expect(await restored.locator("#profile").innerText()).toBe("Work");
+        expect(await restored.locator("canvas").getAttribute("aria-label")).toBe("Selected frame");
+        expect(bystander.url()).toBe("https://design.test/design/file-43");
+        expect(await bystander.locator("#profile").innerText()).toBe("Personal");
+      },
+    );
+
     it("rejects authentication redirects and HTTP login challenges during restore", async () => {
       const f = await setup();
       const { attachmentId } = await f.capture();
