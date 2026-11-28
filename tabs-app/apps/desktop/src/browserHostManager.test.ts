@@ -4119,6 +4119,17 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.goToIndex).not.toHaveBeenCalled();
       expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
     });
+
+    it("awaits an in-progress load of the saved URL without starting a new one", async () => {
+      const f = await setup();
+      f.session.loading = true;
+      const opening = f.enter();
+      expect(f.evaluate).not.toHaveBeenCalled();
+      Object.assign(f.webContents, { isLoadingMainFrame: () => false });
+      f.events.emit("did-finish-load");
+      await expect(opening).resolves.toEqual({ stage: "certified" });
+      expect(f.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
