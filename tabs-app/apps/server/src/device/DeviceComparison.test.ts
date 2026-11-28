@@ -2955,6 +2955,41 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it("waits for explicit resolution if a driver cannot confirm a tap", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [])],
+      [frame("android", ["Continue"])],
+    );
+    const original = f.driver.press;
+    Object.assign(f.driver, {
+      press: (...args: Parameters<SemanticDriver["press"]>) =>
+        args[0].platform === "ios"
+          ? original(...args)
+          : args[2].pipe(
+              Effect.andThen(
+                Effect.fail(
+                  new DeviceComparisonError({
+                    reason: "Tap confirmation lost",
+                  }),
+                ),
+              ),
+            ),
+    });
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    expect((await f.settle()).run).toMatchObject({
+      uncertainTap: true,
+      canResume: false,
+    });
+    await expect(f.invoke({ action: "resume", threadId, runId })).rejects.toThrow(
+      "confirm whether",
+    );
+    f.revoke();
+    expect((await f.status()).ownerThreadId).toBeUndefined();
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
