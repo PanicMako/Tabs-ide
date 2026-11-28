@@ -7907,6 +7907,21 @@ describe("reliable browser tabs and agent control", () => {
         await f.grant();
         await expect(f.inspect()).rejects.toThrow("same Figma Design file, branch and node");
       });
+
+      it.each([
+        address.replace("mainKey", "anotherMain"),
+        address.replace("branchKey", "anotherBranch"),
+        address.replace("35-12", "35-13"),
+        address + "&node-id=35-12",
+      ])(
+        "rejects a current Figma selection that differs from the attachment in %s",
+        async (url) => {
+          const f = await setupFigma();
+          f.events.emit("did-navigate-in-page", {}, url, true);
+          await f.grant();
+          await expect(f.inspect()).rejects.toThrow("same Figma Design file, branch and node");
+        },
+      );
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
