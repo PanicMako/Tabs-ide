@@ -3587,6 +3587,156 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it.each([
+    "late overlay",
+    "missing overlay",
+    "ambiguous overlay",
+    "changed app",
+    "takeover",
+    "pause-only takeover",
+    "reopened destination",
+  ] as const)(
+    "settles the first permission difference safely after an initial missing overlay with %s",
+    async (scenario) => {
+      const directory = await mkdtemp(join(tmpdir(), "tabs-permission-evidence-"));
+      try {
+        const store = makeDeviceComparisonStore(directory);
+        const app = frame("android", ["Continue"]);
+        const dialog = androidPermissionDialog();
+        const f = fixture(
+          [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+          [app, app],
+          true,
+          store,
+        );
+        const originalPress = f.driver.press;
+        const originalSnapshot = f.driver.snapshot;
+        const releaseRetry = Deferred.makeUnsafe<void>();
+        const holdRetry =
+          scenario === "late overlay" ||
+          scenario === "takeover" ||
+          scenario === "pause-only takeover" ||
+          scenario === "reopened destination";
+        const permissionRead = vi.fn((_target: Parameters<SemanticDriver["snapshot"]>[0]) => {
+          if (permissionRead.mock.calls.length === 1 || scenario === "missing overlay")
+            return Effect.succeed(app);
+          if (permissionRead.mock.calls.length === 2) {
+            if (holdRetry) return Deferred.await(releaseRetry).pipe(Effect.as(dialog));
+            if (scenario === "changed app")
+              return Effect.succeed({ ...dialog, appBundleId: "other.app" });
+            if (scenario === "ambiguous overlay")
+              return Effect.succeed({
+                ...dialog,
+                nodes: [...dialog.nodes, { ...dialog.nodes[1]!, index: 4, ref: "e5" }],
+              });
+          }
+          return Effect.succeed(dialog);
+        });
+        Object.assign(f.driver, {
+          press: (...args: Parameters<SemanticDriver["press"]>) =>
+            args[0].platform === "android"
+              ? originalPress(...args).pipe(Effect.as({ permissionDialog: true as const }))
+              : originalPress(...args),
+          snapshot: (...args: Parameters<SemanticDriver["snapshot"]>) =>
+            args[2] === "permissionEvidence"
+              ? args[1]!.pipe(Effect.andThen(Effect.suspend(() => permissionRead(args[0]))))
+              : originalSnapshot(...args),
+        });
+        const png = new PNG({ width: 18, height: 18 });
+        png.data.fill(0xff);
+        f.capture.mockImplementation((host) =>
+          host === pixel.hostId ? PNG.sync.write(png) : screenshot(host),
+        );
+        const runId = await f.begin();
+        await f.tap(runId, "Continue");
+        await f.approve(runId);
+        await f.replay(runId);
+        if (holdRetry) {
+          await vi.waitFor(() => expect(permissionRead).toHaveBeenCalledTimes(2));
+          const pending = await f.status();
+          expect(pending.run).toMatchObject({
+            phase: "running",
+            busy: true,
+            completedSteps: 0,
+          });
+          expect(pending.run?.firstDifference).toBeUndefined();
+          expect(f.capture).not.toHaveBeenCalledWith(pixel.hostId);
+          if (scenario === "takeover") {
+            await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, panelSession);
+            await f.settle();
+            const { manualControlId } = await f.invoke(
+              { action: "status", threadId, device: pixel },
+              panelSession,
+            );
+            expect(manualControlId).toBeDefined();
+            await f.invoke(
+              {
+                action: "manualInput",
+                threadId,
+                runId,
+                controlId: manualControlId!,
+                gesture: { type: "back" },
+              },
+              panelSession,
+            );
+            expect(f.manual).toHaveBeenCalledOnce();
+          } else if (scenario === "pause-only takeover") {
+            await f.invoke({ action: "takeover", threadId, runId }, panelSession);
+            await f.settle();
+            expect(
+              (await f.invoke({ threadId, action: "status", device: pixel }, panelSession))
+                .manualControlId,
+            ).toBeUndefined();
+          } else if (scenario === "reopened destination") {
+            f.reopenDestination();
+            await f.settle();
+          }
+          Deferred.doneUnsafe(releaseRetry, Effect.void);
+        }
+        const paused = await f.settle();
+        expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toHaveLength(1);
+        expect(f.scroll).not.toHaveBeenCalled();
+        expect(permissionRead).toHaveBeenCalledTimes(scenario === "late overlay" ? 3 : 2);
+        for (const [target] of permissionRead.mock.calls) {
+          expect(target).toMatchObject({
+            ...pixel,
+            platform: "android",
+            appId: androidApp,
+            threadId,
+          });
+        }
+        const saved = await Effect.runPromise(store.load(threadId, runId, true));
+        if (scenario === "reopened destination") {
+          expect(paused.run?.phase).toBe("stopped");
+          expect(saved).toBeUndefined();
+        } else {
+          expect(paused.run).toMatchObject({
+            phase: "paused",
+            completedSteps: 0,
+            uncertainTap: false,
+            firstDifference: {
+              step: 1,
+              kind: "driver",
+              reason: expect.stringContaining("Choose My turn"),
+            },
+          });
+          expect(saved?.report.firstDifference).toEqual(paused.run?.firstDifference);
+          expect(saved?.evidence?.sourcePng).toBeDefined();
+        }
+        if (scenario === "late overlay") {
+          const crop = PNG.sync.read(Buffer.from(saved!.evidence!.targetPng!, "base64"));
+          expect([crop.width, crop.height]).toEqual([10, 10]);
+          expect(f.capture.mock.calls.filter(([host]) => host === pixel.hostId)).toHaveLength(1);
+        } else {
+          expect(saved?.evidence?.targetPng).toBeUndefined();
+          expect(f.capture).not.toHaveBeenCalledWith(pixel.hostId);
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
