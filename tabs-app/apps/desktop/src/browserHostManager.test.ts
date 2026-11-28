@@ -4239,6 +4239,24 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.enter()).rejects.toThrow("exact saved result URL");
       expect(f.evaluate).not.toHaveBeenCalled();
     });
+
+    it("cancels a timed-out load before releasing the redirect guard", async () => {
+      const f = await setup("about:blank");
+      vi.useFakeTimers();
+      try {
+        f.loadURL.mockReturnValueOnce(new Promise<void>(() => {}));
+        f.stop.mockImplementationOnce(() => {
+          expect(f.events.listenerCount("will-redirect")).toBe(2);
+        });
+        const rejected = expect(f.enter()).rejects.toThrow("exact saved result URL");
+        await vi.advanceTimersByTimeAsync(10_000);
+        await rejected;
+        expect(f.stop).toHaveBeenCalledOnce();
+        expect(f.events.listenerCount("will-redirect")).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
