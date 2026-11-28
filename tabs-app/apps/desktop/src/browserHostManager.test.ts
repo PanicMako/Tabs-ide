@@ -3743,6 +3743,37 @@ describe("reliable browser tabs and agent control", () => {
           status: "approval_required",
         });
       });
+
+      it.each([
+        "browser generation",
+        "document generation",
+        "page grant replacement",
+        "page grant revocation",
+        "account route",
+      ])("rejects stale consent after a change to %s", async (change) => {
+        const f = await setupStatus();
+        await f.grant();
+        const { approval } = await f.status();
+        if (change === "browser generation") f.session.instanceId = "replacement-browser";
+        if (change === "document generation") f.events.emit("did-navigate", {}, f.url);
+        if (change === "page grant replacement") await f.grant();
+        if (change === "page grant revocation")
+          await f.manager.runAutomation({
+            ...f.human,
+            operation: "revokeBrowserPage",
+          });
+        if (change === "account route") {
+          f.events.emit(
+            "did-navigate-in-page",
+            {},
+            f.url.replace("account=work", "account=personal"),
+            true,
+          );
+          f.events.emit("did-navigate-in-page", {}, f.url, true);
+        }
+        expect(f.pending()).toBeUndefined();
+        await expect(f.consent(approval.id)).rejects.toThrow("original tab and thread");
+      });
     });
 
     describe.skip("monitor", () => {
