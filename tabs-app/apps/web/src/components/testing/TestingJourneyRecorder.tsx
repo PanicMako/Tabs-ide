@@ -1,3 +1,4 @@
+import { BrowserQuickActionReview } from "../browser/BrowserQuickActionReview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircleIcon,
@@ -202,6 +203,7 @@ export function TestingJourneyRecorder() {
   } = useTestingData();
 
   const [recording, setRecording] = useState(false);
+  const [teaching, setTeaching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [steps, setSteps] = useState<EditableStep[]>([]);
@@ -443,6 +445,14 @@ export function TestingJourneyRecorder() {
 
   return (
     <div className="space-y-3 border-t border-border/60 bg-background/60 p-4">
+      {teaching && (
+        <BrowserQuickActionReview
+          projectId={projectId}
+          initialUrl={targetUrl}
+          recorded={steps}
+          onClose={() => setTeaching(false)}
+        />
+      )}
       {/* Header bar: Record / Stop toggle and status */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -474,6 +484,11 @@ export function TestingJourneyRecorder() {
         </div>
 
         <div className="flex items-center gap-2">
+          {steps.length > 0 && !recording && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setTeaching(true)}>
+              Keep as Quick Action
+            </Button>
+          )}
           {steps.length > 0 && !recording && (
             <Button
               type="button"
