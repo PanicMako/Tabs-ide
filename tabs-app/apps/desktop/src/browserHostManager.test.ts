@@ -6373,6 +6373,19 @@ describe("reliable browser tabs and agent control", () => {
       ).rejects.toThrow("Approve");
       expect(f.attach).not.toHaveBeenCalled();
     });
+
+    it("keeps existing transfers when only one slot is free", async () => {
+      const f = createEvidenceFixture();
+      await f.authorizePage();
+      const manualGrants = [];
+      for (let i = 0; i < 7; i++) manualGrants.push((await f.authorize()).grantId);
+      await expect(f.authorizeEvidence()).rejects.toThrow("pending screenshot transfer");
+      await expect(f.authorize()).resolves.toEqual({
+        grantId: expect.any(String),
+      });
+      for (const id of manualGrants)
+        await expect(f.transfer(id, { phase: "inspect" })).resolves.toEqual(sourceDevice);
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
