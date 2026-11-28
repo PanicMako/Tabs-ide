@@ -62,6 +62,52 @@ describe("activitiesFromTurnItems", () => {
     ]);
   });
 
+  it("carries verified workflow references from projected tool items into the chat work log", () => {
+    const reference = { workflowId: "a".repeat(64), stage: "published" };
+    const item = {
+      ...failedRead,
+      status: "completed",
+      toolName: "t3-code.preview_workflow",
+      outputOmitted: true,
+      output: { browserWorkflowResult: reference },
+    };
+    const derive = (candidate: Record<string, unknown>) =>
+      deriveWorkLogEntries(activitiesFromTurnItems([candidate]), undefined)[0];
+    const entry = derive(item);
+    expect(entry?.browserWorkflowResult).toEqual(reference);
+    expect(entry?.detail).toBeUndefined();
+    expect(derive({ ...item, outputOmitted: false })?.browserWorkflowResult).toBeUndefined();
+    expect(derive({ ...item, status: "failed" })?.browserWorkflowResult).toBeUndefined();
+    expect(
+      derive({
+        ...item,
+        output: { browserWorkflowResult: { ...reference, workflowId: "../elsewhere" } },
+      })?.browserWorkflowResult,
+    ).toBeUndefined();
+  });
+
+  it("passes a completed Figma receipt reference to the work log without showing the ID as text", () => {
+    const reference = { operationId: "a".repeat(64) };
+    const item = {
+      ...failedRead,
+      toolName: "t3-code.preview_figma_frame",
+      status: "completed",
+      outputOmitted: true,
+      output: { figmaCanvasResult: reference },
+    };
+    const derive = (candidate: Record<string, unknown>) =>
+      deriveWorkLogEntries(activitiesFromTurnItems([candidate]), undefined)[0];
+    const entry = derive(item);
+    expect(entry?.figmaCanvasResult).toEqual(reference);
+    expect(entry?.detail).toBeUndefined();
+    expect(derive({ ...item, outputOmitted: false })?.figmaCanvasResult).toBeUndefined();
+    expect(derive({ ...item, status: "failed" })?.figmaCanvasResult).toBeUndefined();
+    expect(
+      derive({ ...item, output: { figmaCanvasResult: { operationId: "other" } } })
+        ?.figmaCanvasResult,
+    ).toBeUndefined();
+  });
+
   it("ignores messages, reasoning and checkpoints", () => {
     const activities = activitiesFromTurnItems([
       { id: "m", type: "assistant_message", status: "completed", ordinal: 1 },
