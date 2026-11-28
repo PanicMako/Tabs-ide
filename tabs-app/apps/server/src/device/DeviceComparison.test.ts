@@ -1116,7 +1116,310 @@ describe("Agent-led device comparison", () => {
   });
 });
 
-describe.skip("Device comparison", () => {
+describe("Device comparison", () => {
+  it.each([
+    {
+      interruption: "between verified steps",
+      dispatched: false,
+      difference: undefined,
+    },
+    {
+      interruption: "after a dispatch with no reply",
+      dispatched: true,
+      difference: undefined,
+    },
+    {
+      interruption: "before a missing control",
+      dispatched: false,
+      difference: "before",
+    },
+    {
+      interruption: "before a missing control with takeover during source lookup",
+      dispatched: false,
+      difference: "before",
+      takeoverDuringLookup: true,
+    },
+    {
+      interruption: "after a dispatch whose expected result is missing",
+      dispatched: true,
+      difference: "after",
+    },
+    {
+      interruption: "after a dispatch whose expected result and source PNG are missing",
+      dispatched: true,
+      difference: "after",
+      missingSourcePng: true,
+    },
+  ])("restores replay before any first difference $interruption", async (scenario) => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-active-replay-"));
+    const release = Promise.withResolvers<void>();
+    let interrupted = false;
+    const waitForRestart = Effect.promise(() => {
+      interrupted = true;
+      return release.promise;
+    });
+    const ios = [
+      frame("ios", ["Continue"]),
+      frame("ios", ["Delivery"], ["Delivery options"]),
+      frame("ios", ["Review"], ["Shipping details"]),
+      frame("ios", [], ["Order review"]),
+    ];
+    const android = [
+      frame("android", ["Continue"]),
+      frame(
+        "android",
+        ["Back", scenario.difference === "before" ? "Help" : "Delivery"],
+        ["Delivery options"],
+      ),
+      frame(
+        "android",
+        ["Back", "Help", "Review"],
+        scenario.difference === "after" ? [] : ["Shipping details"],
+      ),
+      frame("android", [], ["Order review"]),
+    ];
+    const framePng = (host: string, position: number) => {
+      const png = new PNG({ width: 1, height: 1 });
+      png.data.set([host === iphone.hostId ? 64 : 128, position, 0, 255]);
+      return PNG.sync.write(png);
+    };
+    const store = makeDeviceComparisonStore(directory);
+    const saveSourceFrames = vi.spyOn(store, "saveReplaySourceFrames");
+    const original = fixture(ios, android, true, {
+      ...store,
+      saveReplay: (owner, report, checkpoint, isCurrent) =>
+        store
+          .saveReplay(owner, report, checkpoint, isCurrent)
+          .pipe(
+            Effect.tap((saved) =>
+              saved && !scenario.dispatched && checkpoint.index === 1 && checkpoint.applied === "no"
+                ? waitForRestart
+                : Effect.void,
+            ),
+          ),
+    });
+    original.capture.mockImplementation((host) => {
+      const position = original.positions.get(host)!;
+      if (scenario.missingSourcePng && host === iphone.hostId && position === 2) return undefined;
+      return framePng(host, position);
+    });
+    const deliveryRef = "@e2~s42";
+    const reviewRef = "@e3~s42";
+    const press = original.driver.press;
+    Object.assign(original.driver, {
+      press: (...args: Parameters<SemanticDriver["press"]>) =>
+        scenario.dispatched && args[0].hostId === pixel.hostId && args[1] === deliveryRef
+          ? press(...args).pipe(Effect.tap(() => waitForRestart))
+          : press(...args),
+    });
+    try {
+      const runId = await original.begin();
+      const reference = { threadId, runId };
+      for (const [label, expected] of [
+        ["Continue", "Delivery options"],
+        ["Delivery", "Shipping details"],
+        ["Review", "Order review"],
+      ] as const) {
+        const { controls } = await original.tap(runId, label);
+        await original.invoke({
+          ...reference,
+          action: "expect",
+          controlId: controls!.find((control) => control.label === expected)!.id,
+        });
+      }
+      const approvalId = await original.approve(runId);
+      expect(saveSourceFrames).not.toHaveBeenCalled();
+      original.capture.mockClear();
+      await original.replay(runId);
+      await vi.waitFor(() => expect(interrupted).toBe(true));
+      expect(saveSourceFrames).toHaveBeenCalledOnce();
+      expect(original.capture).not.toHaveBeenCalled();
+      expect(original.press.mock.calls.filter(([hostId]) => hostId === pixel.hostId)).toEqual([
+        [pixel.hostId, "@e1~s42"],
+        ...(scenario.dispatched ? [[pixel.hostId, deliveryRef]] : []),
+      ]);
+
+      const freshStore = makeDeviceComparisonStore(directory);
+      const readSourceFrame = freshStore.loadReplaySourceFrame;
+      const loadSourceFrame = vi.spyOn(freshStore, "loadReplaySourceFrame");
+      const saveRestoredSourceFrames = vi.spyOn(freshStore, "saveReplaySourceFrames");
+      const saved = await Effect.runPromise(freshStore.loadReplay(threadId));
+      expect(saved).toMatchObject({
+        report: { runId, completedSteps: 1 },
+        checkpoint: {
+          index: 1,
+          applied: scenario.dispatched ? "unknown" : "no",
+        },
+      });
+      expect(saved?.report?.firstDifference).toBeUndefined();
+      const restarted = fixture(ios, android, true, freshStore);
+      restarted.positions.set(pixel.hostId, original.positions.get(pixel.hostId)!);
+      restarted.capture.mockImplementation((host) =>
+        framePng(host, restarted.positions.get(host)!),
+      );
+      const status = { action: "status", threadId, device: pixel } as const;
+      const restore = {
+        ...reference,
+        action: "restoreReplay",
+        device: pixel,
+        appId: androidApp,
+      } as const;
+      const resume = { ...reference, action: "resume" } as const;
+      const otherSession = AuthSessionId.make("foreign-panel");
+      const available = await restarted.invoke(status, panelSession);
+      expect(available).toMatchObject({
+        canRestoreReplay: true,
+        run: {
+          runId,
+          source: { ...iphone, appId: iosApp },
+          target: { ...pixel, appId: androidApp },
+          completedSteps: 1,
+        },
+      });
+      expect(available.run?.firstDifference).toBeUndefined();
+      expect((await restarted.invoke({ ...status, runId }, panelSession)).canRestoreReplay).toBe(
+        true,
+      );
+      expect((await restarted.invoke(status)).canRestoreReplay).toBeUndefined();
+      await expect(restarted.invoke(restore)).rejects.toThrow();
+      await expect(
+        restarted.invoke({ ...restore, runId: approvalId }, panelSession),
+      ).rejects.toThrow();
+      await expect(
+        restarted.invoke({ ...restore, threadId: otherThreadId }, panelSession),
+      ).rejects.toThrow();
+      await expect(
+        restarted.invoke({ ...restore, device: iphone }, panelSession),
+      ).rejects.toThrow();
+      await expect(restarted.invoke({ ...restore, appId: iosApp }, panelSession)).rejects.toThrow();
+      expect(restarted.snapshot).not.toHaveBeenCalled();
+
+      const restored = await restarted.invoke(restore, panelSession);
+      expect(restored.run).toMatchObject({
+        runId,
+        phase: "paused",
+        completedSteps: 1,
+        uncertainTap: scenario.dispatched,
+      });
+      expect(restored.run?.firstDifference).toBeUndefined();
+      await expect(restarted.invoke(resume, otherSession)).rejects.toThrow("that restored");
+      expect(restarted.open).not.toHaveBeenCalled();
+      expect(restarted.press).not.toHaveBeenCalled();
+      expect(restarted.scroll).not.toHaveBeenCalled();
+      if (scenario.dispatched) {
+        await expect(restarted.invoke(resume, panelSession)).rejects.toThrow("confirm whether");
+        expect(restarted.press).not.toHaveBeenCalled();
+        await restarted.invoke({ ...reference, action: "resolve", applied: true }, panelSession);
+      }
+      expect(loadSourceFrame).not.toHaveBeenCalled();
+
+      if (scenario.takeoverDuringLookup) {
+        const releaseLookup = Promise.withResolvers<void>();
+        loadSourceFrame.mockImplementation((...args) =>
+          Effect.promise(() => releaseLookup.promise).pipe(
+            Effect.andThen(readSourceFrame(...args)),
+          ),
+        );
+        try {
+          await restarted.invoke(resume, panelSession);
+          await vi.waitFor(() => expect(loadSourceFrame).toHaveBeenCalledOnce());
+          await restarted.invoke(
+            { ...reference, action: "takeover", liveInput: true },
+            panelSession,
+          );
+        } finally {
+          releaseLookup.resolve();
+        }
+        expect((await restarted.settle()).run).toMatchObject({
+          phase: "paused",
+          firstDifference: { step: 2, kind: "control" },
+          availableEvidence: { source: true, target: false },
+        });
+        const { evidence } = await restarted.invoke(
+          { ...reference, action: "evidence" },
+          panelSession,
+        );
+        expect(evidence).toEqual({
+          sourcePng: framePng(iphone.hostId, 1).toString("base64"),
+        });
+        expect((await Effect.runPromise(freshStore.load(threadId, runId, true)))?.evidence).toEqual(
+          evidence,
+        );
+        expect(restarted.capture).not.toHaveBeenCalled();
+        expect(restarted.press).not.toHaveBeenCalled();
+        return;
+      }
+      await restarted.invoke(resume, panelSession);
+      const settled = await restarted.settle();
+      expect(restarted.open).not.toHaveBeenCalled();
+      expect(restarted.scroll).not.toHaveBeenCalled();
+      expect(saveRestoredSourceFrames).not.toHaveBeenCalled();
+      if (scenario.difference) {
+        const position = scenario.difference === "before" ? 1 : 2;
+        expect(settled.run).toMatchObject({
+          phase: "paused",
+          completedSteps: 1,
+          firstDifference: {
+            step: 2,
+            kind: position === 1 ? "control" : "outcome",
+          },
+          availableEvidence: {
+            source: !scenario.missingSourcePng,
+            target: true,
+          },
+        });
+        const { evidence } = await restarted.invoke(
+          { ...reference, action: "evidence" },
+          panelSession,
+        );
+        expect(evidence).toEqual({
+          ...(scenario.missingSourcePng
+            ? {}
+            : {
+                sourcePng: framePng(iphone.hostId, position).toString("base64"),
+              }),
+          targetPng: framePng(pixel.hostId, position).toString("base64"),
+        });
+        expect(loadSourceFrame.mock.calls).toEqual([[threadId, runId, 1, scenario.difference]]);
+        expect(restarted.capture.mock.calls).toEqual([[pixel.hostId]]);
+        expect(
+          restarted.snapshot.mock.calls.every(([device]) => device.hostId === pixel.hostId),
+        ).toBe(true);
+        expect(restarted.press).not.toHaveBeenCalled();
+        return;
+      }
+      expect(loadSourceFrame).not.toHaveBeenCalled();
+      expect(settled.run).toMatchObject({
+        phase: "completed",
+        completedSteps: 3,
+      });
+      expect(settled.run?.firstDifference).toBeUndefined();
+      expect(restarted.press.mock.calls).toEqual([
+        ...(scenario.dispatched ? [] : [[pixel.hostId, deliveryRef]]),
+        [pixel.hostId, reviewRef],
+      ]);
+
+      const completedStore = makeDeviceComparisonStore(directory);
+      expect(await Effect.runPromise(completedStore.loadReplay(threadId, runId))).toBeUndefined();
+      const completed = fixture(ios, android, true, completedStore);
+      const latest = await completed.invoke(status, panelSession);
+      expect(latest.run).toMatchObject({
+        runId,
+        phase: "completed",
+        completedSteps: 3,
+      });
+      expect(latest.canRestoreReplay).toBeUndefined();
+      await expect(completed.invoke(restore, panelSession)).rejects.toThrow();
+    } finally {
+      original.reopenDestination();
+      release.resolve();
+      try {
+        if (interrupted) await original.settle();
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
