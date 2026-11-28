@@ -2610,6 +2610,69 @@ describe("Device comparison", () => {
       expect(f.press).toHaveBeenCalledTimes(2);
     },
   );
+
+  it.each([
+    {
+      evidence: "conflicting totals",
+      text: ["Total: $12.00", "Total: $13.00"],
+    },
+    {
+      evidence: "a readable and an unreadable total",
+      text: ["Total: $12.00", "Total: pending"],
+    },
+  ])("pauses on $evidence and resumes without repeating the tap", async ({ text }) => {
+    const android = [
+      frame("android", ["Review"]),
+      frame("android", ["Done"], text),
+      frame("android", []),
+    ];
+    const f = fixture(
+      [frame("ios", ["Review"]), frame("ios", ["Done"], ["Total: $12.00"]), frame("ios", [])],
+      android,
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Review");
+    await f.tap(runId, "Done");
+    await f.approve(runId);
+    const started = await f.replay(runId, {
+      sourceLabel: "Total",
+      targetLabel: "Total",
+      currency: "USD",
+    });
+    expect(started.run?.totalVerification?.startsAt).toEqual({
+      step: 1,
+      timing: "after",
+    });
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      totalVerification: { pending: { step: 1, timing: "after" } },
+      firstDifference: { kind: "unobservable", step: 1 },
+    });
+    expect(f.press).toHaveBeenCalledTimes(3);
+    const frozen = await f.invoke({ action: "evidence", threadId, runId });
+    f.capture.mockClear();
+
+    android[1] = frame("android", ["Done"], ["Total: $13.00"]);
+    await f.invoke({ action: "resume", threadId, runId });
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      pauseReason: "The totals differ.",
+      totalVerification: { pending: { step: 1, timing: "after" } },
+      firstDifference: frozen.run?.firstDifference,
+    });
+    expect(f.press).toHaveBeenCalledTimes(3);
+    expect(f.capture).not.toHaveBeenCalled();
+    expect((await f.invoke({ action: "evidence", threadId, runId })).evidence).toEqual(
+      frozen.evidence,
+    );
+
+    android[1] = frame("android", ["Done"], ["Total: $12.00"]);
+    await f.invoke({ action: "resume", threadId, runId });
+    expect((await f.settle()).run?.phase).toBe("completed");
+    expect(f.press).toHaveBeenCalledTimes(4);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
