@@ -2084,6 +2084,142 @@ describe("reliable browser tabs and agent control", () => {
     expect(tab.state().browserPageAuthorized).toBe(false);
   });
 
+  it("blocks stale screenshot transfer and active Work read and click after a shared HttpOnly change", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const cookies = new EventEmitter();
+    const storage = { cookies };
+    const url = "https://reports.example.test/draft";
+    const work = openCookieChangeTab(manager, "cookie-work", url, storage);
+    const reader = openCookieChangeTab(manager, "cookie-reader", url, storage);
+    const subdomain = openCookieChangeTab(
+      manager,
+      "cookie-subdomain",
+      "https://sub.reports.example.test/",
+      storage,
+    );
+    const sibling = openCookieChangeTab(
+      manager,
+      "cookie-sibling",
+      "https://app.example.test/",
+      storage,
+    );
+    const apex = openCookieChangeTab(manager, "cookie-apex", "https://example.test/", storage);
+    const unrelated = openCookieChangeTab(
+      manager,
+      "cookie-other",
+      "https://notexample.test/?site=example.test",
+      storage,
+    );
+    const personal = openCookieChangeTab(
+      manager,
+      "cookie-personal",
+      url,
+      { cookies: new EventEmitter() },
+      "personal",
+    );
+    for (const tab of [work, reader, subdomain, sibling, apex, unrelated, personal])
+      await tab.approve();
+    const { grantId } = await work.approveScreenshot();
+    const review = work.state().pageApprovalToken;
+    const metadata = {
+      name: "qa_profile",
+      domain: "REPORTS.Example.Test.",
+      path: "/session",
+      hostOnly: true,
+      httpOnly: false,
+      get value() {
+        throw new Error("Cookie values must not be read");
+      },
+    };
+    cookies.emit("changed", {}, metadata, "explicit", false);
+    expect(work.state().pageApprovalToken).toBe(review);
+
+    let finishClick!: (hit: boolean) => void;
+    work.evaluate
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ x: 10, y: 10 })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishClick = resolve;
+        }),
+      );
+    vi.spyOn(manager as any, "captureSessionImage").mockResolvedValue(Buffer.from("screenshot"));
+    let finishRead!: (page: { visibleText: string }) => void;
+    reader.evaluate.mockResolvedValueOnce(true).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRead = resolve;
+      }),
+    );
+    const click = expect(work.act("click", { selector: "button" })).rejects.toThrow("interrupted");
+    const read = expect(reader.act("snapshot")).rejects.toThrow("Approve access");
+    await vi.waitFor(() => {
+      expect(work.evaluate).toHaveBeenCalledTimes(3);
+      expect(reader.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    const beforeChange = performance.timeOrigin + performance.now() - 1;
+    cookies.emit("changed", {}, Object.assign(metadata, { httpOnly: true }), "overwrite", true);
+    finishClick(true);
+    finishRead({ visibleText: "Work" });
+    await Promise.all([click, read]);
+    expect(work.sendInputEvent).not.toHaveBeenCalled();
+    expect(work.state()).toMatchObject({
+      browserPageAuthorized: false,
+      deviceScreenshotAuthorized: false,
+    });
+    for (const tab of [subdomain, sibling, apex, unrelated, personal]) {
+      expect(tab.state().browserPageAuthorized).toBe(true);
+      await expect(tab.act("status")).resolves.toBeDefined();
+    }
+
+    const reload = "Reload this page after its browser session changed";
+    await expect(work.approve()).rejects.toThrow(reload);
+    await expect(work.approveScreenshot()).rejects.toThrow(reload);
+    await expect(work.transfer(grantId, "AAAA")).rejects.toThrow(reload);
+    work.events.emit("did-navigate-in-page", {}, url, true);
+    await expect(work.approve()).rejects.toThrow(reload);
+    work.events.emit("did-start-loading");
+    work.showDocument(beforeChange);
+    await expect(work.approve()).rejects.toThrow(reload);
+    work.events.emit("did-stop-loading");
+    await expect(work.approve()).rejects.toThrow(reload);
+
+    work.showDocument(performance.timeOrigin + performance.now());
+    await expect(work.approve(review)).rejects.toThrow("page changed during review");
+    await expect(work.approve()).resolves.toMatchObject({ approved: true });
+    await expect(work.transfer(grantId, "AAAA")).rejects.toThrow(
+      "Approve this screenshot transfer again",
+    );
+    work.showDocument(beforeChange);
+    await expect(work.act("status")).rejects.toThrow(reload);
+
+    const documentBeforeRotation = performance.timeOrigin + performance.now();
+    work.showDocument(documentBeforeRotation);
+    let finishDocumentCheck!: (time: number) => void;
+    work.evaluate.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishDocumentCheck = resolve;
+      }),
+    );
+    const reviewDuringRotation = expect(work.approve()).rejects.toThrow(reload);
+    // A domain cookie reaches the parent and subdomains with a DNS label boundary.
+    cookies.emit(
+      "changed",
+      {},
+      { domain: ".EXAMPLE.Test.", hostOnly: false, httpOnly: true },
+      "explicit",
+      false,
+    );
+    finishDocumentCheck(documentBeforeRotation);
+    await reviewDuringRotation;
+    for (const tab of [work, subdomain, sibling, apex]) {
+      expect(tab.state().browserPageAuthorized).toBe(false);
+      await expect(tab.approve()).rejects.toThrow(reload);
+    }
+    expect(unrelated.state().browserPageAuthorized).toBe(true);
+    expect(personal.state().browserPageAuthorized).toBe(true);
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
