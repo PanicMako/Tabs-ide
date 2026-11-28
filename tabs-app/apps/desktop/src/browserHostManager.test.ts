@@ -7718,6 +7718,20 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.evaluate).not.toHaveBeenCalled();
       await expect(readdir(f.userData)).resolves.toEqual([]);
     });
+
+    it("declines ephemeral sessions and protected fields and rejects changes during capture", async () => {
+      const f = await setup();
+      f.webContents.session.isPersistent.mockReturnValueOnce(false);
+      await expect(f.capture()).resolves.toEqual({ attachmentId: null });
+      f.fields.password = true;
+      await expect(f.capture()).resolves.toEqual({ attachmentId: null });
+      f.evaluate.mockImplementationOnce(async () => {
+        f.events.emit("did-navigate", {}, "https://app.test/reports/43");
+        return true;
+      });
+      await expect(f.capture()).rejects.toThrow("changed");
+      await expect(readdir(f.userData)).resolves.toEqual([]);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
