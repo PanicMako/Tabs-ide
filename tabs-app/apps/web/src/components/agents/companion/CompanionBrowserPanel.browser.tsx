@@ -1356,3 +1356,87 @@ async function renderScreenshotPairBrowser(threadId: ThreadId) {
     },
   };
 }
+
+it("reviews and cancels a screenshot pair from the keyboard, then attaches the approved pair once", async () => {
+  const threadId = ThreadId.make("screenshot-pair-review");
+  const run = savedComparison("207070c3-688a-42d6-92fd-7a75e6cd4c0d", 2);
+  comparison.mockResolvedValue({
+    run: { ...run, availableEvidence: { source: true, target: true } },
+  });
+  const browser = await renderScreenshotPairBrowser(threadId);
+  try {
+    const action = page.getByRole("menuitem", { name: pairAction, exact: true });
+    await expect.element(browser.tools).toBeEnabled();
+    (browser.tools.element() as HTMLButtonElement).focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(action).toBeVisible();
+    expect(comparison.mock.calls.some(([input]) => input.action === "evidence")).toBe(false);
+    await userEvent.keyboard("attach both");
+    await expect.element(action).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    const review = page.getByRole("dialog");
+    await expect.element(review).toHaveTextContent(`Run ${run.runId}, step 2`);
+    await expect.element(review).toHaveTextContent("Checkout iPhone (ios-lab / ios-42)");
+    await expect.element(review).toHaveTextContent("Checkout Pixel (android-lab / android-24)");
+    await expect
+      .element(review)
+      .toHaveTextContent("https://example.test/evidence/draft in the Work profile");
+    expect(browser.files()).toHaveLength(0);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(review).not.toBeInTheDocument();
+    await expect.element(browser.tools).toHaveFocus();
+    expect(browser.files()).toHaveLength(0);
+    expect(bridge.runBrowserAutomation).not.toHaveBeenCalled();
+
+    useCompanionSurfaceStore
+      .getState()
+      .update(`${testEnvironment}:${threadId}`, browser.surfaceId, {
+        pageRef: "b".repeat(64),
+        browserInstanceId: "cached-browser",
+      });
+    await browser.tools.click();
+    await action.click();
+    await review.getByRole("button", { name: "Confirm" }).click();
+    await vi.waitFor(() => expect(browser.files()).toHaveLength(1));
+    const frames = [
+      {
+        hostId: run.source.hostId,
+        deviceId: run.source.deviceId,
+        frame: { runId: run.runId, step: 2, side: "source" },
+      },
+      {
+        hostId: run.target.hostId,
+        deviceId: run.target.deviceId,
+        frame: { runId: run.runId, step: 2, side: "target" },
+      },
+    ];
+    expect(bridge.runBrowserAutomation).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project",
+      sessionId,
+      taskId: threadId,
+      source: "human",
+      operation: "authorizeDeviceScreenshotPair",
+      input: {
+        url: browser.url,
+        profileId: "work",
+        instanceId: browser.instanceId,
+        pageApprovalToken: browser.pageApprovalToken,
+        frames,
+      },
+    });
+    expect(JSON.parse(await browser.files()[0]!.file.text())).toMatchObject({
+      environmentId: testEnvironment,
+      threadId,
+      surfaceId: browser.surfaceId,
+      pageRef: browser.pageRef,
+      browserInstanceId: browser.instanceId,
+      comparisonScreenshotTransfer: {
+        source: { ...frames[0], grantId: pairGrantIds[0] },
+        target: { ...frames[1], grantId: pairGrantIds[1] },
+      },
+    });
+  } finally {
+    await browser.close();
+  }
+});
