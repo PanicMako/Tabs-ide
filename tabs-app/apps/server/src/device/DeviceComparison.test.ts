@@ -555,6 +555,59 @@ describe("Agent-led device comparison", () => {
       expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId, pixel.hostId]);
     },
   );
+
+  it("binds distinct evidence grants for the proposed tab to an idempotent panel approval", async () => {
+    const f = fixture([frame("ios", ["Continue"])], [frame("android", ["Continue"])]);
+    const { run } = await f.propose(evidenceDestination);
+    expect(run?.agentRecording?.evidenceDestination).toEqual(evidenceDestination);
+    const request = {
+      action: "approveAgentRecording",
+      threadId,
+      runId: run!.runId,
+      approvalRequestId,
+      evidence: evidenceApproval,
+    } as const;
+    await expect(f.invoke(request)).rejects.toThrow("authenticated Device panel");
+    await expect(f.invoke(request, panelSession, recordingCaller)).rejects.toThrow(
+      "authenticated Device panel",
+    );
+    for (const evidence of [
+      { ...evidenceApproval, tabId: "other-tab" },
+      {
+        ...evidenceApproval,
+        grantIds: [evidenceApproval.grantIds[0], evidenceApproval.grantIds[0]],
+      },
+    ] satisfies DeviceComparisonEvidenceApproval[]) {
+      await expect(f.invoke({ ...request, evidence }, panelSession)).rejects.toThrow(
+        "two distinct screenshot grants for the proposed tab",
+      );
+    }
+    expect(f.open).not.toHaveBeenCalled();
+
+    const [approved, retry] = await Promise.all([
+      f.invoke(request, panelSession),
+      f.invoke(request, panelSession),
+    ]);
+    expect(approved.run?.approvalId).toBe(approvalRequestId);
+    expect(approved.approvedEvidence).toBeUndefined();
+    expect(retry.run?.approvalId).toBe(approvalRequestId);
+    expect(retry.approvedEvidence).toBeUndefined();
+    await expect(
+      f.invoke(
+        {
+          ...request,
+          evidence: {
+            ...evidenceApproval,
+            grantIds: [evidenceApproval.grantIds[1], evidenceApproval.grantIds[0]],
+          },
+        },
+        panelSession,
+      ),
+    ).rejects.toThrow("no longer awaiting approval");
+    await f.settle();
+    expect(f.open).toHaveBeenCalledTimes(1);
+    expect(f.press).not.toHaveBeenCalled();
+  });
 });
 
 describe.skip("Device comparison", () => {
