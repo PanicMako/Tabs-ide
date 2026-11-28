@@ -2832,6 +2832,129 @@ describe("Device comparison", () => {
     });
     expect(f.press.mock.calls.filter(([hostId]) => hostId === pixel.hostId)).toEqual([]);
   });
+
+  it.each(["reading the screenshot", "verifying the capture", "saving frozen evidence"] as const)(
+    "hands off the paused destination while %s",
+    async (pending) => {
+      const directory = await mkdtemp(join(tmpdir(), "tabs-target-evidence-"));
+      const ready = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const wait = Effect.promise(() => {
+        ready.resolve();
+        return release.promise;
+      });
+      const frozen = pending === "saving frozen evidence";
+      const store = makeDeviceComparisonStore(directory);
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", [])],
+        [frame("android", ["Back"]), frame("android", [])],
+        true,
+        {
+          ...store,
+          save: (...args) =>
+            frozen && args[1].phase === "stopped"
+              ? wait.pipe(Effect.andThen(store.save(...args)))
+              : store.save(...args),
+        },
+      );
+      const readScreenshot = f.readScreenshot.getMockImplementation()!;
+      f.readScreenshot.mockImplementation((host) =>
+        pending === "reading the screenshot" && host === pixel.hostId
+          ? readScreenshot(host).pipe(Effect.tap(() => wait))
+          : readScreenshot(host),
+      );
+      const snapshot = f.driver.snapshot;
+      Object.assign(f.driver, {
+        snapshot: (...args: Parameters<SemanticDriver["snapshot"]>) =>
+          pending === "verifying the capture" &&
+          args[0].hostId === pixel.hostId &&
+          f.capture.mock.calls.some(([host]) => host === pixel.hostId)
+            ? wait.pipe(Effect.andThen(snapshot(...args)))
+            : snapshot(...args),
+      });
+      try {
+        const runId = await f.begin();
+        const reference = { threadId, runId };
+        await f.tap(runId, "Continue");
+        await f.approve(runId);
+        f.capture.mockClear();
+        await f.replay(runId);
+        await ready.promise;
+        expect((await f.status()).run).toMatchObject({
+          phase: "paused",
+          busy: true,
+          firstDifference: { step: 1, kind: "control" },
+          availableEvidence: { source: true, target: frozen },
+        });
+        expect(f.capture.mock.calls).toEqual([[pixel.hostId]]);
+
+        // A pause-only request cannot take over an already paused run.
+        await expect(f.invoke({ ...reference, action: "takeover" })).rejects.toThrow(
+          "already paused",
+        );
+        await f.invoke(
+          { ...reference, action: "takeover", device: pixel, liveInput: true },
+          panelSession,
+        );
+        if (frozen) release.resolve();
+        await f.settle();
+        const { manualControlId, controls } = await f.invoke(
+          { threadId, action: "status", device: pixel },
+          panelSession,
+        );
+        expect(manualControlId).toBeTypeOf("string");
+        expect(controls).toBeUndefined();
+        const expected = {
+          sourcePng: screenshot(iphone.hostId).toString("base64"),
+          ...(frozen && {
+            targetPng: screenshot(pixel.hostId).toString("base64"),
+          }),
+        };
+        expect((await f.invoke({ ...reference, action: "evidence" })).evidence).toEqual(expected);
+        const saved = await Effect.runPromise(store.load(threadId, runId, true));
+        expect(saved).toMatchObject({
+          report: { availableEvidence: { source: true, target: frozen } },
+        });
+        expect(saved?.evidence).toEqual(expected);
+        const replay = await Effect.runPromise(store.loadReplay(threadId, runId));
+        expect(replay?.checkpoint).toMatchObject({ index: 0, applied: "no" });
+        expect(replay?.checkpoint.screenKey).toBeUndefined();
+        await f.invoke(
+          {
+            ...reference,
+            action: "manualInput",
+            controlId: manualControlId!,
+            gesture: { type: "back" },
+          },
+          panelSession,
+        );
+        expect(f.manual).toHaveBeenCalledOnce();
+        release.resolve();
+        await f.invoke(
+          {
+            ...reference,
+            action: "resume",
+            controlId: manualControlId!,
+            stepCompleted: true,
+          },
+          panelSession,
+        );
+        expect((await f.settle()).run?.phase).toBe("completed");
+        expect((await Effect.runPromise(store.load(threadId, runId, true)))?.evidence).toEqual(
+          expected,
+        );
+        expect(f.capture.mock.calls).toEqual([[pixel.hostId]]);
+        expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toEqual([]);
+      } finally {
+        release.resolve();
+        try {
+          await f.settle();
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
