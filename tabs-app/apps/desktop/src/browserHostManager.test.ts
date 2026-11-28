@@ -9263,6 +9263,61 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.enterComparison(restarted)).rejects.toThrow("No verified comparison draft");
       expect(tab.loadURL).not.toHaveBeenCalled();
     });
+
+    it.each(["new", "existing"])(
+      "persists a %s draft only after reload and reopens it after restart",
+      async (kind) => {
+        const url = "https://app.test/drafts/42?view=review#receipt";
+        const f = await setup(url, kind === "existing" ? url : undefined);
+        await f.observe();
+        await f.observe();
+        await expect(f.enter(f.manager)).resolves.toBeNull();
+        await expect(readdir(f.userData)).resolves.toEqual([]);
+        await f.verify();
+        const record = JSON.parse(await readFile(f.file, "utf8"));
+        expect(record).toEqual({
+          projectId: f.target.projectId,
+          tabId: f.target.sessionId,
+          profileId: f.input.profileId,
+          hostKey: browserWorkflowHostKey(f.userData, f.storagePath, false),
+          partition: f.session.partition,
+          threadId: f.target.taskId,
+          instanceId: f.session.instanceId,
+          managerId: expect.any(String),
+          grantId: f.input.grantId,
+          pageRef: f.input.pageRef,
+          digest: f.digest,
+          url: f.draftUrl,
+        });
+        const bookmarks = new BrowserAttachmentBookmarks(() => f.userData);
+        expect(bookmarks.read(f.input.grantId)).toBeUndefined();
+        expect(() =>
+          bookmarks.saveScreenshotDraft({
+            ...record,
+            url: "https://app.test/other",
+          }),
+        ).toThrow("EEXIST");
+        expect(JSON.parse(await readFile(f.file, "utf8"))).toEqual(record);
+        if (process.platform !== "win32") {
+          expect((await stat(f.directory)).mode & 0o777).toBe(0o700);
+          expect((await stat(f.file)).mode & 0o777).toBe(0o600);
+        }
+        const restarted = new BrowserHostManager(() => null);
+        const tab = f.tab(restarted);
+        await expect(f.enter(restarted)).resolves.toMatchObject({
+          url: f.draftUrl,
+        });
+        expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(f.draftUrl);
+        expect(tab.evaluate).toHaveBeenCalledExactlyOnceWith(999, [
+          { code: expect.stringContaining(f.digest) },
+        ]);
+        expect(tab.session.controller).toBe("none");
+        expect(tab.session.assignedTaskId).toBeNull();
+        expect(
+          restarted.getSessionState(f.target.projectId, f.target.sessionId).browserPageAuthorized,
+        ).toBe(false);
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
