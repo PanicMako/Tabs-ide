@@ -1285,4 +1285,167 @@ test("isolates watches by owner and stops polling after cancellation", async () 
   }
 });
 
+test("the registered watch follows the saved draft and retires when a check reaches its goal", async () => {
+  const definition = {
+    ...journalDefinition,
+    uploadInputSelector: "#package",
+    states: uploadStates,
+  };
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { stateDir } = yield* ServerConfig.ServerConfig;
+      const broker = yield* Broker.PreviewAutomationBroker;
+      const clientId = "workflow-watch-host";
+      const liveTab = { threadId, tabId, workflowHostKey: journalTarget.hostKey };
+      const connect = Effect.gen(function* () {
+        const connected = yield* Deferred.make<string>();
+        const stream = yield* broker.connect({
+          clientId,
+          environmentId,
+          supportedOperations: ["browserWorkflow"],
+        });
+        yield* Stream.runForEach(stream, (event) =>
+          Effect.gen(function* () {
+            if (event.type === "connected") {
+              yield* Deferred.succeed(connected, event.connectionId);
+              return;
+            }
+            const { request } = event;
+            expect(request).toMatchObject({
+              operation: "browserWorkflow",
+              tabId,
+              tabIdExplicit: true,
+              threadId,
+            });
+            const input = decodeRequest(request.input);
+            expect(input.definition).toEqual(definition);
+            if (input.phase === "monitor") samples.push(input);
+            expect(["inspect", "monitor"]).toContain(input.phase);
+            yield* broker.respond({
+              clientId,
+              connectionId: event.connectionId,
+              requestId: request.requestId,
+              ok: true,
+              result: { ...page, submissionApproved: false },
+            });
+          }),
+        ).pipe(Effect.forkScoped);
+        const connectionId = yield* Deferred.await(connected);
+        return (liveTabs: (typeof liveTab)[]) =>
+          broker.focusHost({ clientId, connectionId, environmentId, focused: false, liveTabs });
+      });
+      const samples: BrowserWorkflowBrowserRequest[] = [];
+      let page: BrowserWorkflowHostResult = {
+        ...status("uploaded"),
+        observation: {
+          stage: "ready_to_upload",
+          statusText: definition.states.ready_to_upload,
+          breakpoint: "clear",
+          submitAvailable: false,
+          uploadAvailable: true,
+        },
+      };
+      const poll = pollBrowserWorkflowWatches(
+        stateDir,
+        environmentId,
+        () =>
+          Effect.succeed({
+            archivedAt: null,
+            deletedAt: null,
+            providerInstanceId: ProviderInstanceId.make("codex"),
+          }),
+        broker,
+      );
+      const advertise = yield* connect;
+      yield* advertise([liveTab]);
+      const armed = report(
+        yield* call({ action: "arm", tabId, profileId: "Work", definition }, "watch-provider"),
+      );
+      expect(armed).toMatchObject({
+        phase: "approval_required",
+        reason: expect.stringContaining("choose a file and approve the upload"),
+      });
+      const { workflowId } = armed;
+      const watching = report(
+        yield* call(
+          { action: "watch", workflowId, until: "uploaded", refresh: true },
+          "watch-provider",
+        ),
+      );
+      expect(watching).toMatchObject({ phase: "watching", watchUntil: "uploaded" });
+      const read = () => readJournal(stateDir, workflowId);
+      const before = yield* Effect.promise(read);
+
+      // A takeover withdraws the existing grant from the host advertisement.
+      yield* advertise([]);
+      yield* poll;
+      // Neither a new tab in Work nor the saved tab ID in another partition qualifies.
+      yield* advertise([
+        { ...liveTab, tabId: PreviewTabId.make("agents-surface-replacement") },
+        { ...liveTab, workflowHostKey: "desktop-personal" },
+      ]);
+      yield* poll;
+      const advertiseReconnected = yield* connect;
+      yield* poll;
+      expect(samples).toEqual([]);
+      expect(yield* Effect.promise(read)).toBe(before);
+
+      yield* advertiseReconnected([liveTab]);
+      yield* poll;
+      expect(samples).toEqual([
+        {
+          phase: "monitor",
+          target: journalTarget,
+          profileId: journalTarget.profileId,
+          definition,
+          workflowId,
+          statusOnly: true,
+          refresh: true,
+          lastVerifiedStage: "ready_to_upload",
+        },
+      ]);
+
+      page = status("uploaded");
+      const checked = report(yield* call({ action: "check", workflowId }, "watch-provider"));
+      expect(checked).toMatchObject({
+        phase: "approval_required",
+        lastVerified: { stage: "uploaded" },
+      });
+      expect(checked.watchUntil).toBeUndefined();
+      expect(
+        yield* Effect.promise(() => listBrowserWorkflowWatches(stateDir, environmentId)),
+      ).toEqual([]);
+
+      // Older journals can already contain a watch whose goal was verified by a check.
+      const saved = JSON.parse(yield* Effect.promise(read));
+      yield* Effect.promise(() =>
+        writeFile(
+          join(stateDir, "browser-workflows", `${workflowId}.json`),
+          JSON.stringify({ ...saved, watch: { until: "uploaded", refresh: true } }),
+        ),
+      );
+      yield* poll;
+      expect(samples).toHaveLength(1);
+      expect(JSON.parse(yield* Effect.promise(read))).toEqual(saved);
+
+      yield* call({ action: "watch", workflowId, until: "published" }, "watch-provider");
+      page = status("published");
+      yield* poll;
+      expect(JSON.parse(yield* Effect.promise(read))).toMatchObject({
+        target: journalTarget,
+        definition,
+        evidence: { stage: "published" },
+      });
+      expect(
+        yield* Effect.promise(() => listBrowserWorkflowWatches(stateDir, environmentId)),
+      ).toEqual([]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(mcpLayer),
+      Effect.provide(ServerConfig.layerTest(process.cwd(), { prefix: "tabs-workflow-watch-" })),
+      Effect.provide(NodeServices.layer),
+    ),
+  );
+});
+
 const chromiumPath = chromium.executablePath();
