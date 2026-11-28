@@ -1267,6 +1267,50 @@ describe("reliable browser tabs and agent control", () => {
     await expect(manager.runAutomation(request)).rejects.toThrow("1,000 characters");
   });
 
+  it("keeps the user in control if a new takeover interrupts return from a demonstration", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-demonstration";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+    });
+    const { session, webContents } = fixture;
+    mockNavigation(manager, fixture);
+    let finishRead!: (observedChanges: string[]) => void;
+    const observation = new Promise<string[]>((resolve) => {
+      finishRead = resolve;
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ role: "button", label: "Export" })
+      .mockReturnValueOnce(observation);
+    Object.assign(webContents, { executeJavaScriptInIsolatedWorld: execute });
+    const target = { projectId: session.projectId, sessionId, taskId: "qa" };
+    await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeBrowserPage",
+      input: { url: session.currentUrl, profileId: "default" },
+    });
+    manager.takeControl({ ...target, demonstrate: true });
+    const state = () => manager.getSessionState(session.projectId, sessionId);
+    await vi.waitFor(() => expect(state().demonstratedControl).toContain("Export"));
+    const returning = manager.resumeAgent({
+      ...target,
+      expectedGeneration: {
+        instanceId: session.instanceId,
+        controlEpoch: session.controlEpoch,
+      },
+    });
+    expect(state().controller).toBe("human");
+    expect(execute).toHaveBeenCalledTimes(2);
+    manager.takeControl(target);
+    finishRead(["Control expanded"]);
+    await expect(returning).rejects.toThrow("tab changed while returning control");
+    expect(state().controller).toBe("human");
+    expect(session.actionTimeline).toEqual([]);
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
