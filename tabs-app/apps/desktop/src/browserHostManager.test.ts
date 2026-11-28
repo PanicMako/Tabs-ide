@@ -6222,6 +6222,62 @@ describe("reliable browser tabs and agent control", () => {
         grantIds: [expect.any(String), expect.any(String)],
       });
     });
+
+    it("reserves both devices in one state update without editing page authority or navigating", async () => {
+      const f = createEvidenceFixture();
+      const { loadURL } = mockNavigation(f.manager, f);
+      await f.authorizePage();
+      const epoch = f.session.controlEpoch;
+      const pageGrant = (f.session as { pageGrant?: object }).pageGrant;
+      const emit = vi.spyOn(f.manager as any, "emitState");
+      const {
+        grantIds: [sourceId, targetId],
+      } = await f.authorizeEvidence();
+      expect(sourceId).not.toBe(targetId);
+      expect(emit).toHaveBeenCalledOnce();
+      expect(f.session.controlEpoch).toBe(epoch);
+      expect((f.session as { pageGrant?: object }).pageGrant).toBe(pageGrant);
+      expect(f.session.assignedTaskId).toBe(f.target.taskId);
+      expect(f.session.controller).toBe("none");
+      expect(loadURL).not.toHaveBeenCalled();
+      expect(f.attach).toHaveBeenCalledExactlyOnceWith(999, [
+        {
+          code: expect.stringContaining('meta[name="tabs-screenshot-receipts"]'),
+        },
+      ]);
+      f.attach.mockClear();
+      await expect(f.transfer(sourceId, { phase: "inspect" })).resolves.toEqual({
+        ...sourceDevice,
+        firstDifference: { runId: evidenceRunId, side: "source" },
+      });
+      await expect(f.transfer(targetId, { phase: "inspect" })).resolves.toEqual({
+        ...targetDevice,
+        firstDifference: { runId: evidenceRunId, side: "target" },
+      });
+      expect(f.attach.mock.calls[0]?.[1][0].code).toContain(targetId);
+      expect(f.attach.mock.calls[1]?.[1][0].code).toContain(sourceId);
+      for (const frame of [
+        undefined,
+        { runId: evidenceRunId, side: "source" },
+        { ...sourceFrame, step: 0 },
+        { ...sourceFrame, step: "3" },
+        { ...sourceFrame, runId: crypto.randomUUID() },
+        targetFrame,
+      ])
+        await expect(f.transfer(sourceId, { frame })).rejects.toThrow("source");
+      await expect(f.transfer(targetId, { frame: targetFrame })).rejects.toThrow("source");
+      expect(f.attach).toHaveBeenCalledTimes(2);
+      await expect(f.transfer(sourceId, { frame: sourceFrame })).resolves.toEqual({
+        attached: true,
+      });
+      await expect(f.transfer(targetId, { ...targetDevice, frame: targetFrame })).resolves.toEqual({
+        attached: true,
+      });
+      await expect(f.transfer(sourceId, { frame: sourceFrame })).rejects.toThrow("Approve");
+      await expect(f.transfer(targetId, { ...targetDevice, frame: targetFrame })).rejects.toThrow(
+        "Approve",
+      );
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
