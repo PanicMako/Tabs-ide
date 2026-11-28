@@ -495,4 +495,130 @@ test.each([
   },
 );
 
+test("corrects a direct upload selector on the same journal and waits for browser approval", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-direct-upload-"));
+  try {
+    const definition = { ...journalDefinition, states: uploadStates };
+    const initial = { ...definition, uploadInputSelector: "#missing-input" };
+    const corrected = { ...definition, uploadInputSelector: "#package" };
+    const staged = { ...definition, uploadSelector: "#upload" };
+    const requests: BrowserWorkflowBrowserRequest[] = [];
+    let approved = false;
+    let uploaded = false;
+    const browser = async (
+      request: BrowserWorkflowBrowserRequest,
+    ): Promise<BrowserWorkflowHostResult | undefined> => {
+      requests.push(request);
+      if (request.workflowId) {
+        const saved = await readBrowserWorkflowResult(directory, journalOwner, {
+          workflowId: request.workflowId,
+          stage: "ready_to_upload",
+        });
+        expect(request.target).toEqual(saved.target);
+        expect(request.definition).toEqual(saved.definition);
+        if (request.phase === "upload") {
+          expect(approved).toBe(true);
+          expect(saved.pendingAction).toBe("upload");
+          return undefined;
+        }
+      }
+      if (uploaded) return { ...status("uploaded"), submissionApproved: false };
+      return {
+        target: journalTarget,
+        disposition: "observed",
+        submissionApproved: !request.statusOnly && approved,
+        observation: {
+          stage: "ready_to_upload",
+          statusText: uploadStates.ready_to_upload,
+          breakpoint: request.statusOnly ? "irrelevant" : "clear",
+          submitAvailable: false,
+          uploadAvailable: request.definition.uploadInputSelector !== initial.uploadInputSelector,
+        },
+      };
+    };
+    const workflows = makeBrowserWorkflows(directory, journalOwner, browser);
+    const arm = (definition: BrowserWorkflowDefinition) =>
+      workflows.arm({ ...armJournal, definition });
+    const first = await arm(initial);
+    const { workflowId } = first;
+    expect(first).toMatchObject({
+      phase: "unobservable",
+      reason: expect.stringContaining("empty HTML file input"),
+    });
+    expect(requests.splice(0)).toEqual([
+      { phase: "inspect", profileId: journalTarget.profileId, definition: initial },
+    ]);
+    const beforeCorrection = await readJournal(directory, workflowId);
+    expect(JSON.parse(beforeCorrection)).toMatchObject({
+      definition: initial,
+      awaitingPreflight: true,
+      pending: false,
+    });
+    await expect(arm(staged)).rejects.toThrow("original draft and selectors");
+    expect(await readJournal(directory, workflowId)).toBe(beforeCorrection);
+    expect(requests.splice(0)).toEqual([
+      { phase: "inspect", profileId: journalTarget.profileId, definition: staged },
+    ]);
+
+    const proposed = await arm(corrected);
+    expect(proposed).toMatchObject({
+      workflowId,
+      phase: "approval_required",
+      reason: "On the original draft, choose a file and approve the upload in the browser.",
+    });
+    const inspection = {
+      phase: "inspect",
+      profileId: journalTarget.profileId,
+      definition: corrected,
+    };
+    const targeted = { ...inspection, target: journalTarget, workflowId };
+    expect(requests.splice(0)).toEqual([inspection, targeted]);
+    const afterCorrection = await readJournal(directory, workflowId);
+    expect(JSON.parse(afterCorrection)).toMatchObject({ definition: corrected, pending: false });
+    expect(JSON.parse(afterCorrection)).not.toHaveProperty("awaitingPreflight");
+    for (const changed of [initial, staged]) {
+      await expect(arm(changed)).rejects.toThrow("original draft and selectors");
+    }
+    expect(await readJournal(directory, workflowId)).toBe(afterCorrection);
+    expect(requests.splice(0)).toEqual([
+      { ...inspection, definition: initial },
+      { ...inspection, definition: staged },
+    ]);
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({
+      phase: "approval_required",
+      reason: proposed.reason,
+    });
+    expect(requests.splice(0)).toEqual([{ ...targeted, statusOnly: false }]);
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({ pending: false });
+
+    approved = true;
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({ phase: "uncertain" });
+    const pending = await readJournal(directory, workflowId);
+    expect(JSON.parse(pending)).toMatchObject({ pending: true });
+    const restarted = makeBrowserWorkflows(directory, journalOwner, browser);
+    expect(await restarted.advance(workflowId, "upload")).toMatchObject({ phase: "uncertain" });
+    expect(await readJournal(directory, workflowId)).toBe(pending);
+    uploaded = true;
+    expect(await restarted.advance(workflowId, "check")).toMatchObject({
+      phase: "verified",
+      lastVerified: { stage: "uploaded" },
+    });
+    expect(await restarted.advance(workflowId, "upload")).toMatchObject({
+      phase: "verified",
+      lastVerified: { stage: "uploaded" },
+    });
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({ pending: false });
+    expect(requests).toEqual([
+      { ...targeted, statusOnly: false },
+      { ...targeted, phase: "upload" },
+      { ...targeted, statusOnly: true },
+      { ...targeted, statusOnly: true },
+      { ...targeted, statusOnly: true },
+      { ...targeted, statusOnly: true },
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
