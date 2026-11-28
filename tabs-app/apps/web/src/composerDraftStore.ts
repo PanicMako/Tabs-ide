@@ -401,7 +401,8 @@ function composerImageDedupKey(image: ComposerImageAttachment): string {
 }
 
 function terminalContextDedupKey(context: TerminalContextDraft): string {
-  return `${context.terminalId}\u0000${context.lineStart}\u0000${context.lineEnd}`;
+  const range = `${context.terminalId}\u0000${context.lineStart}\u0000${context.lineEnd}`;
+  return context.source ? `${range}\u0000${context.source.instanceId}\u0000${context.text}` : range;
 }
 
 function normalizeTerminalContextForThread(
