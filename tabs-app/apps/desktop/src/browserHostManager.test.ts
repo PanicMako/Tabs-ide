@@ -7922,6 +7922,24 @@ describe("reliable browser tabs and agent control", () => {
           await expect(f.inspect()).rejects.toThrow("same Figma Design file, branch and node");
         },
       );
+
+      it.each(["navigation", "grant replacement", "takeover", "replacement guest"])(
+        "retires confirmation and its inspection after %s",
+        async (change) => {
+          const f = await setupFigma();
+          const { approval, write } = await proposed(f);
+          await f.confirm(approval.id);
+          if (change === "navigation") f.events.emit("did-navigate-in-page", {}, address, true);
+          if (change === "grant replacement") await f.grant();
+          if (change === "takeover") {
+            f.manager.takeControl(f.request);
+            await f.manager.resumeAgent(f.request);
+          }
+          if (change === "replacement guest") f.session.instanceId = crypto.randomUUID();
+          await expect(f.authorize(write)).rejects.toThrow("Review the current Figma");
+          expect(f.pending()).toBeUndefined();
+        },
+      );
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
