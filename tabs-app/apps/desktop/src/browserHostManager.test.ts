@@ -2807,6 +2807,100 @@ describe("reliable browser tabs and agent control", () => {
     }
   });
 
+  it.each(["a credential-bearing URL", "an intervening same-document change"] as const)(
+    "refuses to resolve a browser workflow draft after %s",
+    async (scenario) => {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-address-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-workflow";
+      const publicUrl = "https://workflow.test/draft/42";
+      const protectedAddress = scenario === "a credential-bearing URL";
+      const url = `${publicUrl}${protectedAddress ? "?__session=fixture" : "?view=build#delivery"}`;
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: url,
+      });
+      const { session, webContents } = fixture;
+      const { events } = mockNavigation(manager, fixture);
+      const evaluate = vi.fn(async (_world: number, scripts: { code: string }[]) => {
+        if (!scripts[0]?.code.includes("observeWorkflowPage")) return true;
+        events.emit("did-navigate-in-page", {}, `${publicUrl}?view=another`, true);
+        events.emit("did-navigate-in-page", {}, url, true);
+        return {
+          disposition: "observed",
+          observation: {
+            stage: "uploaded",
+            statusText: "Uploaded",
+            submitAvailable: true,
+            breakpoint: "clear",
+          },
+        };
+      });
+      Object.assign(webContents, {
+        executeJavaScriptInIsolatedWorld: evaluate,
+        isLoadingMainFrame: () => session.loading,
+      });
+      Object.assign(webContents.session, {
+        storagePath: join(userData, "Partitions", "work"),
+      });
+      const owner = {
+        projectId: session.projectId,
+        sessionId,
+        taskId: "workflow-thread",
+      };
+      await manager.runAutomation({
+        ...owner,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId: "work" },
+      });
+      evaluate.mockClear();
+      await expect(
+        manager.runAutomation({
+          ...owner,
+          source: "agent",
+          operation: "browserWorkflow",
+          input: {
+            phase: "inspect",
+            profileId: "work",
+            definition: {
+              url: publicUrl,
+              identitySelector: "#draft",
+              resourceId: "42",
+              statusSelector: "#status",
+              submitSelector: "#submit",
+              states: {
+                uploaded: "Uploaded",
+                submitted: "Submitted",
+                certified: "Certified",
+                published: "Published",
+              },
+              breakpoint: {
+                selector: "#condition",
+                pauseText: "Replacing",
+                clearText: "Clear",
+              },
+            },
+          },
+        }),
+      ).rejects.toThrow(
+        protectedAddress ? "without sign-in or access credentials" : "draft changed",
+      );
+      if (protectedAddress) expect(evaluate).not.toHaveBeenCalled();
+      expect(
+        manager.getSessionState(session.projectId, sessionId).submissionGuardActive,
+      ).toBeFalsy();
+    },
+  );
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
