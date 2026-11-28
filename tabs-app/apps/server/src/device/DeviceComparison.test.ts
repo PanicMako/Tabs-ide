@@ -3737,6 +3737,36 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it("uses Android system metadata without treating ordinary dialog text as permission UI", () => {
+    const checkout = frame("android", ["Allow", "Continue"]);
+    expect(
+      isDeviceSystemSurface({
+        ...checkout,
+        androidSnapshot: { systemSurfaceOnly: true },
+      }),
+    ).toBe(true);
+    expect(
+      isDeviceSystemSurface(
+        identify(checkout, "com.android.permissioncontroller:id/permission_allow_button"),
+      ),
+    ).toBe(true);
+    expect(
+      isDeviceSystemSurface(identify(checkout, `${androidApp}:id/permission_allow_button`)),
+    ).toBe(false);
+    expect(
+      isDeviceSystemSurface({
+        ...checkout,
+        nodes: [
+          {
+            ...checkout.nodes[0]!,
+            bundleId: "com.android.packageinstaller",
+            visibleToUser: false,
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
