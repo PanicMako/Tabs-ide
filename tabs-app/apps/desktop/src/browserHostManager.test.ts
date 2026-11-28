@@ -6521,6 +6521,50 @@ describe("reliable browser tabs and agent control", () => {
         ).resolves.toEqual({ attached: true });
       },
     );
+
+    it.each([
+      { name: "a single frame", frames: [source] },
+      { name: "an extra frame", frames: [source, target, target] },
+      { name: "a missing host", frames: [{ ...source, hostId: "" }, target] },
+      {
+        name: "a padded device ID",
+        frames: [source, { ...target, deviceId: " same-id " }],
+      },
+      {
+        name: "the same exact device",
+        frames: [source, { ...target, hostId: source.hostId }],
+      },
+      { name: "reversed sides", frames: [target, source] },
+      {
+        name: "repeated sides",
+        frames: [source, { ...target, frame: source.frame }],
+      },
+      {
+        name: "different runs",
+        frames: [
+          source,
+          {
+            ...target,
+            frame: {
+              ...target.frame,
+              runId: "92724452-d32a-42f1-9771-75656595c622",
+            },
+          },
+        ],
+      },
+      {
+        name: "different steps",
+        frames: [source, { ...target, frame: { ...target.frame, step: 3 } }],
+      },
+    ])("rejects $name without granting access", async ({ frames }) => {
+      const f = createUploadFixture();
+      await expect(f.authorizePair(frames)).rejects.toThrow(/exact devices|distinct source/);
+      expect(f.session.assignedTaskId).toBeNull();
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        browserPageAuthorized: false,
+        deviceScreenshotAuthorized: false,
+      });
+    });
   });
 
   async function connectChromiumPage(
