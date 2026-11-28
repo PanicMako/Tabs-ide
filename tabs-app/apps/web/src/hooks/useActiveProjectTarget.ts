@@ -22,35 +22,59 @@ export interface ActiveProjectTarget {
  * open thread dropped out of that list, and came back only when it was reloaded.
  */
 const lastTargetByThreadId = new Map<string, ActiveProjectTarget>();
+const scopedTargets = new Map<string, ActiveProjectTarget>();
 
-export function rememberThreadTarget(target: ActiveProjectTarget | null): void {
-  if (target?.threadId) lastTargetByThreadId.set(target.threadId, target);
+function targetKey(threadId: ThreadId, environmentId: EnvironmentId | null) {
+  return JSON.stringify([environmentId, threadId]);
 }
 
-export function rememberedThreadTarget(threadId: ThreadId): ActiveProjectTarget | null {
-  return lastTargetByThreadId.get(threadId) ?? null;
+export function rememberThreadTarget(target: ActiveProjectTarget | null): void {
+  if (target?.threadId) {
+    lastTargetByThreadId.set(target.threadId, target);
+    scopedTargets.set(targetKey(target.threadId, target.environmentId), target);
+  }
+}
+
+export function rememberedThreadTarget(
+  threadId: ThreadId,
+  environmentId?: EnvironmentId | null,
+): ActiveProjectTarget | null {
+  return (
+    (environmentId === undefined
+      ? lastTargetByThreadId.get(threadId)
+      : scopedTargets.get(targetKey(threadId, environmentId))) ?? null
+  );
 }
 
 export function useActiveProjectTarget(
   requestedThreadId?: ThreadId | null,
+  requestedEnvironmentId?: EnvironmentId | null,
 ): ActiveProjectTarget | null {
   const { activeThread, routeThreadId } = useHandleNewThread();
-  const draftThread = useDraftThread(requestedThreadId ?? routeThreadId);
+  const draftThread = useDraftThread(requestedThreadId ?? routeThreadId, requestedEnvironmentId);
   const projects = useAtomValue(projectsAtom);
   const threads = useAtomValue(threadsAtom);
   const activeProjectId = useWorkspaceActiveProjectId();
 
+  const matchesEnvironment = (environmentId: EnvironmentId | undefined) =>
+    requestedEnvironmentId === undefined || (environmentId ?? null) === requestedEnvironmentId;
   const thread = requestedThreadId
-    ? (threads.find((candidate) => candidate.id === requestedThreadId) ?? draftThread)
+    ? (threads.find(
+        (candidate) =>
+          candidate.id === requestedThreadId && matchesEnvironment(candidate.environmentId),
+      ) ?? draftThread)
     : (activeThread ?? draftThread);
   const threadId = requestedThreadId ?? activeThread?.id ?? (draftThread ? routeThreadId : null);
   if (requestedThreadId && !thread) {
     // The thread is open but not in the list right now: keep using where it last lived, or the
     // project the workspace has open, rather than telling the user to start a thread.
-    const remembered = rememberedThreadTarget(requestedThreadId);
+    const remembered = rememberedThreadTarget(requestedThreadId, requestedEnvironmentId);
     if (remembered) return remembered;
     const activeProject = activeProjectId
-      ? projects.find((candidate) => candidate.id === activeProjectId)
+      ? projects.find(
+          (candidate) =>
+            candidate.id === activeProjectId && matchesEnvironment(candidate.environmentId),
+        )
       : null;
     if (!activeProject?.cwd) return null;
     return {
@@ -64,9 +88,15 @@ export function useActiveProjectTarget(
   }
 
   const project = thread
-    ? projects.find((candidate) => candidate.id === thread.projectId)
+    ? projects.find(
+        (candidate) =>
+          candidate.id === thread.projectId && matchesEnvironment(candidate.environmentId),
+      )
     : activeProjectId
-      ? projects.find((candidate) => candidate.id === activeProjectId)
+      ? projects.find(
+          (candidate) =>
+            candidate.id === activeProjectId && matchesEnvironment(candidate.environmentId),
+        )
       : null;
 
   if (!project) return null;
