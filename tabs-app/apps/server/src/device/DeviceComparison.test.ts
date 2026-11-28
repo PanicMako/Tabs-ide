@@ -941,6 +941,24 @@ describe("Agent-led device comparison", () => {
       expect(f.press).not.toHaveBeenCalled();
     },
   );
+
+  it.each(["Place order", "Place demo order"])(
+    "refuses %s without sending driver input",
+    async (label) => {
+      const f = fixture([frame("ios", [label])], [frame("android", [label])]);
+      const { run } = await f.propose();
+      const runId = run!.runId;
+      await f.approveRecording(runId);
+      const { controls } = await f.record({ action: "inspect", runId });
+      expect(controls).toMatchObject([{ label, canTap: false }]);
+      await expect(f.record({ action: "tap", runId, controlId: controls![0]!.id })).rejects.toThrow(
+        "Choose My turn",
+      );
+      expect(f.press).not.toHaveBeenCalled();
+      expect(f.capture).not.toHaveBeenCalled();
+      expect((await f.settle()).run?.steps).toEqual([]);
+    },
+  );
 });
 
 describe.skip("Device comparison", () => {
