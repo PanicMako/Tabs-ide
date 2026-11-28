@@ -7711,6 +7711,38 @@ describe("reliable browser tabs and agent control", () => {
         await f.manager.resumeAgent(f.request);
         await expect(f.dispatch(approval)).rejects.toThrow("Review the current Figma");
       });
+
+      it("reopens a saved frame on its exact branch and rejects other targets", async () => {
+        const f = await setupFigma();
+        await f.grant();
+        const target = await f.inspect();
+        const restarted = new BrowserHostManager(() => null);
+        const tab = f.tab(restarted, "about:blank");
+        const receipt = {
+          target,
+          frameNodeId: "35:90",
+          textNodeId: "35:91",
+          verifiedAt: "2026-11-26T00:00:00Z",
+        };
+        const enter = (input: object) =>
+          restarted.runAutomation({
+            ...f.request,
+            operation: "enterFigmaCanvasResult",
+            input,
+          });
+        await expect(
+          enter({ ...receipt, target: { ...target, fileKey: "otherBranch" } }),
+        ).rejects.toThrow("original desktop");
+        expect(tab.loadURL).not.toHaveBeenCalled();
+        const opened = enter(receipt);
+        const url = address.replace("35-12", "35-90");
+        await vi.waitFor(() => expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(url));
+        tab.events.emit("did-finish-load");
+        await expect(opened).resolves.toEqual({ url });
+        expect(
+          restarted.getSessionState(f.request.projectId, f.request.sessionId).browserPageAuthorized,
+        ).toBe(false);
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
