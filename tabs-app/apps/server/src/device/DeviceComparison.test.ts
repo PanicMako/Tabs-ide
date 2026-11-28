@@ -1861,6 +1861,165 @@ describe("Device comparison", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    { diverged: false, interruption: "a late Stop request" },
+    {
+      diverged: true,
+      interruption: "replacement of the destination attachment",
+    },
+  ])(
+    "reopens a completed replay through a fresh Device service after $interruption",
+    async ({ diverged }) => {
+      const directory = await mkdtemp(join(tmpdir(), "tabs-comparison-completed-"));
+      const saving = Promise.withResolvers<void>();
+      const finishSave = Promise.withResolvers<void>();
+      try {
+        const store = makeDeviceComparisonStore(directory);
+        const android = [
+          frame("android", [diverged ? "Back" : "Continue"]),
+          frame("android", [], ["Order review"]),
+        ];
+        const f = fixture(
+          [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+          android,
+          true,
+          {
+            ...store,
+            save: (owner, report, evidence, isCurrent) =>
+              report.phase === "completed"
+                ? Effect.promise(() => {
+                    saving.resolve();
+                    return finishSave.promise;
+                  }).pipe(Effect.andThen(store.save(owner, report, evidence, isCurrent)))
+                : store.save(owner, report, evidence, isCurrent),
+          },
+        );
+        const startReplay = async () => {
+          const runId = await f.begin();
+          const { controls } = await f.tap(runId, "Continue");
+          await f.invoke({
+            action: "expect",
+            threadId,
+            runId,
+            controlId: controls!.find(({ label }) => label === "Order review")!.id,
+          });
+          await f.approve(runId);
+          await f.replay(runId);
+          return runId;
+        };
+        const runId = await startReplay();
+        const request = { action: "status", threadId, runId } as const;
+        const evidenceRequest = { ...request, action: "evidence" } as const;
+        let checkpoint: Awaited<ReturnType<typeof f.invoke>> | undefined;
+        if (diverged) {
+          await f.settle();
+          checkpoint = await f.invoke(evidenceRequest);
+          expect(checkpoint.run).toMatchObject({
+            phase: "paused",
+            firstDifference: { step: 1 },
+            availableEvidence: { source: true, target: true },
+          });
+          android[0] = frame("android", ["Continue"]);
+          await f.invoke({ ...request, action: "resume" });
+        }
+        await saving.promise;
+        const duringSave = await f.invoke(request, panelSession);
+        if (diverged) f.reopenDestination();
+        else await f.invoke({ ...request, action: "stop" }, panelSession);
+        finishSave.resolve();
+        await f.settle();
+        expect(duringSave).toMatchObject({
+          run: { runId, phase: "completed", busy: true },
+          liveTargetAvailable: true,
+        });
+        const afterSave = await f.invoke(request, panelSession);
+        expect(afterSave.liveTargetAvailable).toBe(diverged ? undefined : true);
+        const stopped = await f.invoke({ ...request, action: "stop" }, panelSession);
+        expect(stopped.run).toMatchObject({
+          runId,
+          phase: "completed",
+          busy: false,
+        });
+
+        // A second run on the same pair becomes latest without replacing the saved link.
+        f.positions.set(iphone.hostId, 0);
+        f.positions.set(pixel.hostId, 0);
+        const newerRunId = await startReplay();
+        await f.settle();
+        const recovered = await Effect.runPromise(
+          makeWithHosts(
+            new Map(),
+            undefined,
+            undefined,
+            undefined,
+            makeDeviceComparisonStore(directory),
+          ).pipe(
+            Effect.provide(
+              settingsLayerTest({
+                enableDeviceSupport: true,
+                enableAgentDeviceAccess: true,
+              }),
+            ),
+            Effect.provideService(
+              HttpClient.HttpClient,
+              HttpClient.make(() => Effect.die("unexpected device request")),
+            ),
+          ),
+        );
+        const invoke = (input: Parameters<typeof recovered.comparison>[0]) =>
+          Effect.runPromise(recovered.comparison(input, panelSession));
+        const latest = await invoke({
+          action: "status",
+          threadId,
+          device: pixel,
+        });
+        expect(latest.run).toMatchObject({
+          runId: newerRunId,
+          phase: "completed",
+        });
+        expect(latest.run?.firstDifference).toBeUndefined();
+        const result = await invoke(request);
+        expect(result).toMatchObject({
+          run: {
+            runId,
+            phase: "completed",
+            source: { ...iphone, platform: "ios", appId: iosApp },
+            target: { ...pixel, platform: "android", appId: androidApp },
+            completedSteps: 1,
+            canResume: false,
+            savedAt: expect.any(String),
+            steps: [{ label: "Continue", expected: "Order review" }],
+          },
+        });
+        expect(result.run?.approvalId).toBeUndefined();
+        expect(result.liveTargetAvailable).toBeUndefined();
+        expect(result.run?.firstDifference).toEqual(checkpoint?.run?.firstDifference);
+        if (diverged) {
+          expect(await invoke(evidenceRequest)).toEqual({
+            ...result,
+            evidence: checkpoint?.evidence,
+          });
+        } else {
+          await expect(invoke(evidenceRequest)).rejects.toThrow("no longer available");
+        }
+        await expect(invoke({ ...evidenceRequest, runId: newerRunId })).rejects.toThrow(
+          "no longer available",
+        );
+        expect(await invoke({ ...request, runId: approvalRequestId })).toEqual({});
+        expect(await invoke({ ...request, threadId: otherThreadId })).toEqual({});
+        await expect(invoke({ ...evidenceRequest, threadId: otherThreadId })).rejects.toThrow(
+          "no longer available",
+        );
+        await expect(invoke({ ...request, action: "resume" })).rejects.toThrow(
+          "no longer available",
+        );
+      } finally {
+        finishSave.resolve();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
