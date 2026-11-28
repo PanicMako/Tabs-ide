@@ -9390,6 +9390,104 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("binds a verified screenshot draft to its original page, tab, account, and thread", async () => {
+    const sessionId = "agents-surface-draft";
+    const source = "https://docs.google.com/document/u/0/d/source";
+    const draft = `${source}/edit`;
+    const otherAccount = "https://docs.google.com/document/u/1/d/source/edit";
+    const otherResource = "https://docs.google.com/document/u/0/d/unrelated";
+    const f = createUploadFixture({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      currentUrl: source,
+    });
+    const { events, goToIndex } = mockNavigation(f.manager, f, [
+      source,
+      draft,
+      otherAccount,
+      otherResource,
+    ]);
+    const ref = () => f.manager.getSessionState(f.target.projectId, sessionId).pageRef!;
+    const sourceRef = ref();
+    const { grantId } = await f.authorize();
+    await f.transfer(grantId);
+    const digest = createHash("sha256").update(Buffer.from("AAAA", "base64")).digest("hex");
+    const screenshot = Buffer.from("screenshot");
+    const image = vi.mocked(nativeImage.createFromBuffer).mockReturnValue({
+      toPNG: () => screenshot,
+      getSize: () => ({ width: 10, height: 10 }),
+    } as ReturnType<typeof nativeImage.createFromBuffer>);
+    const capture = vi.spyOn(f.manager as any, "captureSessionImage").mockResolvedValue(screenshot);
+    f.attach.mockImplementation(async (_world: number, scripts: { code: string }[]) =>
+      scripts[0]?.code.includes("interactiveElements")
+        ? { visibleText: digest, interactiveElements: [] }
+        : true,
+    );
+    const show = (url: string) => {
+      f.session.currentUrl = url;
+      events.emit("did-navigate", {}, url);
+    };
+    const verify = async (url: string) => {
+      show(url);
+      await f.manager.runAutomation({
+        ...f.target,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId: "work" },
+      });
+      const snapshot = () =>
+        f.manager.runAutomation({
+          ...f.target,
+          source: "agent",
+          operation: "snapshot",
+        });
+      await snapshot();
+      show(url);
+      await snapshot();
+    };
+    const enter = (pageRef: string, taskId = f.target.taskId) =>
+      f.manager.runAutomation({
+        ...f.target,
+        taskId,
+        source: "human",
+        operation: "enterAttachedPage",
+        input: { pageRef, profileId: "work", grantId },
+      });
+    try {
+      await verify(otherAccount);
+      await verify(otherResource);
+      show(source);
+      await expect(enter(sourceRef)).resolves.toEqual({
+        result: "attached_page",
+      });
+      expect(goToIndex).not.toHaveBeenCalled();
+      await verify(draft);
+      show(otherResource);
+      const otherRef = ref();
+      await expect(enter(otherRef)).resolves.toEqual({
+        result: "attached_page",
+      });
+      await expect(enter(sourceRef, "other-thread")).rejects.toThrow("profile and thread");
+      expect(goToIndex).not.toHaveBeenCalled();
+      const result = enter(sourceRef);
+      expect(goToIndex).toHaveBeenCalledExactlyOnceWith(1);
+      show(draft);
+      events.emit("did-finish-load");
+      await expect(result).resolves.toEqual({
+        result: "verified_draft",
+        receiptKind: "image",
+      });
+      expect(f.attach.mock.lastCall?.[1][0].code).toContain(digest);
+      f.attach.mockResolvedValueOnce(false);
+      await expect(enter(sourceRef)).rejects.toThrow("approved screenshot receipt");
+      Object.assign(f.session, { instanceId: "replacement" });
+      await expect(enter(sourceRef)).rejects.toThrow("history");
+    } finally {
+      image.mockReset();
+      capture.mockRestore();
+    }
+  });
+
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
     "keeps bytes out of the page after %s",
     async (change) => {
