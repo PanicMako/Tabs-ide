@@ -2758,6 +2758,47 @@ describe("Device comparison", () => {
     expect((await f.invoke({ action: "stop", threadId, runId })).run?.phase).toBe("stopped");
     expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
   });
+
+  it("hands off before delayed input and stops a pending replay without dispatching it", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [])],
+      [frame("android", ["Continue"]), frame("android", [])],
+    );
+    let release: (() => void) | undefined;
+    const original = f.driver.press;
+    Object.assign(f.driver, {
+      press: (
+        target: Parameters<SemanticDriver["press"]>[0],
+        reference: string,
+        guard: Parameters<SemanticDriver["press"]>[2],
+      ) =>
+        target.platform === "ios"
+          ? original(target, reference, guard)
+          : Effect.promise(
+              () =>
+                new Promise<void>((resolve) => {
+                  release = resolve;
+                }),
+            ).pipe(Effect.andThen(original(target, reference, guard))),
+    });
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    await f.invoke({ action: "takeover", threadId, runId });
+    expect((await f.status()).run).toMatchObject({
+      phase: "paused",
+      busy: true,
+      canResume: false,
+    });
+    await f.invoke({ action: "stop", threadId, runId });
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(false);
+    release!();
+    expect((await f.settle()).run?.phase).toBe("stopped");
+    expect(f.press).toHaveBeenCalledTimes(1);
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
