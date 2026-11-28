@@ -2441,6 +2441,118 @@ describe("reliable browser tabs and agent control", () => {
     expect(work.sendInputEvent).not.toHaveBeenCalled();
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "reviews the account on a freshly loaded Chromium document after importing a session",
+    async () => {
+      const fixtureUrl = new URL("../../server/scripts/fixtures/deviceDraft.ts", import.meta.url);
+      const {
+        startDeviceDraftApp,
+      }: {
+        startDeviceDraftApp: () => Promise<{
+          origin: string;
+          trialCounts: () => {
+            reportExports: { Personal: Record<string, number> };
+          };
+          close: () => Promise<void>;
+        }>;
+      } = await import(fixtureUrl.href);
+      const { chromium } = await import("playwright");
+      const site = await startDeviceDraftApp();
+      onTestFinished(() => site.close());
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const page = await browser.newPage();
+      const url = site.origin + "/reports/benchmark?position=0";
+      await page.goto(site.origin + "/Work");
+      await page.goto(url);
+      expect(await page.getByText("Work", { exact: true }).count()).toBe(1);
+
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-import";
+      const partition = "persist:tabs-browser:profile:work";
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        profileId: "work",
+        partition,
+        currentUrl: url,
+      });
+      const evaluate = vi.fn<(world: number, scripts: { code: string }[]) => Promise<unknown>>();
+      await connectChromiumPage(page, { evaluate });
+      const { events } = mockNavigation(manager, fixture);
+      Object.assign(fixture.webContents, {
+        getURL: () => page.url(),
+        isLoadingMainFrame: () => false,
+        executeJavaScriptInIsolatedWorld: evaluate,
+      });
+      const route = { projectId: "project-1", sessionId, taskId: "qa" };
+      const state = () => manager.getSessionState(route.projectId, sessionId);
+      const approve = () =>
+        manager.runAutomation({
+          ...route,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: {
+            url,
+            profileId: "work",
+            pageApprovalToken: state().pageApprovalToken,
+          },
+        });
+      await approve();
+      expect(state().browserPageAuthorized).toBe(true);
+
+      electronMocks.fromPartition.mockReturnValueOnce(fixture.webContents.session);
+      const importCookies = vi.spyOn(BrowserSessionImporter.prototype, "importSelectedCookies");
+      onTestFinished(() => importCookies.mockRestore());
+      importCookies.mockImplementationOnce(async (_input, resolveDestination) => {
+        resolveDestination!(partition);
+        await page.context().addCookies([
+          {
+            url: site.origin,
+            name: "qa_profile",
+            value: "Personal",
+            httpOnly: true,
+            sameSite: "Strict",
+          },
+        ]);
+        return {
+          cancelled: false,
+          imported: 1,
+          skipped: 0,
+          skippedDomains: [],
+          warnings: [],
+        };
+      });
+      await manager.importBrowserCookies({
+        sourceId: "chrome",
+        sourceProfileDirectory: "Default",
+        targetProfileId: "work",
+      });
+
+      expect(await page.getByText("Work", { exact: true }).count()).toBe(1);
+      await expect(approve()).rejects.toThrow("Reload this page after importing");
+      await expect(
+        manager.runAutomation({
+          ...route,
+          source: "agent",
+          operation: "click",
+          input: { selector: 'button[name="export"]' },
+        }),
+      ).rejects.toThrow("Reload this page after importing");
+      expect(fixture.sendInputEvent).not.toHaveBeenCalled();
+      expect(site.trialCounts().reportExports.Personal).toEqual({
+        selected: 0,
+        all: 0,
+        archived: 0,
+      });
+
+      await page.reload();
+      events.emit("did-navigate", {}, url);
+      expect(await page.getByText("Personal", { exact: true }).count()).toBe(1);
+      await expect(approve()).resolves.toMatchObject({ approved: true });
+    },
+  );
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
