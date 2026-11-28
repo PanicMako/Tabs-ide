@@ -726,6 +726,67 @@ describe("Agent-led device comparison", () => {
     expect((await forCaller(status)).approvedEvidence).toBeUndefined();
     await expect(forCaller(evidence)).rejects.toThrow();
   });
+
+  it("waits for panel approval and routes matching device IDs by their exact hosts", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [frame("android", ["Continue"]), frame("android", [], ["Order review"])],
+    );
+    const proposed = await f.propose();
+    const runId = proposed.run!.runId;
+    expect(proposed.run).toMatchObject({
+      phase: "awaiting_approval",
+      source: { ...iphone, platform: "ios", appId: iosApp },
+      target: { ...pixel, platform: "android", appId: androidApp },
+    });
+    expect(proposed.run?.approvalId).toBeUndefined();
+    expect((await f.record({ action: "inspect", runId })).controls).toBeUndefined();
+    await expect(f.record({ action: "tap", runId, controlId: runId })).rejects.toThrow(
+      "approve the recording",
+    );
+    const approval = {
+      action: "approveAgentRecording",
+      threadId,
+      runId,
+    } as const;
+    await expect(f.invoke(approval)).rejects.toThrow("authenticated Device panel");
+    await expect(f.invoke(approval, panelSession, recordingCaller)).rejects.toThrow(
+      "authenticated Device panel",
+    );
+    expect(f.open).not.toHaveBeenCalled();
+    expect(f.snapshot).not.toHaveBeenCalled();
+    expect(f.capture).not.toHaveBeenCalled();
+    expect(f.press).not.toHaveBeenCalled();
+    expect(f.service.inputAllowed(iphone.hostId, iphone.deviceId)).toBe(true);
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
+
+    const { run } = await f.approveRecording(runId);
+    expect(run?.approvalId).toBeTypeOf("string");
+    expect(f.service.inputAllowed(iphone.hostId, iphone.deviceId)).toBe(false);
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
+    const { controls } = await f.record({ action: "inspect", runId });
+    expect(f.open).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining(iphone),
+      expect.anything(),
+    );
+    expect(f.snapshot.mock.calls.map(([target]) => target.hostId)).toEqual([iphone.hostId]);
+    const continueId = controls!.find(({ label }) => label === "Continue")!.id;
+    await f.record({ action: "tap", runId, controlId: continueId });
+    const outcome = await f.record({ action: "inspect", runId });
+    const reviewId = outcome.controls!.find(({ label }) => label === "Order review")!.id;
+    await f.record({ action: "expect", runId, controlId: reviewId });
+    expect((await f.record({ action: "finish", runId })).run?.phase).toBe("ready");
+    await f.invoke(
+      { action: "replay", threadId, runId, approvalId: run!.approvalId! },
+      undefined,
+      recordingCaller,
+    );
+    expect(await f.settle()).toMatchObject({
+      run: { phase: "completed", completedSteps: 1 },
+      liveTargetAvailable: true,
+    });
+    expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId, pixel.hostId]);
+  });
 });
 
 describe.skip("Device comparison", () => {
