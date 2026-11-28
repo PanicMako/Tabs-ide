@@ -420,4 +420,40 @@ test("requires exactly one upload selector only when ready_to_upload is defined"
   }
 });
 
+test("validates the definition for each mode before inspecting the tab", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-definition-"));
+  try {
+    const browser = vi.fn(async () => status("uploaded"));
+    const workflows = makeBrowserWorkflows(directory, journalOwner, browser);
+    for (const overrides of [
+      { uploadSelector: "#upload" },
+      { uploadInputSelector: "#package" },
+      { submitSelector: "#submit" },
+      { breakpoint: journalDefinition.breakpoint },
+    ]) {
+      await expect(
+        workflows.arm({ ...armJournal, definition: { ...readOnlyDefinition, ...overrides } }),
+      ).rejects.toThrow("Read-only workflows must omit action selectors and the breakpoint.");
+    }
+    for (const states of [{}, { uploaded: "Uploaded", submitted: "Uploaded" }]) {
+      await expect(
+        workflows.arm({ ...armJournal, definition: { ...readOnlyDefinition, states } }),
+      ).rejects.toThrow("distinct, exact label");
+    }
+    const { states, submitSelector, breakpoint, ...location } = journalDefinition;
+    for (const definition of [
+      { ...location, states, breakpoint },
+      { ...location, states, submitSelector },
+      { ...location, states: { submitted: "Submitted" }, submitSelector, breakpoint },
+    ]) {
+      await expect(workflows.arm({ ...armJournal, definition })).rejects.toThrow(
+        "Guarded workflows require a submit selector, a breakpoint and labels",
+      );
+    }
+    expect(browser).not.toHaveBeenCalled();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
