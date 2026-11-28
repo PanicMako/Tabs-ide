@@ -7732,6 +7732,20 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.capture()).rejects.toThrow("changed");
       await expect(readdir(f.userData)).resolves.toEqual([]);
     });
+
+    it("only reports the exact restored URL when the destination has no protected fields", async () => {
+      const f = await setup();
+      const { attachmentId } = await f.capture();
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted, "about:blank");
+      tab.fields.password = true;
+      await expect(f.enter(restarted, attachmentId)).rejects.toThrow("protected content");
+      expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
+      tab.fields.password = false;
+      await expect(f.enter(restarted, attachmentId)).resolves.toEqual({
+        url: f.address,
+      });
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
