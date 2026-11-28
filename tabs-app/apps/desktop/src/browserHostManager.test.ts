@@ -6881,6 +6881,63 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("reopens the original attachment in history only after the exact page loads", async () => {
+    const fixture = createUploadFixture();
+    const { manager, target, session } = fixture;
+    const original = "https://docs.google.com/document/u/0/d/one?mode=edit";
+    const other = "https://docs.google.com/document/u/1/d/two";
+    session.currentUrl = original;
+    const { events, goToIndex, loadURL } = mockNavigation(manager, fixture, [other, original]);
+    const pageRef = manager.getSessionState(target.projectId, target.sessionId).pageRef!;
+    session.currentUrl = other;
+    const enter = (input: Record<string, unknown> = {}) =>
+      manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "enterAttachedPage",
+        input: { pageRef, profileId: "work", ...input },
+      });
+    await expect(enter({ profileId: "personal" })).rejects.toThrow("approved browser profile");
+    const guessedRef = createHash("sha256")
+      .update(JSON.stringify([target.projectId, target.sessionId, session.partition, original]))
+      .digest("hex");
+    await expect(enter({ pageRef: guessedRef })).rejects.toThrow("history");
+    expect(goToIndex).not.toHaveBeenCalled();
+    const redirected = enter();
+    const preventDefault = vi.fn();
+    events.emit("will-redirect", {
+      isMainFrame: true,
+      url: other,
+      preventDefault,
+    });
+    await expect(redirected).rejects.toThrow("exact attached page");
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(events.listenerCount("did-finish-load")).toBe(0);
+    await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeBrowserPage",
+      input: { url: other, profileId: "work" },
+    });
+    let finished = false;
+    const result = enter().then((value) => {
+      finished = true;
+      return value;
+    });
+    expect(goToIndex.mock.calls).toEqual([[1], [1]]);
+    session.currentUrl = original;
+    events.emit("did-navigate", {}, original);
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    events.emit("did-finish-load");
+    await expect(result).resolves.toEqual({ result: "attached_page" });
+    expect(manager.getSessionState(target.projectId, target.sessionId).browserPageAuthorized).toBe(
+      false,
+    );
+    expect(loadURL).not.toHaveBeenCalled();
+    expect(events.listenerCount("did-finish-load")).toBe(0);
+  });
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
