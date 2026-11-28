@@ -2410,6 +2410,33 @@ describe("Device comparison", () => {
       evidence.evidence,
     );
   });
+
+  it("treats a permission correction as a prerequisite and still runs the demonstrated control", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Checkout complete"])],
+      [
+        frame("android", ["Allow once"]),
+        frame("android", ["Continue"]),
+        frame("android", [], ["Checkout complete"]),
+      ],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    expect((await f.settle()).run?.phase).toBe("paused");
+    await f.tap(runId, "Allow once", true);
+    await f.invoke({ action: "resume", threadId, runId });
+    expect((await f.settle()).run).toMatchObject({
+      phase: "completed",
+      completedSteps: 1,
+    });
+    expect(f.press.mock.calls.map(([host]) => host)).toEqual([
+      iphone.hostId,
+      pixel.hostId,
+      pixel.hostId,
+    ]);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
