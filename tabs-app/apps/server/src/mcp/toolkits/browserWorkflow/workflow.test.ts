@@ -2303,3 +2303,106 @@ test
   },
   45_000,
 );
+
+test("a user can release an uncertain Submit and stale or foreign labels cannot reconcile it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-resolve-"));
+  try {
+    const target = journalTarget;
+    let dispatched = 0;
+    let shown: { stage: "uploaded" | "submitted"; identityText?: string } = { stage: "uploaded" };
+    const connect = () =>
+      makeBrowserWorkflows(directory, journalOwner, async (request) => {
+        if (request.phase === "submit") {
+          dispatched++;
+          return undefined;
+        }
+        return {
+          target,
+          disposition: "observed",
+          ...(request.target ? { submissionApproved: true } : {}),
+          observation: {
+            stage: shown.stage,
+            statusText: shown.stage === "submitted" ? "Submitted" : "Uploaded",
+            breakpoint: "clear",
+            submitAvailable: shown.stage === "uploaded",
+            ...(shown.identityText ? { identityText: shown.identityText } : {}),
+          },
+        };
+      });
+    const workflows = connect();
+    const { workflowId } = await workflows.arm(armJournal);
+    const reference = { workflowId, stage: "uploaded" } as const;
+    expect(await workflows.advance(workflowId, "submit")).toMatchObject({
+      phase: "uncertain",
+      pendingAction: "submit",
+      evidence: "pageLabel",
+    });
+    expect(dispatched).toBe(1);
+    const context = JSON.parse(await readJournal(directory, workflowId)).pendingContext;
+    expect(context).toMatchObject({ action: "submit", stage: "uploaded" });
+
+    const reconcile = (receipt: Partial<BrowserWorkflowReceipt>) =>
+      reconcileBrowserWorkflowSubmission(
+        directory,
+        journalOwner,
+        reference,
+        target.projectId,
+        async () => ({ target, stage: "submitted", statusText: "Submitted", ...receipt }),
+      );
+    // A read that predates the dispatch, or another draft's ID, leaves the action uncertain.
+    await expect(reconcile({ observedAt: "2000-01-01T00:00:00.000Z" })).resolves.toMatchObject({
+      pendingAction: "submit",
+    });
+    await expect(reconcile({ identityText: "another-draft" })).resolves.toMatchObject({
+      pendingAction: "submit",
+    });
+    shown = { stage: "submitted", identityText: "another-draft" };
+    expect(await connect().advance(workflowId, "check")).toMatchObject({ phase: "uncertain" });
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({ pending: true });
+
+    // Only the user can release it, and it is journaled.
+    await expect(
+      resolveBrowserWorkflowPending(
+        directory,
+        journalOwner,
+        reference,
+        target.projectId,
+        "confirmNotSent",
+      ),
+    ).resolves.toEqual(expect.not.objectContaining({ pendingAction: expect.anything() }));
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({
+      pending: false,
+      resolution: { kind: "confirmNotSent", action: "submit" },
+    });
+    await expect(
+      resolveBrowserWorkflowPending(
+        directory,
+        journalOwner,
+        reference,
+        target.projectId,
+        "confirmNotSent",
+      ),
+    ).rejects.toThrow("waiting");
+
+    // The agent may now request and dispatch a new Submit.
+    shown = { stage: "uploaded" };
+    expect(await connect().advance(workflowId, "submit")).toMatchObject({ phase: "uncertain" });
+    expect(dispatched).toBe(2);
+
+    // "It sent" records the user's attestation as evidence.
+    await resolveBrowserWorkflowPending(
+      directory,
+      journalOwner,
+      reference,
+      target.projectId,
+      "confirmSent",
+    );
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({
+      pending: false,
+      evidence: { stage: "submitted", source: "user" },
+      resolution: { kind: "confirmSent" },
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
