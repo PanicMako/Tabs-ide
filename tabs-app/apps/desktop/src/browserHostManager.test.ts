@@ -9226,6 +9226,21 @@ describe("reliable browser tabs and agent control", () => {
         expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(url);
       },
     );
+
+    it("does not index a pair dispatched for different steps", async () => {
+      const url = "https://app.test/drafts/42?view=edit#evidence";
+      const f = await setup(url, url, "first-difference", {
+        targetStep: sourceFrame.step + 1,
+      });
+      f.receipt.text = `${f.digest}\n${f.targetDigest}`;
+      await f.verify();
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      await expect(
+        f.findComparison(f.manager, {
+          input: { runId: evidenceRunId, step: sourceFrame.step + 1 },
+        }),
+      ).resolves.toBeNull();
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
