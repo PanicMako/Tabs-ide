@@ -1384,6 +1384,56 @@ describe("reliable browser tabs and agent control", () => {
     expect(session.actionTimeline).toEqual([]);
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "reads visible Chromium selection and excludes protected or editable content",
+    async () => {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        await page.setContent(`<p id="review">Before <span id="excerpt">selected report</span> after</p>
+          <div id="editor" contenteditable="plaintext-only">private editor text</div>
+          <p id="long">${"x".repeat(1001)}</p>`);
+        const cdp = await page.context().newCDPSession(page);
+        const { frameTree } = await cdp.send("Page.getFrameTree");
+        const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+          frameId: frameTree.frame.id,
+          worldName: "reviewed-selection",
+        });
+        const read = async () => {
+          const { exceptionDetails, result } = await cdp.send("Runtime.evaluate", {
+            expression: READ_BROWSER_SELECTION,
+            contextId: executionContextId,
+            returnByValue: true,
+          });
+          expect(exceptionDetails).toBeUndefined();
+          return result.value;
+        };
+        const choose = (id: string) =>
+          page.evaluate(
+            (id) => window.getSelection()!.selectAllChildren(document.getElementById(id)!),
+            id,
+          );
+        expect(await read()).toBeNull();
+        await choose("excerpt");
+        expect(await read()).toBe("selected report");
+        for (const id of ["editor", "long"]) {
+          await choose(id);
+          expect(await read()).toBeNull();
+        }
+        await choose("excerpt");
+        await page
+          .locator("body")
+          .evaluate((body) =>
+            body.insertAdjacentHTML("beforeend", '<input type="password" value="private">'),
+          );
+        expect(await read()).toBeNull();
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
