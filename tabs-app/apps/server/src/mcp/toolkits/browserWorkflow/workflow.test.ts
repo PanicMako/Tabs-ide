@@ -621,4 +621,144 @@ test("corrects a direct upload selector on the same journal and waits for browse
   }
 });
 
+test("reserves a staged upload, reconciles a lost reply, and keeps Submit separate", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-upload-journal-"));
+  try {
+    const staged = {
+      ...armJournal,
+      definition: {
+        ...journalDefinition,
+        states: uploadStates,
+        uploadSelector: "#upload",
+      },
+    };
+    let matched = true;
+    let approved = false;
+    let verifiedUpload = false;
+    let submitApproved = false;
+    let uploads = 0;
+    let submits = 0;
+    const workflows = makeBrowserWorkflows(
+      directory,
+      journalOwner,
+      async ({ phase, statusOnly }) => {
+        if (phase === "upload") {
+          uploads++;
+          return undefined;
+        }
+        if (phase === "submit") {
+          submits++;
+          return undefined;
+        }
+        if (verifiedUpload) return { ...status("uploaded"), submissionApproved: submitApproved };
+        return {
+          target: journalTarget,
+          disposition: "observed",
+          submissionApproved: approved,
+          observation: {
+            stage: "ready_to_upload",
+            statusText: "Ready to upload",
+            breakpoint: statusOnly ? "irrelevant" : matched ? "matched" : "clear",
+            submitAvailable: false,
+            uploadAvailable: true,
+          },
+        };
+      },
+    );
+    const { workflowId, phase } = await workflows.arm(staged);
+    expect(phase).toBe("paused");
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({ phase: "paused" });
+    matched = false;
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({
+      phase: "approval_required",
+    });
+    approved = true;
+    expect(await workflows.advance(workflowId, "resume")).toMatchObject({ phase: "ready" });
+    expect(await workflows.advance(workflowId, "submit")).toMatchObject({ phase: "ready" });
+    expect(uploads).toBe(0);
+    expect(submits).toBe(0);
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({
+      phase: "uncertain",
+      reason: expect.stringContaining("Upload may have reached"),
+    });
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({ phase: "uncertain" });
+    expect(uploads).toBe(1);
+    await workflows.watch(workflowId, "uploaded");
+    const reference = { workflowId, stage: "ready_to_upload" as const };
+    const draft = {
+      target: journalTarget,
+      definition: staged.definition,
+      stage: "ready_to_upload",
+      pendingAction: "upload",
+    };
+    const beforeReceipt = await readJournal(directory, workflowId);
+    expect(await readBrowserWorkflowResult(directory, journalOwner, reference)).toEqual(draft);
+    const reconcile = (receipt: BrowserWorkflowReceipt) =>
+      reconcileBrowserWorkflowSubmission(
+        directory,
+        journalOwner,
+        reference,
+        journalTarget.projectId,
+        async () => receipt,
+      );
+    const stale = {
+      target: journalTarget,
+      stage: "ready_to_upload",
+      statusText: uploadStates.ready_to_upload,
+    } as const;
+    const receipt = { target: journalTarget, stage: "uploaded", statusText: "Uploaded" } as const;
+    await expect(reconcile(stale)).resolves.toEqual(draft);
+    await expect(
+      reconcile({ ...receipt, target: { ...journalTarget, hostKey: "other-host" } }),
+    ).rejects.toThrow("did not confirm");
+    await expect(reconcile({ ...receipt, statusText: "uploaded" })).rejects.toThrow(
+      "did not confirm",
+    );
+    expect(await readJournal(directory, workflowId)).toBe(beforeReceipt);
+
+    verifiedUpload = true;
+    const saved = { target: journalTarget, definition: staged.definition, stage: "uploaded" };
+    await expect(reconcile(receipt)).resolves.toEqual(saved);
+    expect(await readBrowserWorkflowResult(directory, journalOwner, reference)).toEqual(saved);
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+    const afterReceipt = await readJournal(directory, workflowId);
+    await expect(reconcile(receipt)).resolves.toEqual(saved);
+    await expect(reconcile(stale)).rejects.toThrow("did not confirm");
+    expect(await readJournal(directory, workflowId)).toBe(afterReceipt);
+    expect(await workflows.advance(workflowId, "upload")).toMatchObject({
+      phase: "verified",
+      lastVerified: { stage: "uploaded" },
+    });
+    expect(await workflows.advance(workflowId, "submit")).toMatchObject({
+      phase: "approval_required",
+    });
+    expect(uploads).toBe(1);
+    expect(submits).toBe(0);
+
+    submitApproved = true;
+    expect(await workflows.advance(workflowId, "submit")).toMatchObject({ phase: "uncertain" });
+    const pendingSubmit = await readJournal(directory, workflowId);
+    const readFromOldUploadLink = vi.fn(async () => ({
+      target: journalTarget,
+      stage: "submitted" as const,
+      statusText: "Submitted",
+    }));
+    await expect(
+      reconcileBrowserWorkflowSubmission(
+        directory,
+        journalOwner,
+        reference,
+        journalTarget.projectId,
+        readFromOldUploadLink,
+      ),
+    ).resolves.toEqual({ ...saved, pendingAction: "submit" });
+    expect(readFromOldUploadLink).toHaveBeenCalledExactlyOnceWith(saved);
+    expect(await readJournal(directory, workflowId)).toBe(pendingSubmit);
+    expect(uploads).toBe(1);
+    expect(submits).toBe(1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
