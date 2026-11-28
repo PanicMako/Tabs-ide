@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
 import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthRelayReadScope,
   AuthRelayWriteScope,
+  AuthTerminalOperateScope,
+  TerminalInputReviewRpcGroup,
   WS_METHODS,
   WsRpcGroup,
 } from "@tabs/contracts";
@@ -34,6 +37,12 @@ describe("RPC authorization scopes", () => {
       AuthOrchestrationReadScope,
     );
     expect(requiredScopeForRpcMethod(WS_METHODS.subscribeBackgroundPolicy)).toBe(
+      AuthOrchestrationReadScope,
+    );
+  });
+
+  it("requires orchestration read access for a saved Figma receipt", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.previewGetFigmaCanvasResult)).toBe(
       AuthOrchestrationReadScope,
     );
   });
@@ -196,5 +205,46 @@ it.effect("denies restored Git writes to read-only clients before executing them
       requiredScope: AuthOrchestrationOperateScope,
     });
     expect(ran).toBe(false);
+  }).pipe(Effect.scoped);
+});
+
+it.effect("requires terminal operate scope for every agent input review action", () => {
+  const method = WS_METHODS.terminalAgentInputReview;
+  const group = TerminalInputReviewRpcGroup;
+  return Effect.gen(function* () {
+    const actions: string[] = [];
+    const handlers = group.toLayerHandler(method, (input) =>
+      Effect.sync(() => {
+        actions.push(input.action);
+        return {
+          requestId: input.requestId,
+          terminalId: "term-1",
+          instanceId: randomUUID(),
+          cwd: "/fixture",
+          status: "pending",
+          text: "hello",
+          pressEnter: false,
+        };
+      }),
+    );
+    const readOnly = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(Layer.merge(handlers, RpcAuthorization.layer([AuthOrchestrationReadScope]))),
+    );
+    const operate = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(Layer.merge(handlers, RpcAuthorization.layer([AuthTerminalOperateScope]))),
+    );
+    const request = { threadId: "thread-1", requestId: randomUUID() };
+    for (const action of ["review", "approve", "decline"] as const) {
+      const error = yield* readOnly[method]({ ...request, action }).pipe(Effect.flip);
+      expect(error).toMatchObject({
+        _tag: "EnvironmentAuthorizationError",
+        requiredScope: AuthTerminalOperateScope,
+      });
+    }
+    expect(actions).toEqual([]);
+    expect(yield* operate[method]({ ...request, action: "review" })).toMatchObject({
+      text: "hello",
+    });
+    expect(actions).toEqual(["review"]);
   }).pipe(Effect.scoped);
 });
