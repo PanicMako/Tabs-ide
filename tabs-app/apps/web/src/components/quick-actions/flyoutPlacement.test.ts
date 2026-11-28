@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { blankBrowserStartUrl, DEFAULT_BLANK_BROWSER } from "./actions";
 import { subPanelPlacement } from "./RadialActions";
-import { BAND_RADIUS, CURVE_RADIUS, curvedMenuLayout } from "./CurvedMenu";
+import { BAND_RADIUS, CURVE_RADIUS, MAX_VISIBLE_ROWS, curvedMenuLayout } from "./CurvedMenu";
 
 const size = { width: 178, height: 120 };
 
@@ -82,6 +82,19 @@ describe("curved menu", () => {
     const middle = Math.min(...lefts);
     expect(middle).toBeLessThan(lefts[0]!);
     expect(middle).toBeLessThan(lefts[lefts.length - 1]!);
+  });
+
+  it("bounds a long list to a scrolling window instead of a tall column", () => {
+    for (const angle of [0, 90, 315]) {
+      const layout = curvedMenuLayout(angle, 24, null, angle === 315);
+      expect(layout.rows).toHaveLength(MAX_VISIBLE_ROWS);
+      expect(layout.total).toBe(24);
+      expect(layout.height).toBeLessThan(400);
+    }
+    // A scrolled row still follows the curve: the middle of the window sits furthest out.
+    const more = curvedMenuLayout(315, 24, null, true);
+    const mid = more.rowAt(more.rows[4]!.top).left;
+    expect(mid).toBeLessThan(more.rowAt(more.rows[0]!.top).left);
   });
 
   it("steps rows evenly, without a jump or a straight-up run", () => {
