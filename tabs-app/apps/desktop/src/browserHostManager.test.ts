@@ -3811,6 +3811,262 @@ describe("reliable browser tabs and agent control", () => {
     60_000,
   );
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "keeps the editor independent during a canvas action and a one-step handoff in Chromium",
+    async () => {
+      const { chromium } = await import("playwright");
+      const { nativeImage } = await import("electron");
+      const browser = await chromium.launch();
+      try {
+        const editor = await browser.newPage();
+        await editor.setContent("<textarea aria-label='Editor'></textarea>");
+        const page = await browser.newPage({
+          viewport: { width: 520, height: 420 },
+        });
+        await page.route("https://report.test/**", (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: `<canvas width="100" height="50" aria-label="Highlight"></canvas><output></output>
+        <section aria-label="All reports"><button>Export</button></section>
+        <section aria-label="Selected rows"><button aria-expanded="false">Export</button><output id="selected-status"></output><button id="download" hidden>Download</button></section>
+        <section aria-label="Archived"><button>Export</button></section>
+        <input type="file" id="proof">
+        <script>document.querySelector('canvas').onclick = () => document.querySelector('output').textContent = 'Highlight applied';
+        document.querySelectorAll('section > button:first-child').forEach(b => b.onclick = () => {
+          document.querySelector('output').textContent = b.parentElement.ariaLabel;
+          if (b.parentElement.ariaLabel !== 'Selected rows') return;
+          b.setAttribute('aria-expanded', 'true');
+          document.querySelector('#download').hidden = false;
+          document.querySelector('#selected-status').textContent = 'Report ready';
+        });
+        </script>`,
+          }),
+        );
+        await page.goto("https://report.test/report");
+        const cdp = await page.context().newCDPSession(page);
+        const { frameTree } = await cdp.send("Page.getFrameTree");
+        const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+          frameId: frameTree.frame.id,
+          worldName: "tabs-test-world",
+        });
+        const manager = new BrowserHostManager(() => null);
+        const sessionId = "agents-surface-report";
+        const { session, webContents } = createMockSession({
+          sessionId,
+          key: "project-1::" + sessionId,
+          currentUrl: page.url(),
+          pageTitle: "Report",
+          profileId: "work",
+          partition: "persist:tabs-browser:profile:work",
+          cdpCoordinator: {
+            withSession: (_mode: string, run: (debug: unknown) => unknown) =>
+              run({ sendCommand: cdp.send.bind(cdp) }),
+          },
+        });
+        Object.assign(webContents, {
+          getURL: () => page.url(),
+          getTitle: () => "Report",
+          getZoomFactor: () => 1,
+          isLoadingMainFrame: () => session.loading,
+          executeJavaScriptInIsolatedWorld: async (_world: number, scripts: { code: string }[]) => {
+            const response = await cdp.send("Runtime.evaluate", {
+              expression: scripts[0]!.code,
+              contextId: executionContextId,
+              awaitPromise: true,
+              returnByValue: true,
+            });
+            if (response.exceptionDetails)
+              throw new Error(
+                response.exceptionDetails.exception?.description ?? response.exceptionDetails.text,
+              );
+            return response.result.value;
+          },
+        });
+        vi.mocked(nativeImage.createFromBuffer).mockImplementation(
+          (bytes) =>
+            ({
+              getSize: () => ({
+                width: bytes.readUInt32BE(16),
+                height: bytes.readUInt32BE(20),
+              }),
+              toPNG: () => bytes,
+            }) as ReturnType<typeof nativeImage.createFromBuffer>,
+        );
+        (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(
+          session.key,
+          session,
+        );
+        const target = {
+          projectId: session.projectId,
+          sessionId,
+          taskId: "qa",
+        };
+        const act = (operation: string, input?: unknown) =>
+          manager.runAutomation(
+            { ...target, operation, source: "agent", input },
+            undefined,
+            async () => true,
+          );
+        await manager.runAutomation({
+          ...target,
+          operation: "authorizeBrowserPage",
+          source: "human",
+          input: { url: page.url(), profileId: "work" },
+        });
+        await editor.bringToFront();
+        await editor.locator("textarea").focus();
+        await editor.keyboard.type("begin");
+        await editor.evaluate(() => {
+          const body = document.body;
+          body.dataset.foregroundInterruptions = "0";
+          window.addEventListener("blur", () => {
+            body.dataset.foregroundInterruptions = String(
+              Number(body.dataset.foregroundInterruptions) + 1,
+            );
+          });
+        });
+        const started = performance.now();
+        await act("snapshot");
+        // A stale visual click cannot reach the newly covering element.
+        await page.evaluate(() =>
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            '<div id="overlay" style="position:fixed;inset:0;background:black"></div>',
+          ),
+        );
+        await expect(act("click", { x: 30, y: 25 })).rejects.toThrow("screen has changed");
+        await page.locator("#overlay").evaluate((element) => element.remove());
+        await act("snapshot");
+        await act("click", { x: 30, y: 25 });
+        expect(await page.locator("output").first().innerText()).toBe("Highlight applied");
+        await expect(act("click", { locator: "role=button[name='Export']" })).rejects.toThrow(
+          "Several controls",
+        );
+        const interruptionsBeforeTakeover = Number(
+          await editor.locator("body").getAttribute("data-foreground-interruptions"),
+        );
+        expect(interruptionsBeforeTakeover).toBe(0);
+        manager.takeControl({ ...target, demonstrate: true });
+        await expect(act("click", { selector: "button" })).rejects.toThrow();
+        await page
+          .getByRole("region", { name: "Selected rows" })
+          .getByRole("button", { name: "Export" })
+          .click();
+        await vi.waitFor(() =>
+          expect(
+            manager.getSessionState(target.projectId, target.sessionId).demonstratedControl,
+          ).toContain("Selected rows"),
+        );
+        const expectedGeneration = {
+          instanceId: session.instanceId,
+          controlEpoch: session.controlEpoch,
+        };
+        for (const staleGeneration of [
+          { ...expectedGeneration, instanceId: "replacement-browser-instance" },
+          {
+            ...expectedGeneration,
+            controlEpoch: expectedGeneration.controlEpoch - 1,
+          },
+        ]) {
+          await expect(
+            manager.resumeAgent({
+              ...target,
+              expectedGeneration: staleGeneration,
+            }),
+          ).rejects.toThrow("tab changed while returning control");
+        }
+        expect(session.controller).toBe("human");
+        const receipt = await manager.resumeAgent({
+          ...target,
+          expectedGeneration,
+          meaning: "Export just the selected rows.",
+        });
+        const snapshot = (await act("snapshot")) as {
+          actionTimeline: Array<{ id: string; action: string }>;
+        };
+        const demonstrated = snapshot.actionTimeline.find(
+          (step) =>
+            step.action.includes("Selected rows") && step.action.includes("just the selected rows"),
+        );
+        expect(demonstrated).toMatchObject({
+          observedChanges: ["Control expanded", "Nearby controls changed", "Nearby status changed"],
+        });
+        expect(receipt).toEqual({
+          demonstrationId: demonstrated?.id,
+          controlEpoch: expectedGeneration.controlEpoch + 1,
+        });
+        await expect(
+          manager.resumeAgent({
+            ...target,
+            expectedGeneration: {
+              ...expectedGeneration,
+              controlEpoch: session.controlEpoch,
+            },
+          }),
+        ).rejects.toThrow("tab changed while returning control");
+        expect(JSON.stringify(demonstrated)).not.toContain("Report ready");
+        await editor.keyboard.type(" end");
+        expect(await editor.locator("textarea").inputValue()).toBe("begin end");
+        expect(await page.locator("output").first().innerText()).toBe("Selected rows");
+        const transfer = (await manager.runAutomation({
+          ...target,
+          operation: "authorizeDeviceScreenshot",
+          source: "human",
+          input: {
+            url: page.url(),
+            profileId: "work",
+            deviceId: "sim",
+            hostId: "local",
+          },
+        })) as { grantId: string };
+        await act("deviceScreenshotUpload", {
+          ...transfer,
+          phase: "inspect",
+          selector: "#proof",
+        });
+        await page
+          .locator("#proof")
+          .evaluate((element) => element.replaceWith(element.cloneNode(true)));
+        await expect(
+          act("deviceScreenshotUpload", {
+            ...transfer,
+            phase: "attach",
+            hostId: "local",
+            deviceId: "sim",
+            selector: "#proof",
+            png: "AQ==",
+          }),
+        ).rejects.toThrow("file input");
+        expect(
+          await page
+            .locator("#proof")
+            .evaluate((element) => (element as HTMLInputElement).files?.length),
+        ).toBe(0);
+        await page.evaluate(() =>
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            '<label>API key<input id="private-field" value="fixture-private-value"></label>',
+          ),
+        );
+        await expect(act("snapshot")).rejects.toThrow();
+        await page.locator("#private-field").evaluate((element) => element.remove());
+        console.log(
+          JSON.stringify({
+            workflow: "canvas-handoff",
+            elapsedMs: Math.round(performance.now() - started),
+            editorText: "begin end",
+            interruptionsBeforeTakeover,
+            wrongTargetEffects: 0,
+            recoveredSteps: 1,
+          }),
+        );
+      } finally {
+        await browser.close();
+      }
+    },
+    60000,
+  );
+
   it("does not create a replacement for an explicitly attached tab that closed", async () => {
     const manager = new BrowserHostManager(() => null);
     await expect(
