@@ -154,14 +154,19 @@ describe("BrowserSessionImporter", () => {
       },
     };
 
+    const resolveDestination = vi.fn(() => {
+      expect(mockSet).not.toHaveBeenCalled();
+      return mockSession;
+    });
     const result = await importer.importSelectedCookies(
       {
         sourceId: "chrome",
         sourceProfileDirectory: "Default",
         targetProfileId: "work",
       },
-      mockSession as any,
+      resolveDestination,
     );
+    expect(resolveDestination).toHaveBeenCalledExactlyOnceWith("persist:tabs-browser:profile:work");
 
     expect(result.imported).toBe(1);
     expect(result.skipped).toBe(0);
@@ -232,7 +237,7 @@ describe("BrowserSessionImporter", () => {
     );
     const result = await importer.importSelectedCookies(
       { sourceId: "chrome", sourceProfileDirectory: "Default", targetProfileId: "test" },
-      { cookies: { set, flushStore } },
+      () => ({ cookies: { set, flushStore } }),
       controller.signal,
     );
     expect(result).toMatchObject({ cancelled: true, imported: 1 });

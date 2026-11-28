@@ -18,6 +18,8 @@ import { type ImportedCookie } from "./CookieDatabase";
 import { readFirefoxCookies } from "./FirefoxCookies";
 import { readSafariCookies, safariAccessDenied } from "./SafariCookies";
 
+type CookieImportSession = { cookies: Pick<Session["cookies"], "set" | "flushStore"> };
+
 export interface SyntheticCookieInput {
   readonly name: string;
   readonly value: string;
@@ -435,7 +437,7 @@ export class BrowserSessionImporter {
 
   async importSelectedCookies(
     input: BrowserImportInput,
-    overrideSession?: { cookies: Pick<Session["cookies"], "set" | "flushStore"> },
+    resolveDestination?: (partition: string) => CookieImportSession,
     signal?: AbortSignal,
   ): Promise<BrowserImportResult> {
     signal?.throwIfAborted();
@@ -544,9 +546,8 @@ export class BrowserSessionImporter {
         warnings: [...warnings],
       };
 
-    // Resolve Electron target session
     const partition = `persist:tabs-browser:profile:${targetProfileId}`;
-    const targetSession = overrideSession ?? electronSession.fromPartition(partition);
+    let targetSession: CookieImportSession | undefined;
 
     let imported = 0;
     let skipped = initialUndecryptable;
@@ -557,6 +558,7 @@ export class BrowserSessionImporter {
         skipped++;
         continue;
       }
+      targetSession ??= resolveDestination?.(partition) ?? electronSession.fromPartition(partition);
       try {
         const details: Electron.CookiesSetDetails = {
           url: cookie.url,
@@ -584,7 +586,7 @@ export class BrowserSessionImporter {
       }
     }
 
-    if (imported > 0 && typeof targetSession.cookies.flushStore === "function") {
+    if (imported > 0 && typeof targetSession?.cookies.flushStore === "function") {
       try {
         await targetSession.cookies.flushStore();
       } catch {
