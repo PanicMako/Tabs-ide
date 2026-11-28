@@ -3725,6 +3725,24 @@ describe("reliable browser tabs and agent control", () => {
         await expect(f.status()).rejects.toThrow("did not uniquely match");
         expect(f.pending()).toBeUndefined();
       });
+
+      it("checks the visible draft again at both approval and consumption", async () => {
+        const f = await setupStatus();
+        await f.grant();
+        const first = await f.status();
+        f.visible.identity = "43";
+        await expect(f.consent(first.approval.id)).rejects.toThrow("did not uniquely match");
+        expect(f.pending()).toBeUndefined();
+        f.visible.identity = "42";
+        const current = await f.status();
+        await f.consent(current.approval.id);
+        f.visible.identity = "43";
+        await expect(f.status()).rejects.toThrow("did not uniquely match");
+        f.visible.identity = "42";
+        await expect(f.status()).resolves.toMatchObject({
+          status: "approval_required",
+        });
+      });
     });
 
     describe.skip("monitor", () => {
