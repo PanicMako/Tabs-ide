@@ -51,7 +51,11 @@ export function mergeExtensionToolbarTools(
     )
       continue;
     available.delete(saved.id);
-    merged.push({ ...verified, visible: saved.visible && verified.visible });
+    merged.push({
+      ...verified,
+      visible: saved.visible && verified.visible,
+      ...(saved.attachmentInstanceId ? { attachmentInstanceId: saved.attachmentInstanceId } : {}),
+    });
   }
   return [...merged, ...available.values()];
 }

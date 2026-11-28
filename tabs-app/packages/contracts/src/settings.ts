@@ -25,6 +25,7 @@ import {
   ProviderOptionSelections,
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { BrowserQuickAction } from "./browserQuickAction.ts";
 import { TerminalQuickCommands } from "./terminalQuickCommands.ts";
 import { ProjectScript } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
@@ -2920,6 +2921,7 @@ export const ProjectToolDefinition = Schema.Struct({
   terminalProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   extensionId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   extensionToolId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
+  attachmentInstanceId: Schema.optionalKey(ProjectSettingId),
 });
 export type ProjectToolDefinition = typeof ProjectToolDefinition.Type;
 
@@ -2968,6 +2970,7 @@ export const ProjectServerPresetDefinition = Schema.Struct({
 export type ProjectServerPresetDefinition = typeof ProjectServerPresetDefinition.Type;
 
 export const ProjectWorkspaceSettings = Schema.Struct({
+  browserQuickActions: Schema.optionalKey(Schema.Array(BrowserQuickAction)),
   tools: Schema.Array(ProjectToolDefinition).pipe(
     Schema.withDecodingDefault(
       Effect.succeed(

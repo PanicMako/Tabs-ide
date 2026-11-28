@@ -158,6 +158,37 @@ describe("workspaceShellStore", () => {
     expect(state.browserStateByProjectId[projectBeta]?.currentUrl).toBe("http://localhost:5173");
   });
 
+  it("preserves a revealed Browser result across project and thread sync with resume disabled", () => {
+    const project = makeProject("saved-browser-result");
+    const thread = makeThread("saved-browser-result-thread", project.id);
+    const browserKey = `${project.id}:browser`;
+    const resultUrl = "https://example.com/saved-result";
+    const store = useWorkspaceShellStore.getState();
+    store.upsertProjectSettings(project.id, (settings) => ({
+      ...settings,
+      browser: {
+        ...settings.browser,
+        defaultUrl: "https://example.com/start",
+        resumeLastVisitedPage: false,
+      },
+    }));
+    store.syncProjects([project], []);
+    store.openProject(project.id);
+    store.setBrowserCurrentUrl(project.id, resultUrl, "browser");
+    store.setActiveTool(project.id, "browser");
+    const revealed = useWorkspaceShellStore.getState();
+
+    store.syncProjects([project], [thread]);
+
+    const synced = useWorkspaceShellStore.getState();
+    expect(synced.session.activeToolIdByProjectId[project.id]).toBe("browser");
+    expect(synced.browserStateByProjectId[project.id]?.currentUrl).toBe(resultUrl);
+    expect(synced.browserStateBySessionKey[browserKey]?.currentUrl).toBe(resultUrl);
+    expect(synced.browserUrlBySessionKey[browserKey]).toBe(resultUrl);
+    expect(revealed.browserStateByProjectId[project.id]?.currentUrl).toBe(resultUrl);
+    expect(revealed.browserStateBySessionKey[browserKey]?.currentUrl).toBe(resultUrl);
+  });
+
   it("falls back to the default tool when a persisted active tool becomes hidden", () => {
     const projectId = ProjectId.makeUnsafe("project-shell");
     const store = useWorkspaceShellStore.getState();
@@ -808,6 +839,92 @@ describe("workspaceShellStore", () => {
     expect(syncedSession.openProjectIds).toEqual([alpha.id, beta.id]);
     expect(syncedSession.activeProjectId).toBe(beta.id);
     expect(syncedSession.activePendingTabId).toBeNull();
+  });
+
+  it("uses the built-in Browser startup preference when hydrating existing data", async () => {
+    const fresh = makeProject("fresh-browser");
+    const legacy = makeProject("legacy-browser");
+    const resume = makeProject("resume-browser");
+    const freshKey = `${fresh.id}:browser`;
+    const legacyKey = `${legacy.id}:browser`;
+    const resumeKey = `${resume.id}:browser`;
+    const customKey = `${fresh.id}:custom-preview`;
+    const defaultUrl = "https://example.com/start";
+    const customUrl = "https://example.com/custom";
+    const browserState = {
+      currentUrl: "https://example.com/last-visited",
+      devicePreset: "custom",
+      customWidth: 500,
+      customHeight: 600,
+      landscape: true,
+      chromeExpanded: true,
+    };
+    localStorage.setItem(
+      "tabs:workspace-shell:v1",
+      JSON.stringify({
+        version: 2,
+        state: {
+          projectSettingsByProjectId: {
+            [fresh.id]: { browser: { defaultUrl: "", resumeLastVisitedPage: false } },
+            [legacy.id]: { browser: { defaultUrl, resumeLastVisitedPage: false } },
+            [resume.id]: { browser: { defaultUrl, resumeLastVisitedPage: true } },
+          },
+          browserStateByProjectId: {
+            [fresh.id]: browserState,
+            [legacy.id]: browserState,
+            [resume.id]: browserState,
+          },
+          browserStateBySessionKey: {
+            [freshKey]: browserState,
+            [resumeKey]: browserState,
+            [customKey]: { ...browserState, currentUrl: customUrl },
+          },
+          browserUrlBySessionKey: {
+            [freshKey]: browserState.currentUrl,
+            [resumeKey]: browserState.currentUrl,
+            [customKey]: customUrl,
+          },
+        },
+      }),
+    );
+
+    const onHydratedUrl = vi.fn();
+    const unsubscribe = useWorkspaceShellStore.subscribe((state) => {
+      onHydratedUrl(state.browserStateBySessionKey[freshKey]?.currentUrl);
+    });
+    try {
+      await useWorkspaceShellStore.persist.rehydrate();
+    } finally {
+      unsubscribe();
+    }
+
+    const hydrated = useWorkspaceShellStore.getState();
+    expect(onHydratedUrl).toHaveBeenCalledExactlyOnceWith("");
+    expect(hydrated.browserStateByProjectId[fresh.id]).toEqual({ ...browserState, currentUrl: "" });
+    expect(hydrated.browserStateBySessionKey[freshKey]).toEqual({
+      ...browserState,
+      currentUrl: "",
+    });
+    expect(hydrated.browserUrlBySessionKey[freshKey]).toBe("");
+    expect(hydrated.browserStateByProjectId[legacy.id]).toEqual({
+      ...browserState,
+      currentUrl: defaultUrl,
+    });
+    expect(hydrated.browserStateByProjectId[resume.id]).toEqual(browserState);
+    expect(hydrated.browserStateBySessionKey[resumeKey]).toEqual(browserState);
+    expect(hydrated.browserUrlBySessionKey[resumeKey]).toBe(browserState.currentUrl);
+    expect(hydrated.browserStateBySessionKey[customKey]).toEqual({
+      ...browserState,
+      currentUrl: customUrl,
+    });
+    expect(hydrated.browserUrlBySessionKey[customKey]).toBe(customUrl);
+
+    hydrated.syncProjects([fresh, legacy, resume], []);
+
+    expect(useWorkspaceShellStore.getState().browserStateBySessionKey[legacyKey]).toEqual({
+      ...browserState,
+      currentUrl: defaultUrl,
+    });
   });
 
   it("syncWorkspaceShellState generates a fresh pending tab if no open projects and no pending tabs exist", () => {

@@ -1,4 +1,5 @@
 import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { projectToolBinding } from "./lib/projectToolIdentity";
 import { rememberClosedProject } from "./lib/closedProjects";
 import { randomUUID } from "./lib/utils";
 import { type Project, type Thread } from "./types";
@@ -21,7 +22,7 @@ import {
   type ProjectWorkspaceSessionState as ProjectWorkspaceSessionStateType,
   type ProjectWorkspaceSettings as ProjectWorkspaceSettingsType,
 } from "@tabs/contracts/settings";
-import { ProjectId, ThreadId } from "@tabs/contracts";
+import { BrowserQuickAction, ProjectId, ThreadId } from "@tabs/contracts";
 import type { DesktopInstalledExtension } from "@tabs/contracts";
 import { mergeExtensionToolbarTools } from "./extensionToolbarTools";
 import {
@@ -254,6 +255,11 @@ function recoverProjectWorkspaceSettings(
       defaults.tools,
     ),
     browser,
+    browserQuickActions: decodeArrayOrDefault(
+      Schema.Array(BrowserQuickAction),
+      normalized.browserQuickActions,
+      [],
+    ),
     terminalProcesses: decodeArrayOrDefault(
       Schema.Array(ProjectServerProcessDefinition),
       normalized.terminalProcesses,
@@ -873,32 +879,21 @@ export function syncWorkspaceShellState(
       Object.entries(source ?? {}).filter(([projectId]) => isDormant(projectId)),
     ) as Record<ProjectId, T>;
   nextState.projectSettingsByProjectId = keepDormant(input.projectSettingsByProjectId);
-  nextState.browserStateByProjectId = keepDormant(input.browserStateByProjectId);
   nextState.codeStateByProjectId = keepDormant(input.codeStateByProjectId);
   nextState.codeChromeStateByProjectId = keepDormant(input.codeChromeStateByProjectId);
   nextState.gitStateByProjectId = keepDormant(input.gitStateByProjectId);
   nextState.serverStateByProjectId = keepDormant(input.serverStateByProjectId);
-  // Preserve per-tab navigated URLs and per-session browser states (keyed by `${projectId}:${sessionId}`) across
-  // the project sync so tabs reopen where the user left them.
+  // Keep live browser state across sync and seed missing sessions from the project entry.
+  nextState.browserStateByProjectId = { ...input.browserStateByProjectId };
   nextState.browserUrlBySessionKey = { ...input.browserUrlBySessionKey };
   nextState.browserStateBySessionKey = { ...input.browserStateBySessionKey };
 
   for (const project of projects) {
-    nextState = ensureProjectDefaults(nextState, project.id);
     const settings = input.projectSettingsByProjectId[project.id];
     if (settings) {
       nextState.projectSettingsByProjectId[project.id] = decodeProjectWorkspaceSettings(settings);
-      const defaultState = defaultBrowserToolState(
-        nextState.projectSettingsByProjectId[project.id]!,
-      );
-      nextState.browserStateByProjectId[project.id] =
-        input.browserStateByProjectId[project.id] ?? defaultState;
-      const defaultBrowserKey = `${project.id}:browser`;
-      if (!nextState.browserStateBySessionKey[defaultBrowserKey]) {
-        nextState.browserStateBySessionKey[defaultBrowserKey] =
-          input.browserStateByProjectId[project.id] ?? defaultState;
-      }
     }
+    nextState = ensureProjectDefaults(nextState, project.id);
     if (input.codeStateByProjectId[project.id]) {
       nextState.codeStateByProjectId[project.id] = input.codeStateByProjectId[project.id]!;
     }
@@ -980,15 +975,6 @@ export function syncWorkspaceShellState(
     rememberedThreadIdByProjectId,
   };
 
-  // Reset browser URL to default if resumeLastVisitedPage is disabled
-  for (const project of projects) {
-    const settings = nextState.projectSettingsByProjectId[project.id];
-    const browserState = nextState.browserStateByProjectId[project.id];
-    if (settings && browserState && settings.browser.resumeLastVisitedPage === false) {
-      browserState.currentUrl = settings.browser.defaultUrl.trim();
-    }
-  }
-
   return nextState;
 }
 
@@ -1025,6 +1011,19 @@ const safeStorage: StateStorage = {
     }
   },
 };
+
+/** Read the project settings written by another window without replacing local workspace state. */
+export function readPersistedProjectWorkspaceSettings(projectId: ProjectId) {
+  try {
+    const raw = safeStorage.getItem(WORKSPACE_SHELL_STORAGE_KEY);
+    if (typeof raw !== "string") return undefined;
+    const persisted = JSON.parse(raw);
+    const settings: unknown = persisted?.state?.projectSettingsByProjectId?.[projectId];
+    return settings === undefined ? undefined : decodeProjectWorkspaceSettings(settings);
+  } catch {
+    return undefined;
+  }
+}
 
 export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
   persist(
@@ -1166,9 +1165,21 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
         set((state) => {
           const current =
             state.projectSettingsByProjectId[projectId] ?? createDefaultProjectWorkspaceSettings();
-          const nextSettings = decodeProjectWorkspaceSettings(
+          const decoded = decodeProjectWorkspaceSettings(
             typeof updater === "function" ? updater(current) : { ...current, ...updater },
           );
+          const nextSettings = {
+            ...decoded,
+            tools: decoded.tools.map((tool) => {
+              const previous = current.tools.find((entry) => entry.id === tool.id);
+              if (!previous?.attachmentInstanceId) return tool;
+              if (projectToolBinding(current, previous) === projectToolBinding(decoded, tool)) {
+                return { ...tool, attachmentInstanceId: previous.attachmentInstanceId };
+              }
+              const { attachmentInstanceId: _oldInstance, ...nextTool } = tool;
+              return nextTool;
+            }),
+          };
           const defaultBrowser =
             state.browserStateByProjectId[projectId] ?? defaultBrowserToolState(nextSettings);
           const defaultBrowserKey = `${projectId}:browser`;
@@ -1581,11 +1592,31 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
         gitStateByProjectId: state.gitStateByProjectId,
         serverStateByProjectId: state.serverStateByProjectId,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        // Re-sanitize hydrated state to enforce runtime invariants across schema evolution
-        const sanitized = migrateWorkspaceShellPersistedState(state, 2);
-        Object.assign(state, sanitized);
+      merge: (persistedState, currentState) => {
+        if (persistedState === undefined) return currentState;
+        const sanitized = migrateWorkspaceShellPersistedState(
+          { ...currentState, ...(persistedState as Partial<WorkspaceShellPersistedState>) },
+          2,
+        );
+        // Apply the built-in Browser startup preference before publishing hydrated state.
+        for (const [id, settings] of Object.entries(sanitized.projectSettingsByProjectId)) {
+          if (settings.browser.resumeLastVisitedPage) continue;
+          const projectId = id as ProjectId;
+          const browserKey = browserSessionStateKey(projectId);
+          const currentUrl = settings.browser.defaultUrl.trim();
+          const projectBrowser = sanitized.browserStateByProjectId[projectId];
+          if (projectBrowser) {
+            sanitized.browserStateByProjectId[projectId] = { ...projectBrowser, currentUrl };
+          }
+          const sessionBrowser = sanitized.browserStateBySessionKey[browserKey];
+          if (sessionBrowser) {
+            sanitized.browserStateBySessionKey[browserKey] = { ...sessionBrowser, currentUrl };
+          }
+          if (sanitized.browserUrlBySessionKey[browserKey] !== undefined) {
+            sanitized.browserUrlBySessionKey[browserKey] = currentUrl;
+          }
+        }
+        return { ...currentState, ...sanitized };
       },
     },
   ),
