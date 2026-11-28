@@ -3468,6 +3468,43 @@ describe("Device comparison", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("pauses on a successful permission-dialog receipt before the tree has changed", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order placed"])],
+      [frame("android", ["Continue"]), frame("android", [], ["Order placed"])],
+    );
+    const original = f.driver.press;
+    Object.assign(f.driver, {
+      press: (...args: Parameters<SemanticDriver["press"]>) =>
+        args[0].platform === "android"
+          ? original(...args).pipe(Effect.as({ permissionDialog: true as const }))
+          : original(...args),
+    });
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      canResume: false,
+      uncertainTap: false,
+    });
+    await expect(f.invoke({ action: "resume", threadId, runId })).rejects.toThrow("Choose My turn");
+    const owner = AuthSessionId.make("qa-user");
+    await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, owner);
+    const { manualControlId } = await f.invoke(
+      { action: "status", threadId, device: pixel },
+      owner,
+    );
+    await f.invoke({ action: "resume", threadId, runId, controlId: manualControlId! }, owner);
+    expect((await f.settle()).run).toMatchObject({
+      phase: "completed",
+      completedSteps: 1,
+    });
+    expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toHaveLength(1);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
