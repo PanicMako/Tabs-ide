@@ -522,6 +522,98 @@ it.each(["verified", "pending"] as const)(
   },
 );
 
+it("opens a verified evidence draft directly from the snapshot in chat", async () => {
+  const threadId = ThreadId.make("snapshot-result-thread");
+  const scope = `${testEnvironment}:${threadId}`;
+  const reference = { runId: "f49d91d0-b366-4521-a267-a90fa439732c", step: 2 };
+  const createdAt = "2026-11-25T01:02:00.000Z";
+  const url = "https://quality.test/work/verified-checkout";
+  const surfaces = useCompanionSurfaceStore.getState();
+  const work = surfaces.open(scope, "browser", { profileId: "work" });
+  const personal = surfaces.open(scope, "browser", { profileId: "personal" });
+  const sessionId = `agents-surface-${work}`;
+  bridge.getBrowserSessionState.mockResolvedValue({
+    ...emptyBrowserState("project", sessionId),
+    instanceId: "original-work",
+    profileId: "work",
+    currentUrl: url,
+  });
+  bridge.runBrowserAutomation.mockImplementation(async ({ operation }) =>
+    operation === "findDeviceComparisonDraft" ? { tabId: sessionId, profileId: "work" } : { url },
+  );
+  const items = [1, 2].map((ordinal) => ({
+    id: `snapshot-${ordinal}`,
+    ordinal,
+    type: "dynamic_tool",
+    status: "completed",
+    toolName: "t3-code.preview_snapshot",
+    updatedAt: createdAt,
+    outputOmitted: true,
+    output: { verifiedEvidenceDraft: reference },
+  }));
+  const entries = deriveTimelineEntries(
+    [],
+    [],
+    deriveWorkLogEntries(activitiesFromTurnItems(items), undefined),
+  );
+  const previousEnvironment = getPrimaryEnvironmentId();
+  setPrimaryEnvironmentIdForTesting(testEnvironment);
+  const view = await render(
+    <MessagesTimeline
+      hasMessages
+      isWorking={false}
+      activeTurnInProgress={false}
+      activeTurnStartedAt={null}
+      scrollContainer={null}
+      timelineEntries={entries}
+      completionDividerBeforeEntryId={null}
+      completionSummary={null}
+      turnDiffSummaryByAssistantMessageId={new Map()}
+      nowIso={createdAt}
+      expandedWorkGroups={{}}
+      onToggleWorkGroup={() => {}}
+      onOpenTurnDiff={() => {}}
+      onOpenDeviceComparison={() => {}}
+      revertTurnCountByUserMessageId={new Map()}
+      onRevertUserMessage={() => {}}
+      isRevertingCheckpoint={false}
+      onImageExpand={() => {}}
+      markdownCwd={undefined}
+      resolvedTheme="light"
+      timestampFormat="locale"
+      workspaceRoot={undefined}
+      latestTaskDescription={null}
+      projectId="project"
+      threadId={threadId}
+      environmentId={testEnvironment}
+    />,
+  );
+  try {
+    const open = page.getByRole("button", { name: "Open draft" });
+    await expect.element(open).toBeVisible();
+    expect(open.elements()).toHaveLength(1);
+    await open.click();
+    await expect
+      .poll(() => useCompanionSurfaceStore.getState().workspaces[scope]?.activeId)
+      .toBe(work);
+    expect(bridge.runBrowserAutomation).toHaveBeenCalledWith({
+      source: "human",
+      operation: "enterDeviceComparisonDraft",
+      projectId: "project",
+      taskId: threadId,
+      sessionId,
+      input: { ...reference, profileId: "work" },
+    });
+    expect(
+      useCompanionSurfaceStore.getState().workspaces[scope]?.tabs.find((tab) => tab.id === personal)
+        ?.url,
+    ).toBeUndefined();
+  } finally {
+    await view.unmount();
+    setPrimaryEnvironmentIdForTesting(previousEnvironment);
+  }
+});
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
