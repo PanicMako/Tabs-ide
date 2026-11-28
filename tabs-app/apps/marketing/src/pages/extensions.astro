@@ -15,6 +15,13 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       </div>
       <div class="exchange-emblem" aria-hidden="true"><Icon name="Puzzle" size={56} /></div>
     </div>
+    <section class="exchange-publish-panel" id="relay" aria-labelledby="relay-release-title">
+      <div>
+        <h2 id="relay-release-title">Relay 0.2.1</h2>
+        <p>Find notes, to-dos and reminders saved with <code>@relay</code> in All notes. The GitHub package requires a Tabs development build with extension API 1.11 and Agent notebook support.</p>
+      </div>
+      <a class="exchange-button secondary" href="https://github.com/PanicMako/Tabs-ide/releases/tag/relay-v0.2.1">Relay release and CLI check <Icon name="ArrowUpRight" size={16} /></a>
+    </section>
     {exchange ? (
       <div id="catalog" data-exchange-url={exchange} data-preview={import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true" ? "true" : undefined}>
         <div class="exchange-toolbar"><h2>Explore extensions</h2><label class="exchange-search" for="search"><Icon name="Search" size={18} /><span class="sr-only">Search extensions</span><input id="search" type="search" placeholder="Search by name or publisher" /></label></div>

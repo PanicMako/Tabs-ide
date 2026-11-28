@@ -2,15 +2,17 @@
   "manifestVersion": 1,
   "publisher": "panicmako",
   "name": "relay",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "displayName": "Relay",
-  "description": "A quiet notebook for project context. Optional nested folders, boards, custom note templates, project logos, and reversible bulk deletion.",
-  "releaseNotes": "First release of Relay. Capture notes quickly, organize projects with optional nested folders, switch between list, cards and board views, and build reusable templates with thirteen optional field types. Includes local search, pins, archive, backups and a theme that follows Tabs.",
+  "description": "A quiet notebook for project context. Optional nested folders, boards and templates, plus an Agent notebook: ask Relay in plain language, see what your agents add, and share notes with them.",
+  "releaseNotes": "Relay is now agent-ready. Ask Relay with the @relay language or a free-form request, see to-dos, reminders and context from your agents in a new From agents list with due chips and snooze, and share any note with agents in one click. Items you save with @relay now appear in All notes and Pinned, marked “via @relay”, and update live. The Agent notebook is on for every project by default and can be switched off per project in Settings → Extensions. Your notes stay local; nothing is shared until you share it or create it through Ask or @relay.",
   "engines": {
     "tabs": ">=2.0.0 <3.0.0",
-    "api": "^1.6.0"
+    "api": "^1.11.0"
   },
-  "capabilities": [],
+  "capabilities": [
+    "agent-notebook"
+  ],
   "listing": {
     "readme": "README.md",
     "icon": "icon.png",
@@ -22,9 +24,11 @@
       "handoff",
       "folders",
       "kanban",
-      "context"
+      "context",
+      "agents",
+      "reminders"
     ],
-    "externalServices": "None. Notes, project logos, attachments, and Trash stay in local extension profile browser storage. No telemetry or cloud sync."
+    "externalServices": "None. Notes, project logos, attachments, and Trash stay in local extension profile browser storage. Items you share or create through Ask or @relay are stored in Tabs on this computer. No telemetry or cloud sync."
   },
   "contributes": {
     "tools": [

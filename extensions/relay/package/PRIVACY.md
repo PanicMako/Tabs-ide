@@ -1,6 +1,6 @@
 # Relay data and privacy
 
-Relay 0.1.0 has no network service, analytics, telemetry, AI integration, credentials, or workspace/file broker access. It requests no Tabs capabilities.
+Relay has no network service, analytics, telemetry, credentials, or workspace/file broker access. Its one Tabs capability is the optional **Agent notebook**, which you allow per project. Notes stay local. Only items you share with agents (Share with agents) or create through Ask or `@relay` are stored in Tabs on this computer, where your Tabs agents in that project can read them. Requests that Ask hands to an agent run as a normal Tabs agent thread under your existing agent and model settings; Relay itself sends nothing anywhere.
 
 Notes, folders, templates, board columns, preferences, project logos, Trash, and drafts use Chromium localStorage in the extension's assigned Tabs profile. Attachment payloads use IndexedDB in the same browser partition. Shared profiles deliberately share their notebook across Tabs projects; project-isolated profiles keep browser storage separate. Relay's internal projects are notebook collections and are not automatically synchronized with Tabs workspace projects.
 
