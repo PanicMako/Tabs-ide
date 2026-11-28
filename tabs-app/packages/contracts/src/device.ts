@@ -479,6 +479,16 @@ export const DeviceToolListResult = Schema.Struct({
 });
 export type DeviceToolListResult = typeof DeviceToolListResult.Type;
 
+export const DeviceAppId = Schema.String.check(
+  Schema.isMaxLength(255),
+  Schema.isPattern(/^[a-zA-Z][a-zA-Z0-9_-]*(?:\.[a-zA-Z0-9_-]+)+$/),
+);
+export const DeviceAppApproval = Schema.Struct({
+  id: Schema.String.check(Schema.isUUID()),
+  appId: DeviceAppId,
+});
+export type DeviceAppApproval = typeof DeviceAppApproval.Type;
+
 export const DeviceToolOpenInput = Schema.Struct({
   deviceId: Schema.optional(
     DeviceId.annotate({
