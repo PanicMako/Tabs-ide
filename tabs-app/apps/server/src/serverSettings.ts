@@ -326,6 +326,15 @@ export class ServerSettingsService extends Context.Service<
       use: (settings: ServerSettings) => Effect.Effect<A, E, R>,
     ) => Effect.Effect<A, E | ServerSettingsError, R>;
 
+    /**
+     * Observe the current raw settings and subsequent commits in write order.
+     * The callback runs synchronously under the write lock and must only
+     * update in-memory state or enqueue work.
+     */
+    readonly observeCommits?: (
+      observe: (settings: ServerSettings) => void,
+    ) => Effect.Effect<void, ServerSettingsError, Scope.Scope>;
+
     /** Stream of settings change events. */
     readonly streamChanges: Stream.Stream<ServerSettings>;
 
@@ -340,6 +349,33 @@ export class ServerSettingsService extends Context.Service<
   /** @deprecated Import and use `layerTest` from this module. */
   static readonly layerTest = (overrides: DeepPartial<ServerSettings> = {}) => layerTest(overrides);
 }
+
+const makeCommitObservers = (
+  writeSemaphore: Semaphore.Semaphore,
+  getSettings: Effect.Effect<ServerSettings, ServerSettingsError>,
+) => {
+  const observers = new Set<(settings: ServerSettings) => void>();
+  const observeCommits: NonNullable<ServerSettingsService["Service"]["observeCommits"]> = (
+    observe,
+  ) =>
+    Effect.acquireRelease(
+      writeSemaphore.withPermit(
+        Effect.map(getSettings, (settings) => {
+          observe(settings);
+          observers.add(observe);
+        }),
+      ),
+      () =>
+        Effect.sync(() => {
+          observers.delete(observe);
+        }),
+    );
+  const notifyCommit = (settings: ServerSettings) =>
+    Effect.sync(() => {
+      for (const observe of observers) observe(settings);
+    });
+  return { observeCommits, notifyCommit };
+};
 
 const makeTest = (overrides: DeepPartial<ServerSettings> = {}) =>
   Effect.gen(function* () {
@@ -358,6 +394,10 @@ const makeTest = (overrides: DeepPartial<ServerSettings> = {}) =>
     const currentSettingsRef = yield* Ref.make<ServerSettings>(initialSettings);
     const writeSemaphore = yield* Semaphore.make(1);
     const getSettings = Ref.get(currentSettingsRef).pipe(Effect.map(resolveTextGenerationProvider));
+    const { observeCommits, notifyCommit } = makeCommitObservers(
+      writeSemaphore,
+      Ref.get(currentSettingsRef),
+    );
 
     const updateTestSettings = (
       update: (current: ServerSettings) => Effect.Effect<ServerSettings, ServerSettingsError>,
@@ -366,7 +406,12 @@ const makeTest = (overrides: DeepPartial<ServerSettings> = {}) =>
         Ref.get(currentSettingsRef).pipe(
           Effect.flatMap(update),
           Effect.flatMap(normalizeServerSettings),
-          Effect.tap((nextSettings) => Ref.set(currentSettingsRef, nextSettings)),
+          Effect.tap((nextSettings) =>
+            Ref.set(currentSettingsRef, nextSettings).pipe(
+              Effect.andThen(notifyCommit(nextSettings)),
+              Effect.uninterruptible,
+            ),
+          ),
           Effect.map(resolveTextGenerationProvider),
         ),
       );
@@ -393,6 +438,7 @@ const makeTest = (overrides: DeepPartial<ServerSettings> = {}) =>
         ),
       withSettingsSnapshot: (use) =>
         writeSemaphore.withPermits(1)(getSettings.pipe(Effect.flatMap(use))),
+      observeCommits,
       streamChanges: Stream.empty,
       subscribeChanges: Effect.succeed(Stream.empty),
     } satisfies ServerSettingsService["Service"];
@@ -880,6 +926,10 @@ const make = Effect.gen(function* () {
   );
 
   const getSettingsFromCache = Cache.get(settingsCache, cacheKey);
+  const { observeCommits, notifyCommit } = makeCommitObservers(
+    writeSemaphore,
+    getSettingsFromCache,
+  );
 
   const materializeProviderEnvironmentSecrets = (
     settings: ServerSettings,
@@ -1284,11 +1334,12 @@ const make = Effect.gen(function* () {
               yield* rollbackSecretChanges;
               return yield* Effect.failCause(writeExit.cause);
             }
+            yield* Cache.set(settingsCache, cacheKey, next);
+            yield* notifyCommit(next);
+            yield* emitChange(next);
             return materializedExit.value;
           }),
         );
-        yield* Cache.set(settingsCache, cacheKey, next);
-        yield* emitChange(next);
         return resolveTextGenerationProvider(materialized);
       }),
     );
@@ -1306,7 +1357,10 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       yield* Cache.invalidate(settingsCache, cacheKey);
       const settings = yield* getSettingsFromCache;
-      yield* emitChange(settings);
+      yield* notifyCommit(settings).pipe(
+        Effect.andThen(emitChange(settings)),
+        Effect.uninterruptible,
+      );
     }),
   );
 
@@ -1393,11 +1447,16 @@ const make = Effect.gen(function* () {
       return yield* Deferred.await(startedDeferred);
     }
 
-    const startup = Effect.gen(function* () {
-      yield* startWatcher;
-      yield* Cache.invalidate(settingsCache, cacheKey);
-      yield* getSettingsFromCache;
-    });
+    const startup = startWatcher.pipe(
+      Effect.andThen(
+        writeSemaphore.withPermit(
+          Cache.invalidate(settingsCache, cacheKey).pipe(
+            Effect.andThen(getSettingsFromCache),
+            Effect.flatMap(notifyCommit),
+          ),
+        ),
+      ),
+    );
 
     const startupExit = yield* Effect.exit(startup);
     if (startupExit._tag === "Failure") {
@@ -1430,6 +1489,7 @@ const make = Effect.gen(function* () {
         }),
       ),
     withSettingsSnapshot,
+    observeCommits,
     get streamChanges() {
       return materializeChanges(Stream.fromPubSub(changesPubSub));
     },
