@@ -1112,6 +1112,29 @@ it.each([{ pageRef: "b".repeat(64) }, { instanceId: "replacement" }, { profileId
   },
 );
 
+it("cancels approval while the browser identity check is pending", async () => {
+  const { state, files, close } = await renderSelectionBrowser(
+    ThreadId.make("cancel-browser-excerpt"),
+  );
+  try {
+    const review = await openSelectionReview();
+    let resolveState!: (state: DesktopBrowserSessionState) => void;
+    const pendingState = new Promise<DesktopBrowserSessionState>((resolve) => {
+      resolveState = resolve;
+    });
+    bridge.getBrowserSessionState.mockReturnValueOnce(pendingState);
+    await review.getByRole("button", { name: "Add to draft" }).click();
+    await expect.element(review.getByRole("button", { name: "Checking page…" })).toBeDisabled();
+    await review.getByRole("button", { name: "Cancel" }).click();
+    resolveState(state);
+    await pendingState;
+    await expect.element(review).not.toBeInTheDocument();
+    expect(files()).toHaveLength(0);
+  } finally {
+    await close();
+  }
+});
+
 const pairAction = "Attach both first-difference screenshots";
 const pairGrantIds = [
   "692cb917-ea45-49cb-b0b5-cebec45d66ca",
