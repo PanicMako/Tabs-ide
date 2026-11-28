@@ -3603,6 +3603,214 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "hands off the same Work tab after mouse-down without saving the draft in Chromium",
+    async () => {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        const url = "https://drafts.test/Work";
+        await page.route(url, (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: `<!doctype html><title>Work draft</title>
+              <form data-presses="0" data-releases="0" data-ups="0" data-saves="0" data-corrections="0">
+                <button id="save">Save draft</button>
+                <button type="button" id="correct">Apply correction</button>
+                <output></output>
+                <div id="release-area" style="width: 120px; height: 40px">Neutral area</div>
+              </form>
+              <script>
+                const form = document.querySelector('form');
+                document.addEventListener('mouseup', (event) => {
+                  if (event.isTrusted && event.button === 0) form.dataset.ups++;
+                }, true);
+                document.querySelector('#save').addEventListener('mousedown', (event) => {
+                  if (event.isTrusted) form.dataset.presses++;
+                });
+                document.querySelector('#release-area').addEventListener('mouseup', (event) => {
+                  if (event.isTrusted && event.button === 0) form.dataset.releases++;
+                });
+                form.addEventListener('submit', (event) => {
+                  event.preventDefault();
+                  form.dataset.saves++;
+                });
+                document.querySelector('#correct').addEventListener('click', (event) => {
+                  if (!event.isTrusted) return;
+                  form.dataset.corrections++;
+                  form.querySelector('output').textContent = 'Correction applied';
+                });
+              </script>`,
+          }),
+        );
+        await page.goto(url);
+        const effects = () => page.locator("form").evaluate((form) => ({ ...form.dataset }));
+        const cdp = await page.context().newCDPSession(page);
+        type ClickCommand =
+          | [
+              "Input.dispatchMouseEvent",
+              NonNullable<Parameters<typeof cdp.send<"Input.dispatchMouseEvent">>[1]>,
+            ]
+          | ["Emulation.setFocusEmulationEnabled", { enabled: boolean }];
+        const mouseEvents: string[] = [];
+        const focusEmulation: boolean[] = [];
+        let acknowledgeFocusRelease!: () => void;
+        const focusReleaseReply = new Promise<void>((resolve) => {
+          acknowledgeFocusRelease = resolve;
+        });
+        const manager = new BrowserHostManager(() => null);
+        const target = {
+          projectId: "project-1",
+          sessionId: "agents-surface-work",
+          taskId: "qa",
+        };
+        const { session, webContents } = createMockSession({
+          sessionId: target.sessionId,
+          key: `${target.projectId}::${target.sessionId}`,
+          profileId: "work",
+          partition: "persist:tabs-browser:profile:work",
+          currentUrl: url,
+          cdpCoordinator: {
+            withSession: (_mode: string, run: (debug: unknown) => unknown) =>
+              run({
+                sendCommand: async (...[method, params]: ClickCommand) => {
+                  if (method === "Input.dispatchMouseEvent") {
+                    mouseEvents.push(params.type);
+                    // An interrupted press is released away from every control, never over Save.
+                    if (params.type === "mouseReleased" && params.x >= 0 && params.y >= 0)
+                      throw new Error("The interrupted Save must never receive an agent mouse-up.");
+                  }
+                  const result = await cdp.send(method, params);
+                  if (method === "Emulation.setFocusEmulationEnabled") {
+                    focusEmulation.push(params.enabled);
+                    if (params.enabled === false) await focusReleaseReply;
+                  }
+                  if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") {
+                    expect(await effects()).toEqual({
+                      presses: "1",
+                      releases: "0",
+                      ups: "0",
+                      saves: "0",
+                      corrections: "0",
+                    });
+                    // Withhold the reply from the host until takeover.
+                    manager.takeControl({ ...target, demonstrate: true });
+                  }
+                  return result;
+                },
+              }),
+          },
+        });
+        const evaluate = vi.fn<(world: number, scripts: { code: string }[]) => Promise<unknown>>();
+        await connectChromiumPage(page, { evaluate });
+        Object.assign(webContents, {
+          getURL: () => page.url(),
+          getZoomFactor: () => 1,
+          executeJavaScriptInIsolatedWorld: evaluate,
+        });
+        (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(
+          session.key,
+          session,
+        );
+        const state = () => manager.getSessionState(target.projectId, target.sessionId);
+        await manager.runAutomation({
+          ...target,
+          operation: "authorizeBrowserPage",
+          source: "human",
+          input: { url, profileId: "work" },
+        });
+
+        const click = manager.runAutomation({
+          ...target,
+          operation: "click",
+          source: "agent",
+          input: { selector: "#save" },
+        });
+        const clickSettled = vi.fn();
+        void click.then(clickSettled, clickSettled);
+        try {
+          await vi.waitFor(() => expect(focusEmulation).toEqual([true, false]));
+          expect(clickSettled).not.toHaveBeenCalled();
+          expect(state().controller).toBe("human");
+        } finally {
+          acknowledgeFocusRelease();
+        }
+        await expect(click).rejects.toThrow("Click interrupted by human control.");
+        expect(mouseEvents).toEqual(["mousePressed", "mouseMoved", "mouseReleased"]);
+        // The page saw the release (no stuck press or drag) but Save never completed.
+        expect(await effects()).toEqual({
+          presses: "1",
+          releases: "0",
+          ups: "1",
+          saves: "0",
+          corrections: "0",
+        });
+        const { instanceId, controlEpoch } = session;
+        await vi.waitFor(async () =>
+          expect(
+            await evaluate(999, [{ code: "Boolean(globalThis.tabsBrowserDemonstration)" }]),
+          ).toBe(true),
+        );
+
+        await page.locator("#release-area").hover();
+        await page.mouse.up();
+        expect(await effects()).toEqual({
+          presses: "1",
+          releases: "1",
+          ups: "2",
+          saves: "0",
+          corrections: "0",
+        });
+
+        await page.getByRole("button", { name: "Apply correction" }).click();
+        await vi.waitFor(() => expect(state().demonstratedControl).toContain("Apply correction"));
+        const receipt = await manager.resumeAgent({
+          ...target,
+          expectedGeneration: { instanceId, controlEpoch },
+        });
+
+        expect(receipt).toEqual({
+          demonstrationId: expect.any(String),
+          controlEpoch: controlEpoch + 1,
+        });
+        expect(session.actionTimeline).toContainEqual(
+          expect.objectContaining({
+            id: receipt?.demonstrationId,
+            observedChanges: ["Nearby status changed"],
+          }),
+        );
+        expect(state()).toMatchObject({
+          instanceId,
+          sessionId: target.sessionId,
+          profileId: "work",
+          currentUrl: url,
+          assignedTaskId: target.taskId,
+          controller: "none",
+          browserPageAuthorized: true,
+        });
+        await expect(
+          manager.runAutomation({
+            ...target,
+            operation: "waitFor",
+            source: "agent",
+            input: { text: "Correction applied", timeoutMs: 1_000 },
+          }),
+        ).resolves.toEqual({ matched: true });
+        expect(await effects()).toEqual({
+          presses: "1",
+          releases: "1",
+          ups: "3",
+          saves: "0",
+          corrections: "1",
+        });
+      } finally {
+        await browser.close();
+      }
+    },
+    60_000,
+  );
+
   it("does not create a replacement for an explicitly attached tab that closed", async () => {
     const manager = new BrowserHostManager(() => null);
     await expect(
