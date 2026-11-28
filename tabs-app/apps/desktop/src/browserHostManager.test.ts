@@ -8606,6 +8606,30 @@ describe("reliable browser tabs and agent control", () => {
         save.mockRestore();
       }
     });
+
+    it("does not treat a page that only prints the digest as a verified receipt", async () => {
+      const f = await setup();
+      f.receipt.images = false;
+      await f.observe();
+      f.showDraft();
+      for (let pass = 0; pass < 3; pass++) {
+        const snapshot = await f.observe();
+        expect(snapshot).not.toHaveProperty("verifiedScreenshotDraft");
+        expect(snapshot).toHaveProperty("unverifiedScreenshotDraft", {
+          sha256: f.digest,
+          receiptKind: "pageText",
+        });
+      }
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+      f.receipt.images = true;
+      await f.observe();
+      f.showDraft();
+      await f.observe();
+      await expect(f.observe()).resolves.toHaveProperty("verifiedScreenshotDraft", {
+        sha256: f.digest,
+        receiptKind: "image",
+      });
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
