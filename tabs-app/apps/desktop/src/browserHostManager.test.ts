@@ -6456,6 +6456,71 @@ describe("reliable browser tabs and agent control", () => {
         attached: true,
       });
     });
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1").each(["manual", "first-difference"])(
+      "keeps %s screenshots in distinct file inputs after page code clears the first input",
+      async (approval) => {
+        const f = createEvidenceFixture();
+        const deferred = approval === "first-difference";
+        if (deferred) await f.authorizePage();
+        const {
+          grantIds: [sourceId, targetId],
+        } = deferred ? await f.authorizeEvidence() : await f.authorizePair([source, target]);
+        const sourceTransfer = deferred ? { ...sourceDevice, frame: sourceFrame } : source;
+        const targetTransfer = deferred ? { ...targetDevice, frame: targetFrame } : target;
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(async () => browser.close());
+        const page = await browser.newPage();
+        await page.route("**/*", (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: '<input id="first" type="file"><input id="second" type="file">',
+          }),
+        );
+        await page.goto(f.session.currentUrl);
+        const cdp = await page.context().newCDPSession(page);
+        const { frameTree } = await cdp.send("Page.getFrameTree");
+        const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+          frameId: frameTree.frame.id,
+          worldName: "paired-screenshots",
+        });
+        f.attach.mockImplementation(async (_world: number, [{ code }]: [{ code: string }]) => {
+          const result = await cdp.send("Runtime.evaluate", {
+            expression: code,
+            contextId: executionContextId,
+            returnByValue: true,
+          });
+          if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+          return result.result.value;
+        });
+        await expect(
+          f.transfer(sourceId, { phase: "inspect", selector: "#first" }),
+        ).resolves.toMatchObject(sourceDevice);
+        await expect(
+          f.transfer(targetId, { phase: "inspect", selector: "#first" }),
+        ).rejects.toThrow("file input");
+        await expect(
+          f.transfer(sourceId, { ...sourceTransfer, selector: "#first" }),
+        ).resolves.toEqual({ attached: true });
+        await page.locator("#first").evaluate((input: HTMLInputElement) => {
+          input.value = "";
+        });
+        await expect(
+          f.transfer(targetId, { phase: "inspect", selector: "#first" }),
+        ).rejects.toThrow("file input");
+        await page.locator("#first").evaluate((input) => input.replaceWith(input.cloneNode()));
+        await expect(
+          f.transfer(targetId, { phase: "inspect", selector: "#first" }),
+        ).rejects.toThrow("file input");
+        await expect(
+          f.transfer(targetId, { phase: "inspect", selector: "#second" }),
+        ).resolves.toMatchObject(targetDevice);
+        await expect(
+          f.transfer(targetId, { ...targetTransfer, selector: "#second" }),
+        ).resolves.toEqual({ attached: true });
+      },
+    );
   });
 
   async function connectChromiumPage(
