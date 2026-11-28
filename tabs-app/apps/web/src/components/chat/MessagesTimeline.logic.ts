@@ -1,3 +1,20 @@
+import { BrowserWorkflowStage, type BrowserWorkflowResultRef } from "@tabs/contracts";
+
+export function browserWorkflowResultSupersedes(
+  next: BrowserWorkflowResultRef,
+  previous: BrowserWorkflowResultRef,
+): boolean {
+  const stages = BrowserWorkflowStage.literals;
+  return (
+    next.workflowId === previous.workflowId &&
+    (stages.indexOf(next.stage) > stages.indexOf(previous.stage) ||
+      (next.stage === "uploaded" &&
+        next.pendingAction === "submit" &&
+        previous.stage === "uploaded" &&
+        previous.submitRequiresUser === true))
+  );
+}
+
 export interface TimelineDurationMessage {
   id: string;
   role: "user" | "assistant" | "system";
