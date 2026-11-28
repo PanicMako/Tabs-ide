@@ -3370,6 +3370,104 @@ describe("Device comparison", () => {
     );
     expect(f.press).not.toHaveBeenCalled();
   });
+
+  it.each([
+    {
+      name: "on the final allowed scroll",
+      outcomeIndex: 6,
+      phase: "completed",
+      completedSteps: 1,
+    },
+    {
+      name: "beyond the scroll limit",
+      outcomeIndex: 7,
+      phase: "paused",
+      completedSteps: 0,
+    },
+  ])("keeps the recorded scroll limit after restoring a lost reply ($name)", async (scenario) => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-scroll-replay-"));
+    try {
+      const outcome = "Delivery options";
+      const ios = [frame("ios", [], ["Checkout"]), frame("ios", [], [outcome])];
+      const android = [
+        "Checkout",
+        "Shipping address",
+        "Contact details",
+        "Order summary",
+        "Payment method",
+        "Gift options",
+        "Promo code",
+        "Review order",
+      ].map((label, index) =>
+        frame("android", [], [index === scenario.outcomeIndex ? outcome : label]),
+      );
+      const original = fixture(ios, android, true, makeDeviceComparisonStore(directory));
+      const runId = await original.begin();
+      const reference = { threadId, runId };
+      await original.invoke({ ...reference, action: "scroll", direction: "down" }, panelSession);
+      const { controls } = await original.settle();
+      await original.invoke({
+        ...reference,
+        action: "expect",
+        controlId: controls!.find(({ label }) => label === outcome)!.id,
+      });
+      await original.approve(runId);
+      const sendScroll = original.driver.scroll;
+      vi.spyOn(original.driver, "scroll").mockImplementation((...args) =>
+        sendScroll(...args).pipe(
+          Effect.andThen(() =>
+            original.positions.get(pixel.hostId) === 5
+              ? Effect.fail(new DeviceComparisonError({ reason: "Scroll reply lost" }))
+              : Effect.void,
+          ),
+        ),
+      );
+
+      await original.replay(runId);
+      expect((await original.settle()).run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+        uncertainTap: true,
+      });
+      expect(original.scroll.mock.calls.filter(([host]) => host === pixel.hostId)).toHaveLength(5);
+
+      const restarted = fixture(ios, android, true, makeDeviceComparisonStore(directory));
+      restarted.positions.set(pixel.hostId, original.positions.get(pixel.hostId)!);
+      const restored = await restarted.invoke(
+        {
+          ...reference,
+          action: "restoreReplay",
+          device: pixel,
+          appId: androidApp,
+        },
+        panelSession,
+      );
+      expect(restored.run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+        uncertainTap: true,
+      });
+      await restarted.invoke({ ...reference, action: "resolve", applied: true }, panelSession);
+      await restarted.invoke({ ...reference, action: "resume" }, panelSession);
+
+      const settled = await restarted.settle();
+      expect(settled.run).toMatchObject({
+        phase: scenario.phase,
+        completedSteps: scenario.completedSteps,
+        uncertainTap: false,
+      });
+      if (scenario.phase === "paused")
+        expect(settled.run?.firstDifference).toMatchObject({
+          step: 1,
+          kind: "outcome",
+        });
+      expect(restarted.open).not.toHaveBeenCalled();
+      expect(restarted.scroll.mock.calls).toEqual([[pixel.hostId, "down"]]);
+      expect(restarted.press).not.toHaveBeenCalled();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
