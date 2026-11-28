@@ -10,13 +10,14 @@ export type DeviceApi = NativeApi["device"];
  * inventory; nothing is installed or started until the user acts.
  */
 export function useDeviceApi(environmentId: string | null | undefined): DeviceApi | null {
-  const [api, setApi] = useState<DeviceApi | null>(null);
+  const [connection, setConnection] = useState<{ environmentId: string | null; api: DeviceApi }>();
+  const id = environmentId ?? null;
   useEffect(() => {
     let stop: (() => void) | undefined;
     let cancelled = false;
-    void environmentApi(environmentId ?? null).then((native) => {
+    void environmentApi(id).then((native) => {
       if (cancelled || !native.device) return;
-      setApi(native.device);
+      setConnection({ environmentId: id, api: native.device });
       stop = startDeviceStateSubscription(native.device);
       void inspectDevices(native.device);
     });
@@ -24,6 +25,6 @@ export function useDeviceApi(environmentId: string | null | undefined): DeviceAp
       cancelled = true;
       stop?.();
     };
-  }, [environmentId]);
-  return api;
+  }, [id]);
+  return connection?.environmentId === id ? connection.api : null;
 }
