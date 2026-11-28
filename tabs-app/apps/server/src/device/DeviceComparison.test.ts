@@ -2281,6 +2281,37 @@ describe("Device comparison", () => {
       expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
     },
   );
+
+  it("hands off a protected destination before tapping or capturing it", async () => {
+    const protectedScreen = frame("android", ["Continue"]);
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [
+        {
+          ...protectedScreen,
+          nodes: [
+            ...protectedScreen.nodes,
+            {
+              index: 4,
+              ref: "e4",
+              label: "Password",
+              type: "EditText",
+              password: true,
+            },
+          ],
+        },
+      ],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    const paused = await f.settle();
+    expect(paused.run?.pauseReason).toContain("protected");
+    expect(f.press.mock.calls.every(([host]) => host === iphone.hostId)).toBe(true);
+    const evidence = await f.invoke({ action: "evidence", threadId, runId });
+    expect(evidence.evidence?.targetPng).toBeUndefined();
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
