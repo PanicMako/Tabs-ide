@@ -9348,6 +9348,19 @@ describe("reliable browser tabs and agent control", () => {
       expect(personal.loadURL).not.toHaveBeenCalled();
       expect(replacement.loadURL).not.toHaveBeenCalled();
     });
+
+    it("rejects a missing receipt or protected live draft without falling back", async () => {
+      const f = await setup();
+      await f.verify();
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted);
+      tab.content.text = `${f.digest}0`;
+      await expect(f.enter(restarted)).rejects.toThrow("approved screenshot receipt");
+      tab.content.text = f.digest;
+      tab.content.password = true;
+      await expect(f.enter(restarted)).rejects.toThrow("protected content");
+      expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(f.draftUrl);
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
