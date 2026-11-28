@@ -1645,6 +1645,51 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it("pauses without sending the next input when recording uncertainty fails", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-replay-save-failure-"));
+    try {
+      const store = makeDeviceComparisonStore(directory);
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", ["Review"]), frame("ios", [])],
+        [frame("android", ["Continue"]), frame("android", ["Review"])],
+        true,
+        {
+          ...store,
+          saveReplay: (owner, report, checkpoint, isCurrent) =>
+            checkpoint.index === 1 && checkpoint.applied === "unknown"
+              ? Effect.fail(
+                  new DeviceComparisonError({
+                    reason: "Could not save replay progress.",
+                  }),
+                )
+              : store.saveReplay(owner, report, checkpoint, isCurrent),
+        },
+      );
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      await f.tap(runId, "Review");
+      await f.approve(runId);
+      await f.replay(runId);
+      const { run } = await f.settle();
+      expect(run).toMatchObject({
+        phase: "paused",
+        completedSteps: 1,
+        pauseReason: "Could not save replay progress.",
+      });
+      expect(run?.firstDifference).toBeUndefined();
+      expect(f.press.mock.calls.filter(([host]) => host === pixel.hostId)).toEqual([
+        [pixel.hostId, "@e1~s42"],
+      ]);
+      const saved = await Effect.runPromise(store.loadReplay(threadId, runId));
+      expect(saved?.checkpoint).toMatchObject({ index: 1, applied: "no" });
+      await f.invoke({ action: "stop", threadId, runId }, panelSession);
+      const restarted = makeDeviceComparisonStore(directory);
+      expect(await Effect.runPromise(restarted.loadReplay(threadId, runId))).toBeUndefined();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
