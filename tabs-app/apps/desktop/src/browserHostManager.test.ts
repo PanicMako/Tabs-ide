@@ -8790,6 +8790,112 @@ describe("reliable browser tabs and agent control", () => {
         await expect(f.findComparison(restarted)).resolves.toBeNull();
       },
     );
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1").each(["first", "second"] as const)(
+      "recovers a saved Work draft after the %s selection reply is lost and the host restarts",
+      async (lostSelectionReply) => {
+        const fixtureUrl = new URL("../../server/scripts/fixtures/deviceDraft.ts", import.meta.url);
+        const {
+          startDeviceDraftApp,
+        }: {
+          startDeviceDraftApp: () => Promise<{
+            origin: string;
+            trialCounts: () => unknown;
+            close: () => Promise<void>;
+          }>;
+        } = await import(fixtureUrl.href);
+        const site = await startDeviceDraftApp();
+        onTestFinished(() => site.close());
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(() => browser.close());
+        const work = await browser.newContext();
+        const selections: string[] = [];
+        await work.exposeFunction("recordScreenshotSelection", (event: string) => {
+          selections.push(event);
+        });
+        await work.addInitScript(() => {
+          const observedWindow = window as typeof window & {
+            recordScreenshotSelection: (event: string) => Promise<void>;
+          };
+          for (const type of ["input", "change"]) {
+            document.addEventListener(type, ({ target }) => {
+              if (target instanceof HTMLInputElement && target.type === "file")
+                void observedWindow.recordScreenshotSelection(`${target.id}:${type}`);
+            });
+          }
+        });
+        const page = await work.newPage();
+        const clip = { x: 0, y: 0, width: 16, height: 16 };
+        await page.setContent('<body style="background: red">');
+        const sourcePng = await page.screenshot({ clip });
+        await page.setContent('<body style="background: blue">');
+        const targetPng = await page.screenshot({ clip });
+        await page.goto(`${site.origin}/Work`);
+        await page.getByRole("link", { name: "Guest checkout QA checklist" }).click();
+        const url = page.url();
+        const f = await setup(url, url, "first-difference", {
+          sourcePng: sourcePng.toString("base64"),
+          targetPng: targetPng.toString("base64"),
+          page,
+          lostSelectionReply,
+        });
+        await expect(f.findComparison(f.manager)).resolves.toBeNull();
+        await Promise.all([
+          page.waitForNavigation(),
+          page.getByRole("button", { name: "Save draft" }).click(),
+        ]);
+        expect(site.trialCounts()).toMatchObject({
+          draftSaves: { Work: 1, Personal: 0 },
+          checkoutDraft: {
+            profile: "Work",
+            notesPreserved: true,
+            evidence: [{ sha256: f.digest }, { sha256: f.targetDigest }],
+          },
+        });
+
+        const restarted = new BrowserHostManager(() => null);
+        const restored = await work.newPage();
+        const tab = f.tab(restarted);
+        await connectChromiumPage(restored, tab);
+        tab.loadURL.mockImplementation(async (destination) => {
+          await restored.goto(destination);
+          tab.events.emit("did-navigate", {}, restored.url());
+        });
+        const target = { tabId: f.target.sessionId, profileId: "work" };
+        await expect(f.findComparison(restarted)).resolves.toEqual({
+          ...target,
+          pending: true,
+        });
+
+        // The visible hash alone must not pass recovery with a different PNG at its URL.
+        for (const [digest, otherPng] of [
+          [f.digest, targetPng],
+          [f.targetDigest, sourcePng],
+        ] as const) {
+          const assetUrl = `${url}/evidence/${digest}`;
+          await restored.route(assetUrl, (route) =>
+            route.fulfill({ contentType: "image/png", body: otherPng }),
+          );
+          await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+          await expect(f.findComparison(restarted)).resolves.toEqual({
+            ...target,
+            pending: true,
+          });
+          await restored.unroute(assetUrl);
+        }
+        await expect(f.enterComparison(restarted)).resolves.toMatchObject({
+          url,
+        });
+        await expect(f.findComparison(restarted)).resolves.toEqual(target);
+        expect(selections).toEqual([
+          "evidence:input",
+          "evidence:change",
+          "comparison:input",
+          "comparison:change",
+        ]);
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
