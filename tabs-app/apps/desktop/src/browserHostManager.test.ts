@@ -4130,6 +4130,27 @@ describe("reliable browser tabs and agent control", () => {
       await expect(opening).resolves.toEqual({ stage: "certified" });
       expect(f.loadURL).not.toHaveBeenCalled();
     });
+
+    it("checks the pending Submit receipt with a new GET even at the original URL", async () => {
+      const f = await setup();
+      f.visible.status = "Uploaded";
+      f.loadURL.mockImplementationOnce(async (url) => {
+        expect(url).toBe(f.url);
+        f.visible.status = "Submitted";
+        f.events.emit("did-navigate", {}, url);
+      });
+      await expect(
+        f.enter({ ...f.saved, stage: "uploaded", pendingAction: "submit" }),
+      ).resolves.toEqual({ stage: "submitted" });
+      expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url, {
+        extraHeaders: "Cache-Control: no-cache\n",
+      });
+      expect(f.goToIndex).not.toHaveBeenCalled();
+      expect(f.submit).not.toHaveBeenCalled();
+      expect(f.manager.getSessionState(f.request.projectId, f.request.sessionId)).toMatchObject({
+        browserPageAuthorized: false,
+      });
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
