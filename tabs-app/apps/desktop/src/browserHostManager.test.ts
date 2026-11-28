@@ -6329,6 +6329,50 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.authorizeEvidence()).rejects.toThrow("approved draft changed");
       expect(f.state().deviceScreenshotAuthorized).toBe(false);
     });
+
+    it.each([
+      "takeover",
+      "revoke pair",
+      "revoke page",
+      "lost page grant",
+      "navigation starts",
+      "guest replacement",
+      "live URL mismatch",
+    ])("blocks both deferred transfers after %s", async (action) => {
+      const f = createEvidenceFixture();
+      const { events } = mockNavigation(f.manager, f);
+      await f.authorizePage();
+      const { grantIds } = await f.authorizeEvidence();
+      await f.transfer(grantIds[0], { phase: "inspect" });
+      await f.transfer(grantIds[1], { phase: "inspect" });
+      f.attach.mockClear();
+      if (action === "takeover") {
+        f.manager.takeControl(f.target);
+        await f.manager.resumeAgent(f.target);
+      } else if (action === "revoke pair" || action === "revoke page") {
+        await f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: action === "revoke pair" ? "revokeDeviceScreenshot" : "revokeBrowserPage",
+          input: { grantIds },
+        });
+      } else if (action === "navigation starts") {
+        events.emit("did-start-navigation", { isMainFrame: true }, f.session.currentUrl);
+      } else if (action === "lost page grant") {
+        Object.assign(f.session, { pageGrant: undefined });
+      } else if (action === "guest replacement") {
+        f.session.instanceId = crypto.randomUUID();
+      } else {
+        Object.assign(f.webContents, {
+          getURL: () => `${f.session.currentUrl}?draft=other`,
+        });
+      }
+      await expect(f.transfer(grantIds[0], { frame: sourceFrame })).rejects.toThrow("Approve");
+      await expect(
+        f.transfer(grantIds[1], { ...targetDevice, frame: targetFrame }),
+      ).rejects.toThrow("Approve");
+      expect(f.attach).not.toHaveBeenCalled();
+    });
   });
 
   describe.skip("device screenshot pair approval", () => {
