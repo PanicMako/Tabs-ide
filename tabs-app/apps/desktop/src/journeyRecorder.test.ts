@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { WebContents } from "electron";
+import { chromium } from "playwright";
 import { describe, expect, it, vi } from "vitest";
+import { validatedBrowserQuickAction } from "./browserQuickAction";
 import { JourneyRecorder, journeyCode } from "./journeyRecorder";
 
 function fixture() {
@@ -55,6 +57,109 @@ describe("embedded journey recorder", () => {
     expect(injection?.[1].source).toContain("'[' + testIdAttribute");
     await recorder.stop();
   });
+
+  it("keeps reflected input out of a Quick Action that saves only the click", async () => {
+    const origin = "http://journey-recorder.test";
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      await page.route(`${origin}/**`, (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `
+            <input id="customer" autocomplete="off">
+            <button id="review" onmousedown="event.preventDefault()">Review</button>
+            <section aria-labelledby="group-label">
+              <h2 id="group-label">Customer details</h2>
+              <button id="summary">Summary</button>
+            </section>
+            <section aria-label="Catalog tools">
+              <button data-test="refresh-catalog">Refresh catalog</button>
+            </section>
+            <input id="login-name" autocomplete="username">
+            <form onsubmit="event.preventDefault()">
+              <input id="passphrase" type="password">
+              <button id="sign-in">Sign in</button>
+            </form>
+            <output id="result">Reviewed</output>
+            <script>
+              const review = document.querySelector('#review');
+              document.querySelector('#customer').addEventListener('input', ({target}) => {
+                const [first, last] = target.value.split(' ');
+                review.setAttribute('aria-label', 'Review ' + target.value);
+                review.dataset.testid = 'review-' + (first + last).toLowerCase();
+                document.querySelector('#group-label').textContent = 'Record for ' + last.slice(-4).toUpperCase();
+              });
+            </script>
+          `,
+        }),
+      );
+      await page.goto(origin);
+      const cdp = await page.context().newCDPSession(page);
+      const debug = Object.assign(new EventEmitter(), {
+        isAttached: () => false,
+        attach: () => {},
+        detach: () => {},
+        sendCommand: cdp.send.bind(cdp),
+      });
+      const payloads: string[] = [];
+      cdp.on("Runtime.bindingCalled", (event) => {
+        payloads.push(event.payload);
+        debug.emit("message", {}, "Runtime.bindingCalled", event);
+      });
+      const contents = Object.assign(new EventEmitter(), {
+        debugger: debug,
+        getURL: () => page.url(),
+        isDestroyed: () => page.isClosed(),
+      });
+      const recorder = new JourneyRecorder(contents as unknown as WebContents);
+      await recorder.start(true);
+      await page.locator("#customer").fill("Ada Lovelace");
+      const review = page.locator("#review");
+      expect(await review.getAttribute("aria-label")).toBe("Review Ada Lovelace");
+      await review.click();
+      expect(await page.locator("#customer").evaluate((el) => el === document.activeElement)).toBe(
+        true,
+      );
+      await page.locator("#summary").click();
+      await page.getByRole("button", { name: "Refresh catalog" }).click();
+      await page.locator("#login-name").fill("Example User");
+      await page.locator("#passphrase").fill("Example Passphrase");
+      await page.locator("#sign-in").click();
+      await expect.poll(() => recorder.status().count).toBe(4);
+
+      const output = await recorder.stop();
+      const [click, fill, summary, refresh] = output.steps;
+      expect(click?.action).toBe("click");
+      const saved = validatedBrowserQuickAction({
+        id: "11111111-1111-4111-8111-111111111111",
+        origin: output.initialUrl,
+        label: "Review customer",
+        steps: [click],
+        outcome: { selector: "#result", description: "Reviewed" },
+      });
+      expect(JSON.stringify(saved)).not.toMatch(/ada|lovelace/i);
+      expect(saved.steps).toEqual([{ action: "click", selector: "#review", tag: "button" }]);
+      expect(fill).toMatchObject({ action: "fill", selector: "#customer" });
+      expect(summary).toMatchObject({ action: "click", selector: "#summary" });
+      expect(summary).not.toHaveProperty("semantic");
+      expect(refresh).toMatchObject({
+        action: "click",
+        selector: '[data-test="refresh-catalog"]',
+        semantic: {
+          role: "button",
+          name: "Refresh catalog",
+          group: "Catalog tools",
+        },
+      });
+      expect(JSON.stringify({ output, payloads })).not.toMatch(
+        /ada|lovelace|\blace\b|login-name|passphrase/i,
+      );
+    } finally {
+      await browser.close();
+    }
+  });
+
   it("exports placeholders and an explicit assertion-review guard", () => {
     const code = journeyCode("https://example.com", [
       { action: "fill", selector: "input:nth-of-type(1)" },
@@ -143,4 +248,32 @@ describe("embedded journey recorder", () => {
     // URL sanitization stripped query parameter
     expect(result.steps[2]?.url).not.toContain("q=test");
   });
+
+  it.each([false, true])(
+    "never stores typed text, defaults or placeholders sent with a step (quick action: %s)",
+    async (quickAction) => {
+      const { debug, recorder } = fixture();
+      await recorder.start(quickAction);
+      const name = (
+        debug.sendCommand.mock.calls.find(
+          (call: unknown) => Array.isArray(call) && call[0] === "Runtime.addBinding",
+        ) as unknown as [string, { name: string }]
+      )[1].name;
+      for (const action of ["fill", "selectOption"])
+        debug.emit("message", {}, "Runtime.bindingCalled", {
+          name,
+          payload: JSON.stringify({
+            action,
+            selector: `[name="${action}"]`,
+            value: "typed-literal-secret",
+            expectedValue: "typed-literal-secret",
+            placeholder: "typed-literal-secret",
+          }),
+        });
+      const result = await recorder.stop();
+      expect(result.steps).toHaveLength(2);
+      expect(JSON.stringify(result.steps)).not.toContain("typed-literal-secret");
+      expect(result.code).not.toContain("typed-literal-secret");
+    },
+  );
 });

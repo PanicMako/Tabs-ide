@@ -11,6 +11,12 @@ export interface ReproductionDriver {
   press(key: string): Promise<void>;
 }
 
+interface ReviewedReproductionDriver {
+  checkControl(): void;
+  /** A saved action starts on the page chosen by the human. */
+  readonly performStep: (step: Step) => Promise<void>;
+}
+
 /** This expression is evaluated in the guest page, never the application renderer. */
 export function reproductionProbe(step: Step, mutate = false): string {
   return `(() => {
@@ -43,7 +49,7 @@ export function reproductionProbe(step: Step, mutate = false): string {
 }
 
 export async function runBrowserReproduction(
-  driver: ReproductionDriver,
+  driver: ReproductionDriver | ReviewedReproductionDriver,
   url: string,
   rawSteps: readonly Step[],
   env: Record<string, string | undefined>,
@@ -51,12 +57,12 @@ export async function runBrowserReproduction(
 ): Promise<BrowserVerificationResult> {
   let completedSteps = 0;
   let passedAssertions = 0;
-  let steps: Step[];
+  let steps: readonly Step[];
   try {
     const parsed = new URL(url);
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password)
       throw new Error("Use an HTTP(S) initial URL without credentials.");
-    steps = prepareReproduction(rawSteps, env);
+    steps = "performStep" in driver ? rawSteps : prepareReproduction(rawSteps, env);
   } catch (error) {
     return {
       status: "not_verified",
@@ -65,11 +71,11 @@ export async function runBrowserReproduction(
       passedAssertions,
     };
   }
-  const waitFor = async (expression: string) => {
+  const waitFor = async (legacyDriver: ReproductionDriver, expression: string) => {
     const deadline = Date.now() + Math.min(Math.max(timeoutMs, 100), 15000);
     do {
       driver.checkControl();
-      const result = await driver.evaluate(expression);
+      const result = await legacyDriver.evaluate(expression);
       driver.checkControl();
       if (result) return result;
       if (Date.now() >= deadline)
@@ -79,15 +85,18 @@ export async function runBrowserReproduction(
   };
   try {
     driver.checkControl();
-    await driver.navigate(url);
+    if (!("performStep" in driver)) await driver.navigate(url);
     for (const step of steps) {
       driver.checkControl();
-      if (step.action === "goto") await driver.navigate(step.url!);
+      if ("performStep" in driver) {
+        await driver.performStep(step);
+        if (step.action.startsWith("assert")) passedAssertions++;
+      } else if (step.action === "goto") await driver.navigate(step.url!);
       else if (step.action.startsWith("assert")) {
-        await waitFor(reproductionProbe(step));
+        await waitFor(driver, reproductionProbe(step));
         passedAssertions++;
       } else {
-        const target = await waitFor(reproductionProbe(step));
+        const target = await waitFor(driver, reproductionProbe(step));
         switch (step.action) {
           case "click":
             await driver.click(step.selector);
@@ -96,16 +105,16 @@ export async function runBrowserReproduction(
             await driver.fill(step.selector, step.value!);
             break;
           case "press":
-            await waitFor(reproductionProbe(step, true));
+            await waitFor(driver, reproductionProbe(step, true));
             await driver.press(step.key!);
             break;
           case "selectOption":
-            await waitFor(reproductionProbe(step, true));
+            await waitFor(driver, reproductionProbe(step, true));
             break;
           case "check":
           case "uncheck":
             if (target !== "satisfied") await driver.click(step.selector);
-            await waitFor(`(${reproductionProbe(step)}) === 'satisfied'`);
+            await waitFor(driver, `(${reproductionProbe(step)}) === 'satisfied'`);
             break;
         }
       }
