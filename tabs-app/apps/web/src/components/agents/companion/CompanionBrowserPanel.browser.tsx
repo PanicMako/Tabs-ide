@@ -787,6 +787,100 @@ it("opens the original live destination after rechecking the run and exact host"
   ).toBe(true);
 });
 
+it.each([false, true])(
+  "restores the exact checkpoint from its first-difference tab (lost reply: %s)",
+  async (lostReply) => {
+    const threadId = ThreadId.make("saved-comparison-target");
+    const threadScope = `${testEnvironment}:${threadId}`;
+    const reference = { runId: "c800193c-5dc7-40fc-8090-0753f54fabe0", step: 1 };
+    const source = {
+      hostId: "source",
+      deviceId: "same-id",
+      platform: "ios",
+      name: "iPhone",
+      appId: "com.apple.mobilesafari",
+    } as const;
+    const target = {
+      hostId: "target",
+      deviceId: "same-id",
+      platform: "android",
+      name: "Pixel",
+      appId: "com.android.chrome",
+    } as const;
+    const store = useCompanionSurfaceStore.getState();
+    store.open(threadScope, "device", { ...source, hostId: "another-iphone-host" });
+    const destination = store.open(threadScope, "device", target);
+    const savedTab = store.open(threadScope, "device", { deviceComparisonResult: reference });
+    const run: DeviceComparisonReport = {
+      runId: reference.runId,
+      source,
+      target,
+      phase: "stopped",
+      savedAt: "2026-11-25T01:00:00.000Z",
+      busy: false,
+      playing: false,
+      completedSteps: 0,
+      canResume: false,
+      uncertainTap: false,
+      steps: [{ label: "Continue" }],
+      firstDifference: { step: 1, kind: "total", reason: "The totals differ." },
+    };
+    let restored = false;
+    comparison.mockImplementation(async (input) => {
+      if (input.action === "restoreReplay" && !restored) {
+        restored = true;
+        if (lostReply) throw new Error("Connection reset after restoring the replay.");
+      }
+      if (restored) {
+        const { savedAt: _savedAt, ...live } = run;
+        return { run: { ...live, phase: "paused", canResume: true }, liveTargetAvailable: true };
+      }
+      return { run, canRestoreReplay: true, evidence: { sourcePng: png, targetPng: png } };
+    });
+    await render(
+      <>
+        <GlobalConfirmDialog />
+        <DeviceComparisonResultPanel
+          environmentId={testEnvironment}
+          threadId={threadId}
+          reference={reference}
+          visible
+        />
+      </>,
+    );
+    const restore = page.getByRole("button", { name: "Restore paused replay" });
+    await expect.element(restore).toBeDisabled();
+    store.open(threadScope, "device", source);
+    store.activate(threadScope, savedTab);
+    await restore.click();
+    const confirm = page.getByRole("dialog", { name: "Confirm" });
+    await expect.element(confirm.getByText(/com.android.chrome on Pixel\?/)).toBeVisible();
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    expect(comparison.mock.calls.map(([input]) => input.action)).toEqual(["evidence"]);
+    await expect
+      .element(page.getByRole("img", { name: "Pixel at the first difference" }))
+      .toBeVisible();
+    await restore.click();
+    await confirm.getByRole("button", { name: "Confirm" }).click();
+    await expect
+      .poll(() => useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId)
+      .toBe(destination);
+    const exactRestore = {
+      action: "restoreReplay",
+      threadId,
+      runId: reference.runId,
+      appId: target.appId,
+      device: { hostId: target.hostId, deviceId: target.deviceId },
+    };
+    expect(comparison.mock.calls.map(([input]) => input)).toEqual([
+      { action: "evidence", threadId, runId: reference.runId },
+      exactRestore,
+      ...(lostReply ? [exactRestore] : []),
+      { action: "status", threadId, runId: reference.runId },
+    ]);
+  },
+);
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
