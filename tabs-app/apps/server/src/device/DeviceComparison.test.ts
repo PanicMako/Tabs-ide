@@ -2990,6 +2990,116 @@ describe("Device comparison", () => {
     f.revoke();
     expect((await f.status()).ownerThreadId).toBeUndefined();
   });
+
+  it.each(["before", "after"] as const)(
+    "hands a system dialog %s the tap to the user and rechecks the same step",
+    async (timing) => {
+      const dialog = {
+        ...frame("android", ["Continue"], ["Permission request"]),
+        nodes: [
+          ...frame("android", ["Continue"]).nodes,
+          {
+            index: 1,
+            ref: "e2",
+            bundleId: "com.google.android.permissioncontroller",
+            identifier: "com.android.permissioncontroller:id/permission_allow_one_time_button",
+            label: "Only this time",
+          },
+        ],
+      };
+      const android = [frame("android", ["Continue"]), frame("android", [], ["Order placed"])];
+      const checkpoint = timing === "before" ? 0 : 1;
+      const expectedScreen = android[checkpoint]!;
+      android[checkpoint] = dialog;
+      const f = fixture([frame("ios", ["Continue"]), frame("ios", [], ["Order placed"])], android);
+      f.capture.mockImplementation((host) => screenshot(`${host}:${f.positions.get(host)}`));
+      const runId = await f.begin();
+      await f.tap(runId, "Continue");
+      const { controls } = await f.invoke({
+        action: "status",
+        threadId,
+        device: iphone,
+      });
+      await f.invoke({
+        action: "expect",
+        threadId,
+        runId,
+        controlId: controls!.find(({ label }) => label === "Order placed")!.id,
+      });
+      await f.approve(runId);
+      await f.replay(runId);
+      const paused = await f.settle();
+      expect(paused.run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+        firstDifference: {
+          step: 1,
+          reason: expect.stringContaining("Choose My turn"),
+        },
+      });
+      expect(paused.controls ?? []).toEqual([]);
+      expect(f.capture).not.toHaveBeenCalledWith(pixel.hostId);
+      const { evidence } = await f.invoke({
+        action: "evidence",
+        threadId,
+        runId,
+      });
+      expect(evidence).toEqual({
+        sourcePng: screenshot(`${iphone.hostId}:${checkpoint}`).toString("base64"),
+      });
+      const destinationTaps = () => f.press.mock.calls.filter(([host]) => host === pixel.hostId);
+      expect(destinationTaps()).toHaveLength(checkpoint);
+      await f.invoke({ action: "resume", threadId, runId });
+      expect((await f.settle()).run).toMatchObject({
+        phase: "paused",
+        completedSteps: 0,
+      });
+      expect(destinationTaps()).toHaveLength(checkpoint);
+
+      const owner = AuthSessionId.make("qa-user");
+      await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, owner);
+      const { manualControlId } = await f.invoke(
+        { action: "status", threadId, device: pixel },
+        owner,
+      );
+      expect(manualControlId).toBeDefined();
+      f.manual.mockImplementationOnce(() =>
+        Effect.sync(() => {
+          android[checkpoint] =
+            timing === "after" ? frame("android", [], ["Saving"]) : expectedScreen;
+        }),
+      );
+      await f.invoke(
+        {
+          action: "manualInput",
+          threadId,
+          runId,
+          controlId: manualControlId!,
+          gesture: { type: "tap", x: 0.25, y: 0.45 },
+        },
+        owner,
+      );
+      await f.invoke({ action: "resume", threadId, runId, controlId: manualControlId! }, owner);
+      if (timing === "after") {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          expect((await f.settle()).run).toMatchObject({
+            phase: "paused",
+            completedSteps: 0,
+            pauseReason: expect.stringContaining("Order placed"),
+          });
+          expect(destinationTaps()).toHaveLength(1);
+          if (attempt === 1) android[checkpoint] = expectedScreen;
+          await f.invoke({ action: "resume", threadId, runId });
+        }
+      }
+      expect((await f.settle()).run).toMatchObject({
+        phase: "completed",
+        completedSteps: 1,
+        firstDifference: paused.run?.firstDifference,
+      });
+      expect(destinationTaps()).toHaveLength(1);
+    },
+  );
 });
 
 describe.skip("Total check reporting and replay retry", () => {
