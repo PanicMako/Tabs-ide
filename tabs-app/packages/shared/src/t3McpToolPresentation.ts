@@ -64,6 +64,7 @@ export type T3McpToolSummaryAction =
   | "read-pr-guide"
   | "browser"
   | "device"
+  | "terminal"
   | "html-preview"
   | "html-render";
 
@@ -169,6 +170,53 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
     "worktree-handoff",
   ),
   t3_worktree_status: tool(["Get", "Getting", "Got", "thread worktree status"], "worktree-status"),
+  preview_run_quick_action: tool(
+    ["Run", "Running", "Ran", "a browser Quick Action"],
+    "browser",
+    "browser",
+  ),
+  device_comparison_status: tool(
+    ["Check", "Checking", "Checked", "the device comparison"],
+    "device",
+    "device",
+  ),
+  device_record_comparison: tool(
+    ["Prepare", "Preparing", "Updated", "the device comparison"],
+    "device",
+    "device",
+    "Record device comparison",
+  ),
+  terminal_input: tool(
+    ["Check", "Checking", "Updated", "a terminal input request"],
+    "terminal",
+    "t3-code",
+    "Terminal input",
+  ),
+  device_replay_demonstration: tool(
+    ["Replay", "Replaying", "Replayed", "the device demonstration"],
+    "device",
+    "device",
+  ),
+  device_stop_comparison: tool(
+    ["Stop", "Stopping", "Stopped", "the device comparison"],
+    "device",
+    "device",
+  ),
+  preview_workflow: tool(
+    ["Track", "Tracking", "Tracked", "a browser result"],
+    "browser",
+    "browser",
+  ),
+  preview_partner_center_status: tool(
+    ["Check", "Checking", "Checked", "a Microsoft Store status request"],
+    "browser",
+    "browser",
+  ),
+  preview_figma_frame: tool(
+    ["Request", "Requesting", "Requested", "an editable Figma frame"],
+    "browser",
+    "browser",
+  ),
   preview_status: tool(["Get", "Getting", "Got", "preview browser status"], "browser", "browser"),
   preview_open: tool(
     ["Open", "Opening", "Opened", "a page in the preview browser"],
@@ -266,6 +314,11 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   ),
   device_screenshot: tool(
     ["Take a screenshot of", "Taking a screenshot of", "Took a screenshot of", "the device"],
+    "device",
+    "device",
+  ),
+  device_attach_screenshot: tool(
+    ["Attach", "Attaching", "Attached", "a device screenshot"],
     "device",
     "device",
   ),

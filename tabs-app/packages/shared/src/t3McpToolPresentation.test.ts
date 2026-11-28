@@ -39,6 +39,11 @@ describe("resolveT3McpToolPresentation", () => {
 });
 
 describe("resolveT3McpToolDefinition", () => {
+  it("labels connector requests without claiming a verified outcome", () => {
+    expect(resolveT3McpToolDefinition("preview_figma_frame")?.labels[2]).toBe("Requested");
+    expect(resolveT3McpToolDefinition("preview_partner_center_status")?.labels[2]).toBe("Checked");
+  });
+
   it("labels an action tool call as the action it ran", () => {
     expect(
       resolveT3McpToolDefinition("mcp__t3-code__preview_act", { action: "type" })?.labels,
