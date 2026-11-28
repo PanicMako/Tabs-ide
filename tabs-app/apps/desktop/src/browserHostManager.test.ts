@@ -6703,6 +6703,41 @@ describe("reliable browser tabs and agent control", () => {
     expect(f.attach).not.toHaveBeenCalled();
   });
 
+  it.each(["queue", "surface preparation"])(
+    "checks device authorization after %s and rejects a revoked transfer before the file input",
+    async (delay) => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      const blocker = deferred<void>();
+      const preparing = deferred<void>();
+      const authorize = vi.fn(async () => false);
+      if (delay === "queue") {
+        f.session.automationTail = blocker.promise;
+      } else {
+        vi.spyOn(f.manager as any, "withAutomationSurface").mockImplementation(
+          async (_session, run) => {
+            preparing.resolve();
+            await blocker.promise;
+            return (run as () => Promise<unknown>)();
+          },
+        );
+      }
+      const rejected = expect(f.transfer(grantId, {}, authorize)).rejects.toThrow(
+        "Device access changed",
+      );
+      if (delay === "surface preparation") await preparing.promise;
+      expect(authorize).not.toHaveBeenCalled();
+      blocker.resolve();
+      await rejected;
+      expect(authorize).toHaveBeenCalledOnce();
+      expect(f.attach).not.toHaveBeenCalled();
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        deviceScreenshotAuthorized: true,
+      });
+      expect(f.session).not.toHaveProperty("screenshotAttempts");
+    },
+  );
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
