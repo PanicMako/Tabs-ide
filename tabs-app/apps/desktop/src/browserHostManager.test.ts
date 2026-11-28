@@ -2553,6 +2553,70 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("requires fresh approval after a same-tab sign-in route in a private application", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-private";
+    const url = "https://private.example/app#/work";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      currentUrl: url,
+      partition: "persist:tabs-browser:profile:work",
+      profileId: "work",
+    });
+    const { events, loadURL } = mockNavigation(manager, fixture);
+    const inspect = vi.fn().mockResolvedValue(true);
+    Object.assign(fixture.webContents, {
+      executeJavaScriptInIsolatedWorld: inspect,
+    });
+    const target = {
+      projectId: fixture.session.projectId,
+      sessionId,
+      taskId: "qa",
+    };
+    const approve = () =>
+      manager.runAutomation({
+        ...target,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId: "work" },
+      });
+    const agent = { ...target, source: "agent" as const };
+    await approve();
+    const navigate = (destination: string) =>
+      manager.runAutomation({
+        ...agent,
+        operation: "navigate",
+        input: { url: destination },
+      });
+    const login = "https://private.example/app#!%2Faccount%2Fsign-in";
+    await expect(navigate(login)).rejects.toThrow("destination");
+    await expect(navigate("https://private.example/%6cogin")).rejects.toThrow("destination");
+    expect(loadURL).not.toHaveBeenCalled();
+
+    await expect(navigate("https://private.example/app#/work?ref=login")).resolves.toBeUndefined();
+    expect(manager.getSessionState(target.projectId, sessionId).browserPageAuthorized).toBe(true);
+    inspect.mockClear();
+    fixture.session.currentUrl = login;
+    events.emit("did-navigate-in-page", {}, login, true);
+    await expect(manager.runAutomation({ ...agent, operation: "snapshot" })).rejects.toThrow(
+      "signing in",
+    );
+    expect(inspect).not.toHaveBeenCalled();
+    fixture.session.currentUrl = url;
+    events.emit("did-navigate-in-page", {}, url, true);
+    inspect.mockClear();
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).rejects.toThrow(
+      "Approve",
+    );
+    expect(inspect).not.toHaveBeenCalled();
+    expect(fixture.sendInputEvent).not.toHaveBeenCalled();
+    await approve();
+    await expect(manager.runAutomation({ ...agent, operation: "status" })).resolves.toMatchObject({
+      url: "https://private.example/app",
+    });
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
