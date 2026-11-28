@@ -7598,6 +7598,59 @@ describe("reliable browser tabs and agent control", () => {
         f.manager.getSessionState(f.request.projectId, f.request.sessionId).browserPageAuthorized,
       ).toBe(false);
     });
+
+    it("rejects a different source, thread, tab, profile, project, or Chromium host", async () => {
+      const f = await setup();
+      await expect(f.capture({ source: "agent" })).rejects.toThrow("tab, profile and thread");
+      await expect(f.capture({ input: { ...f.input, instanceId: "sibling" } })).rejects.toThrow(
+        "changed",
+      );
+      Object.assign(f.session, { assignedTaskId: "other-thread" });
+      await expect(f.capture()).rejects.toThrow("tab, profile and thread");
+      Object.assign(f.session, { assignedTaskId: null });
+      const { attachmentId } = await f.capture();
+      await expect(f.enter(f.manager, attachmentId, { source: "agent" })).rejects.toThrow(
+        "tab, profile and thread",
+      );
+      await expect(f.enter(f.manager, attachmentId, { taskId: "other-thread" })).rejects.toThrow(
+        "original desktop",
+      );
+      const siblingId = "agents-surface-report-copy";
+      const sibling = f.tab(f.manager, f.address, {
+        sessionId: siblingId,
+        key: `project-1::${siblingId}`,
+        pageTitle: f.session.pageTitle,
+      });
+      await expect(f.enter(f.manager, attachmentId, { sessionId: siblingId })).rejects.toThrow(
+        "original desktop",
+      );
+      expect(sibling.loadURL).not.toHaveBeenCalled();
+      const otherProject = f.tab(f.manager, f.address, {
+        projectId: "project-2",
+        key: `project-2::${f.request.sessionId}`,
+      });
+      await expect(f.enter(f.manager, attachmentId, { projectId: "project-2" })).rejects.toThrow(
+        "original desktop",
+      );
+      expect(otherProject.loadURL).not.toHaveBeenCalled();
+      const restarted = new BrowserHostManager(() => null);
+      const otherProfile = f.tab(restarted, f.address, {
+        profileId: "personal",
+        partition: "persist:tabs-browser:profile:personal",
+      });
+      await expect(
+        f.enter(restarted, attachmentId, {
+          input: { attachmentId, profileId: "personal" },
+        }),
+      ).rejects.toThrow("original desktop");
+      const otherHost = f.tab(restarted, f.address);
+      Object.assign(otherHost.webContents.session, {
+        storagePath: join(f.userData, "other-host"),
+      });
+      await expect(f.enter(restarted, attachmentId)).rejects.toThrow("original desktop");
+      expect(otherProfile.loadURL).not.toHaveBeenCalled();
+      expect(otherHost.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
