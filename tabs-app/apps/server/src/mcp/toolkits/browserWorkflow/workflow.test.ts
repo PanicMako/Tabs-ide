@@ -1737,3 +1737,135 @@ test.skipIf(!existsSync(chromiumPath))(
   },
   30_000,
 );
+
+test.skipIf(!existsSync(chromiumPath)).each(["staged", "direct"] as const)(
+  "runs the registered guarded %s Upload on the Work draft without uploading to Personal",
+  async (mode) => {
+    const direct = mode === "direct";
+    const fixture = await startBrowserSubmission(0, !direct, { uploadOnSelect: direct });
+    const stateDir = await mkdtemp(join(tmpdir(), "tabs-workflow-upload-chromium-"));
+    const browser = await chromium.launch().catch(async (cause) => {
+      await fixture.close();
+      await rm(stateDir, { recursive: true, force: true });
+      throw cause;
+    });
+    try {
+      const work = await browser.newPage();
+      const personal = await browser.newPage();
+      await Promise.all([
+        work.goto(fixture.origin + "/Work"),
+        personal.goto(fixture.origin + "/Personal"),
+      ]);
+      const payload = Buffer.from("disposable-build-upload");
+      const localUpload = {
+        name: "build-42.appx",
+        type: "application/octet-stream",
+        base64: payload.toString("base64"),
+      };
+      if (!direct) {
+        await work.getByLabel("Build package").setInputFiles({
+          name: localUpload.name,
+          buffer: payload,
+          mimeType: localUpload.type,
+        });
+      }
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { stateDir } = yield* ServerConfig.ServerConfig;
+          const dispatches: BrowserWorkflowBrowserRequest["phase"][] = [];
+          let approved = false;
+          yield* serve(work, "Work", {
+            isSubmissionApproved: () => approved,
+            missFirstStatusOnlyRead: true,
+            onRequest: ({ phase }) => {
+              if (phase === "upload" || phase === "submit") dispatches.push(phase);
+            },
+            ...(direct && { localUpload }),
+          });
+          const begin = { action: "arm", tabId, profileId: "Work", definition: fixture.definition };
+          yield* Effect.promise(() =>
+            work.evaluate(
+              `document.querySelector("#replacement").textContent = "Replace existing build"`,
+            ),
+          );
+          const armed = report(yield* call(begin, "upload-provider"));
+          expect(armed).toMatchObject({
+            phase: "paused",
+            lastVerified: { stage: "ready_to_upload" },
+          });
+          const { workflowId } = armed;
+          const upload = { action: "upload", workflowId };
+          expect(report(yield* call(upload, "upload-provider")).phase).toBe("paused");
+          expect(fixture.uploads.Work).toHaveLength(0);
+          yield* Effect.promise(() =>
+            work.evaluate(
+              `document.querySelector("#replacement").textContent = "No existing build"`,
+            ),
+          );
+          expect(report(yield* call(upload, "upload-provider"))).toMatchObject({
+            phase: "approval_required",
+            reason: expect.stringContaining(
+              direct ? "choose a file and approve the upload" : "Approve one upload",
+            ),
+          });
+          expect(fixture.uploads.Work).toHaveLength(0);
+          approved = true;
+          expect(
+            report(yield* call({ action: "resume", workflowId }, "upload-provider")).phase,
+          ).toBe("ready");
+          expect(report(yield* call(upload, "upload-provider"))).toMatchObject({
+            phase: "uncertain",
+            lastVerified: { stage: "ready_to_upload" },
+          });
+          yield* Effect.promise(() => work.getByText("Uploaded", { exact: true }).waitFor());
+          const reference = { workflowId, stage: "ready_to_upload" as const };
+          const read = () => readBrowserWorkflowResult(stateDir, journalOwner, reference);
+          const pending = yield* Effect.promise(read);
+          expect(pending).toMatchObject({ stage: "ready_to_upload", pendingAction: "upload" });
+          const reconcile = () =>
+            reconcileBrowserWorkflowSubmission(
+              stateDir,
+              journalOwner,
+              reference,
+              pending.target.projectId,
+              async (saved) => ({
+                target: saved.target,
+                stage: "uploaded",
+                statusText: await work.locator(saved.definition.statusSelector).innerText(),
+              }),
+            );
+          const receipt = yield* Effect.promise(reconcile);
+          expect(receipt).toEqual({
+            target: pending.target,
+            definition: pending.definition,
+            stage: "uploaded",
+          });
+          const journal = () => readJournal(stateDir, workflowId);
+          const afterReceipt = yield* Effect.promise(journal);
+          expect(yield* Effect.promise(reconcile)).toEqual(receipt);
+          expect(yield* Effect.promise(journal)).toBe(afterReceipt);
+          const verified = report(yield* call(upload, "upload-provider-restarted"));
+          expect(verified).toMatchObject({
+            phase: "verified",
+            lastVerified: { stage: "uploaded" },
+          });
+          expect(dispatches).toEqual(["upload"]);
+          expect(fixture.uploads.Work).toHaveLength(1);
+          expect(fixture.uploads.Work[0]!.includes(payload)).toBe(true);
+          expect(fixture.uploads.Personal).toHaveLength(0);
+          expect(fixture.drafts.Work.submits).toBe(0);
+        }).pipe(
+          Effect.scoped,
+          Effect.provide(mcpLayer),
+          Effect.provide(ServerConfig.layerTest(process.cwd(), stateDir)),
+          Effect.provide(NodeServices.layer),
+        ),
+      );
+    } finally {
+      await browser.close();
+      await fixture.close();
+      await rm(stateDir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);
