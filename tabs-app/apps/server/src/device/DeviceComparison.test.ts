@@ -608,6 +608,25 @@ describe("Agent-led device comparison", () => {
     expect(f.open).toHaveBeenCalledTimes(1);
     expect(f.press).not.toHaveBeenCalled();
   });
+
+  it("preserves device-only approval with a proposed destination and rejects a late grant", async () => {
+    const f = fixture([frame("ios", ["Continue"])], [frame("android", ["Continue"])]);
+    const { run } = await f.propose(evidenceDestination);
+    const runId = run!.runId;
+    const approval = {
+      action: "approveAgentRecording",
+      threadId,
+      runId,
+      approvalRequestId,
+    } as const;
+    expect((await f.invoke(approval, panelSession)).run?.approvalId).toBe(approvalRequestId);
+    expect((await f.invoke(approval, panelSession)).run?.approvalId).toBe(approvalRequestId);
+    await expect(
+      f.invoke({ ...approval, evidence: evidenceApproval }, panelSession),
+    ).rejects.toThrow("no longer awaiting approval");
+    await f.settle();
+    expect(f.open).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe.skip("Device comparison", () => {
