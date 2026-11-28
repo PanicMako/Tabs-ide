@@ -2717,6 +2717,47 @@ describe("Device comparison", () => {
     });
     expect(f.press).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps the failed pre-tap total pending when a manually completed step shows the expected post-tap total", async () => {
+    const owner = AuthSessionId.make("owner");
+    const f = fixture(
+      [frame("ios", ["Review"], ["Total: $12.00"]), frame("ios", [], ["Total: $13.00"])],
+      [frame("android", ["Review"], ["Total: $13.00"]), frame("android", [], ["Total: $13.00"])],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Review");
+    await f.approve(runId);
+    await f.replay(runId, {
+      sourceLabel: "Total",
+      targetLabel: "Total",
+      currency: "USD",
+    });
+    await f.settle();
+    await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, owner);
+    const { manualControlId } = await f.invoke(
+      { action: "status", threadId, device: pixel },
+      owner,
+    );
+    f.positions.set(pixel.hostId, 1);
+    await f.invoke(
+      {
+        action: "resume",
+        threadId,
+        runId,
+        controlId: manualControlId!,
+        stepCompleted: true,
+      },
+      owner,
+    );
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      totalVerification: { pending: { step: 1, timing: "before" } },
+    });
+    expect(f.press).toHaveBeenCalledTimes(1);
+    expect((await f.invoke({ action: "stop", threadId, runId })).run?.phase).toBe("stopped");
+    expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
