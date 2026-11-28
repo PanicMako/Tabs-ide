@@ -7799,6 +7799,50 @@ describe("reliable browser tabs and agent control", () => {
         });
         expect(tab.loadURL).toHaveBeenCalledOnce();
       });
+
+      it("blocks a frame redirect with a different node, file, origin, or account URL", async () => {
+        const original = address + "&fuid=123";
+        const f = await setupFigma(original);
+        await f.grant();
+        const target = await f.inspect();
+        const restarted = new BrowserHostManager(() => null);
+        const tab = f.tab(restarted, "about:blank");
+        const request = {
+          ...f.request,
+          operation: "enterFigmaCanvasResult",
+          input: {
+            target,
+            frameNodeId: "35:90",
+            textNodeId: "35:91",
+            verifiedAt: "2026-11-26T00:00:00Z",
+          },
+        };
+        const expected = original.replace("35-12", "35-90");
+        for (const url of [
+          expected.replace("35-90", "35-91"),
+          expected.replace("branchKey", "otherBranch"),
+          expected.replace("mainKey", "otherFile"),
+          expected.replace("www.figma.com", "figma.com"),
+          expected.replace("123", "456"),
+          expected + "&node-id=35-90",
+          expected + "&access_token=private",
+          "https://www.figma.com/login",
+        ]) {
+          const preventDefault = vi.fn();
+          tab.loadURL.mockImplementationOnce(async () => {
+            tab.events.emit("will-redirect", {
+              isMainFrame: true,
+              url,
+              preventDefault,
+            });
+          });
+          await expect(restarted.runAutomation(request)).rejects.toThrow(
+            "exact saved attachment URL",
+          );
+          expect(preventDefault).toHaveBeenCalledOnce();
+          expect(tab.session.currentUrl).toBe("about:blank");
+        }
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
