@@ -2201,7 +2201,7 @@ export interface EnvironmentApi {
       connect: (
         input: PreviewAutomationHost,
         callback: (event: PreviewAutomationStreamEvent) => void,
-        options?: { onResubscribe?: () => void },
+        options?: { onResubscribe?: () => void; onDisconnect?: () => void },
       ) => () => void;
       respond: (response: PreviewAutomationResponse) => Promise<void>;
       focusHost: (input: PreviewAutomationHostFocus) => Promise<void>;

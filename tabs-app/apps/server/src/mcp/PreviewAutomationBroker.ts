@@ -1,10 +1,13 @@
 import {
+  BrowserQuickActionApprovalRequired,
+  type AuthSessionId,
   PREVIEW_AUTOMATION_V1_OPERATIONS,
   PreviewAutomationClientDisconnectedError,
   PreviewAutomationControlInterruptedError,
   PreviewAutomationExecutionError,
   PreviewAutomationInvalidSelectorError,
   PreviewAutomationMalformedResponseError,
+  PreviewAutomationQuickActionLookupError,
   PreviewAutomationNoAvailableHostError,
   PreviewAutomationRemoteUnavailableError,
   PreviewAutomationRecordingTransferError,
@@ -18,6 +21,7 @@ import {
   PreviewAutomationTimeoutError,
   PreviewAutomationUnsupportedClientError,
   PreviewTabId,
+  type PreviewAutomationDeviceScreenshotAuthorization,
   type PreviewAutomationError,
   type PreviewAutomationOperation,
   type PreviewAutomationHost,
@@ -25,6 +29,7 @@ import {
   type PreviewAutomationResponse,
   type PreviewAutomationStreamEvent,
 } from "@tabs/contracts";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import type * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
@@ -39,29 +44,60 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 
-export interface PreviewAutomationInvokeInput {
-  /** Preview tabs belong to a thread, so only thread callers reach the broker. */
-  readonly scope: McpInvocationContext.McpThreadInvocationScope;
+type PreviewAutomationCaller =
+  | {
+      readonly scope: McpInvocationContext.McpThreadInvocationScope;
+      readonly desktopSessionId?: never;
+    }
+  | {
+      readonly scope: {
+        readonly environmentId: McpInvocationContext.McpInvocationScope["environmentId"];
+        readonly thread: Pick<McpInvocationContext.McpThreadCaller, "threadId">;
+      };
+      readonly desktopSessionId: AuthSessionId;
+    };
+
+interface DeviceScreenshotAuthorization {
+  readonly check: Effect.Effect<boolean>;
+  readonly isCurrent: () => boolean;
+}
+
+export type PreviewAutomationInvokeInput = PreviewAutomationCaller & {
   readonly operation: PreviewAutomationOperation;
   readonly input: unknown;
   readonly tabId?: PreviewTabId;
   readonly timeoutMs?: number;
   /** Background metadata reads must not change the agent's current tab. */
   readonly updateCurrentTab?: boolean;
+  /** Route a read-only watch only to its advertised browser partition without pinning a provider. */
+  readonly workflowHostKey?: string;
   /** Capture the routed tab before another request changes the current assignment. */
+  readonly requireConnectionId?: string;
+  readonly onConnection?: (connectionId: string) => void;
+  /** Point-of-use check for the screenshot attach request on the matched desktop. */
+  readonly authorizeDeviceScreenshot?: DeviceScreenshotAuthorization;
   readonly onTargetTab?: (tabId: PreviewTabId | undefined) => void;
-}
+};
 
 export class PreviewAutomationBroker extends Context.Service<
   PreviewAutomationBroker,
   {
     readonly connect: (
       host: PreviewAutomationHost,
+      sessionId?: AuthSessionId,
     ) => Effect.Effect<Stream.Stream<PreviewAutomationStreamEvent>>;
-    readonly focusHost: (host: PreviewAutomationHostFocus) => Effect.Effect<void>;
+    readonly focusHost: (
+      host: PreviewAutomationHostFocus,
+      sessionId?: AuthSessionId,
+    ) => Effect.Effect<void>;
     readonly respond: (
       response: PreviewAutomationResponse,
+      sessionId?: AuthSessionId,
     ) => Effect.Effect<void, PreviewAutomationError>;
+    readonly authorizeDeviceScreenshot: (
+      request: PreviewAutomationDeviceScreenshotAuthorization,
+      sessionId?: AuthSessionId,
+    ) => Effect.Effect<boolean>;
     readonly invoke: <A = unknown>(
       request: PreviewAutomationInvokeInput,
     ) => Effect.Effect<A, PreviewAutomationError>;
@@ -69,10 +105,12 @@ export class PreviewAutomationBroker extends Context.Service<
 >()("tabs/mcp/PreviewAutomationBroker") {}
 
 interface ClientConnection {
+  readonly sessionId: AuthSessionId | undefined;
   readonly clientId: string;
   readonly connectionId: string;
   readonly environmentId: PreviewAutomationHost["environmentId"];
   readonly supportedOperations: ReadonlySet<PreviewAutomationOperation>;
+  readonly deviceScreenshotAuthorization: boolean;
   readonly focused: boolean;
   readonly liveTabs: NonNullable<PreviewAutomationHostFocus["liveTabs"]>;
   readonly focusOrder: number;
@@ -80,9 +118,16 @@ interface ClientConnection {
 }
 
 interface PendingRequest {
+  readonly sessionId: AuthSessionId | undefined;
   readonly queue: ClientConnection["queue"];
   readonly deferred: Deferred.Deferred<unknown, PreviewAutomationError>;
   readonly context: PreviewAutomationRequestErrorContext;
+  readonly screenshotAuthorization?:
+    | (DeviceScreenshotAuthorization & {
+        readonly status: "pending" | "checking";
+        readonly expiresAt: number;
+      })
+    | { readonly status: "approved" | "denied" };
 }
 
 /**
@@ -105,8 +150,10 @@ interface PreviewAutomationRequestErrorContext {
   readonly operation: PreviewAutomationOperation;
   readonly environmentId: McpInvocationContext.McpInvocationScope["environmentId"];
   readonly threadId: McpInvocationContext.McpThreadCaller["threadId"];
-  readonly providerSessionId: string;
-  readonly providerInstanceId: McpInvocationContext.McpThreadCaller["providerInstanceId"];
+  readonly providerSessionId?: string | undefined;
+  readonly providerInstanceId?:
+    | McpInvocationContext.McpThreadCaller["providerInstanceId"]
+    | undefined;
   readonly clientId: string;
   readonly connectionId: ClientConnection["connectionId"];
   readonly requestId: string;
@@ -161,10 +208,11 @@ const selectorDiagnosticsFromInput = (
   return {};
 };
 
-const hostAssignmentKey = (scope: McpInvocationContext.McpThreadInvocationScope): string =>
-  `${scope.environmentId}\u0000${scope.thread.providerSessionId}`;
-
 const isPreviewTabId = Schema.is(PreviewTabId);
+const decodeQuickActionApprovalRequired = Schema.decodeUnknownEffect(
+  BrowserQuickActionApprovalRequired,
+  { onExcessProperty: "error" },
+);
 
 const readResultTabId = (result: unknown): PreviewTabId | null | undefined => {
   if (typeof result !== "object" || result === null || !("tabId" in result)) return undefined;
@@ -175,7 +223,9 @@ const readResultTabId = (result: unknown): PreviewTabId | null | undefined => {
 const supportsOperation = (
   connection: ClientConnection,
   operation: PreviewAutomationOperation,
-): boolean => connection.supportedOperations.has(operation);
+): boolean =>
+  connection.supportedOperations.has(operation) &&
+  (operation !== "deviceScreenshotUpload" || connection.deviceScreenshotAuthorization);
 
 type RemoteDetailKind = "null" | "array" | "object" | "string" | "number" | "boolean";
 
@@ -205,6 +255,14 @@ const classifyResponseError = (
     cause: error,
   };
   switch (error._tag) {
+    case "PreviewAutomationQuickActionLookupError":
+      if (
+        context.operation === "requestQuickAction" &&
+        (error.detail === "missing" || error.detail === "ambiguous")
+      ) {
+        return new PreviewAutomationQuickActionLookupError({ reason: error.detail });
+      }
+      return new PreviewAutomationExecutionError({ ...context, ...remoteDiagnostics });
     case "PreviewAutomationRecordingDesktopUpdateRequiredError":
       return new PreviewAutomationRecordingDesktopUpdateRequiredError({
         threadId: context.threadId,
@@ -318,6 +376,7 @@ const classifyResponseError = (
 
 export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
   const crypto = yield* Crypto.Crypto;
+  const clock = yield* Clock.Clock;
   const state = yield* SynchronizedRef.make<BrokerState>({
     clients: new Map(),
     assignments: new Map(),
@@ -367,16 +426,19 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
 
   const acquireConnection = Effect.fn("PreviewAutomationBroker.acquireConnection")(function* (
     host: PreviewAutomationHost,
+    sessionId?: AuthSessionId,
   ) {
     const clientId = host.clientId;
     const queue = yield* Queue.unbounded<PreviewAutomationStreamEvent, Cause.Done>();
     const connectionId = yield* crypto.randomUUIDv4.pipe(Effect.orDie);
     yield* Queue.offer(queue, { type: "connected", connectionId });
     const connection: ClientConnection = {
+      sessionId,
       clientId,
       connectionId,
       environmentId: host.environmentId,
       supportedOperations: new Set(host.supportedOperations ?? PREVIEW_AUTOMATION_V1_OPERATIONS),
+      deviceScreenshotAuthorization: host.deviceScreenshotAuthorization === true,
       focused: false,
       liveTabs: [],
       focusOrder: 0,
@@ -408,10 +470,10 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
 
   const connect: PreviewAutomationBroker["Service"]["connect"] = Effect.fn(
     "PreviewAutomationBroker.connect",
-  )((host) =>
+  )((host, sessionId) =>
     Effect.succeed(
       Stream.unwrap(
-        Effect.acquireRelease(acquireConnection(host), (connection) =>
+        Effect.acquireRelease(acquireConnection(host, sessionId), (connection) =>
           disconnect(connection.clientId, connection.queue),
         ).pipe(Effect.map((connection) => Stream.fromQueue(connection.queue))),
       ),
@@ -420,11 +482,12 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
 
   const focusHost: PreviewAutomationBroker["Service"]["focusHost"] = Effect.fn(
     "PreviewAutomationBroker.focusHost",
-  )(function* (host) {
+  )(function* (host, sessionId) {
     yield* SynchronizedRef.update(state, (current) => {
       const currentHost = current.clients.get(host.clientId);
       if (
         !currentHost ||
+        currentHost.sessionId !== sessionId ||
         currentHost.environmentId !== host.environmentId ||
         currentHost.connectionId !== host.connectionId
       ) {
@@ -442,13 +505,56 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     });
   });
 
+  const authorizeDeviceScreenshot: PreviewAutomationBroker["Service"]["authorizeDeviceScreenshot"] =
+    Effect.fn("PreviewAutomationBroker.authorizeDeviceScreenshot")(function* (request, sessionId) {
+      const claimed = yield* SynchronizedRef.modify(state, (current) => {
+        const entry = current.pending.get(request.requestId);
+        if (
+          !entry ||
+          entry.sessionId !== sessionId ||
+          entry.context.clientId !== request.clientId ||
+          entry.context.connectionId !== request.connectionId ||
+          entry.screenshotAuthorization?.status !== "pending" ||
+          clock.currentTimeMillisUnsafe() >= entry.screenshotAuthorization.expiresAt
+        )
+          return [undefined, current] as const;
+        const claim = {
+          ...entry,
+          screenshotAuthorization: {
+            ...entry.screenshotAuthorization,
+            status: "checking" as const,
+          },
+        };
+        const pending = new Map(current.pending);
+        pending.set(request.requestId, claim);
+        return [claim, { ...current, pending }] as const;
+      });
+      if (!claimed) return false;
+
+      const { check, isCurrent, expiresAt } = claimed.screenshotAuthorization;
+      const verified = isCurrent() && (yield* check);
+      return yield* SynchronizedRef.modify(state, (current) => {
+        // A timeout, response, or reconnect can retire this request during the check.
+        if (current.pending.get(request.requestId) !== claimed) return [false, current] as const;
+        // The authority can change while this commit waits to acquire the broker lock.
+        const approved = verified && clock.currentTimeMillisUnsafe() < expiresAt && isCurrent();
+        const pending = new Map(current.pending);
+        pending.set(request.requestId, {
+          ...claimed,
+          screenshotAuthorization: { status: approved ? "approved" : "denied" },
+        });
+        return [approved, { ...current, pending }] as const;
+      });
+    });
+
   const respond: PreviewAutomationBroker["Service"]["respond"] = Effect.fn(
     "PreviewAutomationBroker.respond",
-  )(function* (response) {
+  )(function* (response, sessionId) {
     const pending = yield* SynchronizedRef.modify(state, (current) => {
       const entry = current.pending.get(response.requestId);
       if (
         !entry ||
+        entry.sessionId !== sessionId ||
         entry.context.clientId !== response.clientId ||
         entry.context.connectionId !== response.connectionId
       ) {
@@ -460,7 +566,12 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     });
     if (!pending) return;
     if (response.ok) {
-      yield* Deferred.succeed(pending.deferred, response.result);
+      if (pending.screenshotAuthorization && pending.screenshotAuthorization.status !== "approved")
+        yield* Deferred.fail(
+          pending.deferred,
+          new PreviewAutomationMalformedResponseError(pending.context),
+        );
+      else yield* Deferred.succeed(pending.deferred, response.result);
     } else {
       yield* Deferred.fail(
         pending.deferred,
@@ -475,6 +586,32 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     input: Parameters<PreviewAutomationBroker["Service"]["invoke"]>[0],
   ): Effect.fn.Return<A, PreviewAutomationError> {
     const timeoutMs = input.timeoutMs ?? 15_000;
+    const quickActionRequest = input.operation === "requestQuickAction";
+    const receiptRequest = input.operation === "readWorkflowReceipt";
+    const screenshotAuthorization = input.authorizeDeviceScreenshot;
+    const { environmentId, thread } = input.scope;
+    const provider = input.desktopSessionId === undefined ? input.scope.thread : undefined;
+    if (
+      receiptRequest !== (input.desktopSessionId !== undefined) ||
+      (receiptRequest && !input.tabId) ||
+      (input.operation === "deviceScreenshotUpload" &&
+        (typeof input.input !== "object" ||
+          input.input === null ||
+          !("phase" in input.input) ||
+          (input.input.phase === "inspect"
+            ? screenshotAuthorization !== undefined
+            : input.input.phase !== "attach" || screenshotAuthorization === undefined))) ||
+      (input.operation !== "deviceScreenshotUpload" && screenshotAuthorization !== undefined)
+    ) {
+      return yield* new PreviewAutomationNoAvailableHostError({
+        operation: input.operation,
+        environmentId,
+        threadId: thread.threadId,
+      });
+    }
+    const assignmentKey = provider
+      ? `${environmentId}\u0000${provider.providerSessionId}`
+      : undefined;
     const deferred = yield* Deferred.make<unknown, PreviewAutomationError>();
     const route = yield* SynchronizedRef.modify(state, (current) => {
       const assignments = new Map(
@@ -486,8 +623,10 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
           );
         }),
       );
-      const assignmentKey = hostAssignmentKey(input.scope);
-      const assigned = assignments.get(assignmentKey);
+      const assigned =
+        assignmentKey !== undefined && input.workflowHostKey === undefined
+          ? assignments.get(assignmentKey)
+          : undefined;
       const assignedConnection = assigned ? current.clients.get(assigned.clientId) : undefined;
       const hasLiveAssignment = assignedConnection?.environmentId === input.scope.environmentId;
       // Keep one provider session on one physical desktop runtime so a
@@ -496,23 +635,28 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
       // operation is not silently moved to a newer client: the caller gets a
       // capability failure and can deliberately start a fresh provider
       // session. A dead lease is pruned above and may fail over.
+      // Quick Action requests read project settings and can use a capable host
+      // without moving the provider session or selecting a tab.
       const ownsTargetTab = (host: ClientConnection, visibleOnly = false) =>
         host.liveTabs.some(
           (tab) =>
             tab.threadId === input.scope.thread.threadId &&
             (!visibleOnly || tab.visible === true) &&
-            (input.tabId === undefined || tab.tabId === input.tabId),
+            (input.tabId === undefined || tab.tabId === input.tabId) &&
+            (input.workflowHostKey === undefined || tab.workflowHostKey === input.workflowHostKey),
         );
       const connection =
         hasLiveAssignment && supportsOperation(assignedConnection, input.operation)
           ? assignedConnection
-          : hasLiveAssignment
+          : hasLiveAssignment && !quickActionRequest
             ? undefined
             : Array.from(current.clients.values())
                 .filter(
                   (host) =>
                     host.environmentId === input.scope.environmentId &&
-                    supportsOperation(host, input.operation),
+                    (!receiptRequest || host.sessionId === input.desktopSessionId) &&
+                    supportsOperation(host, input.operation) &&
+                    (input.workflowHostKey === undefined || ownsTargetTab(host)),
                 )
                 .sort(
                   (left, right) =>
@@ -521,34 +665,47 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
                     Number(right.focused) - Number(left.focused) ||
                     right.focusOrder - left.focusOrder,
                 )[0];
-      if (!connection) {
-        if (!hasLiveAssignment) assignments.delete(assignmentKey);
+      if (
+        !connection ||
+        (input.requireConnectionId !== undefined &&
+          connection.connectionId !== input.requireConnectionId)
+      ) {
+        if (
+          assignmentKey !== undefined &&
+          !quickActionRequest &&
+          !hasLiveAssignment &&
+          input.workflowHostKey === undefined
+        )
+          assignments.delete(assignmentKey);
         return [undefined, { ...current, assignments }] as const;
       }
       const canReuseAssignedTab =
         assigned !== undefined &&
         assigned.connectionId === connection.connectionId &&
         assigned.queue === connection.queue;
-      assignments.set(assignmentKey, {
-        clientId: connection.clientId,
-        connectionId: connection.connectionId,
-        queue: connection.queue,
-        ...(canReuseAssignedTab && assigned.tabId !== undefined ? { tabId: assigned.tabId } : {}),
-        ...(canReuseAssignedTab && assigned.tabSequence !== undefined
-          ? { tabSequence: assigned.tabSequence }
-          : {}),
-      });
+      if (assignmentKey !== undefined && !quickActionRequest && input.workflowHostKey === undefined)
+        assignments.set(assignmentKey, {
+          clientId: connection.clientId,
+          connectionId: connection.connectionId,
+          queue: connection.queue,
+          ...(canReuseAssignedTab && assigned.tabId !== undefined ? { tabId: assigned.tabId } : {}),
+          ...(canReuseAssignedTab && assigned.tabSequence !== undefined
+            ? { tabSequence: assigned.tabSequence }
+            : {}),
+        });
 
       const requestSequence = current.requestSequence;
       const requestId = `preview-${requestSequence}`;
-      const tabId = input.tabId ?? (canReuseAssignedTab ? assigned.tabId : undefined);
+      const tabId = quickActionRequest
+        ? undefined
+        : (input.tabId ?? (canReuseAssignedTab ? assigned.tabId : undefined));
       const selectorDiagnostics = selectorDiagnosticsFromInput(input.input);
       const context: PreviewAutomationRequestErrorContext = {
         operation: input.operation,
         environmentId: input.scope.environmentId,
         threadId: input.scope.thread.threadId,
-        providerSessionId: input.scope.thread.providerSessionId,
-        providerInstanceId: input.scope.thread.providerInstanceId,
+        providerSessionId: provider?.providerSessionId,
+        providerInstanceId: provider?.providerInstanceId,
         clientId: connection.clientId,
         connectionId: connection.connectionId,
         requestId,
@@ -557,7 +714,19 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
         ...selectorDiagnostics,
       };
       const pending = new Map(current.pending);
-      pending.set(requestId, { queue: connection.queue, deferred, context });
+      pending.set(requestId, {
+        sessionId: connection.sessionId,
+        queue: connection.queue,
+        deferred,
+        context,
+        ...(screenshotAuthorization && {
+          screenshotAuthorization: {
+            ...screenshotAuthorization,
+            status: "pending",
+            expiresAt: clock.currentTimeMillisUnsafe() + timeoutMs,
+          },
+        }),
+      });
       return [
         { connection, requestId, requestContext: context, requestSequence },
         { ...current, assignments, pending, requestSequence: current.requestSequence + 1 },
@@ -568,12 +737,13 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
         operation: input.operation,
         environmentId: input.scope.environmentId,
         threadId: input.scope.thread.threadId,
-        providerSessionId: input.scope.thread.providerSessionId,
-        providerInstanceId: input.scope.thread.providerInstanceId,
+        providerSessionId: provider?.providerSessionId,
+        providerInstanceId: provider?.providerInstanceId,
       });
     }
     const { connection, requestId, requestContext, requestSequence } = route;
     input.onTargetTab?.(requestContext.tabId);
+    input.onConnection?.(connection.connectionId);
     const removePending = SynchronizedRef.update(state, (next) => {
       if (!next.pending.has(requestId)) return next;
       const pending = new Map(next.pending);
@@ -597,7 +767,7 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
             requestId,
             threadId: input.scope.thread.threadId,
             tabId: requestContext.tabId,
-            tabIdExplicit: input.tabId !== undefined,
+            tabIdExplicit: !quickActionRequest && input.tabId !== undefined,
             operation: input.operation,
             input: input.input,
             timeoutMs,
@@ -624,11 +794,21 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
       });
     });
     const result = yield* awaitResponse().pipe(Effect.ensuring(removePending));
-    if (input.updateCurrentTab === false) return result;
+    if (quickActionRequest) {
+      const approval = yield* decodeQuickActionApprovalRequired(result).pipe(
+        Effect.mapError(() => new PreviewAutomationMalformedResponseError(requestContext)),
+      );
+      return approval as A;
+    }
+    if (
+      assignmentKey === undefined ||
+      input.updateCurrentTab === false ||
+      input.workflowHostKey !== undefined
+    )
+      return result;
     const responseTabId = readResultTabId(result);
     const resultTabId = responseTabId === undefined ? input.tabId : responseTabId;
     if (resultTabId === undefined) return result;
-    const assignmentKey = hostAssignmentKey(input.scope);
     yield* SynchronizedRef.update(state, (current) => {
       const assignment = current.assignments.get(assignmentKey);
       if (
@@ -655,7 +835,13 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     return result;
   });
 
-  return PreviewAutomationBroker.of({ connect, focusHost, respond, invoke });
+  return PreviewAutomationBroker.of({
+    connect,
+    focusHost,
+    respond,
+    authorizeDeviceScreenshot,
+    invoke,
+  });
 }).pipe(Effect.withSpan("PreviewAutomationBroker.make"));
 
 export const layer = Layer.effect(PreviewAutomationBroker, make);

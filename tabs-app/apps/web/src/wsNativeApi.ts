@@ -27,6 +27,7 @@ import {
   type ServerConfig,
   type AssetCreateUrlResult,
   DeviceServiceState as DeviceServiceStateSchema,
+  PreviewAutomationStreamEvent,
   ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
   ServerProviderUpdatedPayload,
@@ -1317,20 +1318,37 @@ export function createWsNativeApi(options?: {
       reportStatus: (input) => transport.request(WS_METHODS.previewReportStatus, input),
       automation: {
         connect: (input, callback, options) => {
-          const unsubscribe = transport.subscribe(WS_CHANNELS.previewAutomationEvent, (message) =>
-            callback(message.data),
-          );
-          let connectedOnce = false;
-          const unsubscribeOpen = transport.onOpen(() => {
-            if (connectedOnce) options?.onResubscribe?.();
-            connectedOnce = true;
-            void transport
-              .request(WS_METHODS.previewAutomationConnect, input, { timeoutMs: null })
-              .catch(() => undefined);
-          });
+          let subscribed = false;
+          let stop: (() => void) | undefined;
+          let retry: ReturnType<typeof setTimeout> | undefined;
+          const decode = Schema.decodeUnknownSync(PreviewAutomationStreamEvent);
+          const connect = () => {
+            stop = transport.subscribeRpc(
+              WS_METHODS.previewAutomationConnect,
+              () => {
+                if (subscribed) options?.onResubscribe?.();
+                subscribed = true;
+                return input;
+              },
+              decode,
+              callback,
+              (error) => {
+                options?.onDisconnect?.();
+                console.error("Preview automation stream failed:", error);
+              },
+              () => {
+                // A timed-out request can retire the host without closing its socket.
+                options?.onDisconnect?.();
+                stop?.();
+                retry = setTimeout(connect, 250);
+              },
+              options?.onDisconnect,
+            );
+          };
+          connect();
           return () => {
-            unsubscribeOpen();
-            unsubscribe();
+            clearTimeout(retry);
+            stop?.();
           };
         },
         respond: (input) => transport.request(WS_METHODS.previewAutomationRespond, input),

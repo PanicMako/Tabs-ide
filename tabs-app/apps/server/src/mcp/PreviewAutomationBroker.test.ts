@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
   AuthOrchestrationOperateScope,
+  AuthSessionId,
   EnvironmentId,
   PreviewAutomationClientDisconnectedError,
   PreviewAutomationInvalidSelectorError,
@@ -93,6 +94,228 @@ it.effect("atomically registers a connected host and correlates its response", (
       });
 
       expect(result).toEqual({ available: true });
+    }),
+  ),
+);
+
+it.effect("only routes screenshot transfers to hosts that require a final authorization", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* makeBroker;
+      const operation = "deviceScreenshotUpload" as const;
+      const registered = yield* Deferred.make<void>();
+      const events = yield* broker.connect(makeHost({ supportedOperations: [operation] }));
+      yield* Stream.runForEach(events, () => Deferred.succeed(registered, undefined)).pipe(
+        Effect.forkScoped,
+      );
+      yield* Deferred.await(registered);
+      const error = yield* Effect.flip(
+        broker.invoke({ scope, operation, input: { phase: "inspect" } }),
+      );
+      expect(error).toBeInstanceOf(PreviewAutomationNoAvailableHostError);
+    }),
+  ),
+);
+
+it.effect.each([
+  "approved",
+  "denied",
+  "revoked before commit",
+  "unclaimed",
+  "retired",
+  "expired",
+] as const)("ties a screenshot authorization to one pending desktop request (%s)", (scenario) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* makeBroker;
+      const sessionId = AuthSessionId.make("screenshot-desktop");
+      const operation = "deviceScreenshotUpload" as const;
+      const host = makeHost({
+        supportedOperations: [operation],
+        deviceScreenshotAuthorization: true,
+      });
+      const registered = yield* Deferred.make<void>();
+      const received = yield* Deferred.make<RoutedRequest>();
+      const events = yield* broker.connect(host, sessionId);
+      yield* Stream.runForEach(events, (event) =>
+        event.type === "connected"
+          ? Deferred.succeed(registered, undefined)
+          : Deferred.succeed(received, { ...event.request, connectionId: event.connectionId }),
+      ).pipe(Effect.forkScoped);
+      yield* Deferred.await(registered);
+
+      const started = yield* Deferred.make<void>();
+      const finishCheck = yield* Deferred.make<boolean>();
+      let current = true;
+      const call = yield* broker
+        .invoke({
+          scope,
+          operation,
+          input: { phase: "attach" },
+          timeoutMs: 1_000,
+          authorizeDeviceScreenshot: {
+            check: Deferred.succeed(started, undefined).pipe(
+              Effect.andThen(Deferred.await(finishCheck)),
+            ),
+            isCurrent: () => current,
+          },
+        })
+        .pipe(Effect.forkScoped);
+      const request = yield* Deferred.await(received);
+      const identity = {
+        clientId: host.clientId,
+        connectionId: request.connectionId,
+        requestId: request.requestId,
+      };
+      const claim = broker.authorizeDeviceScreenshot(identity, sessionId);
+      expect(yield* broker.authorizeDeviceScreenshot(identity)).toBe(false);
+      expect(
+        yield* broker.authorizeDeviceScreenshot({ ...identity, clientId: "other" }, sessionId),
+      ).toBe(false);
+      expect(
+        yield* broker.authorizeDeviceScreenshot({ ...identity, connectionId: "other" }, sessionId),
+      ).toBe(false);
+      expect(
+        yield* broker.authorizeDeviceScreenshot({ ...identity, requestId: "other" }, sessionId),
+      ).toBe(false);
+      const response = broker.respond(
+        { ...identity, ok: true, result: { attached: true } },
+        sessionId,
+      );
+      if (scenario !== "unclaimed") {
+        const authorization = yield* claim.pipe(Effect.forkScoped);
+        yield* Deferred.await(started);
+        expect(yield* claim).toBe(false);
+        if (scenario === "retired") yield* response;
+        if (scenario === "expired") yield* TestClock.adjust(1_000);
+        if (scenario === "revoked before commit") current = false;
+        yield* Deferred.succeed(finishCheck, scenario !== "denied");
+        expect(yield* Fiber.join(authorization)).toBe(scenario === "approved");
+      }
+      yield* response;
+      if (scenario === "approved") expect(yield* Fiber.join(call)).toEqual({ attached: true });
+      else if (scenario === "expired")
+        expect(yield* Effect.flip(Fiber.join(call))).toMatchObject({
+          _tag: "PreviewAutomationTimeoutError",
+        });
+      else
+        expect(yield* Effect.flip(Fiber.join(call))).toBeInstanceOf(
+          PreviewAutomationMalformedResponseError,
+        );
+      expect(yield* claim).toBe(false);
+    }),
+  ),
+);
+
+it.effect("routes a saved status check only through the requesting desktop session", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* makeBroker;
+      const desktopSessionId = AuthSessionId.make("desktop-session");
+      const otherSessionId = AuthSessionId.make("other-session");
+      const operation = "readWorkflowReceipt" as const;
+      const tabId = PreviewTabId.make("agents-surface-draft");
+      const received = yield* Deferred.make<RoutedRequest>();
+      const requests = requestsFrom(
+        yield* broker.connect(makeHost({ supportedOperations: [operation] }), desktopSessionId),
+      );
+      yield* Stream.runForEach(requests, (request) => Deferred.succeed(received, request)).pipe(
+        Effect.forkScoped,
+      );
+      yield* Effect.yieldNow;
+      const input = { operation, tabId, input: {} };
+      for (const caller of [{ scope, desktopSessionId: otherSessionId }, { scope }]) {
+        const error = yield* Effect.flip(broker.invoke({ ...input, ...caller }));
+        expect(error).toBeInstanceOf(PreviewAutomationNoAvailableHostError);
+      }
+      const call = yield* broker
+        .invoke({
+          ...input,
+          scope: {
+            environmentId: scope.environmentId,
+            thread: { threadId: scope.thread.threadId },
+          },
+          desktopSessionId,
+        })
+        .pipe(Effect.forkScoped);
+      const request = yield* Deferred.await(received);
+      expect(request).toMatchObject({ operation, tabId, tabIdExplicit: true });
+      const response = {
+        clientId: "client-1",
+        connectionId: request.connectionId,
+        requestId: request.requestId,
+        ok: true as const,
+      };
+      yield* broker.respond({ ...response, result: "wrong-session" }, otherSessionId);
+      yield* broker.respond({ ...response, result: "verified" }, desktopSessionId);
+      expect(yield* Fiber.join(call)).toBe("verified");
+    }),
+  ),
+);
+
+it.effect("routes workflow watches only to the live original tab and partition", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* makeBroker;
+      const connections = new Map<string, string>();
+      const tabId = PreviewTabId.make("agents-surface-draft");
+      const sessionFor = (clientId: string) => AuthSessionId.make(`session-${clientId}`);
+      for (const clientId of ["work", "personal"]) {
+        const requests = requestsFrom(
+          yield* broker.connect(
+            makeHost({ clientId, supportedOperations: ["browserWorkflow"] }),
+            sessionFor(clientId),
+          ),
+          (connectionId) => connections.set(clientId, connectionId),
+        );
+        yield* Stream.runForEach(requests, (request) =>
+          broker.respond(
+            {
+              clientId,
+              connectionId: request.connectionId,
+              requestId: request.requestId,
+              ok: true,
+              result: clientId,
+            },
+            sessionFor(clientId),
+          ),
+        ).pipe(Effect.forkScoped);
+      }
+      yield* Effect.yieldNow;
+      const advertise = (
+        clientId: string,
+        workflowHostKey?: string,
+        sessionId = sessionFor(clientId),
+      ) =>
+        broker.focusHost(
+          {
+            clientId,
+            environmentId: scope.environmentId,
+            connectionId: connections.get(clientId)!,
+            focused: clientId === "personal",
+            liveTabs: workflowHostKey
+              ? [{ threadId: scope.thread.threadId, tabId, workflowHostKey }]
+              : [],
+          },
+          sessionId,
+        );
+      const request = { scope, tabId, operation: "browserWorkflow" as const, input: {} };
+      yield* advertise("work", "work-partition", sessionFor("personal"));
+      expect(
+        yield* broker.invoke({ ...request, workflowHostKey: "work-partition" }).pipe(Effect.flip),
+      ).toBeInstanceOf(PreviewAutomationNoAvailableHostError);
+      yield* advertise("work", "work-partition");
+      yield* advertise("personal", "personal-partition");
+      expect(yield* broker.invoke(request)).toBe("personal");
+      expect(yield* broker.invoke({ ...request, workflowHostKey: "work-partition" })).toBe("work");
+      expect(yield* broker.invoke(request)).toBe("personal");
+      yield* advertise("work", undefined, sessionFor("personal"));
+      expect(yield* broker.invoke({ ...request, workflowHostKey: "work-partition" })).toBe("work");
+      yield* advertise("work");
+      const disconnected = yield* broker
+        .invoke({ ...request, workflowHostKey: "work-partition" })
+        .pipe(Effect.flip);
+      expect(disconnected).toBeInstanceOf(PreviewAutomationNoAvailableHostError);
     }),
   ),
 );

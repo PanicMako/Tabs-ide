@@ -415,6 +415,9 @@ export function NativePreviewAutomationHost() {
           viewport,
         } satisfies PreviewAutomationResizeResult;
       }
+      if (request.operation === "requestQuickAction") {
+        throw new Error("Browser Quick Action requests require a newer desktop host.");
+      }
       return bridge.runBrowserAutomation({
         taskId: request.threadId,
         source: "agent",

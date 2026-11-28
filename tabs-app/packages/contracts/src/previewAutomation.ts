@@ -50,6 +50,7 @@ export const PREVIEW_AUTOMATION_OPERATIONS = [
   "partnerCenterStatus",
   "figmaCanvas",
   "runQuickAction",
+  "requestQuickAction",
 ] as const;
 
 export const PreviewAutomationOperation = Schema.Literals(PREVIEW_AUTOMATION_OPERATIONS);

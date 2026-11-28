@@ -3934,19 +3934,19 @@ const layerWsRpc = (
           [WS_METHODS.previewAutomationConnect]: (input) =>
             observeRpcStreamEffect(
               WS_METHODS.previewAutomationConnect,
-              previewAutomationBroker.connect(input),
+              previewAutomationBroker.connect(input, currentSessionId),
               { "rpc.aggregate": "preview-automation" },
             ),
           [WS_METHODS.previewAutomationRespond]: (input) =>
             observeRpcEffect(
               WS_METHODS.previewAutomationRespond,
-              previewAutomationBroker.respond(input),
+              previewAutomationBroker.respond(input, currentSessionId),
               { "rpc.aggregate": "preview-automation" },
             ),
           [WS_METHODS.previewAutomationFocusHost]: (input) =>
             observeRpcEffect(
               WS_METHODS.previewAutomationFocusHost,
-              previewAutomationBroker.focusHost(input),
+              previewAutomationBroker.focusHost(input, currentSessionId),
               { "rpc.aggregate": "preview-automation" },
             ),
           [WS_METHODS.subscribePreviewEvents]: (_input) =>
