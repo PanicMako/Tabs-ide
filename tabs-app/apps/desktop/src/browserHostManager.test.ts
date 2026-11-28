@@ -1434,6 +1434,61 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it("rechecks the dropped text and token against the selected guest document", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-drag";
+    const fixture = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+    });
+    const { session, webContents } = fixture;
+    const { events } = mockNavigation(manager, fixture);
+    const select = vi.fn().mockResolvedValue("selected report");
+    Object.assign(webContents, { executeJavaScriptInIsolatedWorld: select });
+    events.emit("dom-ready");
+    const drag = (session as typeof session & { selectionDrag?: { token: string } }).selectionDrag;
+    expect(drag?.token).toBeTypeOf("string");
+    expect(select.mock.calls[0]?.[1][0].code).toContain(BROWSER_SELECTION_DRAG_MIME);
+    const state = () => manager.getSessionState(session.projectId, sessionId);
+    const request = {
+      projectId: session.projectId,
+      sessionId,
+      taskId: "qa",
+      source: "human" as const,
+      operation: "readBrowserSelection",
+      input: {
+        pageRef: state().pageRef,
+        instanceId: session.instanceId,
+        profileId: "default",
+        dragToken: drag?.token,
+        droppedText: "selected report",
+      },
+    };
+    await expect(
+      manager.runAutomation({
+        ...request,
+        input: { ...request.input, dragToken: "old-token" },
+      }),
+    ).rejects.toThrow("dragged selection changed");
+    expect(select).toHaveBeenCalledTimes(1);
+    await expect(
+      manager.runAutomation({
+        ...request,
+        input: { ...request.input, droppedText: "different" },
+      }),
+    ).rejects.toThrow("dragged selection changed");
+    await expect(manager.runAutomation(request)).resolves.toEqual({
+      text: "selected report",
+    });
+    events.emit("did-navigate", {}, session.currentUrl);
+    events.emit("dom-ready");
+    await expect(manager.runAutomation(request)).rejects.toThrow("dragged selection changed");
+    expect(state()).toMatchObject({
+      assignedTaskId: null,
+      browserPageAuthorized: false,
+    });
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
