@@ -1984,3 +1984,322 @@ test.skipIf(!existsSync(chromiumPath))(
   },
   30_000,
 );
+
+test
+  .skipIf(!existsSync(chromiumPath))
+  .each(["broker reply", "HTTP reply", "site-key replay"] as const)(
+  "guards a disposable submission and reconciles a lost %s across broker and provider restart",
+  async (fault) => {
+    const fixture = await startBrowserSubmission(0, false, {
+      idempotentSubmit: true,
+      ...(fault === "HTTP reply" && { dropSubmitReply: "afterHeaders" }),
+      ...(fault === "site-key replay" && { dropSubmitReply: "beforeHeaders" }),
+    });
+    const browser = await chromium.launch().catch(async (cause) => {
+      await fixture.close();
+      throw cause;
+    });
+    try {
+      const work = await (await browser.newContext()).newPage();
+      const personal = await (await browser.newContext()).newPage();
+      let failedSubmitNavigation = 0;
+      work.on("requestfailed", (request) => {
+        if (request.url() === fixture.origin + "/submit" && request.method() === "POST")
+          failedSubmitNavigation++;
+      });
+      await work.goto(fixture.origin + "/Work");
+      await personal.goto(fixture.origin + "/Personal");
+      const arm = { action: "arm", tabId, profileId: "Work", definition: fixture.definition };
+      const startedAt = performance.now();
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const workflowId = yield* Effect.scoped(
+            Effect.gen(function* () {
+              let approved = false;
+              yield* serve(work, "Work", {
+                turnWarningOnBeforeSubmit: true,
+                isSubmissionApproved: () => approved,
+              });
+              const unreadable = report(
+                yield* call(
+                  {
+                    ...arm,
+                    definition: {
+                      ...arm.definition,
+                      breakpoint: { ...arm.definition.breakpoint, selector: "[" },
+                    },
+                  },
+                  "provider-first",
+                ),
+              );
+              expect(unreadable).toMatchObject({
+                phase: "unobservable",
+                reason: "The breakpoint needs one visible match with a known value before Submit.",
+                lastVerified: { stage: "uploaded" },
+              });
+              expect(
+                report(
+                  yield* call(
+                    { action: "submit", workflowId: unreadable.workflowId },
+                    "provider-first",
+                  ),
+                ).phase,
+              ).toBe("unobservable");
+              expect(fixture.drafts.Work.submits).toBe(0);
+              expect(
+                (yield* call(
+                  {
+                    ...arm,
+                    definition: {
+                      ...arm.definition,
+                      breakpoint: { ...arm.definition.breakpoint, pauseText: "Never pauses" },
+                    },
+                  },
+                  "provider-first",
+                )).isError,
+              ).toBe(true);
+
+              const initial = report(yield* call(arm, "provider-first"));
+              expect(initial).toMatchObject({
+                workflowId: unreadable.workflowId,
+                phase: "approval_required",
+                reason: expect.stringContaining("Approve one submission"),
+                result: { tabId, profileId: "Work", url: work.url(), resourceId: "build-42" },
+                lastVerified: {
+                  stage: "uploaded",
+                  statusSelector: "#build-status",
+                  statusText: "Uploaded",
+                },
+              });
+              expect(
+                (yield* call(
+                  {
+                    ...arm,
+                    definition: {
+                      ...arm.definition,
+                      breakpoint: { ...arm.definition.breakpoint, selector: "p" },
+                    },
+                  },
+                  "provider-first",
+                )).isError,
+              ).toBe(true);
+              const blocked = report(
+                yield* call({ action: "submit", workflowId: initial.workflowId }, "provider-first"),
+              );
+              expect(blocked.phase).toBe("approval_required");
+              expect(fixture.drafts.Work.submits).toBe(0);
+              approved = true;
+              const paused = report(
+                yield* call({ action: "submit", workflowId: initial.workflowId }, "provider-first"),
+              );
+              expect(paused).toMatchObject({
+                phase: "paused",
+                breakpoint: { selector: "#replacement", observedText: "Replace existing build" },
+              });
+              expect(fixture.drafts.Work.submits).toBe(0);
+              yield* Effect.promise(() =>
+                work.evaluate(
+                  `document.querySelector("#replacement").insertAdjacentHTML("afterend", '<p id="replacement">No existing build</p>')`,
+                ),
+              );
+              const ambiguous = report(
+                yield* call({ action: "resume", workflowId: initial.workflowId }, "provider-first"),
+              );
+              expect(ambiguous.phase).toBe("unobservable");
+              expect(fixture.drafts.Work.submits).toBe(0);
+              return initial.workflowId;
+            }).pipe(Effect.provide(mcpLayer)),
+          );
+
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              yield* Effect.promise(() => work.reload());
+              let approved = false;
+              yield* serve(work, "Work", {
+                dropAfterSubmit: fault !== "HTTP reply",
+                isSubmissionApproved: () => approved,
+              });
+              const blocked = report(
+                yield* call({ action: "resume", workflowId }, "provider-second"),
+              );
+              expect(blocked).toMatchObject({
+                phase: "approval_required",
+                breakpoint: { observedText: "Replace existing build" },
+              });
+              approved = true;
+              const resume = report(
+                yield* call({ action: "resume", workflowId }, "provider-second"),
+              );
+              expect(resume.phase).toBe("ready");
+              const uncertain = report(
+                yield* call({ action: "submit", workflowId }, "provider-second"),
+              );
+              expect(uncertain).toMatchObject({
+                phase: "uncertain",
+                lastVerified: { stage: "uploaded" },
+              });
+              if (fault === "HTTP reply") {
+                yield* Effect.promise(() => expect.poll(() => failedSubmitNavigation).toBe(1));
+                expect(fixture.trialCounts().droppedSubmitReplies).toBe(1);
+                expect(fixture.trialCounts().workDraftReadsAfterDroppedReply).toBe(0);
+                expect(
+                  yield* Effect.promise(() => work.getByText("Submitted", { exact: true }).count()),
+                ).toBe(0);
+              } else {
+                yield* Effect.promise(() =>
+                  work.locator("#build-status").getByText("Submitted", { exact: true }).waitFor(),
+                );
+              }
+              if (fault === "site-key replay")
+                expect(fixture.trialCounts()).toMatchObject({
+                  submitRequests: { Work: 2, Personal: 0 },
+                  submissions: { Work: 1, Personal: 0 },
+                  droppedSubmitReplies: 1,
+                });
+              const { stateDir } = yield* ServerConfig.ServerConfig;
+              expect(
+                yield* Effect.promise(() =>
+                  readBrowserWorkflowResult(
+                    stateDir,
+                    { environmentId, threadId },
+                    { workflowId, stage: "uploaded", pendingAction: "submit" },
+                  ),
+                ),
+              ).toMatchObject({
+                stage: "uploaded",
+                pendingAction: "submit",
+                target: { profileId: "Work", tabId },
+              });
+              expect(fixture.drafts.Work.submits).toBe(1);
+            }).pipe(Effect.provide(mcpLayer)),
+          );
+
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              yield* serve(personal, "Personal");
+              const wrongProfile = report(
+                yield* call({ action: "submit", workflowId }, "provider-third"),
+              );
+              expect(wrongProfile).toMatchObject({
+                phase: "uncertain",
+                lastVerified: { stage: "uploaded" },
+              });
+              expect(fixture.drafts.Personal.submits).toBe(0);
+              expect(
+                (yield* call(
+                  { action: "check", workflowId },
+                  "provider-third",
+                  ThreadId.make("another-thread"),
+                )).isError,
+              ).toBe(true);
+            }).pipe(Effect.provide(mcpLayer)),
+          );
+
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              yield* serve(work, "Work");
+              const recoveryStartedAt = performance.now();
+              // Reopen with GET after a failed form response. Reload could resubmit the POST.
+              if (fault === "HTTP reply")
+                yield* Effect.promise(() => work.goto(fixture.definition.url));
+              // Even a stale status page saying Uploaded cannot release an uncertain reservation.
+              yield* Effect.promise(() =>
+                work.evaluate('document.querySelector("#build-status").textContent = "Uploaded"'),
+              );
+              const unresolved = report(
+                yield* call({ action: "submit", workflowId }, "provider-restarted"),
+              );
+              expect(unresolved.phase).toBe("uncertain");
+              expect(fixture.drafts.Work.submits).toBe(1);
+              yield* Effect.promise(() => work.reload());
+              const recovered = report(
+                yield* call({ action: "submit", workflowId }, "provider-restarted"),
+              );
+              expect(recovered).toMatchObject({
+                phase: "verified",
+                lastVerified: { stage: "submitted" },
+              });
+              expect(fixture.drafts.Work.submits).toBe(1);
+              expect(fixture.trialCounts().submitRequestsWhileReplacement).toEqual({
+                Work: 0,
+                Personal: 0,
+              });
+              if (fault === "HTTP reply")
+                expect(fixture.trialCounts().workDraftReadsAfterDroppedReply).toBeGreaterThan(0);
+              console.info(
+                JSON.stringify({
+                  fixture: "guarded-submission",
+                  fault,
+                  verifiedStage: recovered.lastVerified?.stage,
+                  ...fixture.trialCounts(),
+                  recoveryMs: Math.round(performance.now() - recoveryStartedAt),
+                  armToVerifiedMs: Math.round(performance.now() - startedAt),
+                }),
+              );
+              yield* Effect.promise(async () => {
+                await work.getByText("Fixture controls").click();
+                await work.getByRole("button", { name: "Simulate certification" }).click();
+              });
+              const certified = report(
+                yield* call({ action: "check", workflowId }, "provider-restarted"),
+              );
+              expect(certified.lastVerified.stage).toBe("certified");
+              const watching = yield* call(
+                { action: "watch", workflowId, until: "published", refresh: true },
+                "provider-restarted",
+              );
+              expect(report(watching)).toMatchObject({
+                phase: "watching",
+                lastVerified: { stage: "certified" },
+              });
+              const { stateDir } = yield* ServerConfig.ServerConfig;
+              const broker = yield* Broker.PreviewAutomationBroker;
+              fixture.drafts.Work.stage = "published";
+              yield* pollBrowserWorkflowWatches(
+                stateDir,
+                environmentId,
+                () =>
+                  Effect.succeed({
+                    archivedAt: null,
+                    deletedAt: null,
+                    providerInstanceId: ProviderInstanceId.make("codex"),
+                  }),
+                broker,
+              );
+              expect(
+                yield* Effect.promise(() =>
+                  readBrowserWorkflowResult(
+                    stateDir,
+                    { environmentId, threadId },
+                    { workflowId, stage: "published" },
+                  ),
+                ),
+              ).toMatchObject({
+                stage: "published",
+                target: { profileId: "Work", hostKey: "desktop-Work", tabId },
+              });
+              yield* Effect.promise(() => work.goto(fixture.origin + "/unrelated"));
+              const entered = report(
+                yield* call({ action: "enter", workflowId }, "provider-restarted"),
+              );
+              expect(entered.result).toEqual(recovered.result);
+              expect(work.url()).toBe(fixture.definition.url);
+              expect(entered.lastVerified.stage).toBe("published");
+              expect(fixture.drafts.Work.submits).toBe(1);
+              expect(fixture.drafts.Personal.submits).toBe(0);
+            }).pipe(Effect.provide(mcpLayer)),
+          );
+        }).pipe(
+          Effect.provide(
+            ServerConfig.layerTest(process.cwd(), { prefix: "tabs-browser-workflow-" }),
+          ),
+          Effect.provide(NodeServices.layer),
+        ),
+      );
+    } finally {
+      await browser.close();
+      await fixture.close();
+    }
+  },
+  45_000,
+);
