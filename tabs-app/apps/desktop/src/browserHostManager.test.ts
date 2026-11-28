@@ -2220,6 +2220,94 @@ describe("reliable browser tabs and agent control", () => {
     expect(personal.state().browserPageAuthorized).toBe(true);
   });
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "blocks a Chromium screenshot transfer from stale Work DOM after a sibling switches the fixture account",
+    async () => {
+      const fixtureUrl = new URL("../../server/scripts/fixtures/deviceDraft.ts", import.meta.url);
+      const {
+        startDeviceDraftApp,
+      }: {
+        startDeviceDraftApp: () => Promise<{
+          origin: string;
+          trialCounts: () => { draftSaves: { Work: number; Personal: number } };
+          close: () => Promise<void>;
+        }>;
+      } = await import(fixtureUrl.href);
+      const { chromium } = await import("playwright");
+      const site = await startDeviceDraftApp();
+      onTestFinished(() => site.close());
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const sibling = await context.newPage();
+      const personalPage = await browser.newPage();
+      const url = `${site.origin}/`;
+      await page.goto(`${url}Work`);
+      await personalPage.goto(`${url}Personal`);
+      expect(await page.getByText("Work", { exact: true }).count()).toBe(1);
+
+      const manager = new BrowserHostManager(() => null);
+      const cookies = new EventEmitter();
+      const work = openCookieChangeTab(manager, "chromium-cookie-work", url, {
+        cookies,
+      });
+      const personal = openCookieChangeTab(
+        manager,
+        "chromium-cookie-personal",
+        url,
+        { cookies: new EventEmitter() },
+        "personal",
+      );
+      await connectChromiumPage(page, work);
+      await connectChromiumPage(personalPage, personal);
+      await work.approve();
+      await personal.approve();
+      const { grantId } = await work.approveScreenshot();
+      await expect(work.transfer(grantId)).resolves.toMatchObject({
+        deviceId: "sim",
+      });
+      const evidence = page.locator("#evidence");
+      await evidence.evaluate((field) => {
+        field.addEventListener("change", () => (field as HTMLInputElement).form?.requestSubmit());
+      });
+
+      await sibling.goto(`${url}Personal`);
+      expect(await sibling.getByText("Personal", { exact: true }).count()).toBe(1);
+      // The Chromium fixture uses the real cookie. Bridge only Electron's change metadata to the host.
+      cookies.emit(
+        "changed",
+        {},
+        {
+          name: "qa_profile",
+          domain: new URL(url).hostname,
+          hostOnly: true,
+          httpOnly: true,
+        },
+        "explicit",
+        false,
+      );
+      expect(await page.getByText("Work", { exact: true }).count()).toBe(1);
+      const reload = "Reload this page after its browser session changed";
+      await expect(work.approveScreenshot()).rejects.toThrow(reload);
+      const png =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=";
+      await expect(work.transfer(grantId, png)).rejects.toThrow(reload);
+      expect(await evidence.evaluate((field) => (field as HTMLInputElement).files?.length)).toBe(0);
+      expect(site.trialCounts().draftSaves).toEqual({ Work: 0, Personal: 0 });
+      expect(personal.state().browserPageAuthorized).toBe(true);
+      await expect(personal.act("status")).resolves.toMatchObject({ url });
+
+      await page.reload();
+      work.events.emit("did-navigate", {}, url);
+      expect(await page.getByText("Personal", { exact: true }).count()).toBe(1);
+      await expect(work.approve()).resolves.toMatchObject({ approved: true });
+      await expect(work.transfer(grantId, png)).rejects.toThrow(
+        "Approve this screenshot transfer again",
+      );
+    },
+  );
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
