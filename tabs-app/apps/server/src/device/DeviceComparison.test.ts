@@ -3885,7 +3885,7 @@ describe("Device comparison", () => {
   });
 });
 
-describe.skip("Total check reporting and replay retry", () => {
+describe("Total check reporting and replay retry", () => {
   const record = async (f: ReturnType<typeof fixture>, extra: string[] = []) => {
     const proposed = await f.propose();
     const runId = proposed.run!.runId;
@@ -3906,4 +3906,32 @@ describe.skip("Total check reporting and replay retry", () => {
     });
     return { runId, approvalId: run!.approvalId!, extra };
   };
+
+  it("reports that no total check ran and returns the running replay on a retry", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+      [frame("android", ["Continue"]), frame("android", [], ["Order review"])],
+    );
+    const { runId, approvalId } = await record(f);
+    const finished = await f.record({ action: "finish", runId });
+    expect(finished.run?.suggestTotalCheck).toBeUndefined();
+    const replayInput = {
+      action: "replay",
+      threadId,
+      runId,
+      approvalId,
+    } as const;
+    await f.invoke(replayInput, undefined, recordingCaller);
+    const completed = await f.settle();
+    expect(completed.run).toMatchObject({
+      phase: "completed",
+      totalCheck: "none",
+    });
+    expect(completed.totalCheck).toBe("none");
+    const presses = f.press.mock.calls.length;
+    // A lost reply is retried with the same ids and must not be told to approve again.
+    const retried = await f.invoke(replayInput, undefined, recordingCaller);
+    expect(retried.run).toMatchObject({ runId, phase: "completed" });
+    expect(f.press.mock.calls).toHaveLength(presses);
+  });
 });
