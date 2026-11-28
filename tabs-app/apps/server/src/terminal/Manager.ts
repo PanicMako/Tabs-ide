@@ -6,10 +6,13 @@
  *
  * @module TerminalManager
  */
+import { randomUUID } from "node:crypto";
 import { resolveInstanceEnvironment } from "../provider/ProviderInstanceSecrets.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import {
   DEFAULT_TERMINAL_ID,
+  TerminalAgentInputProposal,
+  TerminalAgentInputReviewUnavailableError,
   TerminalCwdError,
   TerminalCwdNotDirectoryError,
   TerminalCwdNotFoundError,
@@ -22,6 +25,9 @@ import {
   TerminalResizeError,
   TerminalSessionLookupError,
   TerminalWriteError,
+  type TerminalAgentInputResult,
+  type TerminalAgentInputReview,
+  type TerminalAgentInputReviewCommand,
   type TerminalAttachInput,
   type TerminalAttachStreamEvent,
   type TerminalClearInput,
@@ -47,6 +53,7 @@ import { mergePathEntries } from "@tabs/shared/shell";
 
 import { acpRegistryManagedBinaryDirectories } from "../provider/acp/AcpRegistrySupport.ts";
 import { getTerminalLabel } from "@tabs/shared/terminalLabels";
+import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -63,6 +70,8 @@ import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as ServerConfig from "../config.ts";
+import type { McpThreadCaller } from "../mcp/McpInvocationContext.ts";
+import { hasActiveMcpThreadSession } from "../mcp/McpSessionRegistry.ts";
 import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { makeClaudeEnvironment } from "../provider/Drivers/ClaudeHome.ts";
@@ -107,8 +116,12 @@ const DEFAULT_OPEN_ROWS = 30;
 const TERMINAL_ENV_BLOCKLIST = new Set(["PORT", "ELECTRON_RENDERER_PORT", "ELECTRON_RUN_AS_NODE"]);
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 const MAX_TERMINAL_LABEL_LENGTH = 128;
+const AGENT_INPUT_APPROVAL_TTL_MS = 2 * 60_000;
+const AGENT_INPUT_OUTCOME_TTL_MS = 10 * 60_000;
+const MAX_AGENT_INPUT_REQUESTS = 256;
 const decodeClaudeSettings = Schema.decodeUnknownOption(ClaudeSettings);
 const decodeCodexSettings = Schema.decodeUnknownOption(CodexSettings);
+const isAgentInputProposal = Schema.is(TerminalAgentInputProposal);
 
 class TerminalSubprocessCheckError extends Schema.TaggedError<TerminalSubprocessCheckError>()(
   "TerminalSubprocessCheckError",
@@ -181,6 +194,23 @@ export class TerminalManager extends Context.Service<
      */
     readonly write: (input: TerminalWriteInput) => Effect.Effect<void, TerminalError>;
 
+    readonly proposeAgentInput: (
+      caller: McpThreadCaller,
+      input: TerminalAgentInputProposal,
+    ) => Effect.Effect<TerminalAgentInputResult>;
+
+    readonly getAgentInputStatus: (
+      caller: McpThreadCaller,
+      requestId: string,
+    ) => Effect.Effect<TerminalAgentInputResult>;
+
+    readonly reviewAgentInput: (
+      input: TerminalAgentInputReviewCommand,
+    ) => Effect.Effect<TerminalAgentInputReview, TerminalAgentInputReviewUnavailableError>;
+
+    /** Declines every still-pending agent input request of a thread; returns their ids. */
+    readonly declinePendingAgentInput: (threadId: string) => Effect.Effect<ReadonlyArray<string>>;
+
     /**
      * Resize the PTY backing a terminal session.
      */
@@ -252,6 +282,31 @@ interface TerminalSubprocessInspectResult {
   readonly hasRunningSubprocess: boolean;
   readonly childCommand: string | null;
   readonly processIds: ReadonlyArray<number>;
+  /** Null when the PTY's process is missing from an authoritative process table. */
+  readonly terminalCommand?: string | null;
+}
+
+const idleSubprocess: TerminalSubprocessInspectResult = {
+  hasRunningSubprocess: false,
+  childCommand: null,
+  processIds: [],
+};
+
+function sameSubprocesses(
+  left: TerminalSubprocessInspectResult,
+  right: TerminalSubprocessInspectResult,
+): boolean {
+  if (left === right) return true;
+  if (
+    left.hasRunningSubprocess !== right.hasRunningSubprocess ||
+    left.childCommand !== right.childCommand ||
+    left.terminalCommand !== right.terminalCommand ||
+    left.processIds.length !== right.processIds.length
+  ) {
+    return false;
+  }
+  const processIds = new Set(left.processIds);
+  return right.processIds.every((pid) => processIds.has(pid));
 }
 
 interface TerminalSubprocessInspector {
@@ -296,6 +351,7 @@ interface TerminalSessionState {
   worktreePath: string | null;
   status: TerminalSessionStatus;
   pid: number | null;
+  instanceId?: string;
   history: BoundedTerminalHistory;
   pendingHistoryControlSequence: string;
   pendingProcessEvents: Array<PendingProcessEvent>;
@@ -315,11 +371,33 @@ interface TerminalSessionState {
   hasRunningSubprocess: boolean;
   /** Normalized child command name when `hasRunningSubprocess`; cleared when idle. */
   childCommandLabel: string | null;
+  subprocessObservation: TerminalSubprocessInspectResult;
   runtimeEnv: Record<string, string> | null;
   /** Spawned shell command while running; null before start and after exit. */
   shell: string | null;
   /** Close this terminal (and its children) when its thread settles. */
   stopOnSettle: boolean;
+}
+
+type AgentInputOutcome = Exclude<TerminalAgentInputResult["status"], "pending">;
+
+interface PendingAgentInput {
+  readonly status: "pending";
+  readonly text: string;
+  readonly inputCount: number;
+  readonly subprocessObservation: TerminalSubprocessInspectResult;
+}
+
+interface AgentInputRequest {
+  readonly requestId: string;
+  readonly caller: McpThreadCaller;
+  readonly terminalId: string;
+  readonly instanceId: string;
+  readonly cwd: string;
+  readonly terminalTitle: string;
+  readonly pressEnter: boolean;
+  expiresAt: number;
+  state: PendingAgentInput | { readonly status: AgentInputOutcome };
 }
 
 interface PersistHistoryRequest {
@@ -337,6 +415,7 @@ type DrainProcessEventAction =
       type: "output";
       threadId: string;
       terminalId: string;
+      instanceId: string | undefined;
       sequence: number;
       history: BoundedTerminalHistory | null;
       data: string;
@@ -397,6 +476,9 @@ function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
     worktreePath: session.worktreePath,
     status: session.status,
     pid: session.pid,
+    ...(session.status === "running" && session.instanceId
+      ? { instanceId: session.instanceId }
+      : {}),
     history: session.history.value(),
     exitCode: session.exitCode,
     exitSignal: session.exitSignal,
@@ -414,6 +496,9 @@ function summary(session: TerminalSessionState): TerminalSummary {
     worktreePath: session.worktreePath,
     status: session.status,
     pid: session.pid,
+    ...(session.status === "running" && session.instanceId
+      ? { instanceId: session.instanceId }
+      : {}),
     exitCode: session.exitCode,
     exitSignal: session.exitSignal,
     hasRunningSubprocess: session.hasRunningSubprocess,
@@ -486,10 +571,10 @@ function cleanupProcessHandles(session: TerminalSessionState): void {
 
 function enqueueProcessEvent(
   session: TerminalSessionState,
-  expectedPid: number,
+  process: PtyAdapter.PtyProcess,
   event: PendingProcessEvent,
 ): boolean {
-  if (!session.process || session.status !== "running" || session.pid !== expectedPid) {
+  if (session.process !== process || session.status !== "running") {
     return false;
   }
 
@@ -740,7 +825,7 @@ function deriveSubprocessInspectResult(
       (snapshot.childrenByParent.get(pid)?.length ?? 0) > 0,
   );
   if (childPid === undefined) {
-    return { hasRunningSubprocess: false, childCommand: null, processIds: [] };
+    return { ...idleSubprocess, terminalCommand: shellName };
   }
   const processIds = new Set<number>([terminalPid]);
   const pending = [terminalPid];
@@ -758,6 +843,7 @@ function deriveSubprocessInspectResult(
     hasRunningSubprocess: true,
     childCommand: normalized ? truncateTerminalWireLabel(normalized) : null,
     processIds: [...processIds],
+    terminalCommand: shellName,
   };
 }
 
@@ -1487,6 +1573,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const clock = yield* Clock.Clock;
   const context = yield* Effect.context<never>();
   const runFork = Effect.runForkWith(context);
 
@@ -1594,8 +1681,31 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   });
   const threadLocks = yield* KeyedLock.make<string>();
   const terminalEventListeners = new Set<(event: TerminalEvent) => Effect.Effect<void>>();
+  const agentInputRequests = new Map<string, AgentInputRequest>();
   const workerScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() => Scope.close(workerScope, Exit.void));
+
+  const finishAgentInput = (request: AgentInputRequest, status: AgentInputOutcome, now: number) => {
+    request.state = { status };
+    request.expiresAt = now + AGENT_INPUT_OUTCOME_TTL_MS;
+  };
+
+  const pruneAgentInputRequests = (now: number) => {
+    for (const [requestId, request] of agentInputRequests) {
+      if (request.expiresAt > now) continue;
+      if (request.state.status === "pending") {
+        finishAgentInput(request, "expired", now);
+      } else {
+        agentInputRequests.delete(requestId);
+      }
+    }
+  };
+
+  yield* Effect.forever(
+    Effect.sleep("30 seconds").pipe(
+      Effect.andThen(Effect.sync(() => pruneAgentInputRequests(clock.currentTimeMillisUnsafe()))),
+    ),
+  ).pipe(Effect.forkIn(workerScope));
 
   const publishEvent = (event: TerminalEvent) =>
     Effect.gen(function* () {
@@ -2026,14 +2136,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
   const drainProcessEvents = Effect.fn("terminal.drainProcessEvents")(function* (
     session: TerminalSessionState,
-    expectedPid: number,
+    process: PtyAdapter.PtyProcess,
   ) {
     while (true) {
       const action: DrainProcessEventAction = yield* Effect.sync(() => {
-        if (session.pid !== expectedPid || !session.process || session.status !== "running") {
-          session.pendingProcessEvents = [];
-          session.pendingProcessEventIndex = 0;
-          session.processEventDrainRunning = false;
+        if (session.process !== process || session.status !== "running") {
           return { type: "idle" } as const;
         }
 
@@ -2066,13 +2173,13 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             type: "output",
             threadId: session.threadId,
             terminalId: session.terminalId,
+            instanceId: session.instanceId,
             sequence: eventStamp.sequence,
             history: sanitized.visibleText.length > 0 ? session.history : null,
             data: nextEvent.data,
           } as const;
         }
 
-        const process = session.process;
         cleanupProcessHandles(session);
         session.process = null;
         session.shell = null;
@@ -2117,6 +2224,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           type: "output",
           threadId: action.threadId,
           terminalId: action.terminalId,
+          ...(action.instanceId ? { instanceId: action.instanceId } : {}),
           sequence: action.sequence,
           data: action.data,
         });
@@ -2251,6 +2359,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       session.exitSignal = null;
       session.hasRunningSubprocess = false;
       session.childCommandLabel = null;
+      session.subprocessObservation = idleSubprocess;
       session.pendingProcessEvents = [];
       session.pendingProcessEventIndex = 0;
       session.processEventDrainRunning = false;
@@ -2314,20 +2423,27 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             yield* modifyManagerState((state) => {
               session.process = ptyProcess;
               session.shell = spawnResult.shell;
+              if (customSubprocessInspector === undefined) {
+                session.subprocessObservation = {
+                  ...idleSubprocess,
+                  terminalCommand: normalizeChildCommandName(spawnResult.shell, platform),
+                };
+              }
               session.pid = processPid;
+              session.instanceId = randomUUID();
               session.status = "running";
               // onExit may replay an exit immediately; accept it before subscribing.
               session.unsubscribeData = spawnResult.process.onData((data) => {
-                if (!enqueueProcessEvent(session, processPid, { type: "output", data })) {
+                if (!enqueueProcessEvent(session, spawnResult.process, { type: "output", data })) {
                   return;
                 }
-                if (eventsActivated) runFork(drainProcessEvents(session, processPid));
+                if (eventsActivated) runFork(drainProcessEvents(session, spawnResult.process));
               });
               session.unsubscribeExit = spawnResult.process.onExit((event) => {
-                if (!enqueueProcessEvent(session, processPid, { type: "exit", event })) {
+                if (!enqueueProcessEvent(session, spawnResult.process, { type: "exit", event })) {
                   return;
                 }
-                if (eventsActivated) runFork(drainProcessEvents(session, processPid));
+                if (eventsActivated) runFork(drainProcessEvents(session, spawnResult.process));
               });
               eventStamp = advanceEventSequence(session);
               return [undefined, state] as const;
@@ -2342,7 +2458,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             });
             // Publish startup before draining any events replayed during subscription.
             eventsActivated = true;
-            if (session.processEventDrainRunning) runFork(drainProcessEvents(session, processPid));
+            if (session.processEventDrainRunning) {
+              runFork(drainProcessEvents(session, spawnResult.process));
+            }
           }),
         ),
       ),
@@ -2439,10 +2557,17 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
   const pollSubprocessActivity = Effect.fn("terminal.pollSubprocessActivity")(function* () {
     const state = yield* readManagerState;
-    const runningSessions = [...state.sessions.values()].filter(
-      (session): session is TerminalSessionState & { pid: number } =>
-        session.status === "running" && Number.isInteger(session.pid),
-    );
+    const runningSessions = [...state.sessions.values()]
+      .filter(
+        (session): session is TerminalSessionState & { pid: number } =>
+          session.status === "running" && Number.isInteger(session.pid),
+      )
+      .map(({ threadId, terminalId, pid, instanceId }) => ({
+        threadId,
+        terminalId,
+        pid,
+        instanceId,
+      }));
 
     if (runningSessions.length === 0) {
       return true;
@@ -2471,9 +2596,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     const { inspector: subprocessInspector, snapshotSucceeded } = inspectorOption.value;
 
     const checkSubprocessActivity = Effect.fn("terminal.checkSubprocessActivity")(function* (
-      session: TerminalSessionState & { pid: number },
+      session: (typeof runningSessions)[number],
     ) {
       const terminalPid = session.pid;
+      const instanceId = session.instanceId;
       const inspectResult = yield* subprocessInspector(terminalPid).pipe(
         Effect.asSome,
         Effect.catch((reason) =>
@@ -2505,8 +2631,17 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           Option.isNone(liveSession) ||
           liveSession.value.status !== "running" ||
           liveSession.value.pid !== terminalPid ||
-          (liveSession.value.hasRunningSubprocess === next.hasRunningSubprocess &&
-            liveSession.value.childCommandLabel === nextChildLabel)
+          liveSession.value.instanceId !== instanceId
+        ) {
+          return [Option.none(), state] as const;
+        }
+
+        if (!sameSubprocesses(liveSession.value.subprocessObservation, next)) {
+          liveSession.value.subprocessObservation = next;
+        }
+        if (
+          liveSession.value.hasRunningSubprocess === next.hasRunningSubprocess &&
+          liveSession.value.childCommandLabel === nextChildLabel
         ) {
           return [Option.none(), state] as const;
         }
@@ -2636,6 +2771,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         unsubscribeExit: null,
         hasRunningSubprocess: false,
         childCommandLabel: null,
+        subprocessObservation: idleSubprocess,
         runtimeEnv: normalizedRuntimeEnv(input.env),
         shell: null,
         stopOnSettle: input.stopOnSettle ?? false,
@@ -2973,9 +3109,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         terminalId,
       });
     }
-    session.inputCount += 1;
     yield* Effect.try({
-      try: () => process.write(input.data),
+      try: () => {
+        session.inputCount += 1;
+        process.write(input.data);
+      },
       catch: (cause) =>
         new TerminalWriteError({
           threadId: input.threadId,
@@ -2985,6 +3123,198 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         }),
     });
   });
+
+  type AgentInputTarget = TerminalSessionState & {
+    readonly pid: number;
+    readonly process: PtyAdapter.PtyProcess;
+  };
+
+  const runningAgentInputTarget = (
+    threadId: string,
+    terminalId: string,
+    instanceId: string,
+  ): AgentInputTarget | undefined => {
+    const session = SynchronizedRef.getUnsafe(managerStateRef).sessions.get(
+      toSessionKey(threadId, terminalId),
+    );
+    if (
+      session?.status === "running" &&
+      session.threadId === threadId &&
+      session.terminalId === terminalId &&
+      session.instanceId === instanceId &&
+      session.process !== null &&
+      session.pid !== null &&
+      session.subprocessObservation.terminalCommand !== null &&
+      session.pendingProcessEvents.length === 0
+    ) {
+      return session as AgentInputTarget;
+    }
+  };
+
+  const pendingAgentInputTarget = (request: AgentInputRequest, now: number) => {
+    const pending = request.state;
+    if (pending.status !== "pending") return undefined;
+    const session = runningAgentInputTarget(
+      request.caller.threadId,
+      request.terminalId,
+      request.instanceId,
+    );
+    if (
+      now < request.expiresAt &&
+      session !== undefined &&
+      // Output (prompt redraws, logs) does not make the request stale; only user input,
+      // a different foreground subprocess, expiry or a lost MCP session does.
+      session.inputCount === pending.inputCount &&
+      session.subprocessObservation === pending.subprocessObservation &&
+      hasActiveMcpThreadSession(request.caller)
+    ) {
+      return { session, pending };
+    }
+    finishAgentInput(request, "expired", now);
+    return undefined;
+  };
+
+  const agentInputReview = (request: AgentInputRequest): TerminalAgentInputReview => ({
+    requestId: request.requestId,
+    status: request.state.status,
+    terminalId: request.terminalId,
+    instanceId: request.instanceId,
+    cwd: request.cwd,
+    terminalTitle: request.terminalTitle,
+    pressEnter: request.pressEnter,
+    ...(request.state.status === "pending" ? { text: request.state.text } : {}),
+  });
+
+  const proposeAgentInput: TerminalManager["Service"]["proposeAgentInput"] = (caller, input) =>
+    withThreadLock(
+      caller.threadId,
+      Effect.sync(() => {
+        const now = clock.currentTimeMillisUnsafe();
+        const requestId = randomUUID();
+        pruneAgentInputRequests(now);
+        const session = runningAgentInputTarget(
+          caller.threadId,
+          input.terminalId,
+          input.instanceId,
+        );
+        if (
+          session === undefined ||
+          agentInputRequests.size >= MAX_AGENT_INPUT_REQUESTS ||
+          !isAgentInputProposal(input) ||
+          !hasActiveMcpThreadSession(caller)
+        ) {
+          return { requestId, status: "expired" };
+        }
+        agentInputRequests.set(requestId, {
+          requestId,
+          caller,
+          terminalId: input.terminalId,
+          instanceId: input.instanceId,
+          cwd: session.cwd,
+          terminalTitle: terminalWireLabel(session),
+          pressEnter: input.pressEnter === true,
+          expiresAt: now + AGENT_INPUT_APPROVAL_TTL_MS,
+          state: {
+            status: "pending",
+            text: input.text,
+            inputCount: session.inputCount,
+            subprocessObservation: session.subprocessObservation,
+          },
+        });
+        return { requestId, status: "pending" };
+      }),
+    );
+
+  const getAgentInputStatus: TerminalManager["Service"]["getAgentInputStatus"] = (
+    caller,
+    requestId,
+  ) =>
+    Effect.sync(() => {
+      const now = clock.currentTimeMillisUnsafe();
+      pruneAgentInputRequests(now);
+      const request = agentInputRequests.get(requestId);
+      if (
+        request === undefined ||
+        request.caller.threadId !== caller.threadId ||
+        request.caller.providerSessionId !== caller.providerSessionId ||
+        request.caller.providerInstanceId !== caller.providerInstanceId ||
+        !hasActiveMcpThreadSession(caller)
+      ) {
+        return { requestId, status: "expired" };
+      }
+      pendingAgentInputTarget(request, now);
+      return { requestId, status: request.state.status };
+    });
+
+  const reviewAgentInput: TerminalManager["Service"]["reviewAgentInput"] = (input) =>
+    withThreadLock(
+      input.threadId,
+      Effect.gen(function* () {
+        const now = clock.currentTimeMillisUnsafe();
+        pruneAgentInputRequests(now);
+        const request = agentInputRequests.get(input.requestId);
+        if (request === undefined || request.caller.threadId !== input.threadId) {
+          return yield* new TerminalAgentInputReviewUnavailableError();
+        }
+        const target = pendingAgentInputTarget(request, now);
+        if (target === undefined || input.action === "review") return agentInputReview(request);
+        if (input.action === "decline") {
+          finishAgentInput(request, "declined", now);
+          return agentInputReview(request);
+        }
+
+        // Sample again because a process can change without terminal output between polls.
+        const observed = yield* acquireSubprocessInspector.pipe(
+          Effect.flatMap(({ inspector }) => inspector(target.session.pid)),
+          Effect.option,
+        );
+
+        return yield* Effect.sync(() => {
+          const atDispatch = clock.currentTimeMillisUnsafe();
+          const current = pendingAgentInputTarget(request, atDispatch);
+          if (current === undefined) return agentInputReview(request);
+          const next = Option.getOrUndefined(observed);
+          if (
+            next === undefined ||
+            next.terminalCommand === null ||
+            !sameSubprocesses(current.pending.subprocessObservation, next)
+          ) {
+            finishAgentInput(request, "expired", atDispatch);
+            return agentInputReview(request);
+          }
+
+          // Commit the one-time outcome and write in the same synchronous turn.
+          const data = current.pending.text + (request.pressEnter ? "\r" : "");
+          finishAgentInput(request, "uncertain", atDispatch);
+          current.session.inputCount += 1;
+          try {
+            current.session.process.write(data);
+            request.state = { status: "delivered" };
+          } catch {
+            // The PTY may have accepted some bytes before throwing.
+          }
+          return agentInputReview(request);
+        });
+      }),
+    );
+
+  const declinePendingAgentInput: TerminalManager["Service"]["declinePendingAgentInput"] = (
+    threadId,
+  ) =>
+    withThreadLock(
+      threadId,
+      Effect.sync(() => {
+        const now = clock.currentTimeMillisUnsafe();
+        pruneAgentInputRequests(now);
+        const declined: string[] = [];
+        for (const request of agentInputRequests.values()) {
+          if (request.caller.threadId !== threadId || request.state.status !== "pending") continue;
+          finishAgentInput(request, "declined", now);
+          declined.push(request.requestId);
+        }
+        return declined;
+      }),
+    );
 
   const resizeLocked = Effect.fn("terminal.resize")(function* (input: TerminalResizeInput) {
     const session = yield* getSession(input.threadId, input.terminalId);
@@ -3063,6 +3393,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           unsubscribeExit: null,
           hasRunningSubprocess: false,
           childCommandLabel: null,
+          subprocessObservation: idleSubprocess,
           runtimeEnv: normalizedRuntimeEnv(input.env),
           shell: null,
           stopOnSettle: false,
@@ -3223,6 +3554,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     list,
     attachStream,
     write,
+    proposeAgentInput,
+    getAgentInputStatus,
+    reviewAgentInput,
+    declinePendingAgentInput,
     resize,
     clear,
     restart,

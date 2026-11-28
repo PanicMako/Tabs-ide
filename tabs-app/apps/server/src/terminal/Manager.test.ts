@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   DEFAULT_TERMINAL_ID,
+  EnvironmentId,
   type TerminalAttachStreamEvent,
   type TerminalEvent,
   type TerminalMetadataStreamEvent,
@@ -11,6 +12,8 @@ import {
   ProviderInstanceId,
   ServerSettingsError,
   TerminalProviderInstanceNotFoundError,
+  type TerminalAgentInputResult,
+  ThreadId,
 } from "@tabs/contracts";
 import { HostProcessPlatform, HostProcessArchitecture } from "@tabs/shared/hostProcess";
 import * as Data from "effect/Data";
@@ -32,11 +35,16 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
+import { McpSchema, McpServer } from "effect/unstable/ai";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
+import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as McpHttpServer from "../mcp/McpHttpServer.ts";
+import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
+import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -317,6 +325,41 @@ const createManager = (
 const layerWithHostPlatform = (platform: NodeJS.Platform) =>
   Layer.succeed(HostProcessPlatform, platform);
 
+const agentInputRegistryLayer = McpSessionRegistry.layer.pipe(
+  Layer.provide(
+    Layer.mock(ServerEnvironment.ServerEnvironment)({
+      getEnvironmentId: Effect.succeed(EnvironmentId.make("terminal-input-test")),
+    }),
+  ),
+);
+
+const issueAgentInputScope = Effect.fnUntraced(function* (threadId = "thread-1") {
+  const registry = yield* McpSessionRegistry.McpSessionRegistry;
+  const credential = yield* registry.issue({
+    threadId: ThreadId.make(threadId),
+    providerInstanceId: ProviderInstanceId.make("codex"),
+  });
+  const scope = yield* registry.resolve(credential.config.authorizationHeader.slice(7));
+  assert.isDefined(scope);
+  return scope;
+});
+
+const idleAgentInputInspector = () =>
+  Effect.succeed({ hasRunningSubprocess: false, childCommand: null, processIds: [] });
+
+const terminalInputClient = McpSchema.McpServerClient.of({
+  clientId: 1,
+  protocolVersion: "2025-06-18",
+  clientCapabilities: {},
+  clientInfo: { name: "terminal-input-test", version: "1" },
+  initializePayload: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "terminal-input-test", version: "1" },
+  },
+  getClient: Effect.die("unused"),
+});
+
 // Apply the existing line policy, then find the longest code-point-aligned byte tail.
 function retainedHistory(text: string, maxLines: number, maxBytes = Infinity): string {
   const terminated = text.endsWith("\n");
@@ -420,6 +463,411 @@ it.layer(
   Layer.merge(NodeServices.layer, ProcessRunner.layer.pipe(Layer.provide(NodeServices.layer))),
   { excludeTestServices: true },
 )("TerminalManager", (it) => {
+  it.effect("proposes through the registered MCP tool and reveals exact text only to review", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        subprocessInspector: idleAgentInputInspector,
+      });
+      const scope = yield* issueAgentInputScope();
+      const otherScope = yield* issueAgentInputScope("another-thread");
+      const terminal = yield* manager.open(openInput());
+      const mcp = yield* McpServer.McpServer;
+      const tool = mcp.tools.find(({ tool }) => tool.name === "terminal_input");
+      expect(tool?.tool.inputSchema).toMatchObject({
+        type: "object",
+        properties: { action: { enum: ["propose", "status"] } },
+      });
+      const call = (
+        args: Record<string, unknown>,
+        invocation = scope as McpInvocationContext.McpInvocationScope,
+      ) =>
+        mcp
+          .callTool({ name: "terminal_input", arguments: args })
+          .pipe(
+            Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
+            Effect.provideService(McpSchema.McpServerClient, terminalInputClient),
+            Effect.provideService(TerminalManager.TerminalManager, manager),
+          );
+      const input = {
+        action: "propose",
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "  café 🦋  ",
+        pressEnter: true,
+      };
+      const proposal = yield* call(input);
+      const result = proposal.structuredContent as TerminalAgentInputResult;
+      expect(result).toEqual({ requestId: expect.any(String), status: "pending" });
+      expect(proposal.content).toEqual([{ type: "text", text: JSON.stringify(result) }]);
+      expect(ptyAdapter.processes[0]!.writes).toEqual([]);
+      for (const args of [
+        { ...input, text: "hello\n" },
+        { ...input, text: "hello\r" },
+        { ...input, text: "hello\x1b" },
+        { ...input, text: "\ud800" },
+        { ...input, text: "a".repeat(4_097) },
+        { action: "approve", requestId: result.requestId },
+      ]) {
+        const invalid = yield* call(args).pipe(Effect.result);
+        if (invalid._tag === "Success") expect(invalid.success.isError).toBe(true);
+      }
+      const external = yield* call(input, {
+        ...scope,
+        thread: undefined,
+        client: { sessionId: "external", label: "External", runtimeModeCeiling: "full-access" },
+      });
+      expect(external.isError).toBe(true);
+      const noCapability = yield* call(input, { ...scope, capabilities: new Set() });
+      expect(noCapability.isError).toBe(true);
+      const otherStatus = yield* call(
+        { action: "status", requestId: result.requestId },
+        otherScope,
+      );
+      expect(otherStatus.structuredContent).toEqual({
+        requestId: result.requestId,
+        status: "expired",
+      });
+
+      const review = { threadId: terminal.threadId, requestId: result.requestId };
+      const wrongThread = yield* manager
+        .reviewAgentInput({ ...review, threadId: otherScope.thread.threadId, action: "approve" })
+        .pipe(Effect.flip);
+      expect(wrongThread._tag).toBe("TerminalAgentInputReviewUnavailableError");
+      expect(yield* manager.reviewAgentInput({ ...review, action: "review" })).toEqual({
+        requestId: result.requestId,
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId,
+        cwd: terminal.cwd,
+        terminalTitle: expect.any(String),
+        text: input.text,
+        pressEnter: true,
+        status: "pending",
+      });
+      const approve = manager.reviewAgentInput({ ...review, action: "approve" });
+      const [first, retry] = yield* Effect.all([approve, approve], { concurrency: "unbounded" });
+      expect(first.status).toBe("delivered");
+      expect(first).not.toHaveProperty("text");
+      expect(retry).toEqual(first);
+      expect(ptyAdapter.processes[0]!.writes).toEqual([input.text + "\r"]);
+      const status = yield* call({ action: "status", requestId: result.requestId });
+      expect(status.structuredContent).toEqual({
+        requestId: result.requestId,
+        status: "delivered",
+      });
+    }).pipe(
+      Effect.provide(
+        (McpHttpServer.layerTerminalInputToolkit as Layer.Layer<never, unknown>).pipe(
+          Layer.provideMerge(McpServer.McpServer.layer),
+          Layer.provideMerge(agentInputRegistryLayer),
+        ),
+      ),
+    ),
+  );
+
+  it.effect("expires proposals on terminal writes, restarts, or close but not on output", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter, getEvents } = yield* createManager(5, {
+        subprocessInspector: idleAgentInputInspector,
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const another = yield* manager.open(openInput({ terminalId: "term-2" }));
+      const input = {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      };
+      const wrongInstance = yield* manager.proposeAgentInput(thread, {
+        ...input,
+        instanceId: another.instanceId!,
+      });
+      expect(wrongInstance.status).toBe("expired");
+      const propose = manager.proposeAgentInput(thread, input);
+      const approve = ({ requestId }: TerminalAgentInputResult) =>
+        manager.reviewAgentInput({ action: "approve", threadId: thread.threadId, requestId });
+
+      const typed = yield* propose;
+      yield* manager.write({
+        threadId: thread.threadId,
+        terminalId: input.terminalId,
+        data: "user",
+      });
+      expect(yield* approve(typed)).toMatchObject({ status: "expired" });
+
+      const output = yield* propose;
+      ptyAdapter.processes[0]!.emitData("new output");
+      yield* waitFor(
+        Effect.map(getEvents, (events) => events.some((event) => event.type === "output")),
+      );
+      // Background output (prompt redraws, logs) must not invalidate the request.
+      expect(
+        yield* manager.reviewAgentInput({
+          action: "review",
+          threadId: thread.threadId,
+          requestId: output.requestId,
+        }),
+      ).toMatchObject({ status: "pending", text: "x" });
+
+      const restarted = yield* propose;
+      const replacement = yield* manager.restart(restartInput());
+      expect(replacement.instanceId).not.toBe(input.instanceId);
+      expect(yield* approve(restarted)).toMatchObject({ status: "expired" });
+
+      const closed = yield* manager.proposeAgentInput(thread, {
+        ...input,
+        instanceId: replacement.instanceId!,
+      });
+      yield* manager.close({ threadId: thread.threadId, terminalId: input.terminalId });
+      expect(yield* approve(closed)).toMatchObject({ status: "expired" });
+      expect(ptyAdapter.processes.map((process) => process.writes)).toEqual([["user"], [], []]);
+    }).pipe(Effect.provide(agentInputRegistryLayer)),
+  );
+
+  it.effect("expires when the foreground has a different PID under the same command label", () =>
+    Effect.gen(function* () {
+      let childPid = 101;
+      const { manager, ptyAdapter, getEvents } = yield* createManager(5, {
+        subprocessPollIntervalMs: 25,
+        subprocessInspector: (pid) =>
+          Effect.sync(() => ({
+            hasRunningSubprocess: true,
+            childCommand: "python",
+            processIds: [pid, childPid],
+          })),
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const another = yield* manager.open(openInput({ terminalId: "term-2" }));
+      yield* waitFor(
+        Effect.map(getEvents, (events) =>
+          [terminal, another].every((session) =>
+            events.some(
+              (event) =>
+                event.type === "activity" &&
+                event.terminalId === session.terminalId &&
+                event.label === "python",
+            ),
+          ),
+        ),
+      );
+      const input = {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      };
+      const wrongTarget = yield* manager.proposeAgentInput(thread, {
+        ...input,
+        terminalId: another.terminalId,
+      });
+      expect(wrongTarget.status).toBe("expired");
+      const proposal = yield* manager.proposeAgentInput(thread, input);
+      expect(proposal.status).toBe("pending");
+      childPid += 1;
+      const outcome = yield* manager.reviewAgentInput({
+        action: "approve",
+        requestId: proposal.requestId,
+        threadId: thread.threadId,
+      });
+      expect(outcome.status).toBe("expired");
+      expect(ptyAdapter.processes.map((process) => process.writes)).toEqual([[], []]);
+    }).pipe(Effect.provide(agentInputRegistryLayer)),
+  );
+
+  it.effect("rechecks user writes and the live provider session after approval starts", () =>
+    Effect.gen(function* () {
+      const makeGate = Effect.all({
+        started: Deferred.make<void>(),
+        release: Deferred.make<void>(),
+      });
+      let gate = yield* makeGate;
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        subprocessPollIntervalMs: 60_000,
+        subprocessInspector: () => {
+          const { started, release } = gate;
+          return Deferred.succeed(started, undefined).pipe(
+            Effect.andThen(Deferred.await(release)),
+            Effect.andThen(idleAgentInputInspector),
+          );
+        },
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const input = {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      };
+      const userRace = yield* manager.proposeAgentInput(thread, input);
+      const approve = ({ requestId }: TerminalAgentInputResult) =>
+        manager.reviewAgentInput({ action: "approve", threadId: thread.threadId, requestId });
+      const inFlight = yield* approve(userRace).pipe(Effect.forkScoped);
+      yield* Deferred.await(gate.started);
+      yield* manager.write({
+        threadId: thread.threadId,
+        terminalId: input.terminalId,
+        data: "user",
+      });
+      yield* Deferred.succeed(gate.release, undefined);
+      expect((yield* Fiber.join(inFlight)).status).toBe("expired");
+
+      gate = yield* makeGate;
+      const replaced = yield* manager.proposeAgentInput(thread, input);
+      const secondApproval = yield* approve(replaced).pipe(Effect.forkScoped);
+      yield* Deferred.await(gate.started);
+      const issued = yield* McpSessionRegistry.issueActiveMcpCredential({
+        threadId: thread.threadId,
+        providerInstanceId: thread.providerInstanceId,
+      });
+      assert.isDefined(issued);
+      const status = yield* manager.getAgentInputStatus(issued.config, replaced.requestId);
+      expect(status).toEqual({ requestId: replaced.requestId, status: "expired" });
+      yield* Deferred.succeed(gate.release, undefined);
+      expect((yield* Fiber.join(secondApproval)).status).toBe("expired");
+      expect(ptyAdapter.processes[0]!.writes).toEqual(["user"]);
+    }).pipe(Effect.provide(agentInputRegistryLayer)),
+  );
+
+  it.effect("rechecks the terminal process when its PID still matches", () =>
+    Effect.gen(function* () {
+      let terminalCommand: string | null = "bash";
+      const ptyAdapter = new FakePtyAdapter();
+      const { manager } = yield* createManager(5, {
+        shellResolver: () => "/bin/bash",
+        ptyAdapter,
+        subprocessPollIntervalMs: 60_000,
+        processTable: Effect.sync(() => {
+          const name = terminalCommand;
+          return name === null
+            ? []
+            : ptyAdapter.processes.map(({ pid }) => ({ pid, ppid: 0, name }));
+        }),
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const process = ptyAdapter.processes[0]!;
+      const propose = manager.proposeAgentInput(thread, {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      });
+      const approve = ({ requestId }: TerminalAgentInputResult) =>
+        manager.reviewAgentInput({ action: "approve", requestId, threadId: thread.threadId });
+
+      const first = yield* propose;
+      expect((yield* approve(first)).status).toBe("delivered");
+
+      const replaced = yield* propose;
+      terminalCommand = "python";
+      expect((yield* approve(replaced)).status).toBe("expired");
+
+      const exited = yield* propose;
+      terminalCommand = null;
+      expect((yield* approve(exited)).status).toBe("expired");
+      expect(process.writes).toEqual(["x"]);
+    }).pipe(
+      Effect.provide(agentInputRegistryLayer),
+      Effect.provide(layerWithHostPlatform("linux")),
+    ),
+  );
+
+  it.effect("bounds requests and drops expired approval text", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        subprocessInspector: idleAgentInputInspector,
+        subprocessPollIntervalMs: 60_000,
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const propose = manager.proposeAgentInput(thread, {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      });
+      const first = yield* propose;
+      expect(first.status).toBe("pending");
+      yield* Effect.forEach(Array.from({ length: 255 }), () => propose, { discard: true });
+      expect((yield* propose).status).toBe("expired");
+
+      yield* TestClock.adjust("2 minutes");
+      const review = yield* manager.reviewAgentInput({
+        action: "approve",
+        requestId: first.requestId,
+        threadId: thread.threadId,
+      });
+      expect(review.status).toBe("expired");
+      expect(review).not.toHaveProperty("text");
+      expect(ptyAdapter.processes[0]!.writes).toEqual([]);
+      yield* TestClock.adjust("10 minutes");
+      expect((yield* propose).status).toBe("pending");
+      yield* manager.close({ threadId: thread.threadId, terminalId: terminal.terminalId });
+    }).pipe(Effect.provide(agentInputRegistryLayer), Effect.provide(TestClock.layer())),
+  );
+
+  it.effect("retains a decline or uncertain dispatch for retries without dispatching again", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        subprocessInspector: idleAgentInputInspector,
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const input = {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      };
+      const review = (request: TerminalAgentInputResult, action: "approve" | "decline") =>
+        manager.reviewAgentInput({
+          action,
+          requestId: request.requestId,
+          threadId: thread.threadId,
+        });
+      const declined = yield* manager.proposeAgentInput(thread, input);
+      expect(yield* review(declined, "decline")).toMatchObject({ status: "declined" });
+      expect(yield* review(declined, "approve")).toMatchObject({ status: "declined" });
+
+      const process = ptyAdapter.processes[0]!;
+      const write = vi.spyOn(process, "write").mockImplementationOnce((data) => {
+        process.writes.push(data);
+        throw new Error("Write interrupted after dispatch");
+      });
+      const partial = yield* manager.proposeAgentInput(thread, input);
+      const outcome = yield* review(partial, "approve");
+      expect(outcome.status).toBe("uncertain");
+      expect(outcome).not.toHaveProperty("text");
+      expect(yield* review(partial, "approve")).toEqual(outcome);
+      expect(write).toHaveBeenCalledExactlyOnceWith("x");
+      expect(process.writes).toEqual(["x"]);
+    }).pipe(Effect.provide(agentInputRegistryLayer)),
+  );
+
+  it.effect("declines every pending agent input request of a thread when agent control stops", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        subprocessInspector: idleAgentInputInspector,
+      });
+      const { thread } = yield* issueAgentInputScope();
+      const terminal = yield* manager.open(openInput());
+      const input = {
+        terminalId: terminal.terminalId,
+        instanceId: terminal.instanceId!,
+        text: "x",
+      };
+      const first = yield* manager.proposeAgentInput(thread, input);
+      const second = yield* manager.proposeAgentInput(thread, input);
+      const declined = yield* manager.declinePendingAgentInput(thread.threadId);
+      expect([...declined].toSorted()).toEqual([first.requestId, second.requestId].toSorted());
+      expect(
+        yield* manager.reviewAgentInput({
+          action: "approve",
+          requestId: first.requestId,
+          threadId: thread.threadId,
+        }),
+      ).toMatchObject({ status: "declined" });
+      expect(ptyAdapter.processes[0]!.writes).toEqual([]);
+      expect(yield* manager.declinePendingAgentInput(thread.threadId)).toEqual([]);
+    }).pipe(Effect.provide(agentInputRegistryLayer)),
+  );
+
   it.effect("spawns lazily and reuses running terminal per thread", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -936,12 +1384,34 @@ it.layer(
           worktreePath: firstWorktreePath,
         }),
       );
+      const readInstanceId = (terminalId: string) =>
+        Effect.gen(function* () {
+          let instanceId: string | undefined;
+          const unsubscribe = yield* manager.subscribeMetadata((event) =>
+            Effect.sync(() => {
+              if (event.type === "snapshot") {
+                instanceId = event.terminals.find(
+                  (terminal) => terminal.terminalId === terminalId,
+                )?.instanceId;
+              }
+            }),
+          );
+          unsubscribe();
+          return instanceId;
+        });
+      const startedInstance = yield* readInstanceId(startedSnapshot.terminalId);
       const restartedSnapshot = yield* manager.restart(
         restartInput({
           cwd: secondWorktreePath,
           worktreePath: secondWorktreePath,
         }),
       );
+      const restartedInstance = yield* readInstanceId(restartedSnapshot.terminalId);
+      expect(startedInstance).toBeTruthy();
+      expect(restartedInstance).toBeTruthy();
+      expect(restartedInstance).not.toBe(startedInstance);
+      expect(startedSnapshot.instanceId).toBe(startedInstance);
+      expect(restartedSnapshot.instanceId).toBe(restartedInstance);
 
       assert.equal(startedSnapshot.worktreePath, firstWorktreePath);
       assert.equal(restartedSnapshot.worktreePath, secondWorktreePath);
@@ -957,6 +1427,8 @@ it.layer(
 
       assert.equal(startedEvent?.snapshot.worktreePath, firstWorktreePath);
       assert.equal(restartedEvent?.snapshot.worktreePath, secondWorktreePath);
+      assert.equal(startedEvent?.snapshot.instanceId, startedInstance);
+      assert.equal(restartedEvent?.snapshot.instanceId, restartedInstance);
     }),
   );
 
@@ -2736,7 +3208,7 @@ it.layer(
         ptyAdapter: new FakePtyAdapter("async"),
       });
 
-      yield* manager.open(openInput());
+      const opened = yield* manager.open(openInput());
       const process = ptyAdapter.processes[0];
       expect(process).toBeDefined();
       if (!process) return;
@@ -2759,8 +3231,18 @@ it.layer(
         (event) => event.type === "output" || event.type === "exited",
       );
       expect(relevant).toEqual([
-        expect.objectContaining({ type: "output", data: "first\n", sequence: 2 }),
-        expect.objectContaining({ type: "output", data: "second\n", sequence: 3 }),
+        expect.objectContaining({
+          type: "output",
+          data: "first\n",
+          sequence: 2,
+          instanceId: opened.instanceId,
+        }),
+        expect.objectContaining({
+          type: "output",
+          data: "second\n",
+          sequence: 3,
+          instanceId: opened.instanceId,
+        }),
         expect.objectContaining({ type: "exited", exitCode: 0, exitSignal: 0, sequence: 4 }),
       ]);
 

@@ -48,6 +48,8 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as ComputerHandlers from "./toolkits/computer/handlers.ts";
 import * as ComputerUse from "../computerUse/ComputerUseService.ts";
 import * as ThemeHandlers from "./toolkits/theme/handlers.ts";
+import * as TerminalInputHandlers from "./toolkits/terminal/handlers.ts";
+import { TerminalInputToolkit } from "./toolkits/terminal/tools.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
@@ -968,6 +970,10 @@ const layerProjectRegistration = toolkit(ProjectToolkit).pipe(Layer.provide(Proj
 
 const layerAttachmentRegistration = toolkit(AttachmentToolkit).pipe(
   Layer.provide(AttachmentHandlers.layer),
+);
+
+export const layerTerminalInputToolkit = toolkit(TerminalInputToolkit).pipe(
+  Layer.provide(TerminalInputHandlers.layer),
 );
 
 export const layerPullRequestsToolkit = toolkit(PullRequestsToolkit).pipe(

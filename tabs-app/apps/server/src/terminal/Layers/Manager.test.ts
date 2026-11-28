@@ -21,14 +21,14 @@ import { TerminalManagerRuntime } from "./Manager";
 import { Effect, Encoding } from "effect";
 
 class FakePtyProcess implements PtyProcess {
+  // This double has no OS process group. Keep shutdown signals in kill().
+  readonly pid = 0;
   readonly writes: string[] = [];
   readonly resizeCalls: Array<{ cols: number; rows: number }> = [];
   readonly killSignals: Array<string | undefined> = [];
   private readonly dataListeners = new Set<(data: string) => void>();
   private readonly exitListeners = new Set<(event: PtyExitEvent) => void>();
   killed = false;
-
-  constructor(readonly pid: number) {}
 
   write(data: string): void {
     this.writes.push(data);
@@ -74,7 +74,6 @@ class FakePtyAdapter implements PtyAdapterShape {
   readonly spawnInputs: PtySpawnInput[] = [];
   readonly processes: FakePtyProcess[] = [];
   readonly spawnFailures: Error[] = [];
-  private nextPid = 9000;
 
   constructor(private readonly mode: "sync" | "async" = "sync") {}
 
@@ -90,7 +89,7 @@ class FakePtyAdapter implements PtyAdapterShape {
         }),
       );
     }
-    const process = new FakePtyProcess(this.nextPid++);
+    const process = new FakePtyProcess();
     this.processes.push(process);
     if (this.mode === "async") {
       return Effect.tryPromise({
