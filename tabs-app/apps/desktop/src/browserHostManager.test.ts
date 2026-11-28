@@ -1157,6 +1157,61 @@ describe("reliable browser tabs and agent control", () => {
     );
   });
 
+  it("claims only the exact idle, unowned browser tab when moving it to a thread", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const sessionId = "agents-surface-move";
+    const { session, webContents } = createMockSession({
+      sessionId,
+      key: `project-1::${sessionId}`,
+      profileId: "work",
+      partition: "persist:tabs-browser:profile:work",
+      currentUrl: "https://app.test/draft/42",
+    });
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      isLoadingMainFrame: () => false,
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const state = manager.getSessionState(session.projectId, sessionId);
+    const move = {
+      projectId: session.projectId,
+      sessionId,
+      taskId: "receiving",
+      source: "human",
+      operation: "authorizeBrowserPage",
+      input: {
+        url: session.currentUrl,
+        profileId: "work",
+        instanceId: state.instanceId,
+        pageApprovalToken: state.pageApprovalToken,
+        adoptOpenTab: true,
+      },
+    } as const;
+    const run = () => manager.runAutomation(move);
+    Object.assign(session, { assignedTaskId: "origin" });
+    await expect(run()).rejects.toThrow("another thread");
+    session.assignedTaskId = null;
+    Object.assign(session, { verificationLease: Symbol("running") });
+    await expect(run()).rejects.toThrow("Finish using");
+    Object.assign(session, { verificationLease: undefined });
+    await expect(
+      manager.runAutomation({
+        ...move,
+        input: { ...move.input, pageApprovalToken: "changed" },
+      }),
+    ).rejects.toThrow("page changed");
+    expect(session.assignedTaskId).toBeNull();
+    await expect(run()).resolves.toMatchObject({ approved: true });
+    expect(manager.getSessionState(session.projectId, sessionId)).toMatchObject({
+      instanceId: state.instanceId,
+      currentUrl: state.currentUrl,
+      profileId: "work",
+      assignedTaskId: "receiving",
+      browserPageAuthorized: true,
+    });
+    await expect(run()).rejects.toThrow("Finish using");
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
