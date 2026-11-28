@@ -6650,6 +6650,38 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("keeps separate source and destination frame approvals for the same draft", async () => {
+    const f = createUploadFixture();
+    const first = {
+      runId: "92724452-d32a-42f1-9771-75656595c621",
+      side: "source",
+      step: 2,
+    };
+    const second = { ...first, side: "target" };
+    const a = await f.authorize("human", {
+      frame: first,
+      allowPageControl: true,
+    });
+    const b = await f.authorize("human", {
+      frame: second,
+      allowPageControl: true,
+    });
+    await expect(f.transfer(a.grantId, { phase: "inspect" })).resolves.toMatchObject({
+      frame: first,
+    });
+    await expect(f.transfer(b.grantId, { phase: "inspect" })).resolves.toMatchObject({
+      frame: second,
+    });
+    await expect(f.transfer(a.grantId, { frame: second })).rejects.toThrow("source");
+    await expect(f.transfer(a.grantId)).rejects.toThrow("source");
+    await expect(f.transfer(a.grantId, { frame: first })).resolves.toEqual({
+      attached: true,
+    });
+    await expect(f.transfer(b.grantId, { frame: second })).resolves.toEqual({
+      attached: true,
+    });
+  });
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
