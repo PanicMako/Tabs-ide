@@ -9,11 +9,33 @@
  * never mix with activities from any other source.
  */
 
-import type { OrchestrationThreadActivity } from "@tabs/contracts";
+import {
+  BrowserQuickActionRequestRef,
+  BrowserQuickActionFileResultRef,
+  BrowserWorkflowResultRef,
+  DeviceAccessRequestRef,
+  DeviceComparisonRequestRef,
+  DeviceComparisonResultRef,
+  FigmaCanvasResultRef,
+  TerminalAgentInputRef,
+  type OrchestrationThreadActivity,
+} from "@tabs/contracts";
+import * as Schema from "effect/Schema";
 
 export const TURN_ITEM_ACTIVITY_ID_PREFIX = "v2-item:";
 
 type ItemRecord = Readonly<Record<string, unknown>>;
+const isComparisonResult = Schema.is(DeviceComparisonResultRef);
+const isUnverifiedScreenshot = Schema.is(
+  Schema.Struct({ sha256: Schema.String, receiptKind: Schema.Literal("pageText") }),
+);
+const isComparisonCompletion = Schema.is(DeviceComparisonRequestRef);
+const isComparisonRequest = Schema.is(DeviceAccessRequestRef);
+const isBrowserResult = Schema.is(BrowserWorkflowResultRef);
+const isBrowserQuickActionRequest = Schema.is(BrowserQuickActionRequestRef);
+const isBrowserQuickActionFileResult = Schema.is(BrowserQuickActionFileResultRef);
+const isFigmaResult = Schema.is(FigmaCanvasResultRef);
+const isTerminalInput = Schema.is(TerminalAgentInputRef);
 
 function text(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -109,7 +131,62 @@ export function activityFromTurnItem(item: ItemRecord): OrchestrationThreadActiv
     }
     case "dynamic_tool": {
       const toolName = text(item.toolName);
-      const output = outputText(item.output);
+      const references =
+        item.status === "completed" &&
+        item.outputOmitted === true &&
+        item.output &&
+        typeof item.output === "object"
+          ? (item.output as ItemRecord)
+          : undefined;
+      const deviceDifference = isComparisonResult(references?.deviceDifference)
+        ? references.deviceDifference
+        : undefined;
+      const verifiedEvidenceDraft = isComparisonResult(references?.verifiedEvidenceDraft)
+        ? references.verifiedEvidenceDraft
+        : undefined;
+      const unverifiedScreenshotDraft = isUnverifiedScreenshot(
+        references?.unverifiedScreenshotDraft,
+      )
+        ? references.unverifiedScreenshotDraft
+        : undefined;
+      const deviceCompletion = isComparisonCompletion(references?.deviceCompletion)
+        ? references.deviceCompletion
+        : undefined;
+      const deviceComparisonRequest = isComparisonRequest(references?.deviceComparisonRequest)
+        ? references.deviceComparisonRequest
+        : undefined;
+      const browserWorkflowResult = isBrowserResult(references?.browserWorkflowResult)
+        ? references.browserWorkflowResult
+        : undefined;
+      const browserQuickActionRequest = isBrowserQuickActionRequest(
+        references?.browserQuickActionRequest,
+      )
+        ? references.browserQuickActionRequest
+        : undefined;
+      const figmaCanvasResult = isFigmaResult(references?.figmaCanvasResult)
+        ? references.figmaCanvasResult
+        : undefined;
+      const browserQuickActionFileResult = isBrowserQuickActionFileResult(
+        references?.browserQuickActionFileResult,
+      )
+        ? references.browserQuickActionFileResult
+        : undefined;
+      const terminalAgentInput = isTerminalInput(references?.terminalAgentInput)
+        ? references.terminalAgentInput
+        : undefined;
+      const output =
+        deviceComparisonRequest ||
+        deviceDifference ||
+        verifiedEvidenceDraft ||
+        unverifiedScreenshotDraft ||
+        deviceCompletion ||
+        browserWorkflowResult ||
+        browserQuickActionRequest ||
+        browserQuickActionFileResult ||
+        figmaCanvasResult ||
+        terminalAgentInput
+          ? null
+          : outputText(item.output);
       const input = item.input && typeof item.input === "object" ? item.input : undefined;
       return toActivity(item, {
         tone: failed ? "error" : "tool",
@@ -120,6 +197,16 @@ export function activityFromTurnItem(item: ItemRecord): OrchestrationThreadActiv
           ...(title ? { title } : {}),
           ...(toolName ? { toolName } : {}),
           ...(output ? { detail: output } : {}),
+          ...(deviceDifference ? { deviceDifference } : {}),
+          ...(verifiedEvidenceDraft ? { verifiedEvidenceDraft } : {}),
+          ...(unverifiedScreenshotDraft ? { unverifiedScreenshotDraft } : {}),
+          ...(deviceCompletion ? { deviceCompletion } : {}),
+          ...(deviceComparisonRequest ? { deviceComparisonRequest } : {}),
+          ...(browserWorkflowResult ? { browserWorkflowResult } : {}),
+          ...(browserQuickActionRequest ? { browserQuickActionRequest } : {}),
+          ...(browserQuickActionFileResult ? { browserQuickActionFileResult } : {}),
+          ...(figmaCanvasResult ? { figmaCanvasResult } : {}),
+          ...(terminalAgentInput ? { terminalAgentInput } : {}),
           ...(input ? { data: { item: { input } } } : {}),
         },
       });
