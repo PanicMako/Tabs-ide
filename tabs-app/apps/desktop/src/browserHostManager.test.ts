@@ -2007,6 +2007,35 @@ describe("reliable browser tabs and agent control", () => {
     };
   }
 
+  it("revokes the page grant when the visible signed-in account changes", async () => {
+    const manager = new BrowserHostManager(() => null);
+    let marker: string | null = "a".repeat(64);
+    vi.spyOn(manager as any, "readAccountMarker").mockImplementation(async () => marker);
+    const tab = openCookieChangeTab(
+      manager,
+      "account-marker",
+      "https://reports.example.test/draft",
+      { cookies: new EventEmitter() },
+    );
+    await tab.approve();
+    expect(tab.state().browserPageAuthorized).toBe(true);
+    // Same marker (or none visible yet) never revokes.
+    await tab.act("snapshot").catch(() => undefined);
+    marker = null;
+    await tab.act("snapshot").catch(() => undefined);
+    expect(tab.state().browserPageAuthorized).toBe(true);
+    marker = "b".repeat(64);
+    await expect(tab.act("snapshot")).rejects.toThrow(
+      "The signed-in account on this page changed. Review access again.",
+    );
+    expect(tab.state().browserPageAuthorized).toBe(false);
+    // A grant approved again binds to the new account.
+    await tab.approve();
+    expect(tab.state().browserPageAuthorized).toBe(true);
+    await tab.act("snapshot").catch(() => undefined);
+    expect(tab.state().browserPageAuthorized).toBe(true);
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
