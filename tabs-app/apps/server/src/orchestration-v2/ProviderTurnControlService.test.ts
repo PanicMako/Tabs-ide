@@ -263,6 +263,7 @@ it.effect(
         ProviderSessionManager.ProviderSessionManagerV2,
         ProviderSessionManager.ProviderSessionManagerV2.of({
           shutdown: Effect.void,
+          figmaMcpConnection: () => Effect.succeed(undefined),
           open: () => Effect.die("unused open"),
           get: (providerSessionId) =>
             Effect.succeed(

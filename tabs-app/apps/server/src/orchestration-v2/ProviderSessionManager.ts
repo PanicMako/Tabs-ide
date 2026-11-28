@@ -41,6 +41,8 @@ import {
 import { ProviderWorkspaceMissingError } from "../provider/Errors.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as McpProviderSession from "../mcp/McpProviderSession.ts";
+import type { McpThreadCaller } from "../mcp/McpInvocationContext.ts";
+import type { FigmaMcpConnection } from "../mcp/toolkits/figmaCanvas/connection.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as EventSink from "./EventSink.ts";
@@ -48,6 +50,7 @@ import * as IdAllocator from "./IdAllocator.ts";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import {
   ProviderAdapterEventStreamError,
+  ProviderAdapterProtocolError,
   ProviderAdapterV2RuntimePolicy,
   type ProviderAdapterV2Error,
   type ProviderAdapterV2Event,
@@ -152,6 +155,9 @@ export type ProviderSessionManagerV2Error = typeof ProviderSessionManagerV2Error
 
 export interface ProviderSessionManagerV2Shape {
   readonly shutdown: Effect.Effect<void>;
+  readonly figmaMcpConnection: (
+    caller: McpThreadCaller,
+  ) => Effect.Effect<FigmaMcpConnection | undefined, never, Scope.Scope>;
   readonly open: (input: {
     readonly threadId: ThreadId;
     readonly providerSessionId: ProviderSessionId;
@@ -1895,6 +1901,78 @@ export const layerWithOptions = (
               return exposedRuntime;
             }),
           ),
+        figmaMcpConnection: (caller) =>
+          Effect.gen(function* () {
+            const context = yield* projectionStore
+              .getRunningTurnContext(caller.threadId)
+              .pipe(Effect.option);
+            if (Option.isNone(context)) return undefined;
+            const { run, providerThread, providerTurn } = context.value;
+            const providerSessionId = providerThread?.providerSessionId;
+            if (
+              !run ||
+              !providerTurn ||
+              !providerSessionId ||
+              providerThread.appThreadId !== caller.threadId ||
+              providerThread.providerInstanceId !== caller.providerInstanceId ||
+              providerThread.nativeThreadRef?.driver !== "codex"
+            )
+              return undefined;
+            const callerIsCurrent = Effect.gen(function* () {
+              const config = McpProviderSession.readMcpProviderSession(caller.threadId);
+              if (
+                config?.providerSessionId !== caller.providerSessionId ||
+                config.providerInstanceId !== caller.providerInstanceId
+              )
+                return false;
+              const credential = yield* mcpSessionRegistry.resolve(
+                config.authorizationHeader.replace(/^Bearer\s+/u, ""),
+              );
+              return (
+                credential?.thread.providerSessionId === caller.providerSessionId &&
+                credential.capabilities.has("preview")
+              );
+            });
+            if (!(yield* callerIsCurrent)) return undefined;
+            const currentEntry = (yield* Ref.get(sessions)).get(sessionKey(providerSessionId));
+            if (
+              !currentEntry?.runtime.figmaMcp ||
+              !currentEntry.attachedThreadIds.has(caller.threadId) ||
+              currentEntry.mcpCredentialIdByThread.get(caller.threadId) !== caller.providerSessionId
+            )
+              return undefined;
+            const connection = yield* currentEntry.runtime.figmaMcp(providerThread);
+            if (!connection) return undefined;
+            const requireCurrent = Effect.gen(function* () {
+              const live = yield* projectionStore
+                .getRunningTurnContext(caller.threadId)
+                .pipe(Effect.option);
+              const sameTurn =
+                Option.isSome(live) &&
+                live.value.run?.id === run.id &&
+                live.value.providerTurn?.id === providerTurn.id &&
+                live.value.providerThread?.id === providerThread.id &&
+                live.value.providerThread.providerSessionId === providerSessionId;
+              const callerActive = sameTurn && (yield* callerIsCurrent);
+              const current = (yield* Ref.get(sessions)).get(sessionKey(providerSessionId));
+              if (
+                callerActive &&
+                current?.runtime === currentEntry.runtime &&
+                current.attachedThreadIds.has(caller.threadId) &&
+                current.mcpCredentialIdByThread.get(caller.threadId) === caller.providerSessionId
+              )
+                return;
+              return yield* new ProviderAdapterProtocolError({
+                driver: providerThread.driver,
+                detail: "The Figma connection no longer belongs to this active thread",
+              });
+            });
+            return {
+              list: () => requireCurrent.pipe(Effect.flatMap(connection.list)),
+              call: (name, args) =>
+                requireCurrent.pipe(Effect.flatMap(() => connection.call(name, args))),
+            } satisfies FigmaMcpConnection;
+          }),
         get: (providerSessionId) =>
           Effect.gen(function* () {
             const entry = (yield* Ref.get(sessions)).get(sessionKey(providerSessionId));
