@@ -224,6 +224,7 @@ interface BlockedCombo {
 // Most specific first so the error names what the combo would actually do. Extra modifiers still
 // match: Cmd+Alt+Shift+Q logs out just like Cmd+Shift+Q.
 const MAC_BLOCKED: ReadonlyArray<BlockedCombo> = [
+  { modifiers: ["command"], key: "tab", effect: "switch apps" },
   { modifiers: ["command", "control"], key: "q", effect: "lock the screen" },
   { modifiers: ["command", "shift"], key: "q", effect: "log out of macOS" },
   { modifiers: ["command", "option"], key: "escape", effect: "open the Force Quit window" },
@@ -233,6 +234,7 @@ const MAC_BLOCKED: ReadonlyArray<BlockedCombo> = [
 ];
 
 const WINDOWS_BLOCKED: ReadonlyArray<BlockedCombo> = [
+  { modifiers: ["option"], key: "tab", effect: "switch windows" },
   { modifiers: ["option"], key: "f4", effect: "close the app" },
   { modifiers: ["super"], key: "l", effect: "lock Windows" },
   { modifiers: ["control", "shift"], key: "escape", effect: "open Task Manager" },
@@ -240,6 +242,7 @@ const WINDOWS_BLOCKED: ReadonlyArray<BlockedCombo> = [
 ];
 
 const LINUX_BLOCKED: ReadonlyArray<BlockedCombo> = [
+  { modifiers: ["option"], key: "tab", effect: "switch windows" },
   { modifiers: ["control", "option"], key: "forwarddelete", effect: "open the log out dialog" },
   { modifiers: ["control", "option"], key: "backspace", effect: "end the X session" },
   ...Array.from({ length: 12 }, (_, i) => ({
