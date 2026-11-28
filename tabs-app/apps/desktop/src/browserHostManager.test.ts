@@ -8644,6 +8644,35 @@ describe("reliable browser tabs and agent control", () => {
         receiptKind: "image",
       });
     });
+
+    it("requires both paired receipts before and after reload, even when their hashes match", async () => {
+      const f = await setup(undefined, undefined, true);
+      await f.verify();
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+      await expect(readdir(f.userData)).resolves.toEqual([]);
+      f.receipt.text = `${f.digest}\n${f.digest}`;
+      await f.observe();
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+      await f.verify();
+      expect(await readdir(f.directory)).toHaveLength(3);
+      await expect(f.findComparison(f.manager)).resolves.toMatchObject({
+        tabId: f.target.sessionId,
+        profileId: "work",
+      });
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted);
+      await expect(f.enter(restarted)).rejects.toThrow("screenshot receipt");
+      tab.content.text = f.receipt.text;
+      await expect(f.enter(restarted)).resolves.toMatchObject({
+        url: f.draftUrl,
+      });
+      const other = f.tab(new BrowserHostManager(() => null), {
+        profileId: "personal",
+      });
+      expect(other.loadURL).not.toHaveBeenCalled();
+      await unlink(join(f.directory, `screenshot-draft-${f.input.pairedGrantId}`));
+      await expect(f.enter(restarted)).rejects.toThrow("Both screenshot receipts");
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
