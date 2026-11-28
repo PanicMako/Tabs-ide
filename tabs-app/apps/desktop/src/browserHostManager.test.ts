@@ -7707,6 +7707,17 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.evaluate).not.toHaveBeenCalled();
       await expect(readdir(f.userData)).resolves.toEqual([]);
     });
+
+    it("declines a URL with credentials even when the caller has the matching live page reference", async () => {
+      const f = await setup("https://user:private@app.test/reports");
+      expect(f.input.pageRef).toBeUndefined();
+      const pageRef = (f.manager as any).pageReference(f.session, f.address);
+      await expect(f.capture({ input: { ...f.input, pageRef } })).resolves.toEqual({
+        attachmentId: null,
+      });
+      expect(f.evaluate).not.toHaveBeenCalled();
+      await expect(readdir(f.userData)).resolves.toEqual([]);
+    });
   });
 
   describe.skip("saved screenshot drafts", () => {
