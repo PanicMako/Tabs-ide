@@ -377,4 +377,23 @@ test.each([
   }
 });
 
+test("rejects a draft URL that exceeds the contract limit after normalization", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-draft-length-"));
+  try {
+    const url = journalDefinition.url + "?view=" + "é".repeat(400);
+    const isDraftUrl = Schema.is(BrowserWorkflowDefinition.fields.url);
+    expect(isDraftUrl(url)).toBe(true);
+    expect(isDraftUrl(new URL(url).href)).toBe(false);
+    const browser = vi.fn(async () => status("uploaded"));
+    const workflows = makeBrowserWorkflows(directory, journalOwner, browser);
+    await expect(
+      workflows.arm({ ...armJournal, definition: { ...journalDefinition, url } }),
+    ).rejects.toThrow("The draft URL is too long after normalization.");
+    expect(browser).not.toHaveBeenCalled();
+    expect(existsSync(join(directory, "browser-workflows"))).toBe(false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
