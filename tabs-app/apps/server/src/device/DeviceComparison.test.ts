@@ -2514,6 +2514,35 @@ describe("Device comparison", () => {
     });
     expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
   });
+
+  it.each([
+    { title: "an empty tree", chrome: [] },
+    { title: "only the app header", chrome: ["Guest checkout"] },
+  ])("rechecks a launch that shows $title before dispatching input", async ({ chrome }) => {
+    const total = ["Total: $20.00"];
+    const f = fixture(
+      [frame("ios", ["Continue"], total), frame("ios", [], total)],
+      [frame("android", ["Continue"], total), frame("android", [], total)],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    f.snapshot.mockImplementationOnce(() => Effect.succeed(frame("android", [], chrome)));
+
+    await f.replay(runId, {
+      sourceLabel: "Total",
+      targetLabel: "Total",
+      currency: "USD",
+    });
+    expect((await f.settle()).run).toMatchObject({
+      phase: "completed",
+      completedSteps: 1,
+    });
+    expect(f.press.mock.calls).toEqual([
+      [iphone.hostId, "@e1~s42"],
+      [pixel.hostId, "@e1~s42"],
+    ]);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
