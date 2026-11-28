@@ -787,6 +787,128 @@ describe("Agent-led device comparison", () => {
     });
     expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId, pixel.hostId]);
   });
+
+  it.each(["same handoff", "device reopened", "provider replaced"] as const)(
+    "reconciles a lost correction continuation acknowledgement with %s",
+    async (scenario) => {
+      const f = fixture(
+        [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])],
+        [frame("android", ["Back"]), frame("android", [], ["Order review"])],
+      );
+      const runId = (await f.propose()).run!.runId;
+      const { run } = await f.approveRecording(runId);
+      const source = await f.record({ action: "inspect", runId });
+      await f.record({
+        action: "tap",
+        runId,
+        controlId: source.controls![0]!.id,
+      });
+      const outcome = await f.record({ action: "inspect", runId });
+      await f.record({
+        action: "expect",
+        runId,
+        controlId: outcome.controls![0]!.id,
+      });
+      await f.record({ action: "finish", runId });
+      await f.invoke(
+        { action: "replay", threadId, runId, approvalId: run!.approvalId! },
+        undefined,
+        recordingCaller,
+      );
+      expect((await f.settle()).run?.phase).toBe("paused");
+      const takeover = {
+        action: "takeover",
+        threadId,
+        runId,
+        liveInput: true,
+      } as const;
+      await f.invoke(takeover, panelSession);
+      const status = { action: "status", threadId, device: pixel } as const;
+      const { manualControlId } = await f.invoke(status, panelSession);
+      const controlId = manualControlId!;
+      f.manual.mockImplementationOnce(() =>
+        Effect.sync(() => {
+          f.positions.set(pixel.hostId, 1);
+        }),
+      );
+      await f.invoke(
+        {
+          action: "manualInput",
+          threadId,
+          runId,
+          controlId,
+          gesture: { type: "tap", x: 0.5, y: 0.5 },
+        },
+        panelSession,
+      );
+      const resume = {
+        action: "resume",
+        threadId,
+        runId,
+        controlId,
+        stepCompleted: true,
+      } as const;
+      const accepted = new Set<string>();
+      const dispatch = vi.fn<DispatchDeviceReturn>((receipt, current) =>
+        Effect.sync(() => {
+          expect(current()).toBe(true);
+          expect(receipt).toMatchObject({
+            id: controlId,
+            threadId,
+            comparisonRunId: runId,
+            target: pixel,
+            appId: androidApp,
+          });
+          accepted.add(receipt.id);
+        }),
+      );
+      const accept = dispatch.getMockImplementation()!;
+      dispatch.mockImplementationOnce((...args) =>
+        accept(...args).pipe(Effect.andThen(new DeviceComparisonError({ reason: "Reply lost." }))),
+      );
+      await expect(f.invoke(resume, panelSession, undefined, dispatch)).rejects.toThrow(
+        "Reply lost",
+      );
+      expect((await f.settle()).run).toMatchObject({
+        phase: "completed",
+        completedSteps: 1,
+      });
+      expect((await f.invoke(status, panelSession)).pendingReplayReturn).toEqual({
+        controlId,
+        stepCompleted: true,
+      });
+      const stranger = AuthSessionId.make("other-panel");
+      expect((await f.invoke(status, stranger)).pendingReplayReturn).toBeUndefined();
+      expect(
+        (await f.invoke({ ...status, device: iphone }, panelSession)).pendingReplayReturn,
+      ).toBeUndefined();
+      await expect(f.invoke(resume, stranger, undefined, dispatch)).rejects.toThrow("session");
+      await expect(
+        f.invoke({ ...resume, threadId: otherThreadId }, panelSession, undefined, dispatch),
+      ).rejects.toThrow("no longer available");
+      await expect(
+        f.invoke({ ...resume, stepCompleted: false }, panelSession, undefined, dispatch),
+      ).rejects.toThrow("session");
+      if (scenario === "device reopened") f.reopenDestination();
+      if (scenario === "provider replaced") f.replaceProvider();
+      if (scenario === "same handoff") {
+        await Promise.all([
+          f.invoke(resume, panelSession, undefined, dispatch),
+          f.invoke(resume, panelSession, undefined, dispatch),
+        ]);
+        expect(dispatch).toHaveBeenCalledTimes(2);
+      } else {
+        await expect(f.invoke(resume, panelSession, undefined, dispatch)).rejects.toThrow(
+          "not paused",
+        );
+        expect(dispatch).toHaveBeenCalledTimes(1);
+      }
+      expect(accepted.size).toBe(1);
+      expect((await f.invoke(status, panelSession)).pendingReplayReturn).toBeUndefined();
+      expect(f.manual).toHaveBeenCalledTimes(1);
+      expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId]);
+    },
+  );
 });
 
 describe.skip("Device comparison", () => {
