@@ -2799,6 +2799,39 @@ describe("Device comparison", () => {
     expect(f.press).toHaveBeenCalledTimes(1);
     expect(f.service.inputAllowed(pixel.hostId, pixel.deviceId)).toBe(true);
   });
+
+  it("cancels a queued panel correction when the user takes over the live device", async () => {
+    const f = fixture([frame("ios", ["Continue"]), frame("ios", [])], [frame("android", ["Back"])]);
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    const paused = await f.settle();
+    const correction = paused.controls?.find(({ label }) => label === "Back");
+    expect(correction).toBeDefined();
+    const ready = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const press = f.driver.press;
+    Object.assign(f.driver, {
+      press: (...args: Parameters<SemanticDriver["press"]>) =>
+        Effect.promise(() => {
+          ready.resolve();
+          return release.promise;
+        }).pipe(Effect.andThen(press(...args))),
+    });
+    try {
+      await f.invoke({ action: "tap", threadId, runId, controlId: correction!.id }, panelSession);
+      await ready.promise;
+      await f.invoke({ action: "takeover", threadId, runId, liveInput: true }, panelSession);
+    } finally {
+      release.resolve();
+    }
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      uncertainTap: false,
+    });
+    expect(f.press.mock.calls.filter(([hostId]) => hostId === pixel.hostId)).toEqual([]);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
