@@ -240,6 +240,288 @@ it("opens device review from chat without approving it, on the original source h
   ).rejects.toThrow("no longer awaiting review");
 });
 
+it.each(["verified", "pending"] as const)(
+  "opens the exact comparison outcomes and %s draft from the chat work log",
+  async (draftStatus) => {
+    const threadId = ThreadId.make("comparison-result-thread");
+    const threadScope = `${testEnvironment}:${threadId}`;
+    const reference = { runId: "f49d91d0-b366-4521-a267-a90fa439732c", step: 2 };
+    const newer = { runId: "efd80977-eaaf-4974-9476-1c8622769579", step: 2 };
+    const matched = { runId: "f742526f-382d-44af-8795-4b8485f28f31" };
+    const createdAt = "2026-11-25T01:02:00.000Z";
+    const draftUrl = "https://quality.test/work/checkout";
+    const surfaces = useCompanionSurfaceStore.getState();
+    const work = surfaces.open(threadScope, "browser", { profileId: "work" });
+    const personal = surfaces.open(threadScope, "browser", { profileId: "personal" });
+    const workTabId = `agents-surface-${work}`;
+    const workState = {
+      ...emptyBrowserState("project", workTabId),
+      assignedTaskId: threadId,
+      instanceId: "restored-work-tab",
+      profileId: "work",
+      currentUrl: draftUrl,
+    };
+    let draftAvailable = false;
+    bridge.runBrowserAutomation.mockImplementation(async ({ operation }) => {
+      if (operation === "findDeviceComparisonDraft")
+        return draftAvailable
+          ? {
+              tabId: workTabId,
+              profileId: "work",
+              ...(draftStatus === "pending" && { pending: true }),
+            }
+          : null;
+      if (operation === "enterDeviceComparisonDraft") return { url: draftUrl };
+    });
+    const run = {
+      runId: reference.runId,
+      phase: "completed" as const,
+      source: {
+        hostId: "mac-host",
+        deviceId: "phone",
+        name: "iPhone",
+        appId: "com.apple.mobilesafari",
+        platform: "ios" as const,
+      },
+      target: {
+        hostId: "pixel-host",
+        deviceId: "phone",
+        name: "Pixel",
+        appId: "com.android.chrome",
+        platform: "android" as const,
+      },
+      savedAt: createdAt,
+      busy: false,
+      playing: false,
+      completedSteps: 2,
+      canResume: false,
+      uncertainTap: false,
+      steps: [{ label: "Checkout" }, { label: "Review" }],
+      availableEvidence: { source: true, target: true },
+      firstDifference: {
+        step: 2,
+        kind: "total" as const,
+        reason: "The totals differ.",
+        sourceTotal: "$20.00",
+        targetTotal: "$22.00",
+      },
+    };
+    const {
+      firstDifference: _difference,
+      availableEvidence: _evidence,
+      ...comparisonSummary
+    } = run;
+    const completed = {
+      ...comparisonSummary,
+      ...matched,
+      phase: "completed" as const,
+      completedSteps: run.steps.length,
+    };
+    comparison.mockImplementation(async (input) => {
+      if (input.action === "evidence" && input.runId === reference.runId)
+        return { run, evidence: { sourcePng: png, targetPng: png } };
+      if (input.action === "status" && input.runId === reference.runId) return { run };
+      if (input.action === "status" && input.runId === matched.runId) return { run: completed };
+      return { run: { ...run, ...newer } };
+    });
+    const items = [1, 2].map((ordinal) => ({
+      id: `status-${ordinal}`,
+      ordinal,
+      type: "dynamic_tool",
+      status: "completed",
+      toolName: "t3-code.device_comparison_status",
+      updatedAt: createdAt,
+      outputOmitted: true,
+      output: { deviceDifference: reference },
+    }));
+    items.push({
+      ...items[0]!,
+      id: "unprojected-result",
+      ordinal: 3,
+      outputOmitted: false,
+      output: { deviceDifference: { ...newer, step: 3 } },
+    });
+    const entries = deriveTimelineEntries(
+      [],
+      [],
+      deriveWorkLogEntries(
+        activitiesFromTurnItems([
+          ...items,
+          {
+            ...items[0]!,
+            id: "corrected-result",
+            ordinal: 4,
+            output: { deviceDifference: reference, deviceCompletion: { runId: reference.runId } },
+          },
+          { ...items[0]!, id: "matched-result", ordinal: 5, output: { deviceCompletion: matched } },
+        ]),
+        undefined,
+      ),
+    );
+    const previousEnvironment = getPrimaryEnvironmentId();
+    setPrimaryEnvironmentIdForTesting(testEnvironment);
+    const view = await render(
+      <>
+        <MessagesTimeline
+          hasMessages
+          isWorking={false}
+          activeTurnInProgress={false}
+          activeTurnStartedAt={null}
+          scrollContainer={null}
+          timelineEntries={entries}
+          completionDividerBeforeEntryId={null}
+          completionSummary={null}
+          turnDiffSummaryByAssistantMessageId={new Map()}
+          nowIso={createdAt}
+          expandedWorkGroups={{}}
+          onToggleWorkGroup={() => {}}
+          onOpenTurnDiff={() => {}}
+          onOpenDeviceComparison={(result) =>
+            openDeviceComparisonResult(testEnvironment, threadId, result)
+          }
+          revertTurnCountByUserMessageId={new Map()}
+          onRevertUserMessage={() => {}}
+          isRevertingCheckpoint={false}
+          onImageExpand={() => {}}
+          markdownCwd={undefined}
+          resolvedTheme="light"
+          timestampFormat="locale"
+          workspaceRoot={undefined}
+          latestTaskDescription={null}
+        />
+        <RightPanelTabs
+          mode="sidebar"
+          environmentId={testEnvironment}
+          threadId={threadId}
+          onClose={() => {}}
+        />
+      </>,
+    );
+    try {
+      const openResult = page.getByRole("button", { name: "Open first difference · Step 2" });
+      expect(openResult.elements()).toHaveLength(1);
+      expect(
+        page.getByRole("button", { name: "Open first difference · Step 3" }).elements(),
+      ).toHaveLength(0);
+      (openResult.element() as HTMLButtonElement).focus();
+      await userEvent.keyboard("{Enter}");
+      const evidence = page.getByRole("region", { name: "First difference", exact: true });
+      await expect.element(evidence.getByText("First difference · Step 2 · Review")).toBeVisible();
+      await expect
+        .element(evidence.getByRole("img", { name: "Pixel at the first difference" }))
+        .toBeVisible();
+      await expect.element(evidence.getByText("com.android.chrome")).toBeVisible();
+      await expect
+        .element(page.getByRole("button", { name: "Open live Pixel" }))
+        .not.toBeInTheDocument();
+      expect(comparison.mock.calls).toEqual([
+        [{ action: "evidence", threadId, runId: reference.runId }],
+      ]);
+      const tabs = () =>
+        useCompanionSurfaceStore
+          .getState()
+          .workspaces[threadScope]?.tabs.filter((tab) => tab.deviceComparisonResult);
+      expect(tabs()).toMatchObject([{ deviceComparisonResult: reference }]);
+      expect(tabs()?.[0]).not.toHaveProperty("deviceId");
+      await openResult.click();
+      expect(tabs()).toHaveLength(1);
+      openDeviceComparisonResult(testEnvironment, threadId, { ...newer, step: 3 });
+      await expect
+        .element(page.getByRole("alert"))
+        .toHaveTextContent("This first difference is no longer available");
+      await expect
+        .element(page.getByRole("img", { name: "Pixel at the first difference" }))
+        .not.toBeInTheDocument();
+
+      await openResult.click();
+      await expect.element(evidence.getByText("First difference · Step 2 · Review")).toBeVisible();
+      const openDraft = page.getByRole("button", {
+        name: "Open draft",
+      });
+      await vi.waitFor(() =>
+        expect(bridge.runBrowserAutomation).toHaveBeenCalledWith({
+          projectId: "project",
+          taskId: threadId,
+          source: "human",
+          operation: "findDeviceComparisonDraft",
+          input: reference,
+        }),
+      );
+      await expect.element(openDraft).not.toBeInTheDocument();
+      draftAvailable = true;
+      const notify = bridge.onBrowserSessionState.mock.lastCall?.[0];
+      expect(notify).toBeDefined();
+      notify?.(workState);
+      await expect.element(openDraft).toBeVisible();
+      bridge.getBrowserSessionState
+        .mockResolvedValueOnce(emptyBrowserState("project", workTabId))
+        .mockResolvedValue(workState);
+      await openDraft.click();
+      await vi.waitFor(() =>
+        expect(bridge.runBrowserAutomation).toHaveBeenCalledWith({
+          projectId: "project",
+          taskId: threadId,
+          sessionId: workTabId,
+          source: "human",
+          operation: "enterDeviceComparisonDraft",
+          input: { ...reference, profileId: "work" },
+        }),
+      );
+      expect(bridge.ensureBrowserSession).toHaveBeenCalledWith({
+        projectId: "project",
+        sessionId: workTabId,
+        profileId: "work",
+        initialUrl: "",
+      });
+      await expect
+        .poll(() => useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId)
+        .toBe(work);
+      expect(
+        useCompanionSurfaceStore
+          .getState()
+          .workspaces[threadScope]?.tabs.find((tab) => tab.id === work)?.url,
+      ).toBe(draftUrl);
+      expect(
+        useCompanionSurfaceStore
+          .getState()
+          .workspaces[threadScope]?.tabs.find((tab) => tab.id === personal)?.url,
+      ).toBeUndefined();
+      const summaries = page.getByRole("button", { name: "Open comparison result" });
+      expect(summaries.elements()).toHaveLength(2);
+      await summaries.first().click();
+      const summary = page.getByRole("region", { name: "Device comparison", exact: true });
+      await expect.element(summary.getByText("2 of 2 steps completed.")).toBeVisible();
+      await expect
+        .element(summary.getByRole("listitem").filter({ hasText: "Pixel" }))
+        .toBeVisible();
+      expect(comparison.mock.calls.at(-1)).toEqual([
+        { action: "status", threadId, runId: reference.runId },
+      ]);
+      await summary.getByRole("button", { name: "Open first difference · Step 2" }).click();
+      await expect
+        .element(evidence.getByRole("img", { name: "Pixel at the first difference" }))
+        .toBeVisible();
+      expect(comparison.mock.calls.at(-1)).toEqual([
+        { action: "evidence", threadId, runId: reference.runId },
+      ]);
+
+      await summaries.last().click();
+      await expect
+        .element(page.getByText("No difference found in the recorded steps."))
+        .toBeVisible();
+      await expect.element(page.getByText("2 of 2 steps completed.")).toBeVisible();
+      await expect.element(page.getByRole("listitem").filter({ hasText: "Pixel" })).toBeVisible();
+      await expect.element(openDraft).not.toBeInTheDocument();
+      expect(comparison.mock.calls.at(-1)).toEqual([
+        { action: "status", threadId, runId: matched.runId },
+      ]);
+    } finally {
+      await view.unmount();
+      setPrimaryEnvironmentIdForTesting(previousEnvironment);
+    }
+  },
+);
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
