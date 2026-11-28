@@ -7493,7 +7493,7 @@ describe("reliable browser tabs and agent control", () => {
       },
     );
 
-    describe.skip("Figma canvas consent", () => {
+    describe("Figma canvas consent", () => {
       const address = "https://www.figma.com/design/mainKey/branch/branchKey/Project?node-id=35-12";
 
       async function setupFigma(url = address) {
@@ -7564,6 +7564,88 @@ describe("reliable browser tabs and agent control", () => {
         expect(status).toBe("approval_required");
         return { approval, write };
       }
+
+      it("binds exact frame and connector identity to one explicit confirmation", async () => {
+        const f = await setupFigma();
+        await expect(f.inspect()).rejects.toThrow("Approve browser access");
+        f.events.emit(
+          "did-navigate-in-page",
+          {},
+          address.replace("35-12", "35%3A12") + "&view=edit",
+          true,
+        );
+        const { approval, write } = await proposed(f);
+        expect(write.target).toEqual({
+          projectId: f.request.projectId,
+          tabId: f.request.sessionId,
+          profileId: f.input.profileId,
+          hostKey: expect.any(String),
+          attachmentId: f.attachmentId,
+          mainFileKey: "mainKey",
+          fileKey: "branchKey",
+          nodeId: "35:12",
+        });
+        expect(approval).toEqual({ id: expect.any(String), ...write });
+        expect(f.pending()).toEqual(approval);
+        await expect(f.authorize(write)).resolves.toEqual({
+          approval,
+          status: "approval_required",
+        });
+        await expect(f.confirm(crypto.randomUUID())).rejects.toThrow("Review the current Figma");
+        await expect(f.confirm(approval.id, { taskId: "other-thread" })).rejects.toThrow(
+          "Review the current Figma",
+        );
+        await expect(
+          f.manager.runAutomation({
+            ...f.request,
+            source: "agent",
+            operation: "authorizeFigmaCanvas",
+            input: { approvalId: approval.id },
+          }),
+        ).rejects.toThrow("Review the current Figma");
+        await expect(f.confirm(approval.id)).resolves.toEqual({
+          approved: true,
+          approval,
+        });
+        expect(f.pending()).toBeUndefined();
+        await expect(f.confirm(approval.id)).rejects.toThrow("Review the current Figma");
+
+        for (const override of [
+          { email: "other@example.com" },
+          { operationId: "b".repeat(64) },
+          { frame: { ...write.frame, text: "Changed text" } },
+          { frame: { ...write.frame, width: 361 } },
+        ])
+          await expect(f.authorize({ ...write, ...override })).rejects.toThrow(
+            "different frame request",
+          );
+        for (const override of [
+          { nodeId: "35:13" },
+          { fileKey: "differentBranch" },
+          { mainFileKey: "differentFile" },
+          { hostKey: "differentHost" },
+          { attachmentId: crypto.randomUUID() },
+        ])
+          await expect(
+            f.authorize({ ...write, target: { ...write.target, ...override } }),
+          ).rejects.toThrow("Inspect the attached Figma node again");
+        await expect(f.inspect()).resolves.toEqual(write.target);
+        const results = await Promise.allSettled([f.authorize(write), f.authorize(write)]);
+        expect(results.filter((result) => result.status === "fulfilled")).toEqual([
+          { status: "fulfilled", value: { status: "approved", approval } },
+        ]);
+        await expect(f.dispatch({ ...approval, id: crypto.randomUUID() })).rejects.toThrow(
+          "Review the current Figma",
+        );
+        await expect(f.dispatch(approval)).resolves.toBe(true);
+        await expect(f.dispatch(approval)).rejects.toThrow("Review the current Figma");
+        const next = await f.authorize(write);
+        expect(next.status).toBe("approval_required");
+        expect(next.approval.id).not.toBe(approval.id);
+        expect(f.loadURL).not.toHaveBeenCalled();
+        expect(f.executeJavaScript).not.toHaveBeenCalled();
+        expect(f.sendInputEvent).not.toHaveBeenCalled();
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
