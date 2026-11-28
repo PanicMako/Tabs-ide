@@ -1,5 +1,13 @@
 import {
   ApprovalRequestId,
+  BrowserQuickActionRequestRef,
+  BrowserQuickActionFileResultRef,
+  BrowserWorkflowResultRef,
+  DeviceAccessRequestRef,
+  DeviceComparisonRequestRef,
+  DeviceComparisonResultRef,
+  FigmaCanvasResultRef,
+  TerminalAgentInputRef,
   isToolLifecycleItemType,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
@@ -12,6 +20,7 @@ import {
   type ThreadId,
   type TurnId,
 } from "@tabs/contracts";
+import * as Schema from "effect/Schema";
 
 import type {
   ChatMessage,
@@ -62,6 +71,17 @@ export interface WorkLogEntry {
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
   toolCallId?: string;
+  deviceComparisonRequest?: DeviceAccessRequestRef;
+  deviceDifference?: DeviceComparisonResultRef;
+  verifiedEvidenceDraft?: DeviceComparisonResultRef;
+  /** The page printed a matching digest but Tabs found no image receipt. */
+  unverifiedScreenshotDraft?: { sha256: string; receiptKind: "pageText" };
+  deviceCompletion?: DeviceComparisonRequestRef;
+  browserWorkflowResult?: BrowserWorkflowResultRef;
+  browserQuickActionRequest?: BrowserQuickActionRequestRef;
+  browserQuickActionFileResult?: BrowserQuickActionFileResultRef;
+  figmaCanvasResult?: FigmaCanvasResultRef;
+  terminalAgentInput?: TerminalAgentInputRef;
   // Task lifecycle fields
   taskId?: string;
   taskStatus?: "started" | "running" | "completed" | "failed" | "stopped";
@@ -550,6 +570,14 @@ function isPlanBoundaryToolActivity(activity: OrchestrationThreadActivity): bool
 }
 
 const MAX_WORK_LOG_DETAIL_LENGTH = 32_768;
+const isDeviceComparisonResult = Schema.is(DeviceComparisonResultRef);
+const isDeviceComparisonCompletion = Schema.is(DeviceComparisonRequestRef);
+const isDeviceComparisonRequest = Schema.is(DeviceAccessRequestRef);
+const isTerminalAgentInput = Schema.is(TerminalAgentInputRef);
+const isBrowserWorkflowResult = Schema.is(BrowserWorkflowResultRef);
+const isBrowserQuickActionRequest = Schema.is(BrowserQuickActionRequestRef);
+const isBrowserQuickActionFileResult = Schema.is(BrowserQuickActionFileResultRef);
+const isFigmaCanvasResult = Schema.is(FigmaCanvasResultRef);
 
 function boundToolDetail(detail: string): string {
   if (detail.length <= MAX_WORK_LOG_DETAIL_LENGTH) {
@@ -598,6 +626,61 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   }
   if (requestKind) {
     entry.requestKind = requestKind;
+  }
+  if (activity.kind === "tool.completed" && isDeviceComparisonResult(payload?.deviceDifference)) {
+    entry.deviceDifference = payload.deviceDifference;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isDeviceComparisonResult(payload?.verifiedEvidenceDraft)
+  ) {
+    entry.verifiedEvidenceDraft = payload.verifiedEvidenceDraft;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    payload?.unverifiedScreenshotDraft &&
+    typeof payload.unverifiedScreenshotDraft === "object" &&
+    (payload.unverifiedScreenshotDraft as { receiptKind?: unknown }).receiptKind === "pageText"
+  ) {
+    entry.unverifiedScreenshotDraft = payload.unverifiedScreenshotDraft as {
+      sha256: string;
+      receiptKind: "pageText";
+    };
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isDeviceComparisonCompletion(payload?.deviceCompletion)
+  ) {
+    entry.deviceCompletion = payload.deviceCompletion;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isDeviceComparisonRequest(payload?.deviceComparisonRequest)
+  ) {
+    entry.deviceComparisonRequest = payload.deviceComparisonRequest;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isBrowserWorkflowResult(payload?.browserWorkflowResult)
+  ) {
+    entry.browserWorkflowResult = payload.browserWorkflowResult;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isBrowserQuickActionRequest(payload?.browserQuickActionRequest)
+  ) {
+    entry.browserQuickActionRequest = payload.browserQuickActionRequest;
+  }
+  if (
+    activity.kind === "tool.completed" &&
+    isBrowserQuickActionFileResult(payload?.browserQuickActionFileResult)
+  )
+    entry.browserQuickActionFileResult = payload.browserQuickActionFileResult;
+  if (activity.kind === "tool.completed" && isFigmaCanvasResult(payload?.figmaCanvasResult)) {
+    entry.figmaCanvasResult = payload.figmaCanvasResult;
+  }
+  if (activity.kind === "tool.completed" && isTerminalAgentInput(payload?.terminalAgentInput)) {
+    entry.terminalAgentInput = payload.terminalAgentInput;
   }
   // Extract task lifecycle fields
   if (payload && typeof payload.taskId === "string") {
