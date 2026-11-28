@@ -1758,6 +1758,44 @@ describe("Device comparison", () => {
       }
     },
   );
+
+  it("shows the completed replay when its result was committed before the latest pointer", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-replay-completed-result-"));
+    try {
+      const store = makeDeviceComparisonStore(directory);
+      const ios = [frame("ios", ["Continue"]), frame("ios", [], ["Order review"])];
+      const android = [frame("android", ["Back"])];
+      const original = fixture(ios, android, true, store);
+      const runId = await original.begin();
+      await original.tap(runId, "Continue");
+      await original.approve(runId);
+      await original.replay(runId);
+      expect((await original.settle()).run?.phase).toBe("paused");
+      const active = await Effect.runPromise(store.loadReplay(threadId, runId));
+      expect(active?.report).toBeDefined();
+      const report = active!.report!;
+      await Effect.runPromise(
+        store.save(threadId, { ...report, phase: "completed", completedSteps: 1 }, {}, () => true),
+      );
+      const threadKey = createHash("sha256").update(threadId).digest("hex");
+      await rm(join(directory, "device-comparisons", `${threadKey}.latest`));
+
+      const restarted = fixture(ios, android, true, makeDeviceComparisonStore(directory));
+      const status = await restarted.invoke(
+        { action: "status", threadId, device: pixel },
+        panelSession,
+      );
+      expect(status.run).toMatchObject({
+        runId,
+        phase: "completed",
+        completedSteps: 1,
+      });
+      expect(status.canRestoreReplay).toBeUndefined();
+      expect(restarted.press).not.toHaveBeenCalled();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
