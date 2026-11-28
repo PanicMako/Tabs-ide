@@ -8230,7 +8230,7 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
-  describe.skip("saved screenshot drafts", () => {
+  describe("saved screenshot drafts", () => {
     async function setup(
       draftUrl = "https://app.test/drafts/42?view=review#receipt",
       sourceUrl = "https://app.test/drafts/new",
@@ -8581,6 +8581,31 @@ describe("reliable browser tabs and agent control", () => {
         enterComparison,
       };
     }
+
+    it("retries a failed screenshot bookmark without reattaching or reloading again", async () => {
+      const f = await setup();
+      await f.observe();
+      f.showDraft();
+      const save = vi.spyOn(BrowserAttachmentBookmarks.prototype, "saveScreenshotDraft");
+      try {
+        save.mockImplementationOnce(() => {
+          throw new Error("Temporary bookmark write failure");
+        });
+        await expect(f.observe()).resolves.not.toHaveProperty("verifiedScreenshotDraft");
+        await expect(f.observe()).resolves.toHaveProperty("verifiedScreenshotDraft", {
+          sha256: f.digest,
+          receiptKind: "image",
+        });
+        expect(save).toHaveBeenCalledTimes(2);
+        const restarted = new BrowserHostManager(() => null);
+        f.tab(restarted);
+        await expect(f.enter(restarted)).resolves.toMatchObject({
+          url: f.draftUrl,
+        });
+      } finally {
+        save.mockRestore();
+      }
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
