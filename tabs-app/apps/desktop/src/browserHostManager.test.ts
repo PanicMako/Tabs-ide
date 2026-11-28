@@ -7895,6 +7895,18 @@ describe("reliable browser tabs and agent control", () => {
           expect(tab.loadURL).toHaveBeenCalledOnce();
         },
       );
+
+      it.each([
+        address.replace("?node-id=35-12", ""),
+        address + "&node-id=35-12",
+        address.replace("/design/", "/proto/"),
+        address.replace("https://", "http://"),
+        address.replace("www.figma.com", "www.figma.com.example.com"),
+      ])("requires an attached HTTPS Figma Design node in %s", async (url) => {
+        const f = await setupFigma(url);
+        await f.grant();
+        await expect(f.inspect()).rejects.toThrow("same Figma Design file, branch and node");
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
