@@ -761,4 +761,159 @@ test("reserves a staged upload, reconciles a lost reply, and keeps Submit separa
   }
 });
 
+test("requires journal-bound approval and keeps the reservation until a receipt appears", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-journal-"));
+  try {
+    const target = journalTarget;
+    const owner = journalOwner;
+    const requests: (typeof BrowserWorkflowBrowserRequest.Type)[] = [];
+    let dispatched = 0;
+    let receiptVisible = false;
+    let approval: boolean | undefined;
+    let invalidateApproval = false;
+    const connect = () =>
+      makeBrowserWorkflows(directory, owner, async (request) => {
+        requests.push(request);
+        if (request.target && requests.length === 2) {
+          expect(request.workflowId).toBeDefined();
+          expect(
+            await readBrowserWorkflowResult(directory, owner, {
+              workflowId: request.workflowId!,
+              stage: "uploaded",
+            }),
+          ).toMatchObject({ target: request.target, definition: request.definition });
+        }
+        if (request.phase === "submit") {
+          if (invalidateApproval) {
+            approval = false;
+          } else {
+            dispatched++;
+            return undefined;
+          }
+        }
+        const submissionApproved = request.target ? approval : true;
+        return {
+          target,
+          disposition: "observed",
+          ...(submissionApproved === undefined ? {} : { submissionApproved }),
+          observation: {
+            stage: receiptVisible ? "submitted" : "uploaded",
+            statusText: receiptVisible ? "Submitted" : "Uploaded",
+            breakpoint: "clear",
+            submitAvailable: !receiptVisible,
+          },
+        };
+      });
+    const journal = connect();
+    const arm = armJournal;
+    const initial = await journal.arm(arm);
+    const { workflowId } = initial;
+    expect(initial).toMatchObject({
+      phase: "approval_required",
+      reason: expect.stringContaining("Approve one submission"),
+    });
+    const browserRequest = { profileId: target.profileId, definition: arm.definition };
+    const journalRequest = { ...browserRequest, target, workflowId };
+    expect(requests).toStrictEqual([
+      { ...browserRequest, phase: "inspect" },
+      { ...journalRequest, phase: "inspect" },
+    ]);
+    approval = false;
+    for (const action of ["check", "enter", "resume", "refresh", "submit"] as const) {
+      expect((await journal.advance(workflowId, action)).phase).toBe("approval_required");
+    }
+    expect(requests.slice(2)).toEqual(
+      ["inspect", "enter", "inspect", "refresh", "inspect"].map((phase) => ({
+        ...journalRequest,
+        phase,
+        statusOnly: false,
+      })),
+    );
+    expect(dispatched).toBe(0);
+    const beforeInvalidation = requests.length;
+    approval = true;
+    invalidateApproval = true;
+    expect((await journal.advance(workflowId, "submit")).phase).toBe("approval_required");
+    expect(requests.slice(beforeInvalidation)).toEqual([
+      { ...journalRequest, phase: "inspect", statusOnly: false },
+      { ...journalRequest, phase: "submit" },
+      { ...journalRequest, phase: "inspect", statusOnly: false },
+    ]);
+    expect(dispatched).toBe(0);
+    invalidateApproval = false;
+    approval = true;
+    const beforeDispatch = requests.length;
+    expect((await journal.advance(workflowId, "submit")).phase).toBe("uncertain");
+    expect((await journal.arm(arm)).phase).toBe("uncertain");
+    expect((await connect().advance(workflowId, "submit")).phase).toBe("uncertain");
+    await journal.watch(workflowId, "submitted");
+    const pending = await readJournal(directory, workflowId);
+    expect(JSON.parse(pending)).toMatchObject({ pending: true });
+    await connect().pollWatch(workflowId);
+    expect(await readJournal(directory, workflowId)).toBe(pending);
+    receiptVisible = true;
+    await connect().pollWatch(workflowId);
+    expect(JSON.parse(await readJournal(directory, workflowId))).toMatchObject({
+      pending: false,
+      evidence: { stage: "submitted" },
+    });
+    expect(await listBrowserWorkflowWatches(directory, environmentId)).toEqual([]);
+    expect(await connect().advance(workflowId, "submit")).toMatchObject({
+      phase: "verified",
+      lastVerified: { stage: "submitted" },
+    });
+    expect(requests.slice(beforeDispatch)).toStrictEqual([
+      { ...journalRequest, phase: "inspect", statusOnly: false },
+      { ...journalRequest, phase: "submit" },
+      { ...journalRequest, phase: "inspect", statusOnly: true },
+      { ...browserRequest, phase: "inspect" },
+      { ...journalRequest, phase: "inspect", statusOnly: true },
+      {
+        ...journalRequest,
+        phase: "monitor",
+        statusOnly: true,
+        refresh: false,
+        lastVerifiedStage: "uploaded",
+      },
+      {
+        ...journalRequest,
+        phase: "monitor",
+        statusOnly: true,
+        refresh: false,
+        lastVerifiedStage: "uploaded",
+      },
+      { ...journalRequest, phase: "inspect", statusOnly: false },
+    ]);
+    const reference = { workflowId, stage: "uploaded" as const };
+    expect(await readBrowserWorkflowResult(directory, owner, reference)).toMatchObject({
+      target,
+      stage: "submitted",
+      definition: { resourceId: "42", url: "https://fixture.test/draft/42" },
+    });
+    expect(await readBrowserWorkflowResult(directory, owner, reference)).not.toHaveProperty(
+      "pendingAction",
+    );
+    await expect(
+      readBrowserWorkflowResult(directory, owner, { ...reference, stage: "published" }),
+    ).rejects.toThrow("unavailable");
+    await expect(
+      readBrowserWorkflowResult(
+        directory,
+        { ...owner, threadId: ThreadId.make("other") },
+        reference,
+      ),
+    ).rejects.toThrow("original thread");
+    await expect(
+      readBrowserWorkflowResult(
+        directory,
+        { ...owner, environmentId: EnvironmentId.make("other") },
+        reference,
+      ),
+    ).rejects.toThrow("original thread");
+    expect(dispatched).toBe(1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 const chromiumPath = chromium.executablePath();
