@@ -3178,6 +3178,211 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1").each(["staged", "on selection"] as const)(
+    "guards build upload %s and sends the approved bytes only to Work",
+    async (mode) => {
+      const fixture = new URL(
+        "../../server/scripts/fixtures/browserSubmission.ts",
+        import.meta.url,
+      );
+      const {
+        startBrowserSubmission,
+      }: {
+        startBrowserSubmission: (
+          port: number,
+          staged: boolean,
+          options?: { uploadOnSelect?: boolean },
+        ) => Promise<{
+          origin: string;
+          definition: BrowserWorkflowDefinition;
+          uploads: Record<"Work" | "Personal", Buffer[]>;
+          drafts: { Work: { submits: number } };
+          close: () => Promise<void>;
+        }>;
+      } = await import(fixture.href);
+      const { chromium } = await import("playwright");
+      const direct = mode === "on selection";
+      const site = await startBrowserSubmission(0, !direct, {
+        uploadOnSelect: direct,
+      });
+      onTestFinished(() => site.close());
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const [page, personal] = await Promise.all([browser.newPage(), browser.newPage()]);
+      await Promise.all([
+        page.goto(site.origin + "/Work"),
+        personal.goto(site.origin + "/Personal"),
+      ]);
+      const userData = await mkdtemp(join(tmpdir(), "tabs-browser-upload-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const cdp = await page.context().newCDPSession(page);
+      const { frameTree } = await cdp.send("Page.getFrameTree");
+      const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: "upload-approval",
+      });
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-staged-upload";
+      const { session, webContents } = createMockSession({
+        sessionId,
+        key: "project-1::" + sessionId,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: site.definition.url,
+      });
+      Object.assign(webContents, {
+        getURL: () => page.url(),
+        session: { storagePath: join(userData, "Partitions", "work") },
+        executeJavaScriptInIsolatedWorld: async (_world: number, [script]: { code: string }[]) => {
+          const evaluated = await cdp.send("Runtime.evaluate", {
+            expression: script!.code,
+            contextId: executionContextId,
+            returnByValue: true,
+          });
+          if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+          return evaluated.result.value;
+        },
+      });
+      (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+      const owner = {
+        projectId: session.projectId,
+        sessionId,
+        taskId: "workflow-thread",
+      };
+      const { definition } = site;
+      await manager.runAutomation({
+        ...owner,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url: definition.url, profileId: "work" },
+      });
+      const workflowId = "b".repeat(64);
+      const run = (phase: "inspect" | "upload" | "submit", target?: unknown) =>
+        manager.runAutomation({
+          ...owner,
+          source: "agent",
+          operation: "browserWorkflow",
+          input: {
+            phase,
+            profileId: "work",
+            definition,
+            ...(target === undefined ? {} : { target, workflowId }),
+          },
+        });
+      const fileInput = page.getByLabel("Build package");
+      const staged = Buffer.from("disposable signed build payload");
+      const setFile = (name: string, buffer: Buffer) =>
+        fileInput.setInputFiles({
+          name,
+          buffer,
+          mimeType: "application/octet-stream",
+        });
+      if (!direct) await setFile("build-42.appx", staged);
+      const { target } = (await run("inspect")) as { target: unknown };
+      const state = () => manager.getSessionState(owner.projectId, owner.sessionId);
+      const selectedFile = {
+        name: "build-42.appx",
+        type: "application/octet-stream",
+        bytes: new Uint8Array(staged),
+      };
+      const approve = (includeFile = direct) =>
+        manager.runAutomation({
+          ...owner,
+          source: "human",
+          operation: "authorizeBrowserSubmission",
+          input: {
+            approvalId: state().pendingSubmissionApproval!.id,
+            ...(includeFile && { selectedFile }),
+          },
+        });
+      await run("inspect", target);
+      expect(state().pendingSubmissionApproval).toMatchObject(
+        direct
+          ? { action: "upload", chooseUploadFile: true }
+          : {
+              action: "upload",
+              controlLabel: "Upload build",
+              uploadFile: { name: "build-42.appx", size: staged.length },
+            },
+      );
+      const assertNoRequests = async () => {
+        expect(site.uploads.Work).toHaveLength(0);
+        expect(site.uploads.Personal).toHaveLength(0);
+        if (direct) {
+          expect(await fileInput.evaluate((input: HTMLInputElement) => input.files?.length)).toBe(
+            0,
+          );
+          expect(await page.locator("#build-status").getAttribute("data-file-events")).toBe("");
+        }
+      };
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+      });
+      await expect(run("upload", target)).resolves.toMatchObject({
+        disposition: "observed",
+      });
+      await assertNoRequests();
+
+      if (direct) await expect(approve(false)).rejects.toThrow("Choose one readable file");
+      await approve();
+      if (direct) {
+        await expect(run("submit", target)).resolves.toMatchObject({
+          disposition: "observed",
+        });
+        await assertNoRequests();
+        await fileInput.evaluate((input) => input.replaceWith(input.cloneNode()));
+      } else {
+        await setFile("build-42.appx", Buffer.alloc(staged.length, 120));
+      }
+      await expect(run("upload", target)).resolves.toMatchObject({
+        disposition: "observed",
+      });
+      await assertNoRequests();
+      if (!direct) await setFile("build-42.appx", staged);
+      await run("inspect", target);
+      await approve();
+      await page.locator("#replacement").evaluate((node) => {
+        node.textContent = "Replace existing build";
+      });
+      await expect(run("upload", target)).resolves.toMatchObject({
+        disposition: "observed",
+        observation: { stage: "ready_to_upload", breakpoint: "matched" },
+      });
+      await assertNoRequests();
+      expect(state().controller).toBe("human");
+      await page.locator("#replacement").evaluate((node) => {
+        node.textContent = "No existing build";
+      });
+      await manager.resumeAgent(owner);
+      await run("inspect", target);
+      await approve();
+      await expect(run("upload", target)).resolves.toMatchObject({
+        disposition: "dispatched",
+      });
+      await page.getByText("Uploaded", { exact: true }).waitFor();
+      if (direct) {
+        await expect(run("upload", target)).resolves.toMatchObject({
+          disposition: "observed",
+        });
+      }
+      expect(site.uploads.Work).toHaveLength(1);
+      expect(site.uploads.Work[0]!.includes(staged)).toBe(true);
+      expect(site.uploads.Personal).toHaveLength(0);
+      expect(await personal.locator("#build-status").innerText()).toBe("Ready to upload");
+      expect(site.drafts.Work.submits).toBe(0);
+      if (direct) {
+        expect(await page.locator("#build-status").getAttribute("data-file-events")).toBe(
+          "input change ",
+        );
+      }
+    },
+    60_000,
+  );
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
