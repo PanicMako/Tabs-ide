@@ -2462,6 +2462,58 @@ describe("Device comparison", () => {
       [pixel.hostId, "@e2~s42"],
     ]);
   });
+
+  it.each([
+    {
+      conflict: "a different button has the recorded label",
+      screenshot: identify(
+        frame("android", ["Go to delivery", "Continue"]),
+        `${androidApp}:id/checkout_continue`,
+      ),
+    },
+    {
+      conflict: "an unlabeled node repeats the shared identifier",
+      screenshot: identify(
+        frame("android", ["Go to delivery", ""]),
+        "checkout_continue",
+        "checkout_continue",
+      ),
+    },
+    {
+      conflict: "the identifier is in a foreign Android namespace",
+      screenshot: identify(
+        frame("android", ["Go to delivery"]),
+        "com.other.checkout:id/checkout_continue",
+      ),
+    },
+    {
+      conflict: "the renamed control would place an order",
+      screenshot: identify(frame("android", ["Place order"]), "checkout_continue"),
+    },
+    {
+      conflict: "the identifier belongs to a non-actionable text node",
+      screenshot: identify(
+        frame("android", ["Continue"], ["Go to delivery"]),
+        undefined,
+        "checkout_continue",
+      ),
+    },
+  ])("pauses before replay when $conflict", async ({ screenshot }) => {
+    const f = fixture(
+      [identify(frame("ios", ["Continue"]), "checkout-continue"), frame("ios", [])],
+      [screenshot],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    expect((await f.settle()).run).toMatchObject({
+      phase: "paused",
+      completedSteps: 0,
+      firstDifference: { kind: "control", step: 1 },
+    });
+    expect(f.press.mock.calls).toEqual([[iphone.hostId, "@e1~s42"]]);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
