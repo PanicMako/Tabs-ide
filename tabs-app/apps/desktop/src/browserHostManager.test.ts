@@ -6536,7 +6536,7 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
-  describe.skip("saved browser attachments", () => {
+  describe("saved browser attachments", () => {
     async function setup(address = "https://app.test/reports/42?view=review#overview") {
       const userData = await mkdtemp(join(tmpdir(), "tabs-browser-attachments-"));
       const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
@@ -6634,6 +6634,126 @@ describe("reliable browser tabs and agent control", () => {
         enter,
       };
     }
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "reopens an exact website-backed Quick Action file after restart without running the action again",
+      async () => {
+        const f = await setup();
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        onTestFinished(async () => browser.close());
+        const work = await browser.newContext();
+        let exports = 0;
+        let reads = 0;
+        let report = "name,result\ncheckout,pass\n";
+        const link = '<a id="report" href="/files/42" download="report.csv">Download report</a>';
+        await work.route("https://app.test/**", (route) => {
+          const path = new URL(route.request().url()).pathname;
+          if (path === "/export") {
+            expect(route.request().method()).toBe("POST");
+            exports++;
+            return route.fulfill({ status: 204 });
+          }
+          if (path === "/files/42") {
+            expect(route.request().method()).toBe("GET");
+            reads++;
+            return route.fulfill({
+              contentType: "text/csv",
+              headers: {
+                "content-disposition": 'attachment; filename="report.csv"',
+              },
+              body: report,
+            });
+          }
+          return route.fulfill({
+            contentType: "text/html",
+            body: `<button id="export">Export</button>
+              <div id="result">${exports ? link : ""}</div>
+              <script>
+                document.querySelector("#export").onclick = async () => {
+                  await fetch("/export", { method: "POST" });
+                  document.querySelector("#result").innerHTML = ${JSON.stringify(link)};
+                };
+              </script>`,
+          });
+        });
+        const original = await work.newPage();
+        await original.goto(f.address);
+        await connectChromiumPage(original, f);
+        const action = {
+          id: crypto.randomUUID(),
+          label: "Export report",
+          origin: new URL(f.address).origin,
+          steps: [{ action: "click", selector: "#export" }],
+          outcome: {
+            selector: "#report",
+            description: "Report ready",
+            filenamePattern: "report.csv",
+          },
+        };
+        const [target] = (await f.manager.runAutomation({
+          ...f.request,
+          operation: "listQuickActionTargets",
+          input: { action },
+        })) as [{ token: string }];
+        const { id } = (await f.manager.runAutomation({
+          ...f.request,
+          operation: "authorizeQuickAction",
+          input: { action, token: target.token },
+        })) as { id: string };
+        const result = (await f.manager.runAutomation({
+          ...f.request,
+          source: "agent",
+          operation: "runQuickAction",
+          input: { actionId: action.id, approvalId: id },
+        })) as { fileResult: { resultId: string } };
+        expect(result).toMatchObject({
+          status: "pass",
+          fileResult: {
+            profileId: "work",
+            filename: "report.csv",
+            restorable: true,
+          },
+        });
+        expect(result).not.toHaveProperty("websiteFile");
+        await original.close();
+
+        const restarted = new BrowserHostManager(() => null);
+        const enter = {
+          ...f.request,
+          operation: "enterQuickActionFileResult",
+          input: { resultId: result.fileResult.resultId },
+        } as const;
+        const otherProfile = f.tab(restarted, "about:blank", {
+          profileId: "personal",
+          partition: "persist:tabs-browser:profile:personal",
+        });
+        await expect(restarted.runAutomation(enter)).rejects.toThrow("original browser tab");
+        expect(otherProfile.loadURL).not.toHaveBeenCalled();
+        const restored = await work.newPage();
+        const tab = f.tab(restarted, restored.url());
+        await connectChromiumPage(restored, tab);
+        tab.loadURL.mockImplementation(async (url) => {
+          await restored.goto(url);
+          tab.session.currentUrl = restored.url();
+          tab.events.emit("did-navigate", {}, restored.url());
+        });
+        await expect(restarted.runAutomation({ ...enter, taskId: "other" })).rejects.toThrow(
+          "original thread",
+        );
+        expect(tab.loadURL).not.toHaveBeenCalled();
+        expect(reads).toBe(1);
+        await expect(restarted.runAutomation(enter)).resolves.toEqual({
+          url: f.address,
+        });
+        expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(f.address);
+        expect(reads).toBe(2);
+        report = "name,result\ncheckout,fail\n";
+        await expect(restarted.runAutomation(enter)).rejects.toThrow("changed or is unavailable");
+        expect(reads).toBe(3);
+        expect(exports).toBe(1);
+      },
+    );
 
     describe.skip("Figma canvas consent", () => {
       const address = "https://www.figma.com/design/mainKey/branch/branchKey/Project?node-id=35-12";
