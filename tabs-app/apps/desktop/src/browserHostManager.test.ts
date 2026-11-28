@@ -5212,6 +5212,73 @@ describe("reliable browser tabs and agent control", () => {
     ).rejects.toThrow("no longer open");
   });
 
+  it("consumes a browser action approval once on the selected page, profile, and thread", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const { session, webContents } = createMockSession({
+      profileId: "work",
+      partition: "persist:tabs-browser:profile:work",
+      currentUrl: "https://example.com/app?private=1",
+    });
+    const evaluate = vi.fn().mockResolvedValue("ok").mockResolvedValueOnce("missing");
+    Object.assign(webContents, {
+      getURL: () => session.currentUrl,
+      executeJavaScriptInIsolatedWorld: evaluate,
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+    const target = {
+      projectId: session.projectId,
+      sessionId: session.sessionId,
+      taskId: "qa",
+    };
+    const action = {
+      id: crypto.randomUUID(),
+      label: "Save report",
+      origin: "https://example.com",
+      steps: [{ action: "click", selector: "#save" }],
+      outcome: { selector: "#confirmation", description: "Report saved" },
+    };
+    const [tab] = (await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "listQuickActionTargets",
+      input: { action },
+    })) as [{ token: string; page: string; profileId: string }];
+    expect(tab).toMatchObject({
+      page: "https://example.com/app",
+      profileId: "work",
+    });
+    const { id } = (await manager.runAutomation({
+      ...target,
+      source: "human",
+      operation: "authorizeQuickAction",
+      input: { action, token: tab.token },
+    })) as { id: string };
+    const invoke = (taskId: string) =>
+      manager.runAutomation({
+        ...target,
+        taskId,
+        source: "agent",
+        operation: "runQuickAction",
+        input: { actionId: action.id, approvalId: id },
+      });
+    await expect(invoke("other")).rejects.toThrow("exact tab and thread");
+    const approvedUrl = session.currentUrl;
+    session.currentUrl = "https://example.com/app?private=2";
+    await expect(invoke("qa")).rejects.toThrow("exact tab and thread");
+    session.currentUrl = approvedUrl;
+    session.partition = "persist:tabs-browser:profile:personal";
+    await expect(invoke("qa")).rejects.toThrow("exact tab and thread");
+    session.partition = "persist:tabs-browser:profile:work";
+    expect(evaluate).not.toHaveBeenCalled();
+    const [first, duplicate] = await Promise.allSettled([invoke("qa"), invoke("qa")]);
+    expect(first).toMatchObject({
+      status: "fulfilled",
+      value: { status: "pass", completedSteps: 1 },
+    });
+    expect(duplicate.status).toBe("rejected");
+    expect(evaluate).toHaveBeenCalledTimes(3);
+  });
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
