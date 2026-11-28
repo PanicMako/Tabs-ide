@@ -8769,6 +8769,27 @@ describe("reliable browser tabs and agent control", () => {
       });
       expect(work.loadURL).toHaveBeenCalledTimes(2);
     });
+
+    it.each(["takeover", "revoke-source", "human-input", "navigate-then-revoke"] as const)(
+      "drops pending comparison recovery when %s interrupts the second selection",
+      async (interruptSecond) => {
+        const url = "https://app.test/drafts/42?view=edit#evidence";
+        const f = await setup(url, url, "first-difference", {
+          targetPng: "AQID",
+          interruptSecond,
+        });
+        expect(f.session).toMatchObject({
+          screenshotDrafts: [
+            expect.objectContaining({
+              digest: f.digest,
+            }),
+          ],
+        });
+        expect(await readdir(f.directory)).toEqual([]);
+        const restarted = new BrowserHostManager(() => null);
+        await expect(f.findComparison(restarted)).resolves.toBeNull();
+      },
+    );
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
