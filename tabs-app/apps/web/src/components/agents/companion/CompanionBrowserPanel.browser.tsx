@@ -1468,3 +1468,51 @@ it.each([
     await browser.close();
   }
 });
+
+it("selects the exact saved pair when multiple runs have the same device names and ID prefix", async () => {
+  const threadId = ThreadId.make("screenshot-pair-history");
+  const older = savedComparison("207070c3-688a-42d6-92fd-7a75e6cd4c0d", 2);
+  const latest = savedComparison("207070c3-0413-4887-aefc-fff2ab4538f4", 2);
+  openDeviceComparisonResult(testEnvironment, threadId, { runId: older.runId, step: 2 });
+  comparison.mockImplementation(async (input) => {
+    if (input.action !== "status" && input.action !== "evidence") return {};
+    return {
+      run: input.runId === older.runId ? older : latest,
+      ...(input.action === "evidence" ? { evidence: { sourcePng: png, targetPng: png } } : {}),
+    };
+  });
+  const browser = await renderScreenshotPairBrowser(threadId);
+  try {
+    await browser.tools.click();
+    for (const run of [older, latest]) {
+      await expect
+        .element(
+          page.getByRole("menuitem", {
+            name: `${pairAction} Run ${run.runId} · Step 2`,
+            exact: true,
+          }),
+        )
+        .toBeVisible();
+    }
+    await page
+      .getByRole("menuitem", { name: `${pairAction} Run ${older.runId} · Step 2`, exact: true })
+      .click();
+    const review = page.getByRole("dialog");
+    await expect.element(review).toHaveTextContent(`Run ${older.runId}, step 2`);
+    await review.getByRole("button", { name: "Confirm" }).click();
+    await vi.waitFor(() => expect(browser.files()).toHaveLength(1));
+    expect(bridge.runBrowserAutomation).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        operation: "authorizeDeviceScreenshotPair",
+        input: expect.objectContaining({
+          frames: [
+            expect.objectContaining({ frame: { runId: older.runId, step: 2, side: "source" } }),
+            expect.objectContaining({ frame: { runId: older.runId, step: 2, side: "target" } }),
+          ],
+        }),
+      }),
+    );
+  } finally {
+    await browser.close();
+  }
+});
