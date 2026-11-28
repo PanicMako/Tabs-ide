@@ -9361,6 +9361,18 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.enter(restarted)).rejects.toThrow("protected content");
       expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(f.draftUrl);
     });
+
+    it("rejects an incomplete bookmark before opening a page", async () => {
+      const f = await setup();
+      await f.verify();
+      const record = JSON.parse(await readFile(f.file, "utf8"));
+      delete record.digest;
+      await writeFile(f.file, JSON.stringify(record));
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted);
+      await expect(f.enter(restarted)).rejects.toThrow("bookmark is unavailable");
+      expect(tab.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
