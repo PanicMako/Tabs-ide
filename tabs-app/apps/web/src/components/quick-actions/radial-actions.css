@@ -275,6 +275,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A quiet fade says there is more below; it only changes opacity, never colour. */
+.qa-curved-scroll[data-more-below="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+}
 .qa-more-action.qa-curved-row {
   position: absolute;
   /* A row's slot is 34px; the row leaves the same small gap the card's rows keep. */
@@ -333,6 +338,14 @@
 .qa-more-action:is(:hover, [data-current="true"]):not(:disabled) {
   background: var(--qa-accent);
   color: var(--qa-accent-ink);
+}
+.qa-curved-scroll {
+  position: absolute;
+  left: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
 }
 .qa-more-action:is(:hover, [data-current="true"]):not(:disabled) .qa-sub-hint {
   color: inherit;

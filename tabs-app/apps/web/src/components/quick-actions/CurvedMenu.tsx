@@ -1,4 +1,4 @@
-import type { ComponentType, CSSProperties, ReactNode } from "react";
+import { useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 
 /**
  * A sub-menu whose panel bends around the launcher's plate. It opens centred on its action, and
@@ -8,10 +8,12 @@ import type { ComponentType, CSSProperties, ReactNode } from "react";
 
 /** Just past the plate (170) and its blue band. */
 export const CURVE_RADIUS = 182;
-export const CURVED_MENU_WIDTH = 212;
+export const CURVED_MENU_WIDTH = 224;
 const ROW_HEIGHT = 34;
 const TITLE_HEIGHT = 24;
 const PADDING = 6;
+/** A longer list shows this many rows at once and scrolls, so it never grows into a tall column. */
+export const MAX_VISIBLE_ROWS = 9;
 /** Every corner is rounded, like the launcher's other surfaces. */
 const CORNER = 16;
 
@@ -79,6 +81,10 @@ export interface CurvedMenuLayout {
   rows: ReadonlyArray<{ left: number; top: number; width: number }>;
   /** Each row's slot height; rows keep a small gap inside it. */
   rowHeight: number;
+  /** How many rows the list has; more than `rows.length` means the list scrolls. */
+  total: number;
+  /** Where a row whose top is `viewTop` below the panel's top sits, following the curve. */
+  rowAt: (viewTop: number) => { left: number; width: number };
 }
 
 /** The space the panel may use, from the ring's center (the visible window, less a margin). */
@@ -227,6 +233,8 @@ function placeAlong(angle: number, count: number): CurvedMenuLayout {
     title: title!,
     rows,
     rowHeight: ROW_HEIGHT,
+    total: count,
+    rowAt: () => ({ left: rows[0]!.left, width: rows[0]!.width }),
   };
 }
 
@@ -319,13 +327,17 @@ function besideRing(angle: number, count: number, wrap: boolean): CurvedMenuLayo
     title: { ...place(titleTop, titleTop + TITLE_HEIGHT), top: PADDING },
     rows,
     rowHeight,
+    total: count,
+    rowAt: (viewTop) => place(top + viewTop, top + viewTop + rowHeight),
   };
 }
 
 /** Beside the ring for actions on its sides; straight out above or below it otherwise. */
 function layoutFor(angle: number, count: number, wrap: boolean): CurvedMenuLayout {
   const sideways = Math.abs(Math.sin((angle * Math.PI) / 180)) >= 0.5;
-  return sideways ? besideRing(angle, count, wrap) : placeAlong(angle, count);
+  const visible = Math.min(count, MAX_VISIBLE_ROWS);
+  const layout = sideways ? besideRing(angle, visible, wrap) : placeAlong(angle, visible);
+  return { ...layout, total: count };
 }
 
 function overflow(layout: CurvedMenuLayout, bounds: CurvedMenuBounds): number {
@@ -403,6 +415,40 @@ export function CurvedMenu(props: {
   bounds?: CurvedMenuBounds | null | undefined;
 }): ReactNode {
   const layout = curvedMenuLayout(props.angle, props.rows.length, props.bounds, props.wrap);
+  const scrolls = layout.total > layout.rows.length;
+  const [scrollTop, setScrollTop] = useState(0);
+  const rowsTop = layout.rows[0]?.top ?? 0;
+  const renderRow = (row: CurvedMenuRow, i: number) => {
+    const place = scrolls
+      ? { ...layout.rowAt(rowsTop + i * layout.rowHeight - scrollTop), top: i * layout.rowHeight }
+      : layout.rows[i]!;
+    const Icon = row.icon;
+    return (
+      <button
+        key={row.id}
+        type="button"
+        className="qa-more-action qa-curved-row"
+        data-sub-index={i}
+        data-current={i === props.current}
+        disabled={props.busy || Boolean(row.disabledReason)}
+        aria-label={row.disabledReason ? `${row.label}: ${row.disabledReason}` : row.label}
+        title={row.title}
+        style={{
+          left: place.left,
+          top: place.top,
+          width: place.width,
+          height: layout.rowHeight - 3,
+        }}
+        onPointerEnter={() => props.onHover(i)}
+        onFocus={() => props.onHover(i)}
+        onClick={() => props.onRun(i)}
+      >
+        <Icon aria-hidden="true" size={15} width={15} height={15} />
+        <span className="qa-sub-label">{row.label}</span>
+        {row.hint && <span className="qa-sub-hint">{row.hint}</span>}
+      </button>
+    );
+  };
   return (
     <div
       className="qa-curved-menu"
@@ -437,35 +483,28 @@ export function CurvedMenu(props: {
       >
         {props.title}
       </p>
-      {props.rows.map((row, i) => {
-        const place = layout.rows[i]!;
-        const Icon = row.icon;
-        return (
-          <button
-            key={row.id}
-            type="button"
-            className="qa-more-action qa-curved-row"
-            data-sub-index={i}
-            data-current={i === props.current}
-            disabled={props.busy || Boolean(row.disabledReason)}
-            aria-label={row.disabledReason ? `${row.label}: ${row.disabledReason}` : row.label}
-            title={row.title}
-            style={{
-              left: place.left,
-              top: place.top,
-              width: place.width,
-              height: layout.rowHeight - 3,
-            }}
-            onPointerEnter={() => props.onHover(i)}
-            onFocus={() => props.onHover(i)}
-            onClick={() => props.onRun(i)}
-          >
-            <Icon aria-hidden="true" size={15} width={15} height={15} />
-            <span className="qa-sub-label">{row.label}</span>
-            {row.hint && <span className="qa-sub-hint">{row.hint}</span>}
-          </button>
-        );
-      })}
+      {scrolls ? (
+        <div
+          className="qa-curved-scroll"
+          data-testid="qa-curved-scroll"
+          data-more-below={
+            scrollTop + layout.rows.length * layout.rowHeight <
+            props.rows.length * layout.rowHeight - 2
+          }
+          style={{
+            top: rowsTop,
+            width: layout.width,
+            height: layout.rows.length * layout.rowHeight,
+          }}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        >
+          <div style={{ position: "relative", height: props.rows.length * layout.rowHeight }}>
+            {props.rows.map(renderRow)}
+          </div>
+        </div>
+      ) : (
+        props.rows.map(renderRow)
+      )}
     </div>
   );
 }
