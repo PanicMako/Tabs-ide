@@ -39,6 +39,23 @@ describe("provider attachment prompts", () => {
     );
   });
 
+  it("supplies the local JSON path for a reviewed browser selection", () => {
+    const excerpt = ChatFileAttachment.make({
+      ...document,
+      id: ChatAttachmentId.make("browser-excerpt"),
+      name: "Work report.tabs.json",
+      mimeType: "application/vnd.tabs.surface+json",
+    });
+    assert.include(
+      providerMessageTextWithAttachmentPaths({
+        text: "Summarize the excerpt.",
+        attachments: [excerpt],
+        attachmentsDir: "/attachments",
+      }),
+      "/attachments/browser-excerpt.json",
+    );
+  });
+
   it("frames captured-window context as escaped untrusted JSON", () => {
     const captured = ChatImageAttachment.make({
       ...image,
