@@ -4509,6 +4509,56 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.sendInputEvent).not.toHaveBeenCalled();
       },
     );
+
+    it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+      "opens a real Chromium receipt by visible draft ID and keeps Submit untouched",
+      async () => {
+        const f = await setup();
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch();
+        try {
+          const page = await browser.newPage();
+          await page.route(f.url, (route) =>
+            route.fulfill({
+              contentType: "text/html",
+              body: `<p id="draft-id">42</p><p id="status">Published</p>
+              <button id="submit" onclick="this.textContent='Submitted again'">Submit</button>`,
+            }),
+          );
+          await page.goto(f.url);
+          const cdp = await page.context().newCDPSession(page);
+          const { frameTree } = await cdp.send("Page.getFrameTree");
+          const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+            frameId: frameTree.frame.id,
+            worldName: "saved-receipt",
+          });
+          Object.assign(f.webContents, {
+            getURL: () => page.url(),
+            executeJavaScriptInIsolatedWorld: async (
+              _world: number,
+              [script]: { code: string }[],
+            ) => {
+              const evaluated = await cdp.send("Runtime.evaluate", {
+                expression: script!.code,
+                contextId: executionContextId,
+                returnByValue: true,
+              });
+              if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+              return evaluated.result.value;
+            },
+          });
+          await expect(f.enter()).resolves.toEqual({ stage: "published" });
+          expect(await page.getByRole("button", { name: "Submit", exact: true }).count()).toBe(1);
+          await page.locator("#draft-id").evaluate((element) => {
+            element.textContent = "another-draft";
+          });
+          await expect(f.enter()).rejects.toThrow("visible draft ID");
+          expect(f.loadURL).not.toHaveBeenCalled();
+        } finally {
+          await browser.close();
+        }
+      },
+    );
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
