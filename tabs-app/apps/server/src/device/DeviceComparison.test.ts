@@ -3100,6 +3100,48 @@ describe("Device comparison", () => {
       expect(destinationTaps()).toHaveLength(1);
     },
   );
+
+  it("marks a human scroll result after refreshing controls on the same screen", async () => {
+    const f = fixture(
+      [
+        frame("ios", [], ["Checkout"]),
+        frame("ios", [], ["Checkout", "Delivery options"]),
+        frame("ios", [], ["Order review", "Delivery options"]),
+      ],
+      [frame("android", [], ["Checkout"])],
+    );
+    const runId = await f.begin();
+    const request = { threadId, runId };
+    const refresh = async () => {
+      await f.invoke({ ...request, action: "inspect" }, panelSession);
+      const { controls } = await f.settle();
+      return controls!.find(({ label }) => label === "Delivery options")!.id;
+    };
+    const mark = (controlId: string) =>
+      f.invoke({ ...request, action: "expect", controlId }, panelSession);
+
+    await f.invoke({ ...request, action: "scroll", direction: "down" }, panelSession);
+    const { controls } = await f.settle();
+    const scrolledId = controls!.find(({ label }) => label === "Delivery options")!.id;
+    const refreshedId = await refresh();
+    expect(refreshedId).not.toBe(scrolledId);
+    const marked = await mark(refreshedId);
+    expect(marked.run?.steps).toEqual([
+      {
+        label: "Scroll down",
+        scrollDirection: "down",
+        expected: "Delivery options",
+      },
+    ]);
+
+    // The same label is also present on a different screen.
+    f.positions.set(iphone.hostId, 2);
+    await expect(mark(await refresh())).rejects.toThrow("screen captured after");
+    expect((await f.settle()).run?.steps).toEqual(marked.run?.steps);
+    expect(f.scroll).toHaveBeenCalledExactlyOnceWith(iphone.hostId, "down");
+    expect(f.press).not.toHaveBeenCalled();
+    expect(f.manual).not.toHaveBeenCalled();
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
