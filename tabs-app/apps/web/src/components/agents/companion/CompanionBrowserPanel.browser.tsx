@@ -1440,3 +1440,31 @@ it("reviews and cancels a screenshot pair from the keyboard, then attaches the a
     await browser.close();
   }
 });
+
+it.each([
+  "Allow this thread to use this tab",
+  pairAction,
+  /Attach first difference \(step 2\) from Checkout iPhone/,
+])("discards the %s confirmation after switching browser tabs", async (action) => {
+  const threadId = ThreadId.make("switched-screenshot-destination");
+  const run = savedComparison("207070c3-688a-42d6-92fd-7a75e6cd4c0d", 2);
+  comparison.mockResolvedValue({
+    run: { ...run, availableEvidence: { source: true, target: true } },
+  });
+  const browser = await renderScreenshotPairBrowser(threadId);
+  try {
+    await browser.tools.click();
+    await page.getByRole("menuitem", { name: action }).click();
+    const review = page.getByRole("dialog");
+    await expect.element(review).toHaveTextContent("in the Work profile");
+
+    useCompanionSurfaceStore.getState().open(`${testEnvironment}:${threadId}`, "browser");
+    await review.getByRole("button", { name: "Confirm" }).click();
+    await expect.element(review).not.toBeInTheDocument();
+
+    expect(bridge.runBrowserAutomation).not.toHaveBeenCalled();
+    expect(browser.files()).toHaveLength(0);
+  } finally {
+    await browser.close();
+  }
+});
