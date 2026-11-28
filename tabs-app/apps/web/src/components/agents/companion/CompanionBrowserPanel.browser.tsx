@@ -124,6 +124,122 @@ function Harness({ visible = true }: { visible?: boolean }) {
   );
 }
 
+it("opens device review from chat without approving it, on the original source host", async () => {
+  const threadId = ThreadId.make("comparison-approval-thread");
+  const threadScope = `${testEnvironment}:${threadId}`;
+  const runId = "f49d91d0-b366-4521-a267-a90fa439732c";
+  const source = {
+    hostId: "mac-host",
+    deviceId: "same-id",
+    platform: "ios" as const,
+    name: "iPhone",
+    appId: "com.apple.mobilesafari",
+  };
+  const target = {
+    ...source,
+    hostId: "pixel-host",
+    platform: "android" as const,
+    name: "Pixel",
+    appId: "com.android.chrome",
+  };
+  const surfaces = useCompanionSurfaceStore.getState();
+  const sourceTab = surfaces.open(threadScope, "device", source);
+  const targetTab = surfaces.open(threadScope, "device", target);
+  const run: DeviceComparisonReport = {
+    runId,
+    source,
+    target,
+    phase: "awaiting_approval",
+    agentRecording: { manual: false },
+    busy: false,
+    playing: false,
+    completedSteps: 0,
+    canResume: false,
+    uncertainTap: false,
+    steps: [],
+  };
+  comparison.mockResolvedValue({ run });
+  const createdAt = "2026-11-25T01:02:00.000Z";
+  const items = [1, 2].map((ordinal) => ({
+    id: `approval-${ordinal}`,
+    ordinal,
+    type: "dynamic_tool",
+    status: "completed",
+    toolName: "t3-code.device_record_comparison",
+    updatedAt: createdAt,
+    outputOmitted: true,
+    output: { deviceComparisonRequest: { runId } },
+  }));
+  const entries = deriveTimelineEntries(
+    [],
+    [],
+    deriveWorkLogEntries(activitiesFromTurnItems(items), undefined),
+  );
+  await render(
+    <MessagesTimeline
+      hasMessages
+      isWorking={false}
+      activeTurnInProgress={false}
+      activeTurnStartedAt={null}
+      scrollContainer={null}
+      timelineEntries={entries}
+      completionDividerBeforeEntryId={null}
+      completionSummary={null}
+      turnDiffSummaryByAssistantMessageId={new Map()}
+      nowIso={createdAt}
+      expandedWorkGroups={{}}
+      onToggleWorkGroup={() => {}}
+      onOpenTurnDiff={() => {}}
+      onOpenDeviceComparisonRequest={(request) =>
+        openDeviceComparisonRequest(testEnvironment, threadId, request, () => true)
+      }
+      revertTurnCountByUserMessageId={new Map()}
+      onRevertUserMessage={() => {}}
+      isRevertingCheckpoint={false}
+      onImageExpand={() => {}}
+      markdownCwd={undefined}
+      resolvedTheme="light"
+      timestampFormat="locale"
+      workspaceRoot={undefined}
+      latestTaskDescription={null}
+    />,
+  );
+  const review = page.getByRole("button", { name: "Review device access" });
+  expect(review.elements()).toHaveLength(1);
+  expect(useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId).toBe(targetTab);
+  await review.click();
+  await expect
+    .poll(() => useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId)
+    .toBe(sourceTab);
+  expect(useRightPanelStore.getState().activeTab).toBe("device");
+  expect(comparison.mock.calls).toEqual([[{ action: "status", runId, threadId }]]);
+
+  comparison.mockResolvedValue({ run: { ...run, phase: "recording" } });
+  await expect(
+    openDeviceComparisonRequest(testEnvironment, threadId, { runId }, () => true),
+  ).rejects.toThrow("no longer awaiting approval");
+
+  const appRequest = {
+    approvalId: crypto.randomUUID(),
+    hostId: target.hostId,
+    deviceId: target.deviceId,
+  };
+  comparison.mockResolvedValue({
+    pendingAppApproval: { id: appRequest.approvalId, appId: target.appId },
+  });
+  await openDeviceComparisonRequest(testEnvironment, threadId, appRequest, () => true);
+  expect(useCompanionSurfaceStore.getState().workspaces[threadScope]?.activeId).toBe(targetTab);
+  expect(comparison).toHaveBeenLastCalledWith({
+    action: "status",
+    threadId,
+    device: { hostId: target.hostId, deviceId: target.deviceId },
+  });
+  comparison.mockResolvedValue({});
+  await expect(
+    openDeviceComparisonRequest(testEnvironment, threadId, appRequest, () => true),
+  ).rejects.toThrow("no longer awaiting review");
+});
+
 it("uses one compact navigation row and keeps preview tools accessible", async () => {
   const view = await render(<Harness />);
   try {
