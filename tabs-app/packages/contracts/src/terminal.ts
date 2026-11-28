@@ -68,6 +68,65 @@ export const TerminalWriteInput = Schema.Struct({
 });
 export type TerminalWriteInput = Schema.Codec.Encoded<typeof TerminalWriteInput>;
 
+export const TerminalAgentInputRef = Schema.Struct({
+  requestId: Schema.String.check(Schema.isUUID()),
+});
+export type TerminalAgentInputRef = typeof TerminalAgentInputRef.Type;
+
+export const TerminalAgentInputText = Schema.String.check(Schema.isNonEmpty())
+  .check(Schema.isMaxLength(4_096))
+  .check(Schema.isPattern(/^[^\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]+(?![\s\S])/u));
+
+export const TerminalAgentInputProposal = Schema.Struct({
+  terminalId: TerminalIdSchema,
+  instanceId: Schema.String.check(Schema.isUUID()),
+  text: TerminalAgentInputText,
+  pressEnter: Schema.optionalKey(Schema.Boolean),
+});
+export type TerminalAgentInputProposal = typeof TerminalAgentInputProposal.Type;
+
+export const TerminalAgentInputResult = Schema.Struct({
+  ...TerminalAgentInputRef.fields,
+  status: Schema.Literals(["pending", "delivered", "declined", "expired", "uncertain"]),
+});
+export type TerminalAgentInputResult = typeof TerminalAgentInputResult.Type;
+
+export const TerminalAgentInputReviewCommand = Schema.Struct({
+  ...TerminalThreadInput.fields,
+  ...TerminalAgentInputRef.fields,
+  action: Schema.Literals(["review", "approve", "decline"]),
+});
+export type TerminalAgentInputReviewCommand = typeof TerminalAgentInputReviewCommand.Type;
+
+export const TerminalAgentInputReview = Schema.Struct({
+  ...TerminalAgentInputResult.fields,
+  terminalId: TerminalIdSchema,
+  instanceId: TerminalAgentInputProposal.fields.instanceId,
+  cwd: Schema.String,
+  /** Human label of the terminal when the request was made, for the approval card. */
+  terminalTitle: Schema.optionalKey(Schema.String),
+  /** The input text is visible to the approving user while the request is pending. */
+  text: Schema.optionalKey(TerminalAgentInputText),
+  pressEnter: Schema.Boolean,
+});
+export type TerminalAgentInputReview = typeof TerminalAgentInputReview.Type;
+
+/** The user stopped agent control: every pending input request of the thread is declined. */
+export const TerminalAgentInputDeclinePendingResult = Schema.Struct({
+  declined: Schema.Array(Schema.String),
+});
+export type TerminalAgentInputDeclinePendingResult =
+  typeof TerminalAgentInputDeclinePendingResult.Type;
+
+export class TerminalAgentInputReviewUnavailableError extends Schema.TaggedError<TerminalAgentInputReviewUnavailableError>()(
+  "TerminalAgentInputReviewUnavailableError",
+  {},
+) {
+  override get message() {
+    return "This terminal input request is unavailable.";
+  }
+}
+
 export const TerminalResizeInput = Schema.Struct({
   ...TerminalSessionInput.fields,
   cols: TerminalColsSchema,
@@ -106,6 +165,7 @@ export const TerminalSessionSnapshot = Schema.Struct({
   worktreePath: Schema.NullOr(TrimmedNonEmptyStringSchema),
   status: TerminalSessionStatus,
   pid: Schema.NullOr(Schema.Int.check(Schema.isGreaterThan(0))),
+  instanceId: Schema.optionalKey(Schema.String),
   history: Schema.String,
   exitCode: Schema.NullOr(Schema.Int),
   exitSignal: Schema.NullOr(Schema.Int),
@@ -123,6 +183,7 @@ export const TerminalSummary = Schema.Struct({
   worktreePath: Schema.NullOr(TrimmedNonEmptyStringSchema),
   status: TerminalSessionStatus,
   pid: Schema.NullOr(Schema.Int.check(Schema.isGreaterThan(0))),
+  instanceId: Schema.optionalKey(Schema.String),
   exitCode: Schema.NullOr(Schema.Int),
   exitSignal: Schema.NullOr(Schema.Int),
   hasRunningSubprocess: Schema.Boolean,
@@ -170,6 +231,7 @@ const TerminalStartedEvent = Schema.Struct({
 const TerminalOutputEvent = Schema.Struct({
   ...TerminalEventBaseSchema.fields,
   type: Schema.Literal("output"),
+  instanceId: Schema.optionalKey(Schema.String),
   data: Schema.String,
 });
 

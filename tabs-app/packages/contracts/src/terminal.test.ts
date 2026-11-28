@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   DEFAULT_TERMINAL_ID,
+  TerminalAgentInputProposal,
   TerminalAttachInput,
   TerminalClearInput,
   TerminalCloseInput,
@@ -26,6 +27,27 @@ function decodes<S extends Schema.Top>(schema: S, input: unknown): boolean {
     return false;
   }
 }
+
+describe("TerminalAgentInputProposal", () => {
+  const target = { terminalId: "term-2", instanceId: "ecf7bbee-f0cd-47ad-89a9-ea0f83c4ced0" };
+
+  it("accepts printable input and a separate Enter request", () => {
+    expect(
+      decodeSync(TerminalAgentInputProposal, {
+        ...target,
+        text: "printf 'café'",
+        pressEnter: true,
+      }),
+    ).toEqual({ ...target, text: "printf 'café'", pressEnter: true });
+  });
+
+  it.each(["input\n", "input\r", "escape\x1b[31m", "tab\t", "\u2029", "direction\u202e"])(
+    "rejects control and invisible formatting characters in input",
+    (text) => {
+      expect(decodes(TerminalAgentInputProposal, { ...target, text })).toBe(false);
+    },
+  );
+});
 
 describe("TerminalOpenInput", () => {
   it("accepts valid open input", () => {
