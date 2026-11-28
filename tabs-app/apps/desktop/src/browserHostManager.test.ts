@@ -8673,6 +8673,39 @@ describe("reliable browser tabs and agent control", () => {
       await unlink(join(f.directory, `screenshot-draft-${f.input.pairedGrantId}`));
       await expect(f.enter(restarted)).rejects.toThrow("Both screenshot receipts");
     });
+
+    it("observes and reopens deferred receipts only at the original approved URL", async () => {
+      const approvedUrl = "https://app.test/drafts/42?view=edit#evidence";
+      const f = await setup(undefined, approvedUrl, "first-difference");
+      f.receipt.text = `${f.digest}\n${f.digest}`;
+      await f.verify();
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      expect(await readdir(f.directory)).toEqual([
+        expect.stringMatching(/^device-comparison-pending-/),
+      ]);
+      await expect(
+        f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "enterAttachedPage",
+          input: f.input,
+        }),
+      ).rejects.toThrow("Both screenshot receipts");
+
+      f.showDraft(approvedUrl);
+      await f.observe();
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      f.showDraft(approvedUrl);
+      await f.observe();
+      const restarted = new BrowserHostManager(() => null);
+      const tab = f.tab(restarted, { currentUrl: f.draftUrl });
+      tab.content.text = f.receipt.text;
+      await expect(f.enter(restarted)).resolves.toMatchObject({
+        url: approvedUrl,
+      });
+      expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(approvedUrl);
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
