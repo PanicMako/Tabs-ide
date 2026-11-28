@@ -2064,6 +2064,26 @@ describe("reliable browser tabs and agent control", () => {
     });
   });
 
+  it("revokes on a session-like cookie change but not on an unrelated cookie", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const cookies = new EventEmitter();
+    const tab = openCookieChangeTab(manager, "cookie-session-like", "https://app.example.test/", {
+      cookies,
+    });
+    await tab.approve();
+    const cookie = (name: string) => ({
+      name,
+      domain: "app.example.test",
+      hostOnly: true,
+      httpOnly: false,
+    });
+    for (const name of ["theme", "_ga", "csrftoken", "qa_profile"])
+      cookies.emit("changed", {}, cookie(name), "explicit", false);
+    expect(tab.state().browserPageAuthorized).toBe(true);
+    cookies.emit("changed", {}, cookie("session_id"), "overwrite", false);
+    expect(tab.state().browserPageAuthorized).toBe(false);
+  });
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
