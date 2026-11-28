@@ -6565,6 +6565,37 @@ describe("reliable browser tabs and agent control", () => {
         deviceScreenshotAuthorized: false,
       });
     });
+
+    it("requires the current guest, profile, page and human thread", async () => {
+      const f = createUploadFixture({ assignedTaskId: "thread-1" });
+      const pair = [source, target];
+      await expect(f.authorizePair(pair, {}, { source: "agent" })).rejects.toThrow("approve");
+      await expect(f.authorizePair(pair, {}, { taskId: "" })).rejects.toThrow("approve");
+      await expect(f.authorizePair(pair, {}, { taskId: "other-thread" })).rejects.toThrow(
+        "another thread",
+      );
+      for (const input of [
+        { instanceId: "another-guest" },
+        { instanceId: undefined },
+        { profileId: "personal" },
+        { url: `${f.session.currentUrl}?view=other` },
+      ]) {
+        await expect(f.authorizePair(pair, input)).rejects.toThrow("destination page");
+      }
+      Object.assign(f.webContents, { isLoadingMainFrame: () => true });
+      await expect(f.authorizePair(pair)).rejects.toThrow("destination page");
+      Object.assign(f.webContents, { isLoadingMainFrame: () => false });
+      f.manager.takeControl(f.target);
+      await expect(f.authorizePair(pair)).rejects.toThrow("Return control");
+      await f.manager.resumeAgent(f.target);
+      Object.assign(f.session, { instanceId: "replacement-guest" });
+      await expect(f.authorizePair(pair)).rejects.toThrow("destination page");
+      expect(f.session.assignedTaskId).toBe(f.target.taskId);
+      expect(f.manager.getSessionState(f.target.projectId, f.target.sessionId)).toMatchObject({
+        browserPageAuthorized: false,
+        deviceScreenshotAuthorized: false,
+      });
+    });
   });
 
   async function connectChromiumPage(
