@@ -4191,6 +4191,27 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.submit).not.toHaveBeenCalled();
       },
     );
+
+    it("checks a pending Upload without reloading a staged file on the same page", async () => {
+      const f = await setup();
+      f.visible.status = "Ready to upload";
+      await expect(
+        f.enter({
+          ...f.saved,
+          definition: {
+            ...f.saved.definition,
+            uploadSelector: "#upload",
+            states: {
+              ...f.saved.definition.states,
+              ready_to_upload: "Ready to upload",
+            },
+          },
+          stage: "ready_to_upload",
+          pendingAction: "upload",
+        }),
+      ).resolves.toEqual({ stage: "ready_to_upload" });
+      expect(f.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
