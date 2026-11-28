@@ -5450,6 +5450,219 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1").each([true, false])(
+    "requires human resolution of a lost Chromium Quick Action click reply (applied: %s)",
+    async (applied) => {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      onTestFinished(() => browser.close());
+      const page = await browser.newPage();
+      const origin = "https://app.test";
+      const address = `${origin}/drafts/new`;
+      const values = { title: "November report", note: "Reviewed draft note" };
+      const receiptId = "draft-42";
+      const saves: { method: string; body: unknown }[] = [];
+      await page.route(address, (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<form id="draft">
+            <label>Title <input id="title" name="title" data-fills="0"></label>
+            <button id="continue" type="button" data-clicks="0">Continue</button>
+            <fieldset id="details" hidden>
+              <label>Note <input id="note" name="note"></label>
+              <button id="save" type="submit">Save draft</button>
+            </fieldset>
+          </form>
+          <output id="receipt" hidden></output>
+          <script>
+            const form = document.querySelector('#draft');
+            const title = document.querySelector('#title');
+            title.oninput = () => title.dataset.fills++;
+            const next = document.querySelector('#continue');
+            next.onclick = () => {
+              next.dataset.clicks++;
+              document.querySelector('#details').hidden = false;
+            };
+            form.onsubmit = async (event) => {
+              event.preventDefault();
+              const response = await fetch('/drafts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.fromEntries(new FormData(form))),
+              });
+              const receipt = document.querySelector('#receipt');
+              receipt.textContent = (await response.json()).id;
+              receipt.hidden = false;
+            };
+          </script>`,
+        }),
+      );
+      await page.route(`${origin}/drafts`, (route) => {
+        const request = route.request();
+        saves.push({ method: request.method(), body: request.postDataJSON() });
+        return route.fulfill({ status: 201, json: { id: receiptId } });
+      });
+      await page.goto(address);
+
+      const manager = new BrowserHostManager(() => null);
+      const fixture = createMockSession({
+        currentUrl: address,
+        bounds: { x: 0, y: 0, width: 640, height: 480 },
+      });
+      mockNavigation(manager, fixture);
+      const { session, webContents, sendInputEvent } = fixture;
+      (manager as unknown as { activeKey: string }).activeKey = session.key;
+      const evaluate = vi.fn<(world: number, scripts: { code: string }[]) => Promise<unknown>>();
+      await connectChromiumPage(page, { evaluate });
+      const evaluateInChromium = evaluate.getMockImplementation()!;
+      let lostReply = false;
+      let guestReply: unknown;
+      evaluate.mockImplementation(async (world, scripts) => {
+        if (!lostReply && scripts[0]!.code.includes('"action":"click","selector":"#continue"')) {
+          lostReply = true;
+          // One dispatch reaches the guest before its reply disappears. The other never arrives.
+          if (applied) guestReply = await evaluateInChromium(world, scripts);
+          throw new Error("Lost Quick Action click reply");
+        }
+        return evaluateInChromium(world, scripts);
+      });
+      Object.assign(webContents, {
+        executeJavaScriptInIsolatedWorld: evaluate,
+      });
+
+      const target = {
+        projectId: session.projectId,
+        sessionId: session.sessionId,
+        taskId: "qa",
+      };
+      const action: BrowserQuickAction = {
+        id: crypto.randomUUID(),
+        label: "Save report draft",
+        origin,
+        steps: [
+          { action: "fill", selector: "#title", parameter: "title" },
+          { action: "click", selector: "#continue" },
+          { action: "fill", selector: "#note", parameter: "note" },
+          { action: "click", selector: "#save" },
+        ],
+        outcome: { selector: "#receipt", description: "Draft saved" },
+      };
+      const human = (operation: string, input: object) =>
+        manager.runAutomation({ ...target, source: "human", operation, input });
+      const list = () =>
+        human("listQuickActionTargets", { action }) as Promise<[BrowserQuickActionTarget]>;
+      const approve = (token: string, pauseId?: string) =>
+        human("authorizeQuickAction", {
+          action,
+          token,
+          values,
+          ...(pauseId && { pauseId, resume: true }),
+        }) as Promise<{ id: string }>;
+      const run = (approvalId: string) =>
+        manager.runAutomation({
+          ...target,
+          source: "agent",
+          operation: "runQuickAction",
+          input: { actionId: action.id, approvalId },
+        }) as Promise<BrowserQuickActionResult>;
+
+      const [initialTab] = await list();
+      const firstApproval = await approve(initialTab.token);
+      const paused = await run(firstApproval.id);
+      const title = page.locator("#title");
+      const next = page.locator("#continue");
+      expect(lostReply).toBe(true);
+      expect(guestReply).toBe(applied ? "ok" : undefined);
+      expect(await title.getAttribute("data-fills")).toBe("1");
+      expect(await next.getAttribute("data-clicks")).toBe(applied ? "1" : "0");
+      expect(await page.locator("#details").isVisible()).toBe(applied);
+      expect(await page.locator("#note").inputValue()).toBe("");
+      expect(saves).toEqual([]);
+      expect(paused).toMatchObject({
+        status: "paused",
+        completedSteps: 1,
+        resumeRequest: {
+          actionId: action.id,
+          pause: {
+            pauseId: expect.any(String),
+            tabId: target.sessionId,
+            profileId: "default",
+          },
+        },
+      });
+      const { pauseId } = paused.resumeRequest!.pause;
+
+      const [pausedTab] = await list();
+      expect(pausedTab).toMatchObject({
+        pausedAt: 1,
+        pauseOwner: { pauseId, taskId: target.taskId },
+        unconfirmedStepId: expect.any(String),
+      });
+      const resolution = {
+        ...target,
+        source: "human",
+        operation: "resolveQuickActionStep",
+        input: {
+          action,
+          token: pausedTab.token,
+          pauseId,
+          unconfirmedStepId: pausedTab.unconfirmedStepId,
+          applied,
+        },
+      } as const;
+      const probesAtPause = evaluate.mock.calls.length;
+      await expect(approve(pausedTab.token, pauseId)).rejects.toThrow("step took effect");
+      await expect(
+        human("repairQuickAction", { action, token: pausedTab.token, pauseId }),
+      ).rejects.toThrow("step took effect");
+      await expect(manager.runAutomation({ ...resolution, taskId: "other" })).rejects.toThrow();
+      await expect(
+        manager.runAutomation({
+          ...resolution,
+          input: {
+            ...resolution.input,
+            unconfirmedStepId: crypto.randomUUID(),
+          },
+        }),
+      ).rejects.toThrow();
+      await expect(manager.runAutomation({ ...resolution, source: "agent" })).rejects.toThrow();
+      expect(await list()).toEqual([pausedTab]);
+      expect(evaluate).toHaveBeenCalledTimes(probesAtPause);
+      expect(sendInputEvent).not.toHaveBeenCalled();
+
+      await manager.runAutomation(resolution);
+      const [resolvedTab] = await list();
+      expect(resolvedTab).toMatchObject({
+        pausedAt: applied ? 2 : 1,
+        pauseOwner: { pauseId, taskId: target.taskId },
+      });
+      expect(resolvedTab.unconfirmedStepId).toBeUndefined();
+      await expect(
+        manager.runAutomation({
+          ...resolution,
+          input: { ...resolution.input, token: resolvedTab.token },
+        }),
+      ).rejects.toThrow();
+      await expect(run(firstApproval.id)).rejects.toThrow("exact tab and thread");
+      expect(evaluate).toHaveBeenCalledTimes(probesAtPause);
+      expect(sendInputEvent).not.toHaveBeenCalled();
+      expect(await next.getAttribute("data-clicks")).toBe(applied ? "1" : "0");
+      expect(saves).toEqual([]);
+
+      const freshApproval = await approve(resolvedTab.token, pauseId);
+      expect(freshApproval.id).not.toBe(firstApproval.id);
+      await expect(run(freshApproval.id)).resolves.toMatchObject({
+        status: "pass",
+        completedSteps: action.steps.length,
+        message: "Draft saved",
+      });
+      expect(await title.getAttribute("data-fills")).toBe("1");
+      expect(await next.getAttribute("data-clicks")).toBe("1");
+      expect(await page.locator("#receipt").innerText()).toBe(receiptId);
+      expect(saves).toEqual([{ method: "POST", body: values }]);
+    },
+  );
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((complete) => {
