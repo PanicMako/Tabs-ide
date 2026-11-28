@@ -6738,6 +6738,34 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it.each(["page changes", "grant is revoked"])(
+    "checks the browser grant again if the %s while device authorization is pending",
+    async (change) => {
+      const f = createUploadFixture();
+      const { grantId } = await f.authorize();
+      const checking = deferred<void>();
+      const reply = deferred<boolean>();
+      const rejected = expect(
+        f.transfer(grantId, {}, () => {
+          checking.resolve();
+          return reply.promise;
+        }),
+      ).rejects.toThrow("Approve this screenshot transfer again");
+      await checking.promise;
+      if (change === "page changes") Object.assign(f.session, { pageRevision: 1 });
+      else
+        await f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "revokeDeviceScreenshot",
+          input: { grantId },
+        });
+      reply.resolve(true);
+      await rejected;
+      expect(f.attach).not.toHaveBeenCalled();
+    },
+  );
+
   async function connectChromiumPage(
     page: import("playwright").Page,
     fixture: {
