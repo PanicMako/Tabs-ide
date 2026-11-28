@@ -456,4 +456,43 @@ test("validates the definition for each mode before inspecting the tab", async (
   }
 });
 
+test.each([
+  ["read-only", readOnlyDefinition, journalDefinition],
+  ["guarded", journalDefinition, readOnlyDefinition],
+] as const)(
+  "keeps the original %s mode when re-arming the same journal",
+  async (_mode, first, next) => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-browser-workflow-mode-"));
+    try {
+      const browser = vi.fn(async () => status("uploaded"));
+      const workflows = makeBrowserWorkflows(directory, journalOwner, browser);
+      const armed = await workflows.arm({ ...armJournal, definition: first });
+      // The observed stage normally requires Submit, and the host claims it is approved.
+      expect(armed.phase).toBe(first === readOnlyDefinition ? "verified" : "ready");
+      if (first === readOnlyDefinition) {
+        expect(armed.result.readOnly).toBe(true);
+        expect(browser).toHaveBeenCalledExactlyOnceWith(
+          { phase: "inspect", profileId: "Work", definition: first },
+          tabId,
+        );
+        expect(armed.breakpoint).toBeUndefined();
+      } else {
+        expect(armed.result).not.toHaveProperty("readOnly");
+      }
+      const before = await readJournal(directory, armed.workflowId);
+      browser.mockClear();
+      await expect(workflows.arm({ ...armJournal, definition: next })).rejects.toThrow(
+        "Keep its original mode.",
+      );
+      expect(browser).toHaveBeenCalledExactlyOnceWith(
+        { phase: "inspect", profileId: "Work", definition: next },
+        tabId,
+      );
+      expect(await readJournal(directory, armed.workflowId)).toBe(before);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 const chromiumPath = chromium.executablePath();
