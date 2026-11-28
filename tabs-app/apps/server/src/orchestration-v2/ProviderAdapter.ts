@@ -489,6 +489,14 @@ export interface ProviderAdapterV2SessionRuntime {
   readonly providerSessionId: ProviderSessionId;
   readonly providerSession: OrchestrationV2ProviderSession;
   readonly events: Stream.Stream<ProviderAdapterV2Event, ProviderAdapterV2Error>;
+  /** Open the configured Figma connection for an authenticated provider operation. */
+  readonly figmaMcp?: (
+    providerThread: OrchestrationV2ProviderThread,
+  ) => Effect.Effect<
+    import("../mcp/toolkits/figmaCanvas/connection.ts").FigmaMcpConnection | undefined,
+    never,
+    Scope.Scope
+  >;
   /**
    * Manager-owned runtimes expose a synchronous subscription so concurrent
    * provider threads receive independent copies of the process event stream.
