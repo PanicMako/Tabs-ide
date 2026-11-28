@@ -2901,6 +2901,283 @@ describe("reliable browser tabs and agent control", () => {
     },
   );
 
+  it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
+    "uses a human approval once and checks the same draft button, destination and breakpoint in Chromium",
+    async () => {
+      const userData = await mkdtemp(join(tmpdir(), "tabs-browser-approval-"));
+      const dataPath = vi.spyOn(app, "getPath").mockReturnValue(userData);
+      onTestFinished(async () => {
+        dataPath.mockRestore();
+        await rm(userData, { recursive: true, force: true });
+      });
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch();
+      onTestFinished(async () => browser.close());
+      const page = await browser.newPage();
+      const publicUrl = "https://partner.microsoft.com/dashboard/draft/42";
+      const url = `${publicUrl}?view=build#delivery`;
+      await page.route("**/*", (route) => {
+        if (route.request().url() !== publicUrl) return route.abort();
+        return route.fulfill({
+          contentType: "text/html",
+          body: `<p id="draft">42</p><p id="status">Uploaded</p><p id="condition">Clear</p>
+            <form action="/submit" method="post"><button id="submit">Submit</button></form>
+            <output>0</output><script>
+              document.querySelector("form").onsubmit = event => {
+                event.preventDefault();
+                const log = document.querySelector("output");
+                log.textContent = Number(log.textContent) + 1;
+              };
+            </script>`,
+        });
+      });
+      await page.goto(publicUrl);
+      await page.evaluate((exact) => history.replaceState(null, "", exact), url);
+      const cdp = await page.context().newCDPSession(page);
+      const { frameTree } = await cdp.send("Page.getFrameTree");
+      const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: "submission-approval",
+      });
+      const manager = new BrowserHostManager(() => null);
+      const sessionId = "agents-surface-workflow";
+      const { session, webContents } = createMockSession({
+        sessionId,
+        key: "project-1::" + sessionId,
+        profileId: "work",
+        partition: "persist:tabs-browser:profile:work",
+        currentUrl: url,
+      });
+      Object.assign(webContents, {
+        getURL: () => page.url(),
+        isLoadingMainFrame: () => session.loading,
+        session: { storagePath: join(userData, "Partitions", "work") },
+        executeJavaScriptInIsolatedWorld: async (_world: number, [script]: { code: string }[]) => {
+          const evaluated = await cdp.send("Runtime.evaluate", {
+            expression: script!.code,
+            contextId: executionContextId,
+            returnByValue: true,
+          });
+          if (evaluated.exceptionDetails)
+            throw new Error(
+              evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text,
+            );
+          return evaluated.result.value;
+        },
+      });
+      (manager as unknown as { sessions: Map<string, unknown> }).sessions.set(session.key, session);
+      const owner = {
+        projectId: session.projectId,
+        sessionId,
+        taskId: "workflow-thread",
+      };
+      const definition = {
+        url,
+        identitySelector: "#draft",
+        resourceId: "42",
+        statusSelector: "#status",
+        submitSelector: "#submit",
+        states: {
+          uploaded: "Uploaded",
+          submitted: "Submitted",
+          certified: "Certified",
+          published: "Published",
+        },
+        breakpoint: {
+          selector: "#condition",
+          pauseText: "Replacing",
+          clearText: "Clear",
+        },
+      };
+      await manager.runAutomation({
+        ...owner,
+        source: "human",
+        operation: "authorizeBrowserPage",
+        input: { url, profileId: "work" },
+      });
+      const workflowId = "a".repeat(64);
+      const run = (phase: "inspect" | "submit", target?: unknown, id = workflowId) =>
+        manager.runAutomation({
+          ...owner,
+          source: "agent",
+          operation: "browserWorkflow",
+          input: {
+            phase,
+            profileId: "work",
+            definition:
+              phase === "inspect" && !target ? { ...definition, url: publicUrl } : definition,
+            target,
+            ...(target === undefined ? {} : { workflowId: id }),
+          },
+        });
+      const state = () => manager.getSessionState(owner.projectId, owner.sessionId);
+      const humanApproval = (
+        approvalId: string,
+        source = "human" as "human" | "agent",
+        taskId = owner.taskId,
+      ) =>
+        manager.runAutomation({
+          ...owner,
+          taskId,
+          source,
+          operation: "authorizeBrowserSubmission",
+          input: { approvalId },
+        });
+      await expect(
+        manager.runAutomation({
+          ...owner,
+          source: "agent",
+          operation: "status",
+        }),
+      ).resolves.toMatchObject({ url: publicUrl });
+      const firstInspection = await run("inspect");
+      expect(firstInspection).toMatchObject({
+        resolvedDraftUrl: url,
+        observation: { stage: "uploaded", breakpoint: "clear" },
+      });
+      const { target } = firstInspection as { target: unknown };
+      await expect(
+        manager.runAutomation({
+          ...owner,
+          source: "agent",
+          operation: "browserWorkflow",
+          input: {
+            phase: "inspect",
+            profileId: "work",
+            definition: { ...definition, url: publicUrl },
+            target,
+            workflowId,
+          },
+        }),
+      ).rejects.toThrow("selected persistent browser profile");
+      expect(state().pendingSubmissionApproval).toBeUndefined();
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+        observation: { submitAvailable: false, submitRequiresUser: true },
+        submissionApproved: false,
+      });
+      expect(state()).toMatchObject({ submissionGuardActive: true });
+      expect(state().pendingSubmissionApproval).toBeUndefined();
+      expect(await page.locator("output").innerText()).toBe("0");
+
+      await page.locator("form").evaluate((form) => {
+        form.setAttribute("data-tabs-submit-idempotency", "attempt_key");
+        form.insertAdjacentHTML(
+          "beforeend",
+          '<input type="hidden" name="attempt_key" value="original-disposable-key">',
+        );
+      });
+      await run("inspect", target);
+      const first = state().pendingSubmissionApproval!;
+      expect(first).toMatchObject({
+        resourceId: "42",
+        url,
+        controlLabel: "Submit",
+        workflowId,
+      });
+      await expect(humanApproval(first.id, "agent")).rejects.toThrow("Review the current draft");
+      await expect(humanApproval(first.id, "human", "other-thread")).rejects.toThrow(
+        "Review the current draft",
+      );
+      await page
+        .locator("#submit")
+        .evaluate((button) => button.replaceWith(button.cloneNode(true)));
+      await expect(humanApproval(first.id)).rejects.toThrow("Submit control changed");
+      await run("inspect", target);
+      const replacement = state().pendingSubmissionApproval!;
+      expect(replacement.id).not.toBe(first.id);
+      await expect(humanApproval(replacement.id)).resolves.toEqual({
+        approved: true,
+        workflowId,
+      });
+      await expect(humanApproval(replacement.id)).resolves.toEqual({
+        approved: true,
+        workflowId,
+      });
+      await expect(run("submit", target, "b".repeat(64))).resolves.toMatchObject({
+        disposition: "observed",
+        submissionApproved: false,
+      });
+      expect(await page.locator("output").innerText()).toBe("0");
+      await run("inspect", target);
+      const approvedDraft = state().pendingSubmissionApproval!;
+      await humanApproval(approvedDraft.id);
+      await expect(run("inspect", target)).resolves.toMatchObject({
+        submissionApproved: true,
+      });
+      await page.locator("form").evaluate((form) => form.setAttribute("action", "/other-draft"));
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+        submissionApproved: false,
+      });
+      expect(await page.locator("output").innerText()).toBe("0");
+
+      const changedDestination = state().pendingSubmissionApproval!;
+      expect(changedDestination.id).not.toBe(approvedDraft.id);
+      await humanApproval(changedDestination.id);
+      await page.locator("#condition").evaluate((condition) => {
+        condition.textContent = "Replacing";
+      });
+      await expect(run("submit", target)).resolves.toMatchObject({
+        observation: { breakpoint: "matched" },
+      });
+      expect(state().controller).toBe("human");
+      expect(await page.locator("output").innerText()).toBe("0");
+
+      await page.locator("#condition").evaluate((condition) => {
+        condition.textContent = "Clear";
+      });
+      await manager.resumeAgent(owner);
+      await run("inspect", target);
+      await humanApproval(state().pendingSubmissionApproval!.id);
+      manager.takeControl(owner);
+      await expect(run("submit", target)).rejects.toThrow("Approve");
+      await manager.resumeAgent(owner);
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+      });
+      expect(await page.locator("output").innerText()).toBe("0");
+
+      await page.locator('input[name="attempt_key"]').evaluate((input) => input.remove());
+      await expect(run("inspect", target)).resolves.toMatchObject({
+        observation: { submitAvailable: false },
+        reason: "Submit needs the site's unique, enabled submission key.",
+      });
+      expect(state().pendingSubmissionApproval).toBeUndefined();
+      await page
+        .locator("form")
+        .evaluate((form) =>
+          form.insertAdjacentHTML(
+            "beforeend",
+            '<input type="hidden" name="attempt_key" value="original-disposable-key">',
+          ),
+        );
+      await run("inspect", target);
+      const keyed = state().pendingSubmissionApproval!;
+      expect(keyed.siteSubmissionKey).toBe(true);
+      expect(JSON.stringify(keyed)).not.toContain("original-disposable-key");
+      await humanApproval(keyed.id);
+      await page.locator('input[name="attempt_key"]').evaluate((input: HTMLInputElement) => {
+        input.value = "replacement-disposable-key";
+      });
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+        submissionApproved: false,
+      });
+      expect(await page.locator("output").innerText()).toBe("0");
+      expect(state().pendingSubmissionApproval?.id).not.toBe(keyed.id);
+      await humanApproval(state().pendingSubmissionApproval!.id);
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "dispatched",
+      });
+      await expect(run("submit", target)).resolves.toMatchObject({
+        disposition: "observed",
+        submissionApproved: false,
+      });
+      expect(await page.locator("output").innerText()).toBe("1");
+    },
+  );
+
   describe.skip("saved browser workflow results", () => {
     async function setup(
       currentUrl?: string,
