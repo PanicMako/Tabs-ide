@@ -2437,6 +2437,31 @@ describe("Device comparison", () => {
       pixel.hostId,
     ]);
   });
+
+  it("replays a renamed and reordered Android button with the same accessibility identifier", async () => {
+    const f = fixture(
+      [identify(frame("ios", ["Continue", "Cancel"]), "checkout-continue"), frame("ios", [])],
+      [
+        identify(
+          frame("android", ["Cancel", "Go to delivery"]),
+          undefined,
+          `${androidApp}:id/checkout_continue`,
+        ),
+        frame("android", []),
+      ],
+    );
+    const runId = await f.begin();
+    await f.tap(runId, "Continue");
+    await f.approve(runId);
+    await f.replay(runId);
+    const status = await f.settle();
+    expect(status.run).toMatchObject({ phase: "completed", completedSteps: 1 });
+    expect(status.run?.firstDifference).toBeUndefined();
+    expect(f.press.mock.calls).toEqual([
+      [iphone.hostId, "@e1~s42"],
+      [pixel.hostId, "@e2~s42"],
+    ]);
+  });
 });
 
 describe.skip("Total check reporting and replay retry", () => {
