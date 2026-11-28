@@ -3792,7 +3792,29 @@ describe("reliable browser tabs and agent control", () => {
       });
     });
 
-    describe.skip("monitor", () => {
+    describe("monitor", () => {
+      it("advertises only a live tab with an active page grant", async () => {
+        const f = await setup();
+        expect(f.manager.listBrowserWorkflowTabs()).toEqual([]);
+        await f.authorize();
+        const expected = [
+          {
+            threadId: f.request.taskId,
+            tabId: f.request.sessionId,
+            workflowHostKey: f.saved.target.hostKey,
+          },
+        ];
+        expect(f.manager.listBrowserWorkflowTabs()).toEqual(expected);
+        f.manager.takeControl(f.request);
+        expect(f.manager.listBrowserWorkflowTabs()).toEqual([]);
+        await f.manager.resumeAgent(f.request);
+        expect(f.manager.listBrowserWorkflowTabs()).toEqual(expected);
+        await f.manager.runAutomation({
+          ...f.request,
+          operation: "revokeBrowserPage",
+        });
+        expect(f.manager.listBrowserWorkflowTabs()).toEqual([]);
+      });
     });
   });
 
