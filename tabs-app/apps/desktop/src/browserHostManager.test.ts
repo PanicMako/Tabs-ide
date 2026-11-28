@@ -4076,6 +4076,17 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.evaluate).not.toHaveBeenCalled();
       expect(f.loadURL).not.toHaveBeenCalled();
     });
+
+    it("rejects tabs assigned to a different thread before reading or navigating", async () => {
+      const f = await setup();
+      Object.assign(f.session, { assignedTaskId: "another-thread" });
+      await expect(f.enter()).rejects.toThrow("another thread");
+      expect(f.evaluate).not.toHaveBeenCalled();
+      expect(f.loadURL).not.toHaveBeenCalled();
+      Object.assign(f.session, { assignedTaskId: f.request.taskId });
+      await expect(f.enter()).resolves.toEqual({ stage: "certified" });
+      expect(f.session.assignedTaskId).toBe(f.request.taskId);
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
