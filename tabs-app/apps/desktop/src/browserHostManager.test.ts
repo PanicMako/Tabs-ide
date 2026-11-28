@@ -1824,6 +1824,101 @@ describe("reliable browser tabs and agent control", () => {
     ).resolves.toMatchObject({ url: document });
   });
 
+  it("revokes site approvals before profile storage is cleared, without affecting another profile", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const storage = {
+      cookies: {
+        on: vi.fn(),
+        get: vi.fn().mockResolvedValue([]),
+        flushStore: vi.fn().mockResolvedValue(undefined),
+      },
+      closeAllConnections: vi.fn().mockResolvedValue(undefined),
+      clearData: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      flushStorageData: vi.fn(),
+    };
+    const personalStorage = { ...storage };
+    electronMocks.fromPartition.mockReturnValue(storage);
+    const open = async (id: string, profileId: string, currentUrl: string) => {
+      const sessionId = `agents-surface-${id}`;
+      const f = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        profileId,
+        partition: `persist:tabs-browser:profile:${profileId}`,
+        currentUrl,
+      });
+      const safe = vi.fn().mockResolvedValue(true);
+      Object.assign(f.webContents, {
+        session: profileId === "work" ? storage : personalStorage,
+        isLoadingMainFrame: () => false,
+        executeJavaScriptInIsolatedWorld: safe,
+      });
+      const { loadURL } = mockNavigation(manager, f);
+      const route = { projectId: f.session.projectId, sessionId, taskId: "qa" };
+      const state = () => manager.getSessionState(route.projectId, sessionId);
+      const approve = (token?: string) =>
+        manager.runAutomation({
+          ...route,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: { url: currentUrl, profileId, pageApprovalToken: token },
+        });
+      await approve();
+      return { ...f, loadURL, route, state, approve, safe };
+    };
+    const url = "https://reports.example.com/draft";
+    const work = await open("work-clear", "work", url);
+    const otherSite = await open("other-site", "work", "https://other.test/?site=example.com");
+    const personal = await open("personal-clear", "personal", url);
+    const oldReview = work.state().pageApprovalToken;
+    expect(oldReview).toBeTypeOf("string");
+
+    let finishPageCheck!: (safe: boolean) => void;
+    work.safe.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishPageCheck = resolve;
+      }),
+    );
+    const action = manager.runAutomation({
+      ...work.route,
+      source: "agent",
+      operation: "click",
+      input: { selector: "#save" },
+    });
+    const rejected = expect(action).rejects.toThrow("Approve access");
+    await vi.waitFor(() => expect(work.safe).toHaveBeenCalledOnce());
+
+    let finishClear!: () => void;
+    storage.clearData.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishClear = resolve;
+      }),
+    );
+    const clearing = manager.clearProfileDomain("work", "example.com");
+    await vi.waitFor(() => expect(storage.clearData).toHaveBeenCalledOnce());
+    expect(work.state().browserPageAuthorized).toBe(false);
+    await expect(work.approve()).rejects.toThrow("finish updating site data");
+    finishPageCheck(true);
+    await rejected;
+    expect(work.sendInputEvent).not.toHaveBeenCalled();
+    expect(otherSite.state().browserPageAuthorized).toBe(true);
+    expect(personal.state().browserPageAuthorized).toBe(true);
+
+    finishClear();
+    await clearing;
+    expect(work.loadURL).toHaveBeenCalledWith(url);
+    expect(otherSite.loadURL).not.toHaveBeenCalled();
+    expect(personal.loadURL).not.toHaveBeenCalled();
+    await expect(work.approve(oldReview)).rejects.toThrow("page changed during review");
+    await work.approve(work.state().pageApprovalToken);
+    expect(work.state().browserPageAuthorized).toBe(true);
+
+    await manager.clearProfileData("work");
+    expect(work.state().browserPageAuthorized).toBe(false);
+    expect(otherSite.state().browserPageAuthorized).toBe(false);
+    expect(personal.state().browserPageAuthorized).toBe(true);
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
