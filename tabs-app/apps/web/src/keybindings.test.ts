@@ -7,6 +7,7 @@ import {
   type KeybindingWhenNode,
   type ResolvedKeybindingsConfig,
 } from "@tabs/contracts";
+import { agentControlRequestForCommand } from "./lib/agentControl";
 import {
   formatShortcutLabel,
   isChatNewShortcut,
@@ -633,5 +634,52 @@ describe("model picker keys only apply while the picker is open", () => {
       resolveShortcutCommand(linuxKey("]"), DEFAULT_RESOLVED_KEYBINDINGS, outside("Linux")),
       "navigation.forward",
     );
+  });
+});
+
+describe("agent control shortcuts", () => {
+  it("resolves take over and stop all without colliding with thread.stop", () => {
+    const mac = { platform: "MacIntel" };
+    assert.strictEqual(
+      resolveShortcutCommand(
+        event({ key: "y", metaKey: true, altKey: true, shiftKey: true }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        mac,
+      ),
+      "agent.takeOver",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(
+        event({ key: "x", metaKey: true, altKey: true, shiftKey: true }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        mac,
+      ),
+      "agent.stopAll",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(event({ key: ".", metaKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, mac),
+      "thread.stop",
+    );
+  });
+
+  it("maps keybinding commands to agent control requests", () => {
+    assert.strictEqual(agentControlRequestForCommand("agent.takeOver"), "takeOver");
+    assert.strictEqual(agentControlRequestForCommand("agent.stopAll"), "stopAll");
+    assert.strictEqual(agentControlRequestForCommand("thread.stop"), null);
+  });
+
+  it("has no default chord that duplicates the agent commands", () => {
+    const keys = DEFAULT_RESOLVED_KEYBINDINGS.filter(
+      (rule) => rule.command === "agent.takeOver" || rule.command === "agent.stopAll",
+    ).map((rule) => `${rule.shortcut.key}${rule.shortcut.shiftKey}${rule.shortcut.modKey}`);
+    assert.strictEqual(new Set(keys).size, 2);
+    const clashes = DEFAULT_RESOLVED_KEYBINDINGS.filter(
+      (rule) =>
+        rule.shortcut.modKey &&
+        rule.shortcut.shiftKey &&
+        rule.shortcut.altKey &&
+        (rule.shortcut.key === "x" || rule.shortcut.key === "y"),
+    );
+    assert.strictEqual(clashes.length, 2);
   });
 });
