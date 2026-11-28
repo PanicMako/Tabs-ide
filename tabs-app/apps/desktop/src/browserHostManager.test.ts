@@ -4031,6 +4031,51 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.querySelectorAll).not.toHaveBeenCalledWith("#replacement");
       expect(f.submit).not.toHaveBeenCalled();
     });
+
+    it("requires a human and the exact existing tab, project, profile and host storage", async () => {
+      const f = await setup();
+      const { source, sessionId, ...request } = f.request;
+      for (const invalid of [
+        { ...f.request, source: "agent" as const },
+        { ...request, sessionId },
+        { ...f.request, taskId: "" },
+        { ...request, source },
+      ]) {
+        await expect(f.manager.runAutomation({ ...invalid, input: f.saved })).rejects.toThrow(
+          "from its thread",
+        );
+      }
+      await expect(
+        f.manager.runAutomation({
+          ...f.request,
+          sessionId: "absent",
+          input: f.saved,
+        }),
+      ).rejects.toThrow("session was not found");
+      for (const overrides of [
+        { tabId: PreviewTabId.make("other") },
+        { projectId: "another-project" },
+        { profileId: "personal" },
+        { hostKey: "another-host" },
+      ]) {
+        await expect(
+          f.enter({ ...f.saved, target: { ...f.saved.target, ...overrides } }),
+        ).rejects.toThrow("original desktop browser tab and profile");
+      }
+      f.webContents.session.isPersistent.mockReturnValueOnce(false);
+      await expect(f.enter()).rejects.toThrow("original desktop browser tab and profile");
+      const recordedPath = join(f.userData, "Partitions", "work");
+      Object.assign(f.webContents.session, {
+        storagePath: recordedPath + "-different",
+      });
+      await expect(f.enter()).rejects.toThrow("original desktop browser tab and profile");
+      Object.assign(f.webContents.session, { storagePath: recordedPath });
+      await unlink(join(f.userData, "browser-workflow-host-id"));
+      await expect(f.enter()).rejects.toThrow("original desktop browser tab and profile");
+      expect(() => browserWorkflowHostKey(f.userData, recordedPath, false)).toThrow("ENOENT");
+      expect(f.evaluate).not.toHaveBeenCalled();
+      expect(f.loadURL).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
