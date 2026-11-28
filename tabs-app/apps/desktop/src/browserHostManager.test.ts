@@ -9373,6 +9373,21 @@ describe("reliable browser tabs and agent control", () => {
       await expect(f.enter(restarted)).rejects.toThrow("bookmark is unavailable");
       expect(tab.loadURL).not.toHaveBeenCalled();
     });
+
+    it("keeps a verified secret-bearing draft in memory only", async () => {
+      const f = await setup("https://app.test/drafts/42?access_token=private");
+      await f.verify();
+      await expect(f.enter(f.manager)).resolves.toBeNull();
+      await expect(readdir(f.userData)).resolves.toEqual([]);
+      await expect(
+        f.manager.runAutomation({
+          ...f.target,
+          source: "human",
+          operation: "enterAttachedPage",
+          input: f.input,
+        }),
+      ).resolves.toEqual({ result: "verified_draft", receiptKind: "image" });
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
