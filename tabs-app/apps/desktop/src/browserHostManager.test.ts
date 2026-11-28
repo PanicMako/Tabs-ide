@@ -7701,6 +7701,16 @@ describe("reliable browser tabs and agent control", () => {
         expect(f.pending()).toBeUndefined();
         await expect(f.authorize(write)).rejects.toThrow("Review the current Figma");
       });
+
+      it("rechecks browser takeover at dispatch after connector setup", async () => {
+        const f = await setupFigma();
+        const { approval, write } = await proposed(f);
+        await f.confirm(approval.id);
+        await f.authorize(write);
+        f.manager.takeControl(f.request);
+        await f.manager.resumeAgent(f.request);
+        await expect(f.dispatch(approval)).rejects.toThrow("Review the current Figma");
+      });
     });
 
     it("keeps an opaque bookmark private and restores the exact URL after a same-origin change", async () => {
