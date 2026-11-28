@@ -8706,6 +8706,69 @@ describe("reliable browser tabs and agent control", () => {
       });
       expect(tab.loadURL).toHaveBeenCalledExactlyOnceWith(approvedUrl);
     });
+
+    it("recovers an upfront-approved Work toolbar draft saved before verification", async () => {
+      const url = "https://app.test/drafts/42?view=edit#evidence";
+      const sessionId = "custom-qa-checkout";
+      const f = await setup(url, url, "first-difference", {
+        targetPng: "AQID",
+        sessionId,
+      });
+      await expect(f.findComparison(f.manager)).resolves.toBeNull();
+      const [checkpoint] = await readdir(f.directory);
+      expect(checkpoint).toMatch(/^device-comparison-pending-/);
+      const contents = JSON.parse(await readFile(join(f.directory, checkpoint!), "utf8"));
+      expect(contents).toMatchObject({
+        url,
+        tabId: sessionId,
+        digests: [f.digest, f.targetDigest],
+      });
+      expect(contents).not.toHaveProperty("grantId");
+      expect(contents).not.toHaveProperty("pairedGrantId");
+
+      const restarted = new BrowserHostManager(() => null);
+      const target = { tabId: f.target.sessionId, profileId: "work" };
+      await expect(f.findComparison(restarted)).resolves.toEqual({
+        ...target,
+        pending: true,
+      });
+      await expect(f.findComparison(restarted, { taskId: "other-thread" })).resolves.toBeNull();
+      await expect(f.findComparison(restarted, { source: "agent" })).rejects.toThrow("thread");
+      const personal = f.tab(restarted, {
+        profileId: "personal",
+        currentUrl: url,
+      });
+      await expect(
+        f.enterComparison(restarted, {
+          input: {
+            runId: evidenceRunId,
+            step: sourceFrame.step,
+            profileId: "personal",
+          },
+        }),
+      ).rejects.toThrow("original desktop browser tab");
+      expect(personal.loadURL).not.toHaveBeenCalled();
+
+      const work = f.tab(restarted, { currentUrl: url });
+      await expect(f.enterComparison(restarted)).rejects.toThrow("approved screenshot receipt");
+      expect(work.loadURL).toHaveBeenCalledExactlyOnceWith(url);
+      await expect(f.findComparison(restarted)).resolves.toEqual({
+        ...target,
+        pending: true,
+      });
+      work.content.text = `${f.digest}\n${f.targetDigest}`;
+      await expect(f.enterComparison(restarted)).resolves.toMatchObject({
+        url,
+      });
+      await expect(f.findComparison(restarted)).resolves.toEqual(target);
+      expect(await readdir(f.directory)).toEqual([
+        expect.stringMatching(/^device-comparison-draft-/),
+      ]);
+      await expect(f.enterComparison(restarted)).resolves.toMatchObject({
+        url,
+      });
+      expect(work.loadURL).toHaveBeenCalledTimes(2);
+    });
   });
 
   it.each(["takeover", "revoke", "navigate", "partition", "reassign"])(
