@@ -3934,4 +3934,17 @@ describe("Total check reporting and replay retry", () => {
     expect(retried.run).toMatchObject({ runId, phase: "completed" });
     expect(f.press.mock.calls).toHaveLength(presses);
   });
+
+  it("suggests a total check when the recorded screens show an amount", async () => {
+    const f = fixture(
+      [frame("ios", ["Continue"], ["Total"]), frame("ios", [], ["Order review", "Total $12.50"])],
+      [frame("android", ["Continue"]), frame("android", [], ["Order review"])],
+    );
+    const { runId } = await record(f);
+    const finished = await f.record({ action: "finish", runId });
+    expect(finished.run).toMatchObject({
+      totalCheck: "none",
+      suggestTotalCheck: true,
+    });
+  });
 });
