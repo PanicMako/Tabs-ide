@@ -89,6 +89,7 @@ export * from "./desktopAppActivation.ts";
 export * from "./projectClone.ts";
 export * from "./browserProfile.ts";
 export * from "./device.ts";
+export * from "./deviceComparison.ts";
 
 export * from "./testingRpc.ts";
 
