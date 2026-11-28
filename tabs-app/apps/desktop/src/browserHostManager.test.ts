@@ -1676,6 +1676,154 @@ describe("reliable browser tabs and agent control", () => {
     await expect(navigate(sameDocument)).rejects.toThrow("Approve");
   });
 
+  it("revokes same-URL Google grants for the affected browser storage before dispatch", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const work = { cookies: new EventEmitter() };
+    const personal = { cookies: new EventEmitter() };
+    const document = "https://docs.google.com/document/u/0/d/one";
+    const prepare = async (id: string, profileId: string, url: string, storage: typeof work) => {
+      const sessionId = `agents-surface-${id}`;
+      const partition = `persist:tabs-browser:profile:${profileId}`;
+      const fixture = createMockSession({
+        sessionId,
+        key: `project-1::${sessionId}`,
+        currentUrl: url,
+        profileId,
+        partition,
+      });
+      const safe = vi.fn().mockResolvedValue(true);
+      Object.assign(fixture.webContents, {
+        session: storage,
+        isLoadingMainFrame: () => false,
+        executeJavaScriptInIsolatedWorld: safe,
+      });
+      mockNavigation(manager, fixture);
+      (
+        manager as unknown as {
+          observeProfileSession: (partition: string, storage: typeof work) => void;
+        }
+      ).observeProfileSession(partition, storage);
+      const target = {
+        projectId: fixture.session.projectId,
+        sessionId,
+        taskId: "qa",
+      };
+      const approve = (pageApprovalToken?: string) =>
+        manager.runAutomation({
+          ...target,
+          source: "human",
+          operation: "authorizeBrowserPage",
+          input: { url, profileId, pageApprovalToken },
+        });
+      await approve();
+      return {
+        ...fixture,
+        safe,
+        approve,
+        state: () => manager.getSessionState(target.projectId, sessionId),
+        agent: { ...target, source: "agent" as const },
+      };
+    };
+    const workDocument = await prepare("work-doc", "work", document, work);
+    const workSheet = await prepare(
+      "work-sheet",
+      "work",
+      "https://docs.google.com/spreadsheets/d/sheet",
+      work,
+    );
+    const workDraft = await prepare("work-draft", "work", "https://qa.example.test/draft", work);
+    const personalDocument = await prepare("personal-doc", "personal", document, personal);
+    expect(work.cookies.listenerCount("changed")).toBe(1);
+
+    const action = {
+      id: crypto.randomUUID(),
+      label: "Save document",
+      origin: "https://docs.google.com",
+      steps: [{ action: "click", selector: "#save" }],
+      outcome: { selector: "#confirmation", description: "Saved" },
+    };
+    const human = { ...workDocument.agent, source: "human" as const };
+    const targets = (await manager.runAutomation({
+      ...human,
+      operation: "listQuickActionTargets",
+      input: { action },
+    })) as { sessionId: string; token: string }[];
+    const token = targets.find(
+      ({ sessionId }) => sessionId === workDocument.agent.sessionId,
+    )!.token;
+    const { id } = (await manager.runAutomation({
+      ...human,
+      operation: "authorizeQuickAction",
+      input: { action, token },
+    })) as { id: string };
+
+    const before = workDocument.state().controlEpoch!;
+    const reviewed = workDocument.state().pageApprovalToken;
+    expect(reviewed).toBeTypeOf("string");
+    for (const cookie of [
+      { domain: ".google.com", name: "NID" },
+      { domain: ".google.com", name: "__Secure-1PSIDTS" },
+      { domain: ".notgoogle.com", name: "SID" },
+    ])
+      work.cookies.emit("changed", {}, cookie, "explicit", false);
+    expect(workDocument.state()).toMatchObject({
+      browserPageAuthorized: true,
+      controlEpoch: before,
+    });
+
+    let finishCheck!: (result: boolean) => void;
+    workDocument.safe.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    const click = manager.runAutomation({
+      ...workDocument.agent,
+      operation: "click",
+      input: { selector: "#save" },
+    });
+    const rejected = expect(click).rejects.toThrow("Approve access");
+    await vi.waitFor(() => expect(workDocument.safe).toHaveBeenCalledOnce());
+    work.cookies.emit(
+      "changed",
+      {},
+      {
+        domain: ".google.com",
+        name: "SID",
+        get value() {
+          throw new Error("The cookie value must never be read");
+        },
+      },
+      "overwrite",
+      true,
+    );
+    finishCheck(true);
+    await rejected;
+
+    expect(workDocument.sendInputEvent).not.toHaveBeenCalled();
+    expect(workDocument.safe).toHaveBeenCalledOnce();
+    expect(workDocument.state()).toMatchObject({
+      browserPageAuthorized: false,
+      currentUrl: document,
+      controlEpoch: before + 1,
+    });
+    expect(workSheet.state().browserPageAuthorized).toBe(false);
+    expect(workDraft.state().browserPageAuthorized).toBe(true);
+    expect(personalDocument.state().browserPageAuthorized).toBe(true);
+    await expect(workDocument.approve(reviewed)).rejects.toThrow("page changed during review");
+    await workDocument.approve(workDocument.state().pageApprovalToken);
+    await expect(
+      manager.runAutomation({
+        ...workDocument.agent,
+        operation: "runQuickAction",
+        input: { actionId: action.id, approvalId: id },
+      }),
+    ).rejects.toThrow("exact tab and thread");
+    await expect(
+      manager.runAutomation({ ...workDocument.agent, operation: "status" }),
+    ).resolves.toMatchObject({ url: document });
+  });
+
   function openCookieChangeTab(
     manager: BrowserHostManager,
     id: string,
