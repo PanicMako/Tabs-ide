@@ -3967,6 +3967,37 @@ describe("reliable browser tabs and agent control", () => {
           true,
         );
       });
+
+      it("blocks off-URL redirects during a refresh and yields to a new page navigation", async () => {
+        const f = await setup();
+        await f.authorize();
+        const other = "https://app.test/other-draft";
+        const preventDefault = vi.fn();
+        f.loadURL.mockImplementationOnce(async () => {
+          f.events.emit("will-redirect", {
+            isMainFrame: true,
+            url: other,
+            preventDefault,
+          });
+        });
+        await expect(f.monitor({ refresh: true })).rejects.toThrow(
+          "refresh the original workflow URL",
+        );
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(f.stop).toHaveBeenCalledOnce();
+        preventDefault.mockClear();
+        f.stop.mockClear();
+
+        f.loadURL.mockImplementationOnce(async () => {
+          f.events.emit("will-navigate", { url: other, preventDefault });
+        });
+        await expect(f.monitor({ refresh: true })).rejects.toThrow(
+          "refresh the original workflow URL",
+        );
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(f.stop).not.toHaveBeenCalled();
+        expect(f.evaluate).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
