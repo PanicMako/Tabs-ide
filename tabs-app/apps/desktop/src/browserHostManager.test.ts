@@ -4094,6 +4094,23 @@ describe("reliable browser tabs and agent control", () => {
       expect(f.loadURL).toHaveBeenCalledExactlyOnceWith(f.url);
       expect(f.session.assignedTaskId).toBeNull();
     });
+
+    it("leaves a tab with a queued agent action on its current page", async () => {
+      const f = await setup("https://app.test/work");
+      Object.assign(f.session, {
+        actionTimeline: [
+          {
+            id: "queued",
+            action: "submit",
+            status: "running",
+            startedAt: new Date().toISOString(),
+          },
+        ],
+      });
+      await expect(f.enter()).rejects.toThrow("already in use");
+      expect(f.loadURL).not.toHaveBeenCalled();
+      expect(f.evaluate).not.toHaveBeenCalled();
+    });
   });
 
   it.skipIf(process.env.TABS_QA_BROWSER !== "1")(
