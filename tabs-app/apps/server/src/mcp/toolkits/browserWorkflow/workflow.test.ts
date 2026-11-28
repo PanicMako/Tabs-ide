@@ -916,4 +916,153 @@ test("requires journal-bound approval and keeps the reservation until a receipt 
   }
 });
 
+test.each(["pending", "manual"] as const)(
+  "same-stage Upload preserves a %s submission until a user status check verifies a receipt",
+  async (mode) => {
+    const directory = await mkdtemp(join(tmpdir(), "tabs-browser-human-receipt-"));
+    try {
+      const manual = mode === "manual";
+      const definition = { ...journalDefinition, states: uploadStates, uploadSelector: "#upload" };
+      let submits = 0;
+      const browser = vi.fn(async (request: BrowserWorkflowBrowserRequest) => {
+        if (request.phase === "submit") {
+          submits++;
+          return undefined;
+        }
+        if (request.statusOnly || manual) {
+          return {
+            target: journalTarget,
+            disposition: "observed",
+            observation: {
+              stage: "uploaded",
+              statusText: "Uploaded",
+              breakpoint: request.statusOnly ? "irrelevant" : "clear",
+              submitAvailable: false,
+              ...(!request.statusOnly && { submitRequiresUser: true as const }),
+            },
+          } satisfies BrowserWorkflowHostResult;
+        }
+        return status("uploaded");
+      });
+      const workflow = makeBrowserWorkflows(directory, journalOwner, browser);
+      const { workflowId } = await workflow.arm({ ...armJournal, definition });
+      expect(await workflow.advance(workflowId, "submit")).toMatchObject({
+        phase: manual ? "manual_submit" : "uncertain",
+      });
+      const reference = { workflowId, stage: "uploaded" as const };
+      const draft = {
+        target: journalTarget,
+        definition,
+        stage: "uploaded",
+        ...(manual ? { submitRequiresUser: true } : { pendingAction: "submit" }),
+      };
+      expect(await readBrowserWorkflowResult(directory, journalOwner, reference)).toEqual(draft);
+      browser.mockClear();
+      for (let retry = 0; retry < 2; retry++) {
+        expect(await workflow.advance(workflowId, "upload")).toMatchObject({
+          phase: "verified",
+          lastVerified: { stage: "uploaded" },
+        });
+        expect(await readBrowserWorkflowResult(directory, journalOwner, reference)).toEqual(draft);
+      }
+      const inspection = {
+        phase: "inspect",
+        profileId: journalTarget.profileId,
+        target: journalTarget,
+        definition,
+        workflowId,
+        statusOnly: true,
+      };
+      expect(browser.mock.calls).toEqual([
+        [inspection, tabId],
+        [inspection, tabId],
+      ]);
+      const beforeReceipt = await readJournal(directory, workflowId);
+      expect(JSON.parse(beforeReceipt)).toMatchObject({ pending: !manual });
+      const read = async () => {
+        throw new Error("Unexpected browser action");
+      };
+      const reconcile = (receipt: Parameters<typeof reconcileBrowserWorkflowSubmission>[4]) =>
+        reconcileBrowserWorkflowSubmission(
+          directory,
+          journalOwner,
+          reference,
+          journalTarget.projectId,
+          receipt,
+        );
+      await expect(reconcile(read)).rejects.toThrow("Unexpected browser action");
+      for (const target of [
+        { ...journalTarget, projectId: "other-project" },
+        { ...journalTarget, tabId: PreviewTabId.make("other-tab") },
+        { ...journalTarget, profileId: "Personal" },
+        { ...journalTarget, hostKey: "other-host" },
+      ]) {
+        await expect(
+          reconcile(async () => ({ target, stage: "submitted", statusText: "Submitted" })),
+        ).rejects.toThrow("did not confirm");
+      }
+      await expect(
+        reconcile(async () => ({
+          target: journalTarget,
+          stage: "submitted",
+          statusText: "Uploaded",
+        })),
+      ).rejects.toThrow("did not confirm");
+      await expect(
+        reconcileBrowserWorkflowSubmission(
+          directory,
+          journalOwner,
+          reference,
+          "other-project",
+          read,
+        ),
+      ).rejects.toThrow("unavailable");
+      for (const owner of [
+        { ...journalOwner, threadId: ThreadId.make("other") },
+        { ...journalOwner, environmentId: EnvironmentId.make("other") },
+      ]) {
+        await expect(
+          reconcileBrowserWorkflowSubmission(
+            directory,
+            owner,
+            reference,
+            journalTarget.projectId,
+            read,
+          ),
+        ).rejects.toThrow("original thread");
+      }
+      await expect(
+        reconcile(async () => ({
+          target: journalTarget,
+          stage: "uploaded",
+          statusText: "Uploaded",
+        })),
+      ).resolves.toEqual(draft);
+      expect(await readJournal(directory, workflowId)).toBe(beforeReceipt);
+      const check = () =>
+        reconcile(async (saved) => ({
+          target: saved.target,
+          stage: "submitted",
+          statusText: "Submitted",
+        }));
+      await check(); // Simulate a lost response after the durable commit.
+      const afterReceipt = await readJournal(directory, workflowId);
+      const receipt = { target: journalTarget, definition, stage: "submitted" };
+      expect(await check()).toEqual(receipt);
+      expect(await readBrowserWorkflowResult(directory, journalOwner, reference)).toEqual(receipt);
+      await expect(
+        reconcile(async () => ({
+          target: journalTarget,
+          stage: "uploaded",
+          statusText: "Uploaded",
+        })),
+      ).rejects.toThrow("did not confirm");
+      expect(await readJournal(directory, workflowId)).toBe(afterReceipt);
+      expect(submits).toBe(manual ? 0 : 1);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 const chromiumPath = chromium.executablePath();
