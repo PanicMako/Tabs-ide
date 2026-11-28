@@ -909,6 +909,38 @@ describe("Agent-led device comparison", () => {
       expect(f.press.mock.calls.map(([hostId]) => hostId)).toEqual([iphone.hostId]);
     },
   );
+
+  it.each(["source", "destination", "provider"] as const)(
+    "refuses a queued tap when the approved %s changes before dispatch",
+    async (changed) => {
+      const f = fixture([frame("ios", ["Continue"])], [frame("android", ["Continue"])], false);
+      const { run } = await f.propose();
+      const runId = run!.runId;
+      await f.approveRecording(runId);
+      const { controls } = await f.record({ action: "inspect", runId });
+      const started = Promise.withResolvers<void>();
+      const dispatch = Promise.withResolvers<void>();
+      const press = f.driver.press;
+      Object.assign(f.driver, {
+        press: (...args: Parameters<SemanticDriver["press"]>) =>
+          Effect.promise(() => {
+            started.resolve();
+            return dispatch.promise;
+          }).pipe(Effect.andThen(press(...args))),
+      });
+      await f.record({ action: "tap", runId, controlId: controls![0]!.id });
+      try {
+        await started.promise;
+        if (changed === "provider") f.replaceProvider();
+        else f.reopen(changed === "source" ? iphone : pixel);
+      } finally {
+        dispatch.resolve();
+      }
+      const settled = await f.settle();
+      expect(settled.run).toMatchObject({ steps: [], uncertainTap: false });
+      expect(f.press).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe.skip("Device comparison", () => {
